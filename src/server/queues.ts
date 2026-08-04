@@ -29,6 +29,44 @@ export interface OccasionOwnerMailJobData {
   roomId: string;
 }
 
+/**
+ * Напоминание гостю за 3 дня до праздника (тикет 12): джоба `reminder-guest`
+ * в очереди mail. Payload самодостаточен — обработчик рендерит письмо без
+ * походов в БД (сверяет только, что бронь ещё жива).
+ */
+export interface ReminderGuestMailJobData {
+  bookingId: string;
+  email: string;
+  guestName: string;
+  /** displayName хозяйки; null — имени нет, шаблон обходится без него. */
+  ownerName: string | null;
+  /** ISO-строка occasionDate комнаты (payload BullMQ — JSON). */
+  occasionDate: string;
+  itemTitle: string;
+  roomSlug: string;
+}
+
+/**
+ * Хранение выполненных джоб очереди mail: 14 суток. Это не уборка ради
+ * уборки, а ОКНО ДЕДУПЛИКАЦИИ напоминаний: reminder-guest ставится с
+ * детерминированным jobId (reminderGuestJobId), и повторный add с тем же
+ * jobId — no-op BullMQ, пока прежняя джоба жива (включая completed).
+ * Окно тика — 3 дня; 14 суток покрывают его с запасом. Count-лимитов в
+ * removeOnComplete очереди mail не добавлять: чистка по количеству могла бы
+ * выселить completed-джобу раньше срока и открыть дорогу дублю письма.
+ */
+export const MAIL_KEEP_COMPLETED = { age: 14 * 24 * 60 * 60 } as const; // секунды
+
+/**
+ * Детерминированный id джобы напоминания: одна бронь × одна дата праздника
+ * = максимум одно письмо (идемпотентность ежечасного тика без поля в БД).
+ * Сутки даты — UTC, как всюду в цикле праздника (тикет 10).
+ */
+export function reminderGuestJobId(bookingId: string, occasionDate: Date): string {
+  const yyyymmdd = occasionDate.toISOString().slice(0, 10).replace(/-/g, "");
+  return `reminder-${bookingId}-${yyyymmdd}`;
+}
+
 type QueueRegistry = Map<string, Promise<Queue>>;
 
 const globalForQueues = globalThis as unknown as { __wishlistQueues?: QueueRegistry };
@@ -95,13 +133,41 @@ export async function enqueueOccasionOwnerMail(data: OccasionOwnerMailJobData): 
     await queue.add("occasion-owner", data, {
       attempts: 3,
       backoff: { type: "exponential", delay: 3_000 },
-      removeOnComplete: 1_000,
+      // Возраст, не количество: count-чистка completed-набора очереди mail
+      // снесла бы дедуп-записи напоминаний (см. MAIL_KEEP_COMPLETED).
+      removeOnComplete: MAIL_KEEP_COMPLETED,
       removeOnFail: 5_000,
     });
     return true;
   } catch (error) {
     console.warn(
       `queues: mail недоступна — хозяйка ${data.userId} останется без письма о празднике`,
+      error instanceof Error ? error.message : error,
+    );
+    return false;
+  }
+}
+
+/**
+ * Поставить напоминание гостю (тикет 12; обработчик — src/worker/mail.ts).
+ * Никогда не бросает: очередь недоступна → false, следующий ежечасный тик
+ * доберёт. Дубли давит детерминированный jobId: пока джоба этой брони на
+ * эту дату жива (completed хранится 14 суток), повторный add — no-op.
+ */
+export async function enqueueReminderGuest(data: ReminderGuestMailJobData): Promise<boolean> {
+  try {
+    const queue = await getMailQueue();
+    await queue.add("reminder-guest", data, {
+      jobId: reminderGuestJobId(data.bookingId, new Date(data.occasionDate)),
+      attempts: 3,
+      backoff: { type: "exponential", delay: 3_000 },
+      removeOnComplete: MAIL_KEEP_COMPLETED,
+      removeOnFail: 5_000,
+    });
+    return true;
+  } catch (error) {
+    console.warn(
+      `queues: mail недоступна — бронь ${data.bookingId} пока без напоминания (тик повторит)`,
       error instanceof Error ? error.message : error,
     );
     return false;

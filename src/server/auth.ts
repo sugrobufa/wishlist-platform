@@ -4,27 +4,18 @@ import Nodemailer from "next-auth/providers/nodemailer";
 import Google from "next-auth/providers/google";
 import { PrismaAdapter } from "@auth/prisma-adapter";
 import { prisma } from "./db";
+import { sendMagicLink } from "./mailer";
 
 // Вход без пароля — правило продукта (PRD §7.4): почта + ссылка.
-// В dev без EMAIL_SERVER ссылка печатается в консоль сервера.
+// Отправка — общий транспорт src/server/mailer (тикет 12): в dev без
+// EMAIL_SERVER ссылка печатается в консоль сервера той же рамкой
+// «✉  [magic link] …», что и в Phase 0 (байт-в-байт — под перехват e2e).
 const providers: Provider[] = [
   Nodemailer({
     server: process.env.EMAIL_SERVER || { host: "localhost", port: 587 },
     from: process.env.EMAIL_FROM || "room@wishlist.local",
-    async sendVerificationRequest({ identifier, url, provider }) {
-      if (!process.env.EMAIL_SERVER) {
-        console.log(`\n✉  [magic link] ${identifier}\n   ${url}\n`);
-        return;
-      }
-      const { createTransport } = await import("nodemailer");
-      const transport = createTransport(provider.server as Parameters<typeof createTransport>[0]);
-      await transport.sendMail({
-        to: identifier,
-        from: provider.from,
-        subject: "Вход в вашу комнату",
-        text: `Ссылка для входа: ${url}`,
-        html: `<p>Ссылка для входа: <a href="${url}">войти</a></p>`,
-      });
+    async sendVerificationRequest({ identifier, url }) {
+      await sendMagicLink(identifier, url);
     },
   }),
 ];
