@@ -17,6 +17,10 @@ type ConnectionsListProps = {
   rows: ConnectionRowDto[];
   accent: string;
   ink: string;
+  /** «Сейчас» для relativeTime — с сервера (страница force-dynamic): один
+   * момент на рендер, сервер и клиент считают от него одинаково (без
+   * next-intl ENVIRONMENT_FALLBACK в консоли и без гидрационных расхождений). */
+  now: number;
 };
 
 /** Аватар собеседника: фото — или тихий силуэт, если аватара нет. */
@@ -49,7 +53,7 @@ function Avatar({ url }: { url: string | null }) {
   );
 }
 
-export function ConnectionsList({ rows, accent, ink }: ConnectionsListProps) {
+export function ConnectionsList({ rows, accent, ink, now }: ConnectionsListProps) {
   const t = useTranslations("Connections");
   const format = useFormatter();
   const [filter, setFilter] = useState<Filter>("ALL");
@@ -142,7 +146,7 @@ export function ConnectionsList({ rows, accent, ink }: ConnectionsListProps) {
               </div>
               {/* «N дней назад» — последнее событие связи. */}
               <span className="flex-none text-right text-[11px] font-medium text-text-muted">
-                {format.relativeTime(new Date(row.lastAt))}
+                {format.relativeTime(new Date(row.lastAt), now)}
               </span>
             </li>
           ))}

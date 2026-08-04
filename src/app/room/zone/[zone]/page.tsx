@@ -53,6 +53,11 @@ export default async function ZoneListPage({ params }: Params) {
   const own = (await listZoneItems(room.id, zone.key)).map(itemForOwner);
   const items = zoneDisplayItems(own, zone.key, zone.pool, room.demoGhostsOff);
 
+  // Живые счётчики своих вещей вместо счётчика-заглушки пакета (полировка 16):
+  // формат тот же, что в zones.json («N вещей · M в подарок»), числа настоящие.
+  // Пустая зона (в сетке только демо-призраки с бейджем «пример») — без подписи.
+  const wantCount = own.filter((item) => item.state === "WANT").length;
+
   return (
     <main className="min-h-screen pb-16">
       <div className="mx-auto w-full max-w-3xl px-5 lg:px-0">
@@ -61,14 +66,26 @@ export default async function ZoneListPage({ params }: Params) {
             ← {t("backToRoom")}
           </Link>
           <h1 className="display mt-5 text-3xl lg:text-4xl">{info?.label ?? zone.label}</h1>
-          {/* Подпись зоны из справочника zones.json (счётчик-заглушка пакета);
-              живые счётчики — во вкладках сетки ниже. */}
-          {info?.subtitle && <p className="mt-2 text-sm text-text-muted">{info.subtitle}</p>}
+          {own.length > 0 && (
+            <p className="mt-2 text-sm text-text-muted">
+              {t("zoneCounts", { total: own.length, want: wantCount })}
+            </p>
+          )}
         </header>
 
         {/* Сетка хозяйки со слотом действий (тикет 13): «Спрятать/Показать»
             и «Удалить» на своих вещах; у демо-призраков меню нет. */}
         <OwnerZoneGrid items={items} accent={preset.accent} ink={preset.ink} />
+
+        {/* Добавить вещь прямо в эту зону (полировка 16): ?zone=…
+            предвыбирает её в карточке добавления (контракт тикета 04). */}
+        <Link
+          href={`/room/add?zone=${zone.key}`}
+          className="pressable mt-6 inline-block text-xs font-semibold"
+          style={{ color: preset.accent }}
+        >
+          + {t("addItem")}
+        </Link>
       </div>
     </main>
   );

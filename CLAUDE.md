@@ -38,9 +38,10 @@ npm run dev                   # Next.js dev server
 npx prisma migrate dev        # миграции
 npx prisma studio             # просмотр БД
 npm run worker                # BullMQ worker (отдельный процесс)
+npm run tokens                # Tailwind-токены из handoff/tokens.json
 npm run lint && npm run typecheck
 npm run test                  # vitest (unit)
-npm run test:e2e              # playwright
+npm run test:e2e              # playwright: сам поднимает dev-сервер на :3100
 ```
 
 Поддерживай команды рабочими; меняется структура — обнови этот файл.

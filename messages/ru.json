@@ -45,7 +45,8 @@
     "copied": "Ссылка скопирована",
     "hallLink": "Зал славы",
     "connectionsLink": "Связи",
-    "occasionBanner": "Праздник прошёл — открой «что подарили»"
+    "occasionBanner": "Праздник прошёл — открой «что подарили»",
+    "addItem": "Добавить вещь"
   },
   "Scene": {
     "hint": "коснись зоны — подойдём ближе",
@@ -67,6 +68,8 @@
     "demoBadge": "пример",
     "demoNote": "пример — замени на своё",
     "openFull": "Вся зона списком",
+    "addItem": "Добавить вещь",
+    "zoneCounts": "{total, plural, one {# вещь} few {# вещи} many {# вещей} other {# вещи}}{want, plural, =0 {} other { · # в подарок}}",
     "backToRoom": "В комнату"
   },
   "AddItem": {

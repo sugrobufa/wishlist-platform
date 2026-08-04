@@ -63,7 +63,11 @@ export default async function ConnectionsPage() {
         </header>
 
         {connections.length > 0 ? (
-          <ConnectionsList rows={connections} accent={accent} ink={ink} />
+          // «Сейчас» для relativeTime фиксируется на сервере: страница
+          // force-dynamic (рендер на каждый запрос), клиент считает от того же
+          // момента — без гидрационных расхождений и без ENVIRONMENT_FALLBACK.
+          // eslint-disable-next-line react-hooks/purity -- перезапуска рендера с устаревшим now у RSC-страницы не бывает
+          <ConnectionsList rows={connections} accent={accent} ink={ink} now={Date.now()} />
         ) : (
           // Тихое пустое состояние: добавлять руками нечего — и это нормально.
           <div className="max-w-md border border-dashed border-surface-hairline p-5">

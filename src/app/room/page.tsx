@@ -105,6 +105,21 @@ export default async function RoomPage() {
               {t("occasionBanner")} →
             </Link>
           )}
+          {/* Вход в добавление вещи из самой комнаты (полировка 16: раньше
+              /room/add жил только прямым URL). Маленькая «полоса света» —
+              главная кнопка везде (турн 22), здесь тихого размера. */}
+          <div className="mt-5">
+            <Link
+              href="/room/add"
+              className="pressable inline-block border-b-2 px-4 py-2 text-sm font-semibold text-text-primary"
+              style={{
+                borderColor: preset?.accent ?? "#E7C9A9",
+                boxShadow: `0 4px 18px -3px ${preset?.accent ?? "#E7C9A9"}6B`,
+              }}
+            >
+              {t("addItem")} →
+            </Link>
+          </div>
         </header>
 
         {preset && (
@@ -147,13 +162,24 @@ async function buildZoneContent(
       const node = (
         <div key={zone.key}>
           <ZoneGrid items={items} accent={preset.accent} ink={preset.ink} />
-          <Link
-            href={`/room/zone/${zone.key}`}
-            className="pressable mt-4 inline-block text-xs font-semibold"
-            style={{ color: preset.accent }}
-          >
-            {tZone("openFull")} →
-          </Link>
+          <div className="mt-4 flex items-center gap-5">
+            <Link
+              href={`/room/zone/${zone.key}`}
+              className="pressable inline-block text-xs font-semibold"
+              style={{ color: preset.accent }}
+            >
+              {tZone("openFull")} →
+            </Link>
+            {/* Добавить вещь сразу в открытую зону (полировка 16): ?zone=…
+                предвыбирает её в карточке добавления (контракт тикета 04). */}
+            <Link
+              href={`/room/add?zone=${zone.key}`}
+              className="pressable inline-block text-xs font-semibold"
+              style={{ color: preset.accent }}
+            >
+              + {tZone("addItem")}
+            </Link>
+          </div>
         </div>
       );
       return [zone.key, node] as const;

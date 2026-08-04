@@ -9,7 +9,7 @@
 // вне «что подарили» перехода с раскрытием не существует.
 // Переход «хочу → люблю» необратим: LOVE→WANT нет ни здесь, ни в items.
 import { revalidateTag } from "next/cache";
-import type { Item, OccasionSummary } from "@prisma/client";
+import { Prisma, type Item, type OccasionSummary } from "@prisma/client";
 import { z } from "zod";
 import { prisma } from "@/server/db";
 import { roomCacheTag } from "@/server/services/items";
@@ -99,9 +99,24 @@ export async function closeOccasion(
   });
   if (existing) return { summary: existing, created: false };
 
-  const summary = await prisma.occasionSummary.create({
-    data: { roomId: room.id, date },
-  });
+  let summary: OccasionSummary;
+  try {
+    summary = await prisma.occasionSummary.create({
+      data: { roomId: room.id, date },
+    });
+  } catch (error) {
+    // Гонка cron+клик (оба прошли findFirst до чужого коммита): уникальность
+    // (roomId, date) — миграция occasion_unique_room_date, полировка 16 —
+    // отдаёт проигравшему P2002; он берёт summary победителя. Письмо ставит
+    // только победитель — второго не будет и под гонкой.
+    if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002") {
+      const winner = await prisma.occasionSummary.findUnique({
+        where: { roomId_date: { roomId: room.id, date } },
+      });
+      if (winner) return { summary: winner, created: false };
+    }
+    throw error;
+  }
   // Контракт payload для тикета 12: {userId, email, roomId}, джоба occasion-owner.
   await enqueueOccasionOwnerMail({ userId: room.userId, email: room.user.email, roomId: room.id });
   return { summary, created: true };

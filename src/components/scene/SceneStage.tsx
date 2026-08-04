@@ -5,6 +5,7 @@
 // выход — «сетка гаснет → камера отъезжает» (closeZone). Координаты только из
 // rooms.json через src/config/design; телефон и десктоп — одна карта.
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { preload } from "react-dom";
 import { useTranslations } from "next-intl";
 import { hitTargetMin, scene, sceneMotion, type Room, type RoomZone } from "@/config/design";
 import { roomImageUrl } from "@/app/rooms/room-image";
@@ -78,6 +79,15 @@ const BASE_VARS = {
 export function SceneStage({ preset, zonesOff, zoneContent, className }: SceneStageProps) {
   const t = useTranslations("Scene");
   const zones = useMemo(() => visibleZones(preset.zones, zonesOff), [preset.zones, zonesOff]);
+
+  // Кадр комнаты — LCP-элемент, но живёт CSS-фоном: сканер браузера его не
+  // видит, и на медленной сети загрузка стартовала бы только после гидрации
+  // (Lighthouse: старт ~1.6с, LCP 3.8с). preload при SSR уезжает в <head>
+  // начального HTML — кадр едет с первого байта (полировка 16).
+  // fetchPriority=high обязателен: A/B на прод-сборке (slow-4G симуляция) —
+  // с high LCP 2.7с / perf 90, без него браузер держит preload картинки в
+  // низком приоритете за скриптами и LCP откатывается к 3.8с / perf 84.
+  preload(roomImageUrl(preset.base), { as: "image", fetchPriority: "high" });
 
   const [phase, setPhase] = useState<Phase>("idle");
   const [activeKey, setActiveKey] = useState<string | null>(null);

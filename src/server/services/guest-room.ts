@@ -9,7 +9,7 @@
 //   функция видимых гостю данных, наличие спрятанных вещей картинку не
 //   меняет (нет побочного канала «в этой зоне что-то спрятано»).
 import { unstable_cache } from "next/cache";
-import type { Item, Prisma } from "@prisma/client";
+import type { Prisma } from "@prisma/client";
 import { z } from "zod";
 import { prisma } from "@/server/db";
 import { rooms as roomPresets } from "@/config/design";
@@ -17,6 +17,7 @@ import { visibleZones } from "@/components/scene/zones";
 import { demoGhostsFor } from "@/config/demo-pools";
 import { ghostForGuest, itemForGuest, type GuestItemDto } from "@/server/dto/guest-items";
 import { itemPhotoUrl } from "@/server/dto/items";
+import { compareZoneItems } from "@/server/services/items";
 
 // Слаг приходит из URL от кого угодно: мусор режем до похода в БД.
 const slugSchema = z.string().min(1).max(64);
@@ -63,8 +64,11 @@ export async function getGuestRoom(slug: string): Promise<GuestRoomView | null> 
   const parsedSlug = slugSchema.safeParse(slug);
   if (!parsedSlug.success) return null;
 
-  // Строка комнаты читается свежей на каждый запрос (дёшево: unique-индексы) —
-  // preset/zonesOff/demoGhostsOff/имя не зависят от кэша вещей.
+  // Строка комнаты читается свежей на каждый ВЫЗОВ сервиса (дёшево:
+  // unique-индексы) — preset/zonesOff/demoGhostsOff/имя не зависят от кэша
+  // вещей. С полностраничным ISR (полировка 16) вызов случается при каждой
+  // регенерации /r/{slug}, а регенерацию мутации хозяйки заказывают сами —
+  // revalidateTag(room-{id}); свежесть для гостя от этого не страдает.
   const room =
     (await prisma.room.findUnique({
       where: { nick: parsedSlug.data },
@@ -109,40 +113,28 @@ export async function getGuestRoom(slug: string): Promise<GuestRoomView | null> 
 /**
  * Вещи комнаты глазами гостя, сгруппированные по зонам, — в Next Data Cache
  * с тегом `room-{roomId}`. Мутации хозяйки ревалидируют этот тег (тикет 04 —
- * вещи, тикет 13 — настройки). В кэше лежат только guest-DTO (чистый JSON):
- * спрятанное отфильтровано ещё в запросе и в кэш не попадает.
+ * вещи, тикет 13 — настройки); тот же тег через рендер приклеивается к
+ * полностраничному кэшу /r/{slug} (ISR — полировка 16). В кэше лежат только
+ * guest-DTO (чистый JSON): спрятанное отфильтровано ещё в запросе и в кэш
+ * не попадает. revalidate — страховочное окно для записей, которые до кэша
+ * не достают (photoKey из воркера image.ingest — Comments тикета 06).
  */
 function readGuestItemsCached(roomId: string): Promise<Record<string, GuestItemDto[]>> {
   return unstable_cache(() => loadGuestItems(roomId), ["guest-room-items", roomId], {
     tags: [`room-${roomId}`],
+    revalidate: 300,
   })();
 }
 
 async function loadGuestItems(roomId: string): Promise<Record<string, GuestItemDto[]>> {
   const items = await prisma.item.findMany({ where: { roomId, hidden: false } });
-  items.sort(compareGuestItems);
+  // Порядок — контракт тикета 03, ТОТ ЖЕ компаратор, что у хозяйки
+  // (дубль compareGuestItems объединён в полировке — тикет 16).
+  items.sort(compareZoneItems);
 
   const byZone: Record<string, GuestItemDto[]> = {};
   for (const item of items) {
     (byZone[item.zone] ??= []).push(itemForGuest(item));
   }
   return byZone;
-}
-
-/**
- * Порядок вещей — контракт тикета 03, как у хозяйки: «люблю» новыми вперёд;
- * «хочу» по desire ↓ (без desire — в конец), затем новые выше. Дубликат
- * compareZoneItems из services/items.ts: он не экспортирован, а чужие сервисы
- * этот тикет не трогает — кандидат на объединение в полировке (тикет 16).
- */
-function compareGuestItems(a: Item, b: Item): number {
-  if (a.state !== b.state) return a.state === "LOVE" ? -1 : 1;
-  if (a.state === "WANT") {
-    const desireA = a.desire ?? -1;
-    const desireB = b.desire ?? -1;
-    if (desireA !== desireB) return desireB - desireA;
-  }
-  const byDate = b.createdAt.getTime() - a.createdAt.getTime();
-  if (byDate !== 0) return byDate;
-  return a.id < b.id ? 1 : -1;
 }

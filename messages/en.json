@@ -45,7 +45,8 @@
     "copied": "Link copied",
     "hallLink": "Hall of fame",
     "connectionsLink": "Connections",
-    "occasionBanner": "The occasion has passed — open “what was gifted”"
+    "occasionBanner": "The occasion has passed — open “what was gifted”",
+    "addItem": "Add an item"
   },
   "Scene": {
     "hint": "tap a zone to step closer",
@@ -67,6 +68,8 @@
     "demoBadge": "sample",
     "demoNote": "a sample — replace with your own",
     "openFull": "See the whole zone",
+    "addItem": "Add an item",
+    "zoneCounts": "{total, plural, one {# item} other {# items}}{want, plural, =0 {} other { · # to gift}}",
     "backToRoom": "Back to the room"
   },
   "AddItem": {

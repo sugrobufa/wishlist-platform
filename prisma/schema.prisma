@@ -186,7 +186,10 @@ model PoolContribution {
   booking Booking @relation(fields: [bookingId], references: [id], onDelete: Cascade)
 }
 
-// «Что подарили»: итог праздника; имена раскрываются ровно один раз
+// «Что подарили»: итог праздника; имена раскрываются ровно один раз.
+// (roomId, date) уникальна (полировка 16): гонка cron+клик не плодит два
+// summary одной даты — проигравший ловит P2002 и берёт существующий
+// (closeOccasion идемпотентен и под гонкой).
 model OccasionSummary {
   id         String    @id @default(cuid())
   roomId     String
@@ -194,7 +197,7 @@ model OccasionSummary {
   revealedAt DateTime?
   createdAt  DateTime  @default(now())
 
-  @@index([roomId, date])
+  @@unique([roomId, date])
 }
 
 // ---------- Связи (не добавляются вручную) ----------

@@ -32,7 +32,12 @@ export async function listZoneItems(roomId: string, zoneKey: string): Promise<It
   return items.sort(compareZoneItems);
 }
 
-function compareZoneItems(a: Item, b: Item): number {
+/**
+ * Единый порядок вещей в сетке (контракт тикета 03): группа «люблю» —
+ * новые выше; группа «хочу» — desire ↓ (без desire — в конец), затем новые
+ * выше. Экспортирован для guest-room (тикет 07 держал дубль — полировка 16).
+ */
+export function compareZoneItems(a: Item, b: Item): number {
   if (a.state !== b.state) return a.state === "LOVE" ? -1 : 1;
   if (a.state === "WANT") {
     // desire: 4 → 1, null — в конец (степень желания не указана).
