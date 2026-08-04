@@ -10,12 +10,42 @@ import { NextResponse, type NextRequest } from "next/server";
 import { z } from "zod";
 import { auth } from "@/server/auth";
 import { getSessionUserId } from "@/server/services/rooms";
-import { ParserError, parseUrl } from "@/server/parser";
+import { ParserError, parseHtml, parseUrl } from "@/server/parser";
 import { getParseLimiter } from "./limiter";
 
 export const dynamic = "force-dynamic";
 
 const bodySchema = z.object({ url: z.string().trim().min(1).max(2048) });
+
+// ---------- Тестовый шов e2e (тикет 15): фикстурный магазин ----------
+//
+// localhost для парсера закрыт SSRF-защитой BY DESIGN (инвариант №6, Comments
+// тикета 06), поэтому e2e ходит в «магазин» внутрипроцессно: при env
+// E2E_FIXTURE_SHOP=1 И hostname запрошенного URL === e2e-shop.test страница
+// НЕ качается из сети — HTML берётся из фикстуры парсера (ozon.html, диск),
+// а normalize/каскад JSON-LD→OG→эвристики/zoneHint работают по-настоящему
+// через parseHtml. Флаг выключен (dev/prod) → ветки нет, путь прежний.
+
+const E2E_FIXTURE_HOST = "e2e-shop.test";
+
+function isE2eFixtureUrl(rawUrl: string): boolean {
+  if (process.env.E2E_FIXTURE_SHOP !== "1") return false;
+  try {
+    return new URL(rawUrl).hostname === E2E_FIXTURE_HOST;
+  } catch {
+    return false; // не URL — пусть честно отработает обычный parseUrl
+  }
+}
+
+async function parseE2eFixture(rawUrl: string): Promise<NextResponse> {
+  const [{ readFile }, { join }] = await Promise.all([
+    import("node:fs/promises"),
+    import("node:path"),
+  ]);
+  const fixturePath = join(process.cwd(), "src", "server", "parser", "__fixtures__", "ozon.html");
+  const html = await readFile(fixturePath, "utf8");
+  return NextResponse.json({ data: parseHtml(html, rawUrl) });
+}
 
 function errorResponse(code: string, message: string, status: number): NextResponse {
   return NextResponse.json({ error: { code, message } }, { status });
@@ -40,6 +70,11 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
   const parsedBody = bodySchema.safeParse(body);
   if (!parsedBody.success) {
     return errorResponse("VALIDATION", "нужно поле url строкой", 400);
+  }
+
+  // Шов e2e (тикет 15): фикстурный магазин перехватывается ДО сети.
+  if (isE2eFixtureUrl(parsedBody.data.url)) {
+    return parseE2eFixture(parsedBody.data.url);
   }
 
   try {

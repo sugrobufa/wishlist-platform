@@ -1,0 +1,91 @@
+# e2e happy path (тикет 15): полный цикл дарения на реальном стеке.
+# Отдельный workflow — nightly + ручной запуск: основной ci.yml остаётся
+# быстрым и без браузеров. Сервисы повторяют docker-compose дева:
+# postgres (pgvector), redis, minio (bitnami-образ умеет стартовать сервером
+# и создавать бакеты через env — обычному minio/minio в GitHub services
+# нельзя передать команду `server`).
+name: E2E
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "0 3 * * *" # nightly, 03:00 UTC
+
+jobs:
+  e2e:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    services:
+      postgres:
+        image: pgvector/pgvector:pg17
+        env:
+          POSTGRES_USER: wishlist
+          POSTGRES_PASSWORD: wishlist
+          POSTGRES_DB: wishlist
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U wishlist"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 20
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+      minio:
+        image: bitnami/minio:2025.4.22
+        env:
+          MINIO_ROOT_USER: minioadmin
+          MINIO_ROOT_PASSWORD: minioadmin
+          MINIO_DEFAULT_BUCKETS: wishlist,wishlist-private
+        ports:
+          - 9000:9000
+    env:
+      DATABASE_URL: postgresql://wishlist:wishlist@localhost:5432/wishlist
+      REDIS_URL: redis://localhost:6379
+      S3_ENDPOINT: http://localhost:9000
+      S3_BUCKET: wishlist
+      S3_PRIVATE_BUCKET: wishlist-private
+      S3_ACCESS_KEY: minioadmin
+      S3_SECRET_KEY: minioadmin
+      AUTH_SECRET: e2e-ci-only-secret
+      AUTH_TRUST_HOST: "true"
+      EMAIL_FROM: room@wishlist.local
+      CATALOG_ENABLED: "false"
+      RECOGNIZE_ENABLED: "false"
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install
+        run: npm ci
+
+      - name: Design tokens (from handoff)
+        run: npm run tokens
+
+      - name: Apply migrations
+        run: npx prisma migrate deploy
+
+      - name: Seed
+        run: npx prisma db seed
+
+      - name: Install Playwright chromium
+        run: npx playwright install chromium --with-deps
+
+      - name: E2E (playwright, свой dev-сервер на :3100)
+        run: npm run test:e2e
+
+      - name: Upload report on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report
+          path: |
+            playwright-report/
+            test-results/
+          retention-days: 7

@@ -1,22 +1,49 @@
+import "dotenv/config";
 import { defineConfig, devices } from "@playwright/test";
+import { E2E_BASE_URL, E2E_MAIL_FILE, E2E_PORT } from "./e2e/env";
 
 export default defineConfig({
   testDir: "./e2e",
   fullyParallel: true,
   retries: process.env.CI ? 2 : 0,
-  reporter: "html",
+  reporter: [["list"], ["html", { open: "never" }]],
+  // Dev-сервер компилирует маршруты лениво — первым заходам нужен запас.
+  expect: { timeout: 15_000 },
   use: {
-    baseURL: "http://localhost:3000",
+    baseURL: E2E_BASE_URL,
     trace: "on-first-retry",
   },
   projects: [
     { name: "chromium", use: { ...devices["Desktop Chrome"] } },
-    { name: "mobile", use: { ...devices["iPhone 14"] } },
+    // Полный цикл (full-cycle) гоняется один раз в chromium: у него
+    // фиксированные e2e-почты и общая dev-БД — параллельный второй прогон
+    // дрался бы за одни и те же строки. Мобильная эмуляция перф-замера
+    // живёт внутри самого спека (devices["iPhone 14"] на chromium).
+    //
+    // browserName задан явно: у iPhone-пресета defaultBrowserType — webkit,
+    // а локально и в CI ставится ТОЛЬКО chromium (тикет 15) — мобильный
+    // проект эмулирует вьюпорт/тач на нём же.
+    {
+      name: "mobile",
+      use: { ...devices["iPhone 14"], browserName: "chromium" },
+      testIgnore: /full-cycle/,
+    },
   ],
   webServer: {
+    // СВОЙ dev-сервер на своём порту (тикет 15): возможный чужой на :3000
+    // не переиспользуем и не трогаем. Порт параметризован через e2e/env.ts
+    // (E2E_PORT), сам скрипт package.json не меняется — next dev читает PORT.
     command: "npm run dev",
-    url: "http://localhost:3000",
-    reuseExistingServer: !process.env.CI,
-    timeout: 120_000,
+    url: E2E_BASE_URL,
+    reuseExistingServer: false,
+    timeout: 180_000,
+    env: {
+      PORT: String(E2E_PORT),
+      // Абсолютные ссылки (письма, OG) собираются от адреса e2e-сервера.
+      APP_BASE_URL: E2E_BASE_URL,
+      // Тестовые швы тикета 15: перехват писем + фикстурный магазин парсера.
+      E2E_MAIL_FILE,
+      E2E_FIXTURE_SHOP: "1",
+    },
   },
 });

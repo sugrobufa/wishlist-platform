@@ -3,6 +3,9 @@
 // magic link сохранена байт-в-байт с Phase 0 (её перехватывает e2e тикета
 // 15), шаблоны несут имя/вещь/дату/ссылки и экранируют пользовательский
 // ввод в HTML.
+import { existsSync, mkdtempSync, readFileSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   appUrl,
@@ -19,6 +22,7 @@ const OCCASION_DATE = new Date("2026-03-14T00:00:00.000Z");
 beforeEach(() => {
   vi.stubEnv("EMAIL_SERVER", ""); // dev-режим: консоль, nodemailer не трогаем
   vi.stubEnv("APP_BASE_URL", BASE);
+  vi.stubEnv("E2E_MAIL_FILE", ""); // шов e2e по умолчанию выключен
 });
 
 afterEach(() => {
@@ -52,6 +56,76 @@ describe("консольный транспорт (без EMAIL_SERVER)", () => 
 
     expect(log).toHaveBeenCalledTimes(1);
     expect(log).toHaveBeenCalledWith(`\n✉  [magic link] dev@x.ru\n   ${url}\n`);
+  });
+});
+
+describe("тестовый шов E2E_MAIL_FILE (тикет 15)", () => {
+  let dir: string;
+  let file: string;
+
+  beforeEach(() => {
+    dir = mkdtempSync(join(tmpdir(), "wishlist-mail-"));
+    file = join(dir, "nested", "mail.ndjson"); // вложенный путь: mkdir -p обязан работать
+  });
+
+  afterEach(() => {
+    rmSync(dir, { recursive: true, force: true });
+  });
+
+  it("флаг пуст → файл не появляется, консольная рамка прежняя (байт-в-байт)", async () => {
+    const log = vi.spyOn(console, "log").mockImplementation(() => undefined);
+    const url = "http://localhost:3000/api/auth/callback/nodemailer?token=abc";
+
+    await sendMagicLink("dev@x.ru", url);
+    await sendMail({ to: "guest@example.com", subject: "Тема", text: "текст" });
+
+    expect(existsSync(file)).toBe(false);
+    expect(log).toHaveBeenCalledWith(`\n✉  [magic link] dev@x.ru\n   ${url}\n`);
+  });
+
+  it("sendMail дописывает NDJSON-строку {kind:'mail', to, subject, at}, не трогая консоль", async () => {
+    vi.stubEnv("E2E_MAIL_FILE", file);
+    const log = vi.spyOn(console, "log").mockImplementation(() => undefined);
+
+    await sendMail({ to: "owner@example.com", subject: "Первое", text: "раз" });
+    await sendMail({ to: "guest@example.com", subject: "Второе", text: "два" });
+
+    const lines = readFileSync(file, "utf8").trim().split("\n");
+    expect(lines).toHaveLength(2); // append, не перезапись
+    const first = JSON.parse(lines[0] ?? "") as Record<string, unknown>;
+    expect(first).toMatchObject({ kind: "mail", to: "owner@example.com", subject: "Первое" });
+    expect(new Date(String(first.at)).getTime()).not.toBeNaN();
+    expect(JSON.parse(lines[1] ?? "")).toMatchObject({ kind: "mail", to: "guest@example.com" });
+
+    // Консольный вывод не изменился: письмо по-прежнему печатается рамкой.
+    expect(log).toHaveBeenCalledTimes(2);
+    expect(String(log.mock.calls[0]?.[0])).toContain("✉  [письмо] owner@example.com");
+  });
+
+  it("sendMagicLink дописывает {kind:'magic-link', to, url} и печатает рамку байт-в-байт", async () => {
+    vi.stubEnv("E2E_MAIL_FILE", file);
+    const log = vi.spyOn(console, "log").mockImplementation(() => undefined);
+    const url = "http://localhost:3100/api/auth/callback/nodemailer?token=t&email=e%40x.ru";
+
+    await sendMagicLink("e@x.ru", url);
+
+    const record = JSON.parse(readFileSync(file, "utf8").trim()) as Record<string, unknown>;
+    expect(record).toMatchObject({ kind: "magic-link", to: "e@x.ru", url });
+    expect(log).toHaveBeenCalledTimes(1);
+    expect(log).toHaveBeenCalledWith(`\n✉  [magic link] e@x.ru\n   ${url}\n`);
+  });
+
+  it("сбой записи (путь-каталог) не роняет отправку — письмо уходит, ошибка в console.error", async () => {
+    vi.stubEnv("E2E_MAIL_FILE", dir); // каталог вместо файла: append гарантированно падает
+    const log = vi.spyOn(console, "log").mockImplementation(() => undefined);
+    const error = vi.spyOn(console, "error").mockImplementation(() => undefined);
+
+    await expect(
+      sendMail({ to: "guest@example.com", subject: "Тема", text: "текст" }),
+    ).resolves.toBeUndefined();
+
+    expect(log).toHaveBeenCalledTimes(1); // письмо честно напечатано
+    expect(error).toHaveBeenCalledTimes(1);
   });
 });
 

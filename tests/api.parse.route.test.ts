@@ -4,7 +4,7 @@
 // только его собственные ветки.
 import "dotenv/config";
 import { randomUUID } from "node:crypto";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { NextRequest } from "next/server";
 
 vi.mock("@/server/auth", () => ({ auth: vi.fn() }));
@@ -49,6 +49,10 @@ const product: ParsedProduct = {
 beforeEach(() => {
   authMock.mockReset();
   parseUrlMock.mockReset();
+});
+
+afterEach(() => {
+  vi.unstubAllEnvs();
 });
 
 describe("POST /api/v1/parse", () => {
@@ -120,5 +124,63 @@ describe("POST /api/v1/parse", () => {
     signInAs(); // другой пользователь
     const response = await POST(postRequest({ url: "https://shop.example/a" }));
     expect(response.status).toBe(200);
+  });
+});
+
+// Шов e2e (тикет 15): фикстурный магазин e2e-shop.test за флагом
+// E2E_FIXTURE_SHOP. Ключевое — флаг выключен = поведение прежнее байт-в-байт.
+describe("POST /api/v1/parse — фикстурный магазин e2e (E2E_FIXTURE_SHOP)", () => {
+  const FIXTURE_URL = "https://e2e-shop.test/product";
+
+  it("флаг выключен: URL фикстурного магазина уходит в обычный parseUrl (прежнее поведение)", async () => {
+    signInAs();
+    parseUrlMock.mockResolvedValue(product);
+
+    const response = await POST(postRequest({ url: FIXTURE_URL }));
+
+    expect(response.status).toBe(200);
+    expect(await response.json()).toEqual({ data: product }); // ответ парсера, не фикстуры
+    expect(parseUrlMock).toHaveBeenCalledWith(FIXTURE_URL);
+  });
+
+  it("флаг включён + hostname e2e-shop.test → разбор фикстуры ozon.html без сети", async () => {
+    vi.stubEnv("E2E_FIXTURE_SHOP", "1");
+    signInAs();
+
+    const response = await POST(postRequest({ url: FIXTURE_URL }));
+
+    expect(response.status).toBe(200);
+    const body = (await response.json()) as { data: Record<string, unknown> };
+    // Настоящий каскад parseHtml: JSON-LD фикстуры Ozon (тесты парсера 05).
+    expect(body.data.title).toBe("Смартфон Samsung Galaxy S24 8/256 ГБ графитовый");
+    expect(body.data.price).toBe("74990");
+    expect(body.data.currency).toBe("RUB");
+    expect(body.data.zoneHint).toBe("tech");
+    expect(body.data.confidence).toBe(0.9);
+    // canonical/domain — от ЗАПРОШЕННОГО url, не от фикстуры.
+    expect(body.data.domain).toBe("e2e-shop.test");
+    expect(body.data.canonicalUrl).toBe(FIXTURE_URL);
+    expect(parseUrlMock).not.toHaveBeenCalled(); // сеть не тронута
+  });
+
+  it("флаг включён, но hostname чужой → обычный parseUrl, перехвата нет", async () => {
+    vi.stubEnv("E2E_FIXTURE_SHOP", "1");
+    signInAs();
+    parseUrlMock.mockResolvedValue(product);
+
+    const response = await POST(postRequest({ url: "https://shop.example/rings" }));
+
+    expect(response.status).toBe(200);
+    expect(parseUrlMock).toHaveBeenCalledWith("https://shop.example/rings");
+  });
+
+  it("флаг включён не отменяет auth: без сессии — 401 и никакой фикстуры", async () => {
+    vi.stubEnv("E2E_FIXTURE_SHOP", "1");
+    authMock.mockResolvedValue(null);
+
+    const response = await POST(postRequest({ url: FIXTURE_URL }));
+
+    expect(response.status).toBe(401);
+    expect(parseUrlMock).not.toHaveBeenCalled();
   });
 });

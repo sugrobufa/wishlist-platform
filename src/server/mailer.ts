@@ -28,6 +28,39 @@ const globalForMailer = globalThis as unknown as {
   __wishlistMailTransport?: Promise<Transporter>;
 };
 
+// ---------- Тестовый шов e2e (тикет 15) ----------
+
+/** Строка NDJSON в E2E_MAIL_FILE: письмо или magic link, ушедшие из mailer. */
+type MailFileRecord = {
+  kind: "mail" | "magic-link";
+  to: string;
+  subject?: string;
+  url?: string;
+  at: string;
+};
+
+/**
+ * E2E_MAIL_FILE задан (только e2e-прогоны, playwright.config.ts) → каждое
+ * «письмо» и magic link ДОПОЛНИТЕЛЬНО дописываются строкой NDJSON в файл:
+ * e2e/full-cycle.spec.ts достаёт оттуда ссылку входа и письмо occasion-owner.
+ * Флаг пуст (dev/prod) — ветка мертва: консоль и SMTP байт-в-байт прежние.
+ * Шов не имеет права ломать отправку — сбой записи глотается с console.error.
+ */
+async function appendToMailFile(record: MailFileRecord): Promise<void> {
+  const file = process.env.E2E_MAIL_FILE;
+  if (!file) return;
+  try {
+    const [{ appendFile, mkdir }, { dirname }] = await Promise.all([
+      import("node:fs/promises"),
+      import("node:path"),
+    ]);
+    await mkdir(dirname(file), { recursive: true });
+    await appendFile(file, `${JSON.stringify(record)}\n`, "utf8");
+  } catch (error) {
+    console.error(`E2E_MAIL_FILE: не удалось дописать письмо в ${file}:`, error);
+  }
+}
+
 function smtpTransport(): Promise<Transporter> {
   globalForMailer.__wishlistMailTransport ??= import("nodemailer").then(({ createTransport }) =>
     createTransport(process.env.EMAIL_SERVER),
@@ -41,6 +74,7 @@ function smtpTransport(): Promise<Transporter> {
  * вызывающего (у mail-джоб это attempts BullMQ).
  */
 export async function sendMail({ to, subject, text, html }: MailInput): Promise<void> {
+  await appendToMailFile({ kind: "mail", to, subject, at: new Date().toISOString() });
   if (!process.env.EMAIL_SERVER) {
     const body = text
       .split("\n")
@@ -65,6 +99,7 @@ export async function sendMail({ to, subject, text, html }: MailInput): Promise<
  * именно по «✉  [magic link] …» — не менять без него.
  */
 export async function sendMagicLink(to: string, url: string): Promise<void> {
+  await appendToMailFile({ kind: "magic-link", to, url, at: new Date().toISOString() });
   if (!process.env.EMAIL_SERVER) {
     console.log(`\n✉  [magic link] ${to}\n   ${url}\n`);
     return;
