@@ -8,8 +8,10 @@
 // на процесс, гонка параллельных создающих гасится BucketAlreadyOwnedByYou).
 import {
   CreateBucketCommand,
+  DeleteObjectsCommand,
   GetObjectCommand,
   HeadBucketCommand,
+  ListObjectsV2Command,
   PutObjectCommand,
   S3Client,
 } from "@aws-sdk/client-s3";
@@ -130,6 +132,68 @@ export async function getObjectStream(key: string): Promise<S3ObjectStream | nul
   } catch (error) {
     if (isMissingObject(error)) return null;
     throw error;
+  }
+}
+
+// ---------- Массовая чистка (GDPR, тикет 14) ----------
+
+/**
+ * Все ключи бакета с данным префиксом — ListObjectsV2 с пагинацией
+ * (страница ≤1000 ключей). Пустой/кривой префикс не принимаем: без него
+ * листался бы ВЕСЬ бакет, а единственный потребитель — чистка по
+ * `items/{roomId}/` и `avatars/{userId}/`.
+ */
+export async function listKeysByPrefix(prefix: string): Promise<string[]> {
+  if (!prefix || prefix.length < 3) {
+    throw new Error("s3.listKeysByPrefix: нужен содержательный префикс, не весь бакет");
+  }
+  await ensureBucket();
+  const keys: string[] = [];
+  let token: string | undefined;
+  do {
+    const out = await s3().send(
+      new ListObjectsV2Command({
+        Bucket: s3Bucket(),
+        Prefix: prefix,
+        ContinuationToken: token,
+      }),
+    );
+    for (const object of out.Contents ?? []) {
+      if (object.Key) keys.push(object.Key);
+    }
+    token = out.IsTruncated ? out.NextContinuationToken : undefined;
+  } while (token);
+  return keys;
+}
+
+/** Лимит одного DeleteObjects в API S3 — 1000 ключей. */
+const DELETE_BATCH_SIZE = 1000;
+
+/**
+ * Удалить объекты по списку ключей, батчами по 1000 (Quiet-режим: S3
+ * отвечает только ошибками). Пустой список — no-op; несуществующий ключ
+ * для S3 не ошибка (удаление идемпотентно). Частичный отказ — исключение:
+ * вызывающий решает, валить ли операцию (GDPR-чистка — не валит, логирует).
+ */
+export async function deleteObjects(keys: readonly string[]): Promise<void> {
+  if (keys.length === 0) return;
+  await ensureBucket();
+  for (let start = 0; start < keys.length; start += DELETE_BATCH_SIZE) {
+    const batch = keys.slice(start, start + DELETE_BATCH_SIZE);
+    const out = await s3().send(
+      new DeleteObjectsCommand({
+        Bucket: s3Bucket(),
+        Delete: { Objects: batch.map((Key) => ({ Key })), Quiet: true },
+      }),
+    );
+    const failed = out.Errors ?? [];
+    const first = failed[0];
+    if (first) {
+      throw new Error(
+        `s3.deleteObjects: не удалилось ${failed.length} из ${batch.length} ключей ` +
+          `(первый: ${first.Key ?? "?"} — ${first.Code ?? "?"})`,
+      );
+    }
   }
 }
 

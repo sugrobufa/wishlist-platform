@@ -20,6 +20,7 @@ import {
   type SettingsError,
   type SettingsResult,
 } from "./actions";
+import { deleteAccountAction, type DeleteAccountError } from "./account-actions";
 
 // Форма карточки пресета — как в онбординге (тикет 01); сам компонент
 // онбординга не переиспользуем: там полноэкранный флоу со своим сабмитом.
@@ -616,6 +617,121 @@ export function OccasionSection({
         )}
       </div>
       {error && <p className="text-sm text-text-muted">{t(errorKey(error))}</p>}
+    </Section>
+  );
+}
+
+// ---------- Данные: экспорт и удаление аккаунта (тикет 14, GDPR) ----------
+
+// Красный опасной зоны — приглушённый, в тон тёплой палитре: тихий тон
+// продукта, без сирен. Токена danger в tokens.json нет — локальная константа.
+const DANGER = "#C4584C";
+
+export function DataSection({ deletePhrase, accent }: { deletePhrase: string; accent: string }) {
+  const t = useTranslations("DataSection");
+  const [open, setOpen] = useState(false);
+  const [phrase, setPhrase] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<DeleteAccountError | null>(null);
+  const [, startTransition] = useTransition();
+
+  // Клиентское зеркало серверной перепроверки: та же нормализация.
+  const phraseMatches = phrase.trim().toLowerCase() === deletePhrase;
+
+  function confirmDelete() {
+    if (!phraseMatches || busy) return;
+    setBusy(true);
+    setError(null);
+    startTransition(async () => {
+      const result = await deleteAccountAction({ confirm: phrase });
+      // При успехе экшен делает redirect("/") — сюда не возвращаемся.
+      setBusy(false);
+      if (result?.error) setError(result.error);
+    });
+  }
+
+  function closeDangerZone() {
+    setOpen(false);
+    setPhrase("");
+    setError(null);
+  }
+
+  return (
+    <Section overline={t("overline")}>
+      {/* Экспорт: обычная ссылка — файл отдаёт GET /api/v1/me/export. */}
+      <p className="text-sm text-text-muted">{t("exportHint")}</p>
+      <a
+        href="/api/v1/me/export"
+        download
+        className="pressable self-start text-sm font-semibold"
+        style={{ color: accent }}
+      >
+        {t("exportButton")}
+      </a>
+
+      {/* Опасная зона — раскрывашка; тихо, но честно про необратимость. */}
+      <div className="mt-2 border-t border-surface-hairline pt-4">
+        {!open ? (
+          <button
+            type="button"
+            onClick={() => setOpen(true)}
+            className="pressable text-sm font-semibold text-text-muted hover:text-text-strong"
+          >
+            {t("deleteOpen")}
+          </button>
+        ) : (
+          <div className="flex flex-col gap-3">
+            <p className="text-sm leading-relaxed text-text-muted">{t("deleteWarn")}</p>
+            <label className="flex flex-col gap-1.5">
+              <span className="text-sm text-text-muted">
+                {t("phraseLabel")}{" "}
+                <span className="font-mono text-text-strong">«{deletePhrase}»</span>
+              </span>
+              <input
+                type="text"
+                value={phrase}
+                autoCapitalize="none"
+                autoCorrect="off"
+                spellCheck={false}
+                placeholder={deletePhrase}
+                onChange={(event) => {
+                  setPhrase(event.target.value);
+                  setError(null);
+                }}
+                className="border border-surface-hairline-strong bg-surface-app-ground px-3 py-2.5 text-sm text-text-primary outline-none focus:border-text-faint"
+              />
+            </label>
+            <div className="flex items-center gap-4">
+              <button
+                type="button"
+                disabled={!phraseMatches || busy}
+                onClick={confirmDelete}
+                className="pressable self-start border-b-2 px-5 py-2.5 text-sm font-semibold disabled:opacity-40"
+                style={{
+                  color: DANGER,
+                  borderColor: DANGER,
+                  boxShadow: phraseMatches ? `0 4px 18px -3px ${withAlpha(DANGER, 0.42)}` : undefined,
+                }}
+              >
+                {busy ? t("deleting") : t("deleteConfirm")}
+              </button>
+              <button
+                type="button"
+                disabled={busy}
+                onClick={closeDangerZone}
+                className="pressable text-sm font-semibold text-text-muted hover:text-text-strong disabled:opacity-60"
+              >
+                {t("deleteCancel")}
+              </button>
+            </div>
+            {error && (
+              <p className="text-sm text-text-muted">
+                {t(error === "PHRASE" ? "errPhrase" : error === "AUTH" ? "errAuth" : "errGeneric")}
+              </p>
+            )}
+          </div>
+        )}
+      </div>
     </Section>
   );
 }

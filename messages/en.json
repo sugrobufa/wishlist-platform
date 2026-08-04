@@ -42,7 +42,9 @@
     "shareOverline": "Room address",
     "shareHint": "Send the link — a guest enters without signing up and quietly picks a gift.",
     "copy": "Copy link",
-    "copied": "Link copied"
+    "copied": "Link copied",
+    "hallLink": "Hall of fame",
+    "occasionBanner": "The occasion has passed — open “what was gifted”"
   },
   "Scene": {
     "hint": "tap a zone to step closer",
@@ -228,10 +230,62 @@
     "itemDeleteYes": "Yes, delete",
     "itemDeleteNo": "Keep it",
     "itemHiddenBadge": "hidden",
+    "itemAlreadyMine": "Already mine",
+    "itemAlreadyMineConfirm": "Move to “love”? There is no way back to “want”",
+    "itemAlreadyMineYes": "Yes, already mine",
+    "itemHallAdd": "To the hall of fame",
+    "itemHallRemove": "Remove from the hall",
     "errAuth": "Session expired — sign in again",
     "errValidation": "Check the field — the format is off",
     "errAvatarType": "A photo is needed: JPG, PNG, WebP or HEIC",
     "errAvatarSize": "The file is over 5 MB — pick a lighter one",
+    "errGeneric": "Something went wrong — try again"
+  },
+  "DataSection": {
+    "overline": "Your data",
+    "exportHint": "Everything that is yours — profile, room, items, connections — in one JSON file. No guest names inside.",
+    "exportButton": "Download my data",
+    "deleteOpen": "Delete account",
+    "deleteWarn": "This cannot be undone: the room, items and connections disappear, guests' active bookings quietly vanish, files are removed.",
+    "phraseLabel": "To continue, type",
+    "deleteConfirm": "Delete forever",
+    "deleting": "Deleting…",
+    "deleteCancel": "Keep everything",
+    "errPhrase": "The phrase does not match — check the letters",
+    "errAuth": "Session expired — sign in again",
+    "errGeneric": "Something went wrong — try again"
+  },
+  "Occasion": {
+    "title": "What was gifted",
+    "backToRoom": "Back to the room",
+    "overlineClosed": "{date} · the occasion has passed",
+    "headline": "{count, plural, one {You were gifted # item} other {You were gifted # items}}",
+    "hint": "Mark what arrived — the item moves to the hall of fame and the giver becomes visible",
+    "givenBy": "Gifted by {name}",
+    "done": "Arrived",
+    "receivedRow": "{name} · already in the hall of fame",
+    "receivedRowNoName": "already in the hall of fame",
+    "see": "See",
+    "unclaimed": "Left unclaimed · {count}",
+    "unclaimedHint": "They went nowhere — they stay in the room as “want” until the next occasion. Nothing to clean up",
+    "emptyTitle": "Quiet this time",
+    "emptyHint": "Nobody claimed a gift for this occasion. Your “want” items stay in the room for the next one",
+    "notClosedTitle": "The occasion is not closed yet",
+    "notClosedHint": "Once the occasion has passed, the summary appears here: who gifted what. Set the date in settings — or close it manually if it already happened",
+    "closeButton": "The occasion has passed",
+    "closing": "Opening…",
+    "errGeneric": "Something went wrong — try again"
+  },
+  "Hall": {
+    "title": "Hall of fame",
+    "backToRoom": "Back to the room",
+    "count": "{count, plural, one {# item} other {# items}}",
+    "captionYearGiver": "Gifted in {year} · {giver}",
+    "captionYear": "Gifted in {year}",
+    "captionGiver": "A gift · {giver}",
+    "captionMine": "already mine",
+    "remove": "Remove from the showcase",
+    "empty": "The showcase is empty so far. Mark “Arrived” on the “what was gifted” screen — gifts land here on their own; a “love” item can be sent to the hall from its zone",
     "errGeneric": "Something went wrong — try again"
   }
 }

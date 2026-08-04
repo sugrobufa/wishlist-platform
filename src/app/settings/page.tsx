@@ -11,7 +11,9 @@ import {
 import { rooms, zoneInfo } from "@/config/design";
 import { roomImageUrl } from "@/app/rooms/room-image";
 import { signOutAction } from "./actions";
+import { DELETE_ACCOUNT_PHRASE } from "@/server/services/account";
 import {
+  DataSection,
   DemoGhostsSection,
   NickSection,
   OccasionSection,
@@ -104,6 +106,9 @@ export default async function SettingsPage() {
             </button>
           </form>
         </section>
+
+        {/* Данные (тикет 14, GDPR): экспорт и удаление аккаунта — после выхода. */}
+        <DataSection deletePhrase={DELETE_ACCOUNT_PHRASE} accent={accent} />
       </div>
     </main>
   );
