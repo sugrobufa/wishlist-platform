@@ -182,7 +182,8 @@ describe("itemPhotoUrl", () => {
     expect(itemPhotoUrl("/uploads/x.jpg")).toBe("/uploads/x.jpg");
   });
 
-  it("голый S3-ключ пока не превращается в битую ссылку (маршрут раздачи — тикет 04)", () => {
-    expect(itemPhotoUrl("items/abc123.webp")).toBeNull();
+  it("голый S3-ключ → маршрут раздачи /media/{key} (тикет 04)", () => {
+    expect(itemPhotoUrl("items/room_1/abc123.webp")).toBe("/media/items/room_1/abc123.webp");
+    expect(itemPhotoUrl("items/abc123.webp")).toBe("/media/items/abc123.webp");
   });
 });

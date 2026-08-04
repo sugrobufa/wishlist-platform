@@ -1,0 +1,305 @@
+/* Карточка добавления (тикет 04, турн 8).
+ *
+ * Шаг 1 — «Что это для тебя?»: два тайла цитируют язык комнаты (items.json →
+ * whereAsked): у «люблю» плотный освещённый предмет, у «хочу» пунктирный
+ * контур со светящейся полкой. Всё нарисовано CSS-ом, без новых ассетов.
+ * Акцент/ink комнаты и производные прозрачности приходят CSS-переменными
+ * --ai-* из компонента (rooms.json), числа кнопки — tokens.json → button.
+ */
+
+.root {
+  /* Тёмная схема для нативных контролов (select, date) */
+  color-scheme: dark;
+}
+
+/* --- Шаг 1: тайлы состояния ---------------------------------------------- */
+
+.tileGrid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+  margin-top: 30px;
+}
+
+.tile {
+  border: 1px solid var(--color-surface-hairline);
+  background: var(--color-surface-fill);
+  padding: 22px 16px 20px;
+  text-align: left;
+  cursor: pointer;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .tile:hover {
+    background: var(--color-surface-fill-hover);
+  }
+}
+
+.tileArt {
+  height: 84px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 9px;
+  padding-bottom: 4px;
+}
+
+/* «Люблю»: предмет плотный и освещён (items.json → states.love.inRoom);
+ * полка под ним обычная. */
+.loveObject {
+  width: 46px;
+  height: 34px;
+  background: var(--ai-accent);
+  box-shadow:
+    0 0 0 1px var(--ai-glow-80),
+    0 0 18px 4px var(--ai-glow-55);
+}
+
+.loveShelf {
+  width: 66px;
+  height: 2px;
+  background: var(--color-surface-hairline-strong);
+}
+
+/* «Хочу»: призрачный контур, полка под ним светится (states.want.inRoom;
+ * пунктир и заливка — tokens.json → ghostItem). */
+.wantObject {
+  width: 46px;
+  height: 34px;
+  border: 1px dashed var(--ai-accent);
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.wantShelf {
+  width: 66px;
+  height: 2px;
+  background: var(--ai-accent);
+  box-shadow: 0 0 14px 2px var(--ai-glow-55);
+}
+
+.tileLabel {
+  display: block;
+  margin-top: 14px;
+  font: 600 17px/1 var(--font-ui);
+  color: var(--color-text-primary);
+}
+
+.tileHint {
+  display: block;
+  margin-top: 7px;
+  font: 400 12.5px/1.45 var(--font-ui);
+  color: var(--color-text-muted);
+}
+
+/* --- Шаг 2: поля формы ----------------------------------------------------- */
+
+.fieldLabel {
+  display: block;
+  font: 600 10px/1 var(--font-ui);
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--color-text-faint);
+  margin-bottom: 8px;
+}
+
+.input {
+  width: 100%;
+  background: var(--color-surface-fill);
+  border: 1px solid var(--color-surface-hairline);
+  padding: 12px 14px;
+  font: 400 15px/1.3 var(--font-ui);
+  color: var(--color-text-primary);
+}
+
+.input::placeholder {
+  color: var(--color-text-floor);
+}
+
+.input:focus {
+  outline: none;
+  border-color: var(--ai-accent);
+}
+
+textarea.input {
+  resize: vertical;
+  min-height: 76px;
+  line-height: 1.45;
+}
+
+/* --- Сегментные ряды: видимость цены, подпись «люблю» ---------------------- */
+
+.segRow {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.segBtn {
+  padding: 10px 13px;
+  border: 1px solid var(--color-surface-hairline);
+  background: none;
+  font: 500 12px/1 var(--font-ui);
+  color: var(--color-text-muted);
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.segActive {
+  border-color: transparent;
+  background: var(--ai-accent);
+  color: var(--ai-ink);
+  font-weight: 600;
+}
+
+/* --- «Насколько хочется»: четыре ступени лесенкой -------------------------- */
+
+.desireSteps {
+  display: flex;
+  align-items: flex-end;
+  gap: 4px;
+}
+
+.desireStep {
+  flex: 1;
+  border: 1px solid var(--color-surface-hairline);
+  background: var(--color-surface-fill);
+  padding: 0;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.desireStep:nth-child(1) {
+  height: 20px;
+}
+.desireStep:nth-child(2) {
+  height: 27px;
+}
+.desireStep:nth-child(3) {
+  height: 34px;
+}
+.desireStep:nth-child(4) {
+  height: 41px;
+}
+
+.desireOn {
+  background: var(--ai-accent);
+  border-color: var(--ai-accent);
+}
+
+/* Выбранная ступень светится — как полка под «хочу». */
+.desireStep[aria-checked="true"] {
+  box-shadow: 0 0 12px 0 var(--ai-glow-55);
+}
+
+.desireCaption {
+  margin: 8px 0 0;
+  font: 400 12px/1 var(--font-ui);
+  color: var(--color-text-muted);
+  min-height: 12px;
+}
+
+/* --- Фото ------------------------------------------------------------------ */
+
+.photoDrop {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 14px;
+  border: 1px dashed var(--color-surface-hairline-strong);
+  background: none;
+  color: var(--color-text-muted);
+  font: 500 13px/1 var(--font-ui);
+  cursor: pointer;
+}
+
+.photoDropHint {
+  color: var(--color-text-floor);
+  font-weight: 400;
+}
+
+.photoPreviewRow {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.photoThumb {
+  width: 56px;
+  height: 56px;
+  object-fit: cover;
+  border: 1px solid var(--color-surface-hairline);
+  background: var(--color-surface-fill);
+  flex: none;
+}
+
+.photoName {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font: 400 12.5px/1.4 var(--font-ui);
+  color: var(--color-text-strong);
+}
+
+.photoRemove {
+  border: 0;
+  background: none;
+  padding: 8px 0;
+  font: 500 12px/1 var(--font-ui);
+  color: var(--color-text-faint);
+  cursor: pointer;
+}
+
+/* --- Ошибка (в системе: панель с акцентной кромкой, как в турне 8) --------- */
+
+.error {
+  margin-top: 16px;
+  padding: 12px 15px;
+  background: rgba(255, 255, 255, 0.03);
+  border-left: 2px solid var(--ai-accent);
+  font: 400 13px/1.5 var(--font-ui);
+  color: var(--color-text-strong);
+}
+
+/* --- «Полоса света» — главная кнопка (tokens.json → button.primary) -------- */
+
+.lightBar {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  width: 100%;
+  border: 0;
+  border-bottom: 2px solid var(--ai-accent);
+  background: none;
+  padding: 16px 24px;
+  font: 600 15px/1 var(--font-ui);
+  color: var(--color-text-primary);
+  box-shadow: 0 4px 18px -3px var(--ai-glow-42);
+  cursor: pointer;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .lightBar {
+    transition:
+      box-shadow 240ms var(--ai-ease),
+      border-color 240ms var(--ai-ease);
+  }
+
+  .lightBar:hover:not(:disabled) {
+    box-shadow: 0 6px 32px 0 var(--ai-glow-85);
+  }
+}
+
+.lightBar:active:not(:disabled) {
+  box-shadow: 0 2px 7px -4px var(--ai-glow-25);
+  border-color: var(--ai-accent-active);
+}
+
+.lightBar:disabled {
+  opacity: 0.6;
+  cursor: default;
+}

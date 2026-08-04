@@ -58,14 +58,14 @@ export type OwnerItemDto = OwnerWantItemDto | OwnerLoveItemDto;
 
 /**
  * photoKey → URL. Поддержаны: путь дизайн-пакета ("refs/p-vinyl.jpg" — демо),
- * готовый URL (абсолютный или корневой). S3-ключи получат маршрут раздачи
- * вместе с загрузкой фото (тикет 04) — до тех пор не рисуем битые ссылки.
+ * готовый URL (абсолютный или корневой), голый S3-ключ ("items/{roomId}/….jpg")
+ * → маршрут раздачи `/media/{key}` (стрим из MinIO/S3, тикет 04).
  */
 export function itemPhotoUrl(photoKey: string | null): string | null {
   if (!photoKey) return null;
   if (photoKey.startsWith("refs/")) return roomImageUrl(photoKey);
   if (/^https?:\/\//.test(photoKey) || photoKey.startsWith("/")) return photoKey;
-  return null;
+  return `/media/${photoKey.split("/").map(encodeURIComponent).join("/")}`;
 }
 
 /**

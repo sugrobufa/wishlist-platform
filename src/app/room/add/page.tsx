@@ -1,0 +1,48 @@
+import type { Metadata } from "next";
+import { getTranslations } from "next-intl/server";
+import { redirect } from "next/navigation";
+import { auth } from "@/server/auth";
+import { getRoomForUser, getSessionUserId } from "@/server/services/rooms";
+import { rooms, zoneInfo } from "@/config/design";
+import { visibleZones } from "@/components/scene/zones";
+import { AddItemFlow, type ZoneOption } from "./add-item-flow";
+
+export const dynamic = "force-dynamic";
+
+export async function generateMetadata(): Promise<Metadata> {
+  const t = await getTranslations("AddItem");
+  return { title: t("overline"), robots: { index: false, follow: false } };
+}
+
+type SearchParams = { searchParams: Promise<{ zone?: string }> };
+
+/**
+ * Добавление вещи (тикет 04, турн 8). Страница тонкая: собирает видимые
+ * зоны комнаты с подписями из zones.json и отдаёт клиентскому флоу;
+ * ?zone=… предвыбирает зону (невидимые ключи молча игнорируются).
+ */
+export default async function AddItemPage({ searchParams }: SearchParams) {
+  const { zone: zoneParam } = await searchParams;
+
+  const session = await auth();
+  if (!session?.user) redirect("/signin");
+
+  const userId = await getSessionUserId(session.user);
+  if (!userId) redirect("/signin");
+
+  const room = await getRoomForUser(userId);
+  if (!room) redirect("/onboarding");
+
+  const preset = rooms.find((candidate) => candidate.id === room.preset);
+  if (!preset) redirect("/room");
+
+  const zones: ZoneOption[] = visibleZones(preset.zones, room.zonesOff).map((zone) => ({
+    key: zone.key,
+    label: zoneInfo(zone.key)?.label ?? zone.label,
+  }));
+  const initialZone = zones.find((zone) => zone.key === zoneParam)?.key ?? zones[0]?.key ?? "";
+
+  return (
+    <AddItemFlow zones={zones} initialZone={initialZone} accent={preset.accent} ink={preset.ink} />
+  );
+}
