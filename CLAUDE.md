@@ -71,9 +71,11 @@ npm run test:e2e              # playwright
 
 ## Критичные инварианты (никогда не нарушать)
 
-1. **Тихая бронь.** Хозяйке — только счётчик «N вещей уже забраны» по комнате.
-   Ни имени, ни вещи, ни в API, ни в кэше. `itemForOwner` не содержит booking —
-   покрыто тестом. Исключение: складчина ≥5 (деталь — PRD §12.6).
+1. **Тихая бронь — без исключений.** Хозяйке — только счётчик «N вещей уже
+   забраны» по комнате. Ни имени, ни вещи, ни в API, ни в кэше. Складчина
+   тиха при любом числе участников (в счётчике — одна вещь); прогресс сбора —
+   только гостям. Счётчик может убывать (отмена/несбор) — не скрывать.
+   `itemForOwner` не содержит booking — покрыто тестом.
 2. **Имена дарителей раскрываются ровно один раз** — экран «что подарили»
    (`OccasionSummary.revealedAt`). Переход `хочу → люблю` необратим.
 3. **Пунктир кодирует «хочу», а не отсутствие фото.** Вещь «люблю» без фото —
@@ -112,3 +114,13 @@ Single-context: `CONTEXT.md` в корне (глоссарий — канон т
   нейтральный дефолт за флагом.
 - Пользователь — продакт с банковским бэкграундом, не full-time разработчик:
   объясняй решения кратко, по-русски, без жаргона.
+
+<!-- BEGIN:nextjs-agent-rules -->
+
+# This is NOT the Next.js you know
+
+This version has breaking changes — APIs, conventions, and file structure may all differ from your training data. Read the relevant guide in `node_modules/next/dist/docs/` (resolved from this file's directory; in monorepos the `next` package may not be visible from the repo root) before writing any code. Heed deprecation notices.
+
+This block is written and re-added by `next dev` — verify at `node_modules/next/dist/server/lib/generate-agent-files.js`. Removing it from a diff only re-creates the uncommitted change; committing it with your work keeps the tree clean.
+
+<!-- END:nextjs-agent-rules -->
