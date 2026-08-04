@@ -26,14 +26,6 @@ jobs:
         image: redis:7-alpine
         ports:
           - 6379:6379
-      minio:
-        image: bitnami/minio:2025.4.22
-        env:
-          MINIO_ROOT_USER: minioadmin
-          MINIO_ROOT_PASSWORD: minioadmin
-          MINIO_DEFAULT_BUCKETS: wishlist,wishlist-private
-        ports:
-          - 9000:9000
     env:
       DATABASE_URL: postgresql://wishlist:wishlist@localhost:5432/wishlist
       REDIS_URL: redis://localhost:6379
@@ -46,6 +38,15 @@ jobs:
       AUTH_TRUST_HOST: "true"
     steps:
       - uses: actions/checkout@v4
+
+      # MinIO шагом, не сервисом: GitHub services не умеют передавать команду
+      # (`server /data`), а bitnami-обёртка ушла из публичного каталога.
+      # Бакеты создаёт сам код (ensureBucket, тикет 04).
+      - name: Start MinIO
+        run: |
+          docker run -d --name minio -p 9000:9000 \
+            -e MINIO_ROOT_USER=minioadmin -e MINIO_ROOT_PASSWORD=minioadmin \
+            minio/minio:latest server /data
 
       - uses: actions/setup-node@v4
         with:
