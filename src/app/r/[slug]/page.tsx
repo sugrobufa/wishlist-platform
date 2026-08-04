@@ -8,7 +8,9 @@ import { getGuestRoom } from "@/server/services/guest-room";
 import { rooms, scene } from "@/config/design";
 import { roomImageUrl } from "@/app/rooms/room-image";
 import { SceneStage } from "@/components/scene/SceneStage";
-import { ZoneGrid } from "@/components/zone/ZoneGrid";
+import { GuestBookingProvider } from "./booking/booking-context";
+import { GuestZoneGrid } from "./booking/guest-zone-grid";
+import { MyBookingsLink } from "./booking/my-bookings-link";
 
 // Страница одинакова для всех и не читает auth()/cookies (регистрация гостя
 // «по пути» — тикет 08). Рендер — SSR на каждый запрос: свежие preset/zonesOff
@@ -63,7 +65,12 @@ export async function generateMetadata({ params }: Params): Promise<Metadata> {
  * Комната глазами гостя (тикет 07): та же сцена и зоны, что у хозяйки, но
  * данные уже отфильтрованы сервером (guest-room.ts) — без спрятанных вещей,
  * без выключенных зон, цены — по priceVisibility. Демо-призраки видны и
- * помечены «пример». Бронь и бирка «Подарить» придут тикетом 08.
+ * помечены «пример».
+ *
+ * Тихая бронь (тикет 08): страница по-прежнему НЕ читает cookie — HTML
+ * одинаков для всех. Всё гостевое-личное («занято», «занято тобой»,
+ * «Мои брони · N») приезжает после рендера отдельным некэшируемым запросом
+ * GET /api/v1/rooms/{slug}/taken внутри GuestBookingProvider.
  */
 export default async function GuestRoomPage({ params }: Params) {
   const { slug } = await params;
@@ -77,15 +84,17 @@ export default async function GuestRoomPage({ params }: Params) {
   const ownerName = room.ownerName ?? t("ownerFallback");
 
   // Сетки зон проходят client-границу пропом zoneContent (контракт тикета 02).
+  // GuestZoneGrid — та же ZoneGrid, но со слотом действия: бирка «Подарить»
+  // у WANT && !isDemo, тихое «занято» у забронированных (тикет 08).
   const zoneContent: Record<string, ReactNode> = Object.fromEntries(
     Object.entries(room.itemsByZone).map(([zoneKey, items]) => [
       zoneKey,
-      <ZoneGrid
+      <GuestZoneGrid
         key={zoneKey}
         items={items}
         accent={preset.accent}
         ink={preset.ink}
-        enterDelay="scene"
+        ownerName={ownerName}
       />,
     ]),
   );
@@ -98,21 +107,25 @@ export default async function GuestRoomPage({ params }: Params) {
           <h1 className="display mt-2 text-2xl lg:text-4xl">{ownerName}</h1>
         </header>
 
-        <SceneStage preset={preset} zonesOff={room.zonesOff} zoneContent={zoneContent} />
+        <GuestBookingProvider slug={slug}>
+          <SceneStage preset={preset} zonesOff={room.zonesOff} zoneContent={zoneContent} />
 
-        {/* Мягкий призыв внизу: гость пришёл смотреть, не регистрироваться. */}
-        <footer className="mt-10 px-5 lg:px-0">
-          <div className="flex max-w-md flex-col gap-2 border border-surface-hairline bg-surface-fill p-5">
-            <p className="text-sm text-text-muted">{t("ctaHint")}</p>
-            <Link
-              href="/"
-              className="pressable inline-block text-sm font-semibold"
-              style={{ color: preset.accent }}
-            >
-              {t("cta")} →
-            </Link>
-          </div>
-        </footer>
+          {/* Мягкий призыв внизу: гость пришёл смотреть, не регистрироваться. */}
+          <footer className="mt-10 px-5 lg:px-0">
+            <div className="flex max-w-md flex-col gap-2 border border-surface-hairline bg-surface-fill p-5">
+              <p className="text-sm text-text-muted">{t("ctaHint")}</p>
+              <Link
+                href="/"
+                className="pressable inline-block text-sm font-semibold"
+                style={{ color: preset.accent }}
+              >
+                {t("cta")} →
+              </Link>
+            </div>
+            {/* «Мои брони · N» — появляется после клиентского fetch, если cookie непуст. */}
+            <MyBookingsLink />
+          </footer>
+        </GuestBookingProvider>
       </div>
     </main>
   );

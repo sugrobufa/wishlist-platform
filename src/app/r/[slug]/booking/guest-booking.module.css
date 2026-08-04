@@ -1,0 +1,26 @@
+/* Гостевые пометки брони на плитке и строка «Мои брони» (тикет 08). */
+
+/* Тихое «занято» — без имён (US 26). Высота строки близка к бирке не нужна:
+ * это пометка, не действие. */
+.taken {
+  margin: 2px 0 0;
+  font: 600 10px/1 var(--font-ui);
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--color-text-faint);
+}
+
+/* «Занято тобой» — тем же шёпотом, но акцентом комнаты (цвет — inline). */
+.mine {
+  opacity: 0.85;
+}
+
+/* Маленькая строка внизу гостевой комнаты: «Мои брони · N». */
+.myBookingsRow {
+  margin-top: 12px;
+}
+
+.myBookingsLink {
+  font: 500 12px/1 var(--font-ui);
+  color: var(--color-text-muted);
+}

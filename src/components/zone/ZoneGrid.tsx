@@ -6,7 +6,7 @@
 // SceneStage) и на странице «зона целиком списком» /room/zone/[zone].
 // Данные приходят DTO-объектами (владелец — itemForOwner, гость — тикет 07);
 // пустые зоны новичка наполняет demoGhostsFor до первой своей вещи.
-import { useId, useState, type CSSProperties } from "react";
+import { useId, useState, type CSSProperties, type ReactNode } from "react";
 import { useTranslations } from "next-intl";
 import { sceneMotion } from "@/config/design";
 import { ItemTile } from "./ItemTile";
@@ -31,11 +31,26 @@ export type ZoneGridProps = {
    */
   enterDelay?: "scene" | "none";
   className?: string;
+  /**
+   * Опциональный слот действия плитки (тикет 08): в режиме гостя сюда
+   * приходит бирка «Подарить» / тихое «занято». Проп передают только
+   * client-компоненты (функция не проходит серверную границу). Без пропа
+   * ничего не меняется — комната хозяйки его НЕ передаёт и не должна:
+   * «бирка» — ровно одно действие «подарить» в режиме гостя (турн 22).
+   */
+  renderItemAction?: (item: ZoneGridItem) => ReactNode;
 };
 
 type Tab = "LOVE" | "WANT";
 
-export function ZoneGrid({ items, accent, ink, enterDelay = "scene", className }: ZoneGridProps) {
+export function ZoneGrid({
+  items,
+  accent,
+  ink,
+  enterDelay = "scene",
+  className,
+  renderItemAction,
+}: ZoneGridProps) {
   const t = useTranslations("ZoneGrid");
   const baseId = useId();
 
@@ -108,7 +123,12 @@ export function ZoneGrid({ items, accent, ink, enterDelay = "scene", className }
         ) : (
           <ul className={s.grid}>
             {shown.map((item, index) => (
-              <ItemTile key={item.id} item={item} staggerIndex={Math.min(index, STAGGER_CAP)} />
+              <ItemTile
+                key={item.id}
+                item={item}
+                staggerIndex={Math.min(index, STAGGER_CAP)}
+                action={renderItemAction?.(item)}
+              />
             ))}
           </ul>
         )}

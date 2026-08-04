@@ -3,7 +3,7 @@
 // по нижнему краю; «люблю» — плитка без контура, граница rgba(255,255,255,.09).
 // Серая заливка = «нет фото», состояние НЕ кодирует (инвариант №3, классификатор
 // tile-appearance.ts под тестом). Демо-призрак — полупрозрачность и бейдж «пример».
-import type { CSSProperties } from "react";
+import type { CSSProperties, ReactNode } from "react";
 import { useLocale, useTranslations } from "next-intl";
 import { tileAppearance } from "./tile-appearance";
 import type { ZoneGridItem } from "./types";
@@ -13,6 +13,8 @@ type ItemTileProps = {
   item: ZoneGridItem;
   /** Номер в стаггере появления (openZone[3]: step на плитку). */
   staggerIndex: number;
+  /** Опциональный слот действия (тикет 08): бирка «Подарить» / «занято» у гостя. */
+  action?: ReactNode;
 };
 
 /** Цена «хочу» для подписи: "14 900 ₽". Деньги в DTO — строка Decimal. */
@@ -33,7 +35,7 @@ function formatPrice(item: ZoneGridItem, locale: string): string | null {
   }
 }
 
-export function ItemTile({ item, staggerIndex }: ItemTileProps) {
+export function ItemTile({ item, staggerIndex, action }: ItemTileProps) {
   const t = useTranslations("ZoneGrid");
   const locale = useLocale();
   const look = tileAppearance(item);
@@ -81,6 +83,7 @@ export function ItemTile({ item, staggerIndex }: ItemTileProps) {
       </div>
       <p className={s.title}>{item.title}</p>
       {meta && <p className={item.state === "LOVE" ? `${s.meta} ${s.metaLove}` : s.meta}>{meta}</p>}
+      {action != null && <div className={s.action}>{action}</div>}
     </li>
   );
 }

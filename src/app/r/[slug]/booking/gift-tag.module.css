@@ -1,0 +1,230 @@
+/* Бирка на нити — tokens.json → button.gift (id 04-tag, турн 22).
+ * ЕДИНСТВЕННОЕ применение: действие «подарить» в режиме гостя (CLAUDE.md).
+ *
+ * Материал по контракту: бумага градиентом 152°, скошенный торец clip-path
+ * polygon(0% 50%, 15% 0%, 100% 0%, 100% 100%, 15% 100%), пробитое отверстие
+ * с латунной окантовкой, нить с узелком сверху, складка вдоль края, имя
+ * получателя над надписью. Тень — filter (следует clip-path), не box-shadow.
+ * Покой rotate(-3deg) вокруг отверстия; hover — выравнивается (за воротами
+ * hover:hover/pointer:fine); нажатие — rotate(2deg) translateY(3px), бирка
+ * «оседает» на нити. Transition 300ms easeOut.
+ *
+ * Размеры: .sheet — канонические 218×66 (кнопка подтверждения в листе брони),
+ * .tile — компактная бирка на плитке гостя (высота ≥ hitTargetMin 44px). */
+
+.root {
+  position: relative;
+  display: block;
+  border: 0;
+  padding: 0;
+  background: none;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.root:disabled {
+  cursor: default;
+  opacity: 0.6;
+}
+
+.thread {
+  position: absolute;
+  width: 1.5px;
+  background: linear-gradient(180deg, rgba(255, 214, 150, 0.12), rgba(255, 214, 150, 0.55));
+  transform: rotate(7deg);
+  transform-origin: 50% 100%;
+}
+
+.knot {
+  position: absolute;
+  border-radius: 50%;
+  background: rgba(214, 168, 104, 0.7);
+}
+
+.body {
+  position: relative;
+  display: block;
+  transform: rotate(-3deg);
+  transition: transform 300ms cubic-bezier(0.23, 1, 0.32, 1);
+  filter: drop-shadow(0 7px 11px rgba(0, 0, 0, 0.6));
+}
+
+.paper {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(152deg, #f6ecda 0%, #eadcc2 46%, #dcc9ac 100%);
+  clip-path: polygon(0% 50%, 15% 0%, 100% 0%, 100% 100%, 15% 100%);
+}
+
+/* Складка вдоль края. */
+.fold {
+  position: absolute;
+  top: 7px;
+  bottom: 7px;
+  width: 1px;
+  background: rgba(122, 88, 48, 0.16);
+}
+
+/* Пробитое отверстие с латунной окантовкой. */
+.hole {
+  position: absolute;
+  border-radius: 50%;
+  background: #0b0806;
+  box-shadow:
+    inset 0 0 0 1.5px rgba(150, 110, 60, 0.55),
+    0 1px 0 rgba(255, 255, 255, 0.35);
+}
+
+.text {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: flex-start;
+}
+
+/* Имя получателя над надписью — «для Ирины» (макет турна 22). */
+.for {
+  font: 500 8.5px/1 var(--font-display);
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: rgba(42, 24, 6, 0.5);
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.label {
+  font: 700 15px/1 var(--font-ui);
+  color: #2a1806;
+  white-space: nowrap;
+}
+
+/* Hover строго за воротами (конвенция CLAUDE.md). */
+@media (hover: hover) and (pointer: fine) {
+  .root:enabled:hover .body {
+    transform: rotate(0deg);
+  }
+}
+
+/* Нажатие: качнулась и осела — объявлено ПОСЛЕ hover, при нажатии побеждает. */
+.root:enabled:active .body {
+  transform: rotate(2deg) translateY(3px);
+}
+
+/* --- Канонический размер 218×66 (лист брони) ------------------------------ */
+
+.sheet {
+  width: 218px;
+  height: 92px; /* 26px нити сверху + бирка 66px */
+}
+
+.sheet .thread {
+  left: 27px;
+  top: 0;
+  height: 34px;
+}
+
+.sheet .knot {
+  left: 24px;
+  top: 30px;
+  width: 7px;
+  height: 7px;
+}
+
+.sheet .body {
+  margin-top: 26px;
+  width: 218px;
+  height: 66px;
+  transform-origin: 28px 33px; /* отверстие */
+}
+
+.sheet .fold {
+  left: 36px;
+}
+
+.sheet .hole {
+  left: 20px;
+  top: 26px;
+  width: 14px;
+  height: 14px;
+}
+
+.sheet .text {
+  left: 52px;
+  right: 16px;
+  gap: 6px;
+}
+
+/* --- Компактная бирка на плитке гостя ------------------------------------- */
+
+.tile {
+  width: 100%;
+  height: 58px; /* 12px нити + бирка 46px (≥ hitTargetMin 44) */
+}
+
+.tile .thread {
+  left: 16px;
+  top: 0;
+  height: 15px;
+}
+
+.tile .knot {
+  left: 14px;
+  top: 11px;
+  width: 5px;
+  height: 5px;
+}
+
+.tile .body {
+  margin-top: 12px;
+  width: 100%;
+  height: 46px;
+  transform-origin: 17px 23px;
+  filter: drop-shadow(0 5px 8px rgba(0, 0, 0, 0.55));
+}
+
+.tile .fold {
+  left: 23px;
+  top: 5px;
+  bottom: 5px;
+}
+
+.tile .hole {
+  left: 12px;
+  top: 18px;
+  width: 10px;
+  height: 10px;
+  box-shadow:
+    inset 0 0 0 1.2px rgba(150, 110, 60, 0.55),
+    0 1px 0 rgba(255, 255, 255, 0.35);
+}
+
+.tile .text {
+  left: 31px;
+  right: 7px;
+  gap: 4px;
+}
+
+.tile .for {
+  font-size: 7px;
+  letter-spacing: 0.18em;
+}
+
+.tile .label {
+  font-size: 12px;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* --- prefers-reduced-motion: мгновенно, без качания ------------------------ */
+
+@media (prefers-reduced-motion: reduce) {
+  .body {
+    transition-duration: 120ms;
+  }
+}
