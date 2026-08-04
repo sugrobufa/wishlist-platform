@@ -1,27 +1,40 @@
 "use client";
 
-// Сетка зоны глазами ХОЗЯЙКИ (тикет 13): та же ZoneGrid тикета 03, но со
-// слотом действия — тихое меню вещи «Спрятать/Показать» и «Удалить»
-// (двухшаговое подтверждение, как отмена в «моих бронях»). Слот заполняется
-// только у своих вещей: у демо-призраков меню нет — они не в БД.
-// «Бирки» здесь нет и не будет — она ровно одна, «подарить» у гостя (турн 22).
+// Сетка зоны глазами ХОЗЯЙКИ (тикеты 13 и 10): та же ZoneGrid тикета 03, но
+// со слотом действия — тихое меню вещи. У «хочу»: «Уже моё» (ручной переход
+// в «люблю» — необратим, двухшаговое подтверждение), «Спрятать», «Удалить».
+// У «люблю»: «В зал славы / Убрать из зала», «Спрятать», «Удалить».
+// Слот заполняется только у своих вещей: у демо-призраков меню нет — они не
+// в БД. «Бирки» здесь нет и не будет — она ровно одна, «подарить» у гостя
+// (турн 22). Обратного пути LOVE → WANT в меню нет и не появится (инвариант №2).
 import { useState, useTransition, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { ZoneGrid } from "@/components/zone/ZoneGrid";
 import type { ZoneGridItem } from "@/components/zone/types";
-import { deleteItemAction, setItemHiddenAction } from "./actions";
+import {
+  deleteItemAction,
+  selfFulfillAction,
+  setItemHiddenAction,
+  toggleHallAction,
+} from "./actions";
+
+/** Owner-DTO несёт inHall у «люблю»; общий контракт сетки его не знает. */
+type OwnerGridItem = ZoneGridItem & { inHall?: boolean };
 
 type OwnerZoneGridProps = {
-  items: ZoneGridItem[];
+  items: OwnerGridItem[];
   accent: string;
   ink: string;
 };
 
+/** Двухшаговые подтверждения: удаление и необратимое «уже моё». */
+type Confirming = { id: string; kind: "delete" | "own" };
+
 export function OwnerZoneGrid({ items, accent, ink }: OwnerZoneGridProps) {
   const t = useTranslations("Settings");
   const router = useRouter();
-  const [confirmingId, setConfirmingId] = useState<string | null>(null);
+  const [confirming, setConfirming] = useState<Confirming | null>(null);
   const [busyId, setBusyId] = useState<string | null>(null);
   const [failed, setFailed] = useState(false);
   const [, startTransition] = useTransition();
@@ -32,7 +45,7 @@ export function OwnerZoneGrid({ items, accent, ink }: OwnerZoneGridProps) {
     startTransition(async () => {
       const result = await action();
       setBusyId(null);
-      setConfirmingId(null);
+      setConfirming(null);
       if (result?.error) {
         setFailed(true);
         return;
@@ -45,23 +58,32 @@ export function OwnerZoneGrid({ items, accent, ink }: OwnerZoneGridProps) {
   const renderItemAction = (item: ZoneGridItem): ReactNode => {
     if (item.isDemo) return null;
     const busy = busyId === item.id;
+    // Каст честный: сюда приходят те же объекты, что в items (OwnerGridItem).
+    const inHall = (item as OwnerGridItem).inHall === true;
 
-    if (confirmingId === item.id) {
+    if (confirming?.id === item.id) {
+      const isDelete = confirming.kind === "delete";
       return (
         <div className="mt-1 flex flex-wrap items-center gap-3 text-xs">
-          <span className="text-text-muted">{t("itemDeleteConfirm")}</span>
+          <span className="text-text-muted">
+            {isDelete ? t("itemDeleteConfirm") : t("itemAlreadyMineConfirm")}
+          </span>
           <button
             type="button"
             disabled={busy}
-            onClick={() => run(item.id, () => deleteItemAction(item.id))}
+            onClick={() =>
+              run(item.id, () =>
+                isDelete ? deleteItemAction(item.id) : selfFulfillAction(item.id),
+              )
+            }
             className="pressable font-semibold text-text-strong disabled:opacity-60"
           >
-            {t("itemDeleteYes")}
+            {isDelete ? t("itemDeleteYes") : t("itemAlreadyMineYes")}
           </button>
           <button
             type="button"
             disabled={busy}
-            onClick={() => setConfirmingId(null)}
+            onClick={() => setConfirming(null)}
             className="pressable font-semibold text-text-muted disabled:opacity-60"
           >
             {t("itemDeleteNo")}
@@ -75,19 +97,43 @@ export function OwnerZoneGrid({ items, accent, ink }: OwnerZoneGridProps) {
         {item.hidden && (
           <span className="overline text-text-faint">{t("itemHiddenBadge")}</span>
         )}
+        {/* «Хочу»: ручной переход «уже моё» (тикет 10) — с подтверждением,
+            потому что обратно в «хочу» пути не существует. */}
+        {item.state === "WANT" && (
+          <button
+            type="button"
+            disabled={busy}
+            onClick={() => setConfirming({ id: item.id, kind: "own" })}
+            className="pressable font-semibold disabled:opacity-60"
+            style={{ color: accent }}
+          >
+            {t("itemAlreadyMine")}
+          </button>
+        )}
+        {/* «Люблю»: витрина зала славы туда и обратно (тикет 10). */}
+        {item.state === "LOVE" && (
+          <button
+            type="button"
+            disabled={busy}
+            onClick={() => run(item.id, () => toggleHallAction(item.id, !inHall))}
+            className="pressable font-semibold disabled:opacity-60"
+            style={{ color: accent }}
+          >
+            {inHall ? t("itemHallRemove") : t("itemHallAdd")}
+          </button>
+        )}
         <button
           type="button"
           disabled={busy}
           onClick={() => run(item.id, () => setItemHiddenAction(item.id, !item.hidden))}
-          className="pressable font-semibold disabled:opacity-60"
-          style={{ color: accent }}
+          className="pressable font-semibold text-text-muted hover:text-text-strong disabled:opacity-60"
         >
           {item.hidden ? t("itemShow") : t("itemHide")}
         </button>
         <button
           type="button"
           disabled={busy}
-          onClick={() => setConfirmingId(item.id)}
+          onClick={() => setConfirming({ id: item.id, kind: "delete" })}
           className="pressable font-semibold text-text-muted hover:text-text-strong disabled:opacity-60"
         >
           {t("itemDelete")}

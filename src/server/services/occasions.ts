@@ -1,0 +1,351 @@
+// Сервис «Что подарили» (тикет 10): закрытие праздника (OccasionSummary),
+// gated-чтение имён дарителей и переход «Дошло» (receiveGift).
+//
+// ИНВАРИАНТ №2 (CLAUDE.md, никогда не нарушать): имена дарителей раскрываются
+// РОВНО ОДИН РАЗ — на экране «что подарили», под OccasionSummary.revealedAt.
+// Раскрытие = существование summary: пока праздник не закрыт, getOccasionView
+// не отдаёт ни имён, ни вещей с бронями — ВООБЩЕ ничего повещного о бронях
+// (инвариант №1 продолжает действовать). receiveGift без summary отказывает:
+// вне «что подарили» перехода с раскрытием не существует.
+// Переход «хочу → люблю» необратим: LOVE→WANT нет ни здесь, ни в items.
+import { revalidateTag } from "next/cache";
+import type { Item, OccasionSummary } from "@prisma/client";
+import { z } from "zod";
+import { prisma } from "@/server/db";
+import { roomCacheTag } from "@/server/services/items";
+import { itemPhotoUrl } from "@/server/dto/items";
+import { enqueueOccasionOwnerMail } from "@/server/queues";
+
+const idSchema = z.string().min(1).max(64);
+
+// ---------- Доменные отказы ----------
+
+export type OccasionErrorCode =
+  | "NO_ROOM" // комнаты нет (или чужой roomId)
+  | "NOT_FOUND" // вещи нет — или она чужая (не подтверждаем существование)
+  | "NOT_WANT" // «Дошло» бывает только у «хочу»: повтор на LOVE — отказ
+  | "NO_SUMMARY"; // праздник не закрыт — раскрытия вне summary не существует
+
+export class OccasionError extends Error {
+  constructor(
+    readonly code: OccasionErrorCode,
+    message: string,
+  ) {
+    super(message);
+    this.name = "OccasionError";
+  }
+}
+
+/** revalidateTag живёт только в request-scope Next; вне его (vitest, воркер)
+ * кэша нет — и инвалидировать нечего (паттерн services/items). */
+function revalidateRoom(roomId: string): void {
+  try {
+    revalidateTag(roomCacheTag(roomId), "max");
+  } catch {
+    // вне Next-запроса — сознательно молчим
+  }
+}
+
+// ---------- Закрытие праздника ----------
+
+/** Границы UTC-суток даты: идемпотентность closeOccasion — «summary этой даты». */
+function utcDayRange(date: Date): { gte: Date; lt: Date } {
+  const gte = new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate()));
+  const lt = new Date(gte.getTime() + 24 * 60 * 60 * 1000);
+  return { gte, lt };
+}
+
+export type CloseOccasionResult = {
+  summary: OccasionSummary;
+  /** false — summary этой даты уже был (повторный вызов); письмо не дублируется. */
+  created: boolean;
+};
+
+/**
+ * Закрыть праздник комнаты: создать OccasionSummary и поставить письмо
+ * хозяйке «открой „что подарили"» (джоба occasion-owner в очереди mail;
+ * enqueue не бросает — summary важнее письма, шаблон — тикет 12).
+ *
+ * Дата итога: наступившая occasionDate — это итог ПРАЗДНИКА, не клика;
+ * без даты (или дата ещё впереди) ручной запуск закрывает «сегодня» (now).
+ * Автозапуск (воркер) без наступившей даты не закрывает ничего → null.
+ *
+ * Идемпотентно на «уже есть summary этой даты» (UTC-сутки): повторный вызов —
+ * и ручной после автозакрытия, и автозакрытие после ручного — возвращает
+ * существующий summary и НЕ ставит второе письмо.
+ */
+export async function closeOccasion(
+  roomId: string,
+  options: { manual?: boolean } = {},
+): Promise<CloseOccasionResult | null> {
+  const id = idSchema.parse(roomId);
+  const room = await prisma.room.findUnique({
+    where: { id },
+    include: { user: { select: { email: true } } },
+  });
+  if (!room) {
+    throw new OccasionError("NO_ROOM", "такой комнаты нет");
+  }
+
+  const now = new Date();
+  const dueDate = room.occasionDate && room.occasionDate <= now ? room.occasionDate : null;
+  const date = dueDate ?? (options.manual ? now : null);
+  if (!date) return null; // автозакрытию нечего закрывать — даты нет или впереди
+
+  const existing = await prisma.occasionSummary.findFirst({
+    where: { roomId: room.id, date: utcDayRange(date) },
+    orderBy: { createdAt: "asc" },
+  });
+  if (existing) return { summary: existing, created: false };
+
+  const summary = await prisma.occasionSummary.create({
+    data: { roomId: room.id, date },
+  });
+  // Контракт payload для тикета 12: {userId, email, roomId}, джоба occasion-owner.
+  await enqueueOccasionOwnerMail({ userId: room.userId, email: room.user.email, roomId: room.id });
+  return { summary, created: true };
+}
+
+// ---------- Экран «что подарили» (gated-чтение имён) ----------
+
+/** Строка ожидающего подарка. СУЩЕСТВУЕТ только при существующем summary —
+ * до закрытия праздника этих объектов (и имён в них) не бывает нигде. */
+export type OccasionPendingGift = {
+  itemId: string;
+  title: string;
+  photoUrl: string | null;
+  /** Режим брони: SIGNED подписался сам, QUIET раскрывается здесь же —
+   * на этом экране раскрываются ВСЕ имена (README турн 21). */
+  mode: "QUIET" | "SIGNED" | "POOL";
+  guestName: string;
+};
+
+/** Уже отмеченное «Дошло» этого праздника — «уже в зале славы». */
+export type OccasionReceivedGift = {
+  itemId: string;
+  title: string;
+  photoUrl: string | null;
+  giverName: string | null;
+  /** ISO — момент «Дошло». */
+  receivedAt: string;
+};
+
+export type OccasionView = {
+  /** null — праздник не закрыт: имена и вещи с бронями НЕ отдаются вообще. */
+  summary: { id: string; date: string; revealedAt: string | null } | null;
+  pending: OccasionPendingGift[];
+  received: OccasionReceivedGift[];
+  /** «Осталось незабранным · N» — вещи «хочу» без брони (голое число). */
+  unclaimedCount: number;
+};
+
+/**
+ * Данные экрана «что подарили» для хозяйки (по userId сессии).
+ *
+ * Раскрытие живёт исключительно здесь:
+ * - БЕЗ summary: ни одной строки о бронях — ни имён, ни вещей (инвариант №1);
+ *   отдаётся только счётчик незабранных «хочу».
+ * - С summary: строки живых броней комнаты С именами (QUIET и SIGNED — все:
+ *   README турн 21), плюс уже отмеченные «Дошло» этого праздника.
+ * - revealedAt проставляется при ПЕРВОМ открытии экрана и больше никогда
+ *   не меняется (updateMany с guard'ом revealedAt=null — идемпотентно).
+ */
+export async function getOccasionView(userId: string): Promise<OccasionView> {
+  const room = await prisma.room.findUnique({
+    where: { userId: idSchema.parse(userId) },
+    select: { id: true },
+  });
+  if (!room) {
+    throw new OccasionError("NO_ROOM", "у пользователя нет комнаты — сначала онбординг");
+  }
+
+  // Незабранные «хочу» остаются в комнате до следующего повода (спрятанные
+  // хозяйкой в подарочном цикле не участвуют — их бронь снята при скрытии).
+  const unclaimedCount = await prisma.item.count({
+    where: { roomId: room.id, state: "WANT", hidden: false, booking: null },
+  });
+
+  const summary = await prisma.occasionSummary.findFirst({
+    where: { roomId: room.id },
+    orderBy: [{ date: "desc" }, { createdAt: "desc" }],
+  });
+  if (!summary) {
+    return { summary: null, pending: [], received: [], unclaimedCount };
+  }
+
+  // Первое открытие экрана = момент раскрытия. Guard revealedAt=null держит
+  // идемпотентность и под гонкой; настоящий момент перечитываем из БД.
+  await prisma.occasionSummary.updateMany({
+    where: { id: summary.id, revealedAt: null },
+    data: { revealedAt: new Date() },
+  });
+  const revealed = await prisma.occasionSummary.findUniqueOrThrow({ where: { id: summary.id } });
+
+  // Живые брони комнаты. Брони бывают только у «хочу» (bookItem), а «Дошло»
+  // закрывает бронь в той же транзакции — фильтр по state не нужен.
+  const bookings = await prisma.booking.findMany({
+    where: { item: { roomId: room.id } },
+    orderBy: { createdAt: "asc" },
+    select: {
+      mode: true,
+      guestName: true,
+      item: { select: { id: true, title: true, photoKey: true } },
+    },
+  });
+
+  // «Дошло» этого праздника: receiveGift существует только после summary,
+  // поэтому receivedAt >= createdAt summary отсекает и прошлые праздники, и
+  // ручные «уже моё»/«подарила мама» (giverName у selfFulfill всегда null,
+  // у ручных «люблю» receivedAt — прошлый год).
+  const receivedItems = await prisma.item.findMany({
+    where: {
+      roomId: room.id,
+      state: "LOVE",
+      giverName: { not: null },
+      receivedAt: { gte: revealed.createdAt },
+    },
+    orderBy: { receivedAt: "desc" },
+    select: { id: true, title: true, photoKey: true, giverName: true, receivedAt: true },
+  });
+
+  return {
+    summary: {
+      id: revealed.id,
+      date: revealed.date.toISOString(),
+      revealedAt: revealed.revealedAt?.toISOString() ?? null,
+    },
+    pending: bookings.map((booking) => ({
+      itemId: booking.item.id,
+      title: booking.item.title,
+      photoUrl: itemPhotoUrl(booking.item.photoKey),
+      mode: booking.mode,
+      guestName: booking.guestName,
+    })),
+    received: receivedItems.map((item) => ({
+      itemId: item.id,
+      title: item.title,
+      photoUrl: itemPhotoUrl(item.photoKey),
+      giverName: item.giverName,
+      // receivedAt здесь не бывает null: фильтр gte его гарантирует.
+      receivedAt: (item.receivedAt ?? new Date(0)).toISOString(),
+    })),
+    unclaimedCount,
+  };
+}
+
+// ---------- Переход «Дошло» (receiveGift) ----------
+
+/**
+ * «Дошло»: единственный переход WANT → LOVE с раскрытием дарителя. ОДНА
+ * транзакция — все эффекты вместе или никакие:
+ * - state=LOVE, receivedAt=now, giverName из брони (или null — брони не было),
+ *   inHall=true (вещь уезжает в зал славы);
+ * - бронь закрывается (tx.booking.deleteMany — контракт тикета 09);
+ * - Связь: если у брони есть guestUserId (гость дарил залогиненным) — у
+ *   хозяйки появляется Connection с гостем, origin `gift:{itemId}`, kind
+ *   MUTUAL при своей комнате гостя, иначе FOLLOW. Минимум тикета 10 —
+ *   расширение (history, «остаться на связи») — тикет 11. Существующая
+ *   пара не перезаписывается. Без guestUserId связи нет — есть только имя.
+ *
+ * Требует существующего OccasionSummary комнаты: раскрытие живёт только
+ * в рамках «что подарили» (инвариант №2). Повторный вызов на уже LOVE —
+ * отказ NOT_WANT, ничего не меняется (переход необратим и не повторяется).
+ */
+export async function receiveGift(userId: string, itemId: string): Promise<Item> {
+  const ownerId = idSchema.parse(userId);
+  const id = idSchema.parse(itemId);
+
+  const updated = await prisma.$transaction(async (tx) => {
+    // Ownership фильтром прямо в запросе: чужая вещь неотличима от несуществующей.
+    const item = await tx.item.findFirst({
+      where: { id, room: { userId: ownerId } },
+      include: { booking: true },
+    });
+    if (!item) {
+      throw new OccasionError("NOT_FOUND", "такой вещи нет");
+    }
+    if (item.state !== "WANT") {
+      throw new OccasionError("NOT_WANT", "«Дошло» уже отмечено — переход необратим");
+    }
+    const summary = await tx.occasionSummary.findFirst({ where: { roomId: item.roomId } });
+    if (!summary) {
+      throw new OccasionError(
+        "NO_SUMMARY",
+        "праздник ещё не закрыт — раскрытие живёт только в «что подарили»",
+      );
+    }
+
+    const booking = item.booking;
+    // Guard state=WANT в самом updateMany: параллельный двойной клик вторым
+    // вызовом получает count=0 → NOT_WANT → откат, giverName не затирается.
+    const flipped = await tx.item.updateMany({
+      where: { id: item.id, state: "WANT" },
+      data: {
+        state: "LOVE",
+        receivedAt: new Date(),
+        giverName: booking?.guestName ?? null,
+        inHall: true,
+      },
+    });
+    if (flipped.count === 0) {
+      throw new OccasionError("NOT_WANT", "«Дошло» уже отмечено — переход необратим");
+    }
+
+    await tx.booking.deleteMany({ where: { itemId: item.id } });
+
+    if (booking?.guestUserId && booking.guestUserId !== ownerId) {
+      const pair = { aUserId: ownerId, bUserId: booking.guestUserId };
+      const existing = await tx.connection.findUnique({ where: { aUserId_bUserId: pair } });
+      if (!existing) {
+        const guestRoom = await tx.room.findUnique({
+          where: { userId: booking.guestUserId },
+          select: { id: true },
+        });
+        await tx.connection.create({
+          data: { ...pair, kind: guestRoom ? "MUTUAL" : "FOLLOW", origin: `gift:${item.id}` },
+        });
+      }
+    }
+
+    return tx.item.findUniqueOrThrow({ where: { id: item.id } });
+  });
+
+  revalidateRoom(updated.roomId);
+  return updated;
+}
+
+// ---------- Баннер в комнате хозяйки ----------
+
+/**
+ * Показывать ли в /room тихую строку «Праздник прошёл — открой „что подарили"».
+ * true, если (а) occasionDate прошла, а summary этой даты ещё нет, ИЛИ
+ * (б) summary есть, а неотмеченные подарки (живые брони) остались — но не
+ * когда хозяйка уже поставила НОВУЮ будущую дату: между праздниками комната
+ * молчит, свежие брони копятся к следующему поводу.
+ * Возврат — ГОЛЫЙ boolean: о бронях он говорит не больше, чем счётчик 09.
+ */
+export async function occasionBannerVisible(userId: string): Promise<boolean> {
+  const room = await prisma.room.findUnique({
+    where: { userId: idSchema.parse(userId) },
+    select: { id: true, occasionDate: true },
+  });
+  if (!room) return false;
+
+  const now = new Date();
+  if (room.occasionDate && room.occasionDate <= now) {
+    const closed = await prisma.occasionSummary.findFirst({
+      where: { roomId: room.id, date: utcDayRange(room.occasionDate) },
+      select: { id: true },
+    });
+    if (!closed) return true; // праздник прошёл, а итога ещё нет
+  }
+  if (room.occasionDate && room.occasionDate > now) return false;
+
+  const summary = await prisma.occasionSummary.findFirst({
+    where: { roomId: room.id },
+    select: { id: true },
+  });
+  if (!summary) return false;
+  const pending = await prisma.booking.count({ where: { item: { roomId: room.id } } });
+  return pending > 0;
+}

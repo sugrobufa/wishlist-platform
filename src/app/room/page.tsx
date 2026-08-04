@@ -7,6 +7,7 @@ import { auth } from "@/server/auth";
 import { getRoomForUser, getSessionUserId } from "@/server/services/rooms";
 import { listZoneItems } from "@/server/services/items";
 import { ownerTakenCount } from "@/server/services/bookings";
+import { occasionBannerVisible } from "@/server/services/occasions";
 import { itemForOwner } from "@/server/dto/items";
 import { rooms, scene, type Room, type RoomZone } from "@/config/design";
 import { SceneStage } from "@/components/scene/SceneStage";
@@ -45,6 +46,10 @@ export default async function RoomPage() {
   // поэтому сервис зовётся напрямую — отдельный fetch не нужен; сам роут
   // /api/v1/room/taken-count живёт для клиентских обновлений.
   const takenCount = await ownerTakenCount(userId);
+  // Тихая строка «праздник прошёл» (тикет 10): дата прошла без итога или
+  // в «что подарили» остались неотмеченные подарки. Голый boolean — о бронях
+  // он говорит не больше счётчика.
+  const showOccasionBanner = await occasionBannerVisible(userId);
 
   const zoneContent = preset
     ? await buildZoneContent(room.id, preset, room.zonesOff, room.demoGhostsOff)
@@ -58,12 +63,21 @@ export default async function RoomPage() {
             <p className="overline text-text-muted">{t("overline")}</p>
             {/* Тихая ссылка в настройки (тикет 13) — без акцента, на месте
                 служебных действий шапки. */}
-            <Link
-              href="/settings"
-              className="pressable text-xs font-semibold text-text-muted hover:text-text-strong"
-            >
-              {t("settingsLink")}
-            </Link>
+            <div className="flex items-center gap-4">
+              {/* Зал славы (тикет 10) — рядом с настройками, тем же тоном. */}
+              <Link
+                href="/room/hall"
+                className="pressable text-xs font-semibold text-text-muted hover:text-text-strong"
+              >
+                {t("hallLink")}
+              </Link>
+              <Link
+                href="/settings"
+                className="pressable text-xs font-semibold text-text-muted hover:text-text-strong"
+              >
+                {t("settingsLink")}
+              </Link>
+            </div>
           </div>
           <h1 className="display mt-2 text-2xl lg:text-4xl">{preset?.name ?? room.preset}</h1>
           {/* Тихий счётчик движения (турн 11d): только число, никаких намёков,
@@ -72,6 +86,17 @@ export default async function RoomPage() {
             <p className="overline mt-3 text-text-muted">
               {t("takenCount", { count: takenCount })}
             </p>
+          )}
+          {/* Праздник прошёл — тихая строка-ссылка на «что подарили»
+              (тикет 10): без баннерной яркости, тем же тоном, что счётчик. */}
+          {showOccasionBanner && (
+            <Link
+              href="/room/occasion"
+              className="pressable mt-3 inline-block text-sm font-semibold"
+              style={{ color: preset?.accent ?? "#E7C9A9" }}
+            >
+              {t("occasionBanner")} →
+            </Link>
           )}
         </header>
 

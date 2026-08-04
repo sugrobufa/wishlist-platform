@@ -10,11 +10,23 @@ import type { Queue } from "bullmq";
 
 export const MAIL_QUEUE_NAME = "mail";
 export const IMAGE_INGEST_QUEUE_NAME = "image.ingest";
+/** Ежечасное закрытие праздников (тикет 10): repeat-джоба воркера. */
+export const OCCASION_CLOSE_QUEUE_NAME = "occasion.close";
 
 /** Джоба скачивания фото товара в своё S3 (инвариант №6: не хотлинкуем). */
 export interface ImageIngestJobData {
   itemId: string;
   imageUrl: string;
+}
+
+/**
+ * Письмо хозяйке «открой „что подарили"» (тикет 10 → шаблон — тикет 12).
+ * Контракт payload'а: джоба `occasion-owner` в очереди mail.
+ */
+export interface OccasionOwnerMailJobData {
+  userId: string;
+  email: string;
+  roomId: string;
 }
 
 type QueueRegistry = Map<string, Promise<Queue>>;
@@ -69,6 +81,31 @@ export function getMailQueue(): Promise<Queue> {
 
 export function getImageIngestQueue(): Promise<Queue> {
   return getQueue(IMAGE_INGEST_QUEUE_NAME);
+}
+
+/**
+ * Поставить письмо хозяйке «открой „что подарили"» (тикет 10). Шаблон и
+ * отправка — тикет 12 (обработчик очереди mail); здесь ТОЛЬКО enqueue.
+ * Никогда не бросает: очередь недоступна → false, закрытие праздника не
+ * блокируем — summary важнее письма.
+ */
+export async function enqueueOccasionOwnerMail(data: OccasionOwnerMailJobData): Promise<boolean> {
+  try {
+    const queue = await getMailQueue();
+    await queue.add("occasion-owner", data, {
+      attempts: 3,
+      backoff: { type: "exponential", delay: 3_000 },
+      removeOnComplete: 1_000,
+      removeOnFail: 5_000,
+    });
+    return true;
+  } catch (error) {
+    console.warn(
+      `queues: mail недоступна — хозяйка ${data.userId} останется без письма о празднике`,
+      error instanceof Error ? error.message : error,
+    );
+    return false;
+  }
 }
 
 /**

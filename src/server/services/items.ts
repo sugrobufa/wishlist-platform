@@ -294,10 +294,12 @@ export async function createItem(userId: string, input: unknown): Promise<Item> 
 // ---------- Скрытие и удаление вещи (тикет 13) ----------
 
 /** Отказы мутаций вещи. NOT_FOUND и для чужой вещи — существование чужого
- * id владельцу другой комнаты не подтверждаем. */
+ * id владельцу другой комнаты не подтверждаем. NOT_WANT/NOT_LOVE — операции
+ * строго одного состояния (тикет 10): «уже моё» только у «хочу», зал славы
+ * только у «люблю». */
 export class ItemMutationError extends Error {
   constructor(
-    readonly code: "NOT_FOUND",
+    readonly code: "NOT_FOUND" | "NOT_WANT" | "NOT_LOVE",
     message: string,
   ) {
     super(message);
@@ -357,6 +359,79 @@ export async function deleteItem(userId: string, itemId: string): Promise<void> 
   await releaseBookingForItem(item.id);
   await prisma.item.delete({ where: { id: item.id } });
   revalidateRoom(item.roomId);
+}
+
+// ---------- Ручные переходы и зал славы (тикет 10) ----------
+// Переход LOVE → WANT НЕ СУЩЕСТВУЕТ (правило items.json, решение гриллинга
+// №6): ни одна функция сервиса не пишет state=WANT существующей вещи —
+// закреплено тестом tests/occasions.test.ts.
+
+/**
+ * «Уже моё» (US 15): ручной перевод WANT → LOVE без дарителя, раскрытий и
+ * связи — хозяйка купила сама. inHall=false: в зал славы — руками, если
+ * захочет (там подпись «уже моё»). Активная бронь, если была, тихо снимается
+ * releaseBookingForItem (контракт тикета 09: одиночное снятие вне транзакций;
+ * порядок «сначала переход, потом снятие» — чтобы гонка двух кликов не могла
+ * снять бронь без перехода). Guard state=WANT в самом updateMany: повтор или
+ * вызов на «люблю» — отказ NOT_WANT, ничего не меняется (переход необратим).
+ */
+export async function selfFulfill(userId: string, itemId: string): Promise<Item> {
+  const item = await requireOwnItem(userId, itemId);
+  if (item.state !== "WANT") {
+    throw new ItemMutationError("NOT_WANT", "«уже моё» бывает только у вещи «хочу»");
+  }
+
+  const flipped = await prisma.item.updateMany({
+    where: { id: item.id, state: "WANT" },
+    data: { state: "LOVE", receivedAt: new Date(), giverName: null, inHall: false },
+  });
+  if (flipped.count === 0) {
+    throw new ItemMutationError("NOT_WANT", "«уже моё» бывает только у вещи «хочу»");
+  }
+  await releaseBookingForItem(item.id);
+
+  revalidateRoom(item.roomId);
+  return prisma.item.findUniqueOrThrow({ where: { id: item.id } });
+}
+
+/**
+ * Добавить/убрать вещь «люблю» в витрину зала славы (US 16). Только LOVE:
+ * «хочу» в зале не живёт (NOT_LOVE). При on=true сбрасывается hiddenFromHall —
+ * возврат в витрину показывает вещь, как бы её раньше ни прятали.
+ */
+export async function toggleHall(userId: string, itemId: string, on: boolean): Promise<Item> {
+  const wantOn = z.boolean().parse(on);
+  const item = await requireOwnItem(userId, itemId);
+  if (item.state !== "LOVE") {
+    throw new ItemMutationError("NOT_LOVE", "в зал славы попадают только вещи «люблю»");
+  }
+
+  const updated = await prisma.item.update({
+    where: { id: item.id },
+    data: wantOn ? { inHall: true, hiddenFromHall: false } : { inHall: false },
+  });
+  revalidateRoom(item.roomId);
+  return updated;
+}
+
+/**
+ * Витрина зала славы: вещи LOVE с inHall и БЕЗ hiddenFromHall — ровно два
+ * фильтра (тест tests/hall.test.ts). hidden (спрятанная от гостей) хозяйку
+ * не ограничивает — /room/hall её страница; гостевой зал — не Phase 1.
+ * Порядок: свежеподаренные выше (receivedAt desc, без даты — в конец).
+ */
+export async function listHallItems(roomId: string): Promise<Item[]> {
+  const items = await prisma.item.findMany({
+    where: { roomId: idSchema.parse(roomId), state: "LOVE", inHall: true, hiddenFromHall: false },
+  });
+  return items.sort((a, b) => {
+    const at = a.receivedAt?.getTime() ?? -1;
+    const bt = b.receivedAt?.getTime() ?? -1;
+    if (at !== bt) return bt - at;
+    const byCreated = b.createdAt.getTime() - a.createdAt.getTime();
+    if (byCreated !== 0) return byCreated;
+    return a.id < b.id ? 1 : -1;
+  });
 }
 
 // ---------- Дедуп по canonicalUrl (тикет 06) ----------

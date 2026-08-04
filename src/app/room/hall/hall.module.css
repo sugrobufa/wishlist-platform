@@ -1,0 +1,77 @@
+/* Зал славы (тикет 10): витрина — фото + CSS, БЕЗ three.js (3D — не раньше
+ * Phase 3 и только при наличии модели). Партитура вращения — ровно из макета
+ * (Main Screen.dc.html, турн 11b): omSpin 9s ease-in-out, rotateY ±16°,
+ * transform-origin 50% 62% — «медленно, с торможением у краёв». */
+
+.showcase {
+  position: relative;
+  overflow: hidden;
+  background: var(--color-surface-hall-ground);
+  aspect-ratio: 1 / 1;
+}
+
+/* Кадр берётся с запасом (inset −12%): покачивание rotateY не оголяет края. */
+.spin {
+  position: absolute;
+  inset: -12%;
+  background-size: cover;
+  background-position: center;
+  animation: omSpin 9s ease-in-out infinite;
+  transform-origin: 50% 62%;
+}
+
+/* «Люблю» без фото — серая заливка БЕЗ пунктира (инвариант №3). */
+.spinEmpty {
+  background: var(--color-surface-fill);
+}
+
+.vignette {
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(70% 55% at 50% 48%, rgba(0, 0, 0, 0) 40%, rgba(7, 6, 3, 0.9));
+}
+
+.hero {
+  position: relative;
+  overflow: hidden;
+  height: 210px;
+}
+
+.heroImg {
+  position: absolute;
+  inset: -14%;
+  background-size: cover;
+  background-position: 50% 45%;
+  animation: omSpin 9s ease-in-out infinite;
+  transform-origin: 50% 62%;
+}
+
+.heroVignette {
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(
+    60% 55% at 50% 44%,
+    rgba(231, 201, 169, 0.16),
+    rgba(7, 6, 3, 0.92)
+  );
+}
+
+@keyframes omSpin {
+  0% {
+    transform: rotateY(-16deg);
+  }
+  50% {
+    transform: rotateY(16deg);
+  }
+  100% {
+    transform: rotateY(-16deg);
+  }
+}
+
+/* Контракт prefers-reduced-motion (макет глушит omSpin глобально). */
+@media (prefers-reduced-motion: reduce) {
+  .spin,
+  .heroImg {
+    animation: none;
+  }
+}
