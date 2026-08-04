@@ -72,14 +72,16 @@ model VerificationToken {
 // ---------- Комната ----------
 
 model Room {
-  id           String    @id @default(cuid())
-  userId       String    @unique
-  preset       String // 'cream' | 'warm' | ... из design/package/handoff/rooms.json
-  zoneSet      String    @default("ALL") // 'F' | 'M' | 'ALL' — «набор зон»
-  zonesOff     String[] // выключенные зоны исчезают вместе с мебелью
-  shareSlug    String    @unique
-  occasionDate DateTime?
-  createdAt    DateTime  @default(now())
+  id            String    @id @default(cuid())
+  userId        String    @unique
+  preset        String // 'cream' | 'warm' | ... из design/package/handoff/rooms.json
+  zoneSet       String    @default("ALL") // 'F' | 'M' | 'ALL' — «набор зон»
+  zonesOff      String[] // выключенные зоны исчезают вместе с мебелью
+  shareSlug     String    @unique
+  nick          String?   @unique // красивый ник /r/{nick} (гриллинг №3); null — не занят
+  occasionDate  DateTime?
+  demoGhostsOff Boolean   @default(false) // «Убрать примеры»: демо-призраки скопом выключены
+  createdAt     DateTime  @default(now())
 
   user  User   @relation(fields: [userId], references: [id], onDelete: Cascade)
   items Item[]

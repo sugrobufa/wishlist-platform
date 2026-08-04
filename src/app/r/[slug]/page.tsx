@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import type { ReactNode } from "react";
 import Link from "next/link";
 import { getTranslations } from "next-intl/server";
-import { notFound } from "next/navigation";
+import { notFound, permanentRedirect } from "next/navigation";
 import { cache } from "react";
 import { getGuestRoom } from "@/server/services/guest-room";
 import { rooms, scene } from "@/config/design";
@@ -77,6 +77,13 @@ export default async function GuestRoomPage({ params }: Params) {
   const room = await getRoom(slug);
   if (!room) notFound();
 
+  // Ник занят, а пришли по другому адресу (короткому коду) — навсегда
+  // уводим на красивый /r/{nick} (тикет 13; permanentRedirect = 308).
+  // Старый код так работает вечно, а канонический адрес один.
+  if (room.nick && slug !== room.nick) {
+    permanentRedirect(`/r/${room.nick}`);
+  }
+
   const preset = rooms.find((candidate) => candidate.id === room.preset);
   if (!preset) notFound();
 
@@ -104,7 +111,22 @@ export default async function GuestRoomPage({ params }: Params) {
       <div className="mx-auto w-full" style={{ maxWidth: scene.desktop.w }}>
         <header className="px-5 pb-4 pt-6 lg:px-0 lg:pt-10">
           <p className="overline text-text-muted">{t("overline")}</p>
-          <h1 className="display mt-2 text-2xl lg:text-4xl">{ownerName}</h1>
+          {/* Имя хозяйки + маленький аватар, если загружен (тикет 13).
+              Фон-div, как у плиток вещей: раздача /media, alt не нужен. */}
+          <div className="mt-2 flex items-center gap-3">
+            {room.ownerAvatarUrl && (
+              <div
+                aria-hidden
+                className="h-9 w-9 flex-none rounded-full border border-surface-hairline bg-surface-fill lg:h-11 lg:w-11"
+                style={{
+                  backgroundImage: `url(${room.ownerAvatarUrl})`,
+                  backgroundSize: "cover",
+                  backgroundPosition: "center",
+                }}
+              />
+            )}
+            <h1 className="display text-2xl lg:text-4xl">{ownerName}</h1>
+          </div>
         </header>
 
         <GuestBookingProvider slug={slug}>

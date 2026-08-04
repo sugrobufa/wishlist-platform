@@ -6,10 +6,10 @@ import { auth } from "@/server/auth";
 import { getRoomForUser, getSessionUserId } from "@/server/services/rooms";
 import { listZoneItems } from "@/server/services/items";
 import { itemForOwner } from "@/server/dto/items";
-import { demoGhostsFor } from "@/config/demo-pools";
 import { rooms, zoneInfo } from "@/config/design";
 import { visibleZones } from "@/components/scene/zones";
-import { ZoneGrid } from "@/components/zone/ZoneGrid";
+import { zoneDisplayItems } from "@/components/zone/zone-display-items";
+import { OwnerZoneGrid } from "./owner-zone-grid";
 
 export const dynamic = "force-dynamic";
 
@@ -51,7 +51,7 @@ export default async function ZoneListPage({ params }: Params) {
   const info = zoneInfo(zone.key);
 
   const own = (await listZoneItems(room.id, zone.key)).map(itemForOwner);
-  const items = own.length > 0 ? own : demoGhostsFor(zone.key, zone.pool);
+  const items = zoneDisplayItems(own, zone.key, zone.pool, room.demoGhostsOff);
 
   return (
     <main className="min-h-screen pb-16">
@@ -66,7 +66,9 @@ export default async function ZoneListPage({ params }: Params) {
           {info?.subtitle && <p className="mt-2 text-sm text-text-muted">{info.subtitle}</p>}
         </header>
 
-        <ZoneGrid items={items} accent={preset.accent} ink={preset.ink} enterDelay="none" />
+        {/* Сетка хозяйки со слотом действий (тикет 13): «Спрятать/Показать»
+            и «Удалить» на своих вещах; у демо-призраков меню нет. */}
+        <OwnerZoneGrid items={items} accent={preset.accent} ink={preset.ink} />
       </div>
     </main>
   );

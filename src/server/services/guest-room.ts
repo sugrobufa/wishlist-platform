@@ -9,16 +9,22 @@
 //   функция видимых гостю данных, наличие спрятанных вещей картинку не
 //   меняет (нет побочного канала «в этой зоне что-то спрятано»).
 import { unstable_cache } from "next/cache";
-import type { Item } from "@prisma/client";
+import type { Item, Prisma } from "@prisma/client";
 import { z } from "zod";
 import { prisma } from "@/server/db";
 import { rooms as roomPresets } from "@/config/design";
 import { visibleZones } from "@/components/scene/zones";
 import { demoGhostsFor } from "@/config/demo-pools";
 import { ghostForGuest, itemForGuest, type GuestItemDto } from "@/server/dto/guest-items";
+import { itemPhotoUrl } from "@/server/dto/items";
 
 // Слаг приходит из URL от кого угодно: мусор режем до похода в БД.
 const slugSchema = z.string().min(1).max(64);
+
+// Из владельца гостю — только имя и аватар, ничего больше.
+const ownerSelect = {
+  user: { select: { displayName: true, name: true, avatarKey: true } },
+} satisfies Prisma.RoomInclude;
 
 export type GuestRoomView = {
   /** Внутренний id комнаты — тег кэша `room-{id}`, канал «занято» тикета 08. В HTML не светится. */
@@ -26,11 +32,18 @@ export type GuestRoomView = {
   /** id пресета из rooms.json (сам объект пресета страница берёт из конфига). */
   preset: string;
   zonesOff: string[];
+  /** Короткий код комнаты; работает всегда, даже когда занят ник. */
+  shareSlug: string;
+  /** Красивый ник (тикет 13) — канонический адрес /r/{nick}, когда занят. */
+  nick: string | null;
   /** displayName ?? name; null — страница подставит подпись по локали. */
   ownerName: string | null;
+  /** Маленький аватар хозяйки в шапке (раздача /media) — если загружен. */
+  ownerAvatarUrl: string | null;
   /**
    * Вещи по видимым зонам (порядок зон — rooms.json). Зона, пустая в глазах
-   * гостя, наполнена демо-призраками пула — комната новичка не мёртвая.
+   * гостя, наполнена демо-призраками пула — комната новичка не мёртвая
+   * (если хозяйка не выключила примеры: Room.demoGhostsOff).
    */
   itemsByZone: Record<string, GuestItemDto[]>;
 };
@@ -39,17 +52,28 @@ export type GuestRoomView = {
  * Комната для публичного маршрута /r/{slug}: пресет, выключенные зоны, имя
  * хозяйки и вещи по зонам — уже отфильтрованные для гостя. Неизвестный слаг
  * (или битый пресет в БД) — null, страница отвечает 404.
+ *
+ * Адрес резолвится как ник ИЛИ короткий код (тикет 13): сначала ник —
+ * красивый адрес канонический; затем shareSlug — старые ссылки живут вечно
+ * (страница сама делает permanentRedirect на /r/{nick}, если он занят).
+ * Ник, совпадающий с чужим кодом, не выдаётся (services/rooms.setRoomNick),
+ * поэтому порядок безопасен.
  */
 export async function getGuestRoom(slug: string): Promise<GuestRoomView | null> {
   const parsedSlug = slugSchema.safeParse(slug);
   if (!parsedSlug.success) return null;
 
-  // Строка комнаты читается свежей на каждый запрос (дёшево: unique-индекс) —
-  // preset/zonesOff/имя не зависят от кэша вещей. Из владельца — только имя.
-  const room = await prisma.room.findUnique({
-    where: { shareSlug: parsedSlug.data },
-    include: { user: { select: { displayName: true, name: true } } },
-  });
+  // Строка комнаты читается свежей на каждый запрос (дёшево: unique-индексы) —
+  // preset/zonesOff/demoGhostsOff/имя не зависят от кэша вещей.
+  const room =
+    (await prisma.room.findUnique({
+      where: { nick: parsedSlug.data },
+      include: ownerSelect,
+    })) ??
+    (await prisma.room.findUnique({
+      where: { shareSlug: parsedSlug.data },
+      include: ownerSelect,
+    }));
   if (!room) return null;
 
   const preset = roomPresets.find((candidate) => candidate.id === room.preset);
@@ -59,18 +83,25 @@ export async function getGuestRoom(slug: string): Promise<GuestRoomView | null> 
 
   // Выключенные зоны исчезают целиком (инвариант №5) — фильтр по свежему
   // zonesOff поверх кэша, тем же visibleZones, что прячет мебель в сцене.
+  // Демо-призраки — по свежему demoGhostsOff (тикет 13): «Убрать примеры»
+  // действует немедленно, кэш вещей тут ни при чём.
   const itemsByZone: Record<string, GuestItemDto[]> = {};
   for (const zone of visibleZones(preset.zones, room.zonesOff)) {
     const own = ownItemsByZone[zone.key] ?? [];
     itemsByZone[zone.key] =
-      own.length > 0 ? own : demoGhostsFor(zone.key, zone.pool).map(ghostForGuest);
+      own.length > 0 || room.demoGhostsOff
+        ? own
+        : demoGhostsFor(zone.key, zone.pool).map(ghostForGuest);
   }
 
   return {
     roomId: room.id,
     preset: room.preset,
     zonesOff: room.zonesOff,
+    shareSlug: room.shareSlug,
+    nick: room.nick,
     ownerName: room.user.displayName ?? room.user.name ?? null,
+    ownerAvatarUrl: itemPhotoUrl(room.user.avatarKey),
     itemsByZone,
   };
 }

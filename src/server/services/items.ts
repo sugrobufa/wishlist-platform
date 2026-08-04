@@ -1,6 +1,7 @@
 // Сервис «Вещь» (Item): чтение зоны для сетки «Люблю»/«Хочу» (тикет 03),
 // создание вещи вручную (тикет 04, source=MANUAL) и по ссылке (тикет 06,
-// source=URL: canonicalUrl/domain + очередь image.ingest + дедуп).
+// source=URL: canonicalUrl/domain + очередь image.ingest + дедуп),
+// скрытие/удаление вещи хозяйкой (тикет 13).
 // Бизнес-логика живёт здесь, роуты/страницы остаются тонкими (CLAUDE.md).
 import { randomBytes } from "node:crypto";
 import { revalidateTag } from "next/cache";
@@ -10,6 +11,7 @@ import { prisma } from "@/server/db";
 import { rooms as roomPresets } from "@/config/design";
 import { domainOf, normalizeUrl } from "@/server/parser";
 import { enqueueImageIngest } from "@/server/queues";
+import { releaseBookingForItem } from "@/server/services/bookings";
 
 const idSchema = z.string().min(1);
 
@@ -287,6 +289,74 @@ export async function createItem(userId: string, input: unknown): Promise<Item> 
   }
 
   return item;
+}
+
+// ---------- Скрытие и удаление вещи (тикет 13) ----------
+
+/** Отказы мутаций вещи. NOT_FOUND и для чужой вещи — существование чужого
+ * id владельцу другой комнаты не подтверждаем. */
+export class ItemMutationError extends Error {
+  constructor(
+    readonly code: "NOT_FOUND",
+    message: string,
+  ) {
+    super(message);
+    this.name = "ItemMutationError";
+  }
+}
+
+/** Вещь СВОЕЙ комнаты — или NOT_FOUND (чужая неотличима от несуществующей).
+ * Ownership — фильтром по room.userId прямо в запросе: подменить некуда. */
+async function requireOwnItem(userId: string, itemId: string): Promise<Item> {
+  const item = await prisma.item.findFirst({
+    where: { id: idSchema.parse(itemId), room: { userId: idSchema.parse(userId) } },
+  });
+  if (!item) {
+    throw new ItemMutationError("NOT_FOUND", "такой вещи нет");
+  }
+  return item;
+}
+
+/**
+ * Спрятать/показать вещь (US 17): hidden видит только хозяйка, гостю она
+ * не отдаётся (фильтр тикета 07 — в SQL, спрятанное не попадает даже в кэш).
+ *
+ * КОНТРАКТ ТИКЕТА 09: при hidden=true ОБЯЗАТЕЛЬНО снимается активная бронь
+ * (releaseBookingForItem) — иначе спрятанная вещь оставалась бы «занятой»
+ * и счётчик хозяйки врал. Гость не уведомляется: бронь тихо исчезает из
+ * его «моих броней» (симметрично тихому появлению). Показ обратно (false)
+ * бронь НЕ воскрешает. Идемпотентно.
+ */
+export async function setItemHidden(userId: string, itemId: string, hidden: boolean): Promise<Item> {
+  const wantHidden = z.boolean().parse(hidden);
+  const item = await requireOwnItem(userId, itemId);
+
+  const updated =
+    item.hidden === wantHidden
+      ? item
+      : await prisma.item.update({ where: { id: item.id }, data: { hidden: wantHidden } });
+  // Снятие — и при повторном скрытии уже спрятанной: закрывает «дыру до
+  // тикета 13» (бронь, повисшую на вещи, спрятанной до этого релиза).
+  if (wantHidden) {
+    await releaseBookingForItem(item.id);
+  }
+
+  revalidateRoom(item.roomId);
+  return updated;
+}
+
+/**
+ * Удалить вещь навсегда (подтверждение — на клиенте). Бронь снимается явно
+ * ДО удаления (контракт тикета 09: честнее и дешевле, чем полагаться на
+ * каскад молча), затем строка удаляется; PriceSnapshot уходит каскадом.
+ * Фото-объект в S3 не трогаем — чистка осиротевших ключей вместе с
+ * экспортом/удалением аккаунта (TODO тикет 16, GDPR — тикет 14).
+ */
+export async function deleteItem(userId: string, itemId: string): Promise<void> {
+  const item = await requireOwnItem(userId, itemId);
+  await releaseBookingForItem(item.id);
+  await prisma.item.delete({ where: { id: item.id } });
+  revalidateRoom(item.roomId);
 }
 
 // ---------- Дедуп по canonicalUrl (тикет 06) ----------

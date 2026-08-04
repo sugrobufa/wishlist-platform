@@ -8,11 +8,11 @@ import { getRoomForUser, getSessionUserId } from "@/server/services/rooms";
 import { listZoneItems } from "@/server/services/items";
 import { ownerTakenCount } from "@/server/services/bookings";
 import { itemForOwner } from "@/server/dto/items";
-import { demoGhostsFor } from "@/config/demo-pools";
 import { rooms, scene, type Room, type RoomZone } from "@/config/design";
 import { SceneStage } from "@/components/scene/SceneStage";
 import { visibleZones } from "@/components/scene/zones";
 import { ZoneGrid } from "@/components/zone/ZoneGrid";
+import { zoneDisplayItems } from "@/components/zone/zone-display-items";
 import { CopyButton } from "./copy-button";
 
 export const dynamic = "force-dynamic";
@@ -36,7 +36,9 @@ export default async function RoomPage() {
 
   const t = await getTranslations("Room");
   const preset = rooms.find((candidate) => candidate.id === room.preset);
-  const sharePath = `/r/${room.shareSlug}`;
+  // Красивый адрес с ником, когда он занят (тикет 13); короткий код
+  // продолжает работать редиректом.
+  const sharePath = `/r/${room.nick ?? room.shareSlug}`;
 
   // Счётчик «N вещей уже забраны» (тикет 09) — ЕДИНСТВЕННОЕ, что хозяйка
   // знает о бронях до праздника (инвариант №1). Страница force-dynamic,
@@ -44,13 +46,25 @@ export default async function RoomPage() {
   // /api/v1/room/taken-count живёт для клиентских обновлений.
   const takenCount = await ownerTakenCount(userId);
 
-  const zoneContent = preset ? await buildZoneContent(room.id, preset, room.zonesOff) : undefined;
+  const zoneContent = preset
+    ? await buildZoneContent(room.id, preset, room.zonesOff, room.demoGhostsOff)
+    : undefined;
 
   return (
     <main className="min-h-screen pb-16">
       <div className="mx-auto w-full" style={{ maxWidth: scene.desktop.w }}>
         <header className="px-5 pb-4 pt-6 lg:px-0 lg:pt-10">
-          <p className="overline text-text-muted">{t("overline")}</p>
+          <div className="flex items-start justify-between gap-4">
+            <p className="overline text-text-muted">{t("overline")}</p>
+            {/* Тихая ссылка в настройки (тикет 13) — без акцента, на месте
+                служебных действий шапки. */}
+            <Link
+              href="/settings"
+              className="pressable text-xs font-semibold text-text-muted hover:text-text-strong"
+            >
+              {t("settingsLink")}
+            </Link>
+          </div>
           <h1 className="display mt-2 text-2xl lg:text-4xl">{preset?.name ?? room.preset}</h1>
           {/* Тихий счётчик движения (турн 11d): только число, никаких намёков,
               какие вещи. Спокойный оверлайн без акцента; при нуле — тишина. */}
@@ -82,12 +96,14 @@ export default async function RoomPage() {
  * Содержимое панелей зон для SceneStage (контракт тикета 02: узлы проходят
  * client-границу пропом zoneContent[zoneKey]). Для каждой видимой зоны —
  * сетка её вещей; зоне без единой своей вещи достаются демо-призраки пула
- * (в БД не пишутся, исчезают с первой своей вещью — гриллинг №4).
+ * (в БД не пишутся, исчезают с первой своей вещью — гриллинг №4; тумблер
+ * «Убрать примеры» гасит их скопом — тикет 13, zoneDisplayItems).
  */
 async function buildZoneContent(
   roomId: string,
   preset: Room,
   zonesOff: string[],
+  demoGhostsOff: boolean,
 ): Promise<Record<string, ReactNode>> {
   const tZone = await getTranslations("ZoneGrid");
   const zones = visibleZones(preset.zones, zonesOff);
@@ -95,7 +111,7 @@ async function buildZoneContent(
   const entries = await Promise.all(
     zones.map(async (zone: RoomZone) => {
       const own = (await listZoneItems(roomId, zone.key)).map(itemForOwner);
-      const items = own.length > 0 ? own : demoGhostsFor(zone.key, zone.pool);
+      const items = zoneDisplayItems(own, zone.key, zone.pool, demoGhostsOff);
       const node = (
         <div key={zone.key}>
           <ZoneGrid items={items} accent={preset.accent} ink={preset.ink} />
