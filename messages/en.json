@@ -37,11 +37,17 @@
   },
   "Room": {
     "overline": "Your room",
-    "sceneSoon": "The scene with zones and items will appear here in upcoming updates.",
     "shareOverline": "Room address",
     "shareHint": "Send the link — a guest enters without signing up and quietly picks a gift.",
     "copy": "Copy link",
     "copied": "Link copied"
+  },
+  "Scene": {
+    "hint": "tap a zone to step closer",
+    "zoneAria": "Zone “{label}” — step closer",
+    "back": "Step back",
+    "noOpenFrame": "the camera steps in — the “open” shot is not filmed yet",
+    "itemsSoon": "This zone's items will appear here in an upcoming update."
   },
   "GuestRoom": {
     "overline": "A room by link",

@@ -3,16 +3,17 @@ import { getTranslations } from "next-intl/server";
 import { redirect } from "next/navigation";
 import { auth } from "@/server/auth";
 import { getRoomForUser, getSessionUserId } from "@/server/services/rooms";
-import { rooms } from "@/config/design";
-import { roomImageUrl } from "@/app/rooms/room-image";
+import { rooms, scene } from "@/config/design";
+import { SceneStage } from "@/components/scene/SceneStage";
 import { CopyButton } from "./copy-button";
 
 export const dynamic = "force-dynamic";
 export const metadata: Metadata = { robots: { index: false, follow: false } };
 
 /**
- * Комната хозяйки — пока заглушка: имя пресета, кадр комнаты фоном и адрес
- * /r/{slug}. Живая сцена с зонами придёт тикетом 02.
+ * Комната хозяйки — живая сцена (тикет 02): кадр, зоны-хотспоты, наезд
+ * камеры, кадры «открыто». Мобильный вид — сцена сверху, остальное ниже;
+ * на десктопе сцена крупно по центру (ширина — из rooms.json → scene.desktop).
  */
 export default async function RoomPage() {
   const session = await auth();
@@ -29,37 +30,22 @@ export default async function RoomPage() {
   const sharePath = `/r/${room.shareSlug}`;
 
   return (
-    <main className="relative min-h-screen">
-      {preset && (
-        <div
-          aria-hidden
-          className="absolute inset-0"
-          style={{
-            backgroundImage: `url(${roomImageUrl(preset.base)})`,
-            backgroundSize: "cover",
-            backgroundPosition: "50% 40%",
-          }}
-        />
-      )}
-      <div
-        aria-hidden
-        className="absolute inset-0"
-        style={{
-          background:
-            "linear-gradient(0deg, rgba(11,8,6,.94) 0%, rgba(11,8,6,.55) 45%, rgba(11,8,6,.2) 100%)",
-        }}
-      />
+    <main className="min-h-screen pb-16">
+      <div className="mx-auto w-full" style={{ maxWidth: scene.desktop.w }}>
+        <header className="px-5 pb-4 pt-6 lg:px-0 lg:pt-10">
+          <p className="overline text-text-muted">{t("overline")}</p>
+          <h1 className="display mt-2 text-2xl lg:text-4xl">{preset?.name ?? room.preset}</h1>
+        </header>
 
-      <div className="relative mx-auto flex min-h-screen w-full max-w-3xl flex-col justify-end gap-4 px-6 pb-12 pt-24">
-        <p className="overline text-text-muted">{t("overline")}</p>
-        <h1 className="display text-4xl md:text-6xl">{preset?.name ?? room.preset}</h1>
-        <p className="max-w-md text-text-body">{t("sceneSoon")}</p>
+        {preset && <SceneStage preset={preset} zonesOff={room.zonesOff} />}
 
-        <div className="mt-4 flex max-w-md flex-col gap-3 border border-surface-hairline bg-surface-fill p-5 backdrop-blur-sm">
-          <p className="overline text-text-muted">{t("shareOverline")}</p>
-          <p className="font-mono text-lg text-text-primary">{sharePath}</p>
-          <p className="text-sm text-text-muted">{t("shareHint")}</p>
-          <CopyButton path={sharePath} accent={preset?.accent ?? "#E7C9A9"} />
+        <div className="mt-6 px-5 lg:px-0">
+          <div className="flex max-w-md flex-col gap-3 border border-surface-hairline bg-surface-fill p-5">
+            <p className="overline text-text-muted">{t("shareOverline")}</p>
+            <p className="font-mono text-lg text-text-primary">{sharePath}</p>
+            <p className="text-sm text-text-muted">{t("shareHint")}</p>
+            <CopyButton path={sharePath} accent={preset?.accent ?? "#E7C9A9"} />
+          </div>
         </div>
       </div>
     </main>
