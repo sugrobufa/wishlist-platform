@@ -49,6 +49,21 @@
     "noOpenFrame": "наезд есть, кадра «открыто» ещё нет",
     "itemsSoon": "Вещи этой зоны появятся здесь со следующим обновлением."
   },
+  "ZoneGrid": {
+    "tabsAria": "Люблю и хочу",
+    "tabLove": "Люблю",
+    "tabWant": "Хочу",
+    "emptyLove": "Пока пусто — расскажи, что любишь",
+    "emptyWant": "Пока пусто — добавь первое желание",
+    "loveCaption": "люблю",
+    "givenYearGiver": "Подарен в {year} · {giver}",
+    "givenYear": "Подарен в {year}",
+    "givenGiver": "Подарок · {giver}",
+    "demoBadge": "пример",
+    "demoNote": "пример — замени на своё",
+    "openFull": "Вся зона списком",
+    "backToRoom": "В комнату"
+  },
   "GuestRoom": {
     "overline": "Комната по ссылке",
     "ownerFallback": "Хозяйка комнаты",

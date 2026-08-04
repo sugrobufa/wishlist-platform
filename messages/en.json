@@ -49,6 +49,21 @@
     "noOpenFrame": "the camera steps in — the “open” shot is not filmed yet",
     "itemsSoon": "This zone's items will appear here in an upcoming update."
   },
+  "ZoneGrid": {
+    "tabsAria": "Love and want",
+    "tabLove": "Love",
+    "tabWant": "Want",
+    "emptyLove": "Nothing here yet — show what you love",
+    "emptyWant": "Nothing here yet — add your first wish",
+    "loveCaption": "love it",
+    "givenYearGiver": "Gifted in {year} · {giver}",
+    "givenYear": "Gifted in {year}",
+    "givenGiver": "A gift · {giver}",
+    "demoBadge": "sample",
+    "demoNote": "a sample — replace with your own",
+    "openFull": "See the whole zone",
+    "backToRoom": "Back to the room"
+  },
   "GuestRoom": {
     "overline": "A room by link",
     "ownerFallback": "Room owner",

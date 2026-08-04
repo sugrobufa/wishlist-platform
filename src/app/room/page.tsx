@@ -1,19 +1,27 @@
 import type { Metadata } from "next";
+import type { ReactNode } from "react";
+import Link from "next/link";
 import { getTranslations } from "next-intl/server";
 import { redirect } from "next/navigation";
 import { auth } from "@/server/auth";
 import { getRoomForUser, getSessionUserId } from "@/server/services/rooms";
-import { rooms, scene } from "@/config/design";
+import { listZoneItems } from "@/server/services/items";
+import { itemForOwner } from "@/server/dto/items";
+import { demoGhostsFor } from "@/config/demo-pools";
+import { rooms, scene, type Room, type RoomZone } from "@/config/design";
 import { SceneStage } from "@/components/scene/SceneStage";
+import { visibleZones } from "@/components/scene/zones";
+import { ZoneGrid } from "@/components/zone/ZoneGrid";
 import { CopyButton } from "./copy-button";
 
 export const dynamic = "force-dynamic";
 export const metadata: Metadata = { robots: { index: false, follow: false } };
 
 /**
- * Комната хозяйки — живая сцена (тикет 02): кадр, зоны-хотспоты, наезд
- * камеры, кадры «открыто». Мобильный вид — сцена сверху, остальное ниже;
- * на десктопе сцена крупно по центру (ширина — из rooms.json → scene.desktop).
+ * Комната хозяйки — живая сцена (тикет 02) с сеткой вещей в открытой зоне
+ * (тикет 03): вкладки «Люблю»/«Хочу», демо-призраки в зонах без своих вещей.
+ * Мобильный вид — сцена сверху, остальное ниже; на десктопе сцена крупно
+ * по центру (ширина — из rooms.json → scene.desktop).
  */
 export default async function RoomPage() {
   const session = await auth();
@@ -29,6 +37,8 @@ export default async function RoomPage() {
   const preset = rooms.find((candidate) => candidate.id === room.preset);
   const sharePath = `/r/${room.shareSlug}`;
 
+  const zoneContent = preset ? await buildZoneContent(room.id, preset, room.zonesOff) : undefined;
+
   return (
     <main className="min-h-screen pb-16">
       <div className="mx-auto w-full" style={{ maxWidth: scene.desktop.w }}>
@@ -37,7 +47,9 @@ export default async function RoomPage() {
           <h1 className="display mt-2 text-2xl lg:text-4xl">{preset?.name ?? room.preset}</h1>
         </header>
 
-        {preset && <SceneStage preset={preset} zonesOff={room.zonesOff} />}
+        {preset && (
+          <SceneStage preset={preset} zonesOff={room.zonesOff} zoneContent={zoneContent} />
+        )}
 
         <div className="mt-6 px-5 lg:px-0">
           <div className="flex max-w-md flex-col gap-3 border border-surface-hairline bg-surface-fill p-5">
@@ -50,4 +62,41 @@ export default async function RoomPage() {
       </div>
     </main>
   );
+}
+
+/**
+ * Содержимое панелей зон для SceneStage (контракт тикета 02: узлы проходят
+ * client-границу пропом zoneContent[zoneKey]). Для каждой видимой зоны —
+ * сетка её вещей; зоне без единой своей вещи достаются демо-призраки пула
+ * (в БД не пишутся, исчезают с первой своей вещью — гриллинг №4).
+ */
+async function buildZoneContent(
+  roomId: string,
+  preset: Room,
+  zonesOff: string[],
+): Promise<Record<string, ReactNode>> {
+  const tZone = await getTranslations("ZoneGrid");
+  const zones = visibleZones(preset.zones, zonesOff);
+
+  const entries = await Promise.all(
+    zones.map(async (zone: RoomZone) => {
+      const own = (await listZoneItems(roomId, zone.key)).map(itemForOwner);
+      const items = own.length > 0 ? own : demoGhostsFor(zone.key, zone.pool);
+      const node = (
+        <div key={zone.key}>
+          <ZoneGrid items={items} accent={preset.accent} ink={preset.ink} />
+          <Link
+            href={`/room/zone/${zone.key}`}
+            className="pressable mt-4 inline-block text-xs font-semibold"
+            style={{ color: preset.accent }}
+          >
+            {tZone("openFull")} →
+          </Link>
+        </div>
+      );
+      return [zone.key, node] as const;
+    }),
+  );
+
+  return Object.fromEntries(entries);
 }
