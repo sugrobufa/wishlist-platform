@@ -40,9 +40,17 @@ export default async function AddItemPage({ searchParams }: SearchParams) {
     key: zone.key,
     label: zoneInfo(zone.key)?.label ?? zone.label,
   }));
-  const initialZone = zones.find((zone) => zone.key === zoneParam)?.key ?? zones[0]?.key ?? "";
+  const preselected = zones.find((zone) => zone.key === zoneParam)?.key;
+  const initialZone = preselected ?? zones[0]?.key ?? "";
 
   return (
-    <AddItemFlow zones={zones} initialZone={initialZone} accent={preset.accent} ink={preset.ink} />
+    <AddItemFlow
+      zones={zones}
+      initialZone={initialZone}
+      // Пришли «добавить в эту зону» (?zone=…) — подсказка парсера зону не двигает.
+      zonePreselected={preselected !== undefined}
+      accent={preset.accent}
+      ink={preset.ink}
+    />
   );
 }

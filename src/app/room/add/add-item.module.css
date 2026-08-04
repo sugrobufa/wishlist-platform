@@ -253,6 +253,88 @@ textarea.input {
   cursor: pointer;
 }
 
+/* --- Добавление по ссылке (тикет 06) --------------------------------------- */
+
+.urlRow {
+  display: flex;
+  gap: 8px;
+}
+
+.urlRow .input {
+  flex: 1;
+  min-width: 0;
+}
+
+.fillBtn {
+  flex: none;
+  padding: 0 14px;
+  border: 1px solid var(--ai-accent);
+  background: none;
+  color: var(--color-text-primary);
+  font: 600 12px/1.2 var(--font-ui);
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .fillBtn:hover:not(:disabled) {
+    background: var(--ai-glow-25);
+  }
+}
+
+.fillBtn:disabled {
+  opacity: 0.55;
+  cursor: default;
+}
+
+/* Мягкая плашка «заполнили что смогли — проверь» (confidence < 0.4). */
+.softNote {
+  margin: 8px 0 0;
+  font: 400 12.5px/1.5 var(--font-ui);
+  color: var(--color-text-muted);
+}
+
+.parseError {
+  margin: 8px 0 0;
+  padding: 8px 11px;
+  background: rgba(255, 255, 255, 0.03);
+  border-left: 2px solid var(--ai-accent);
+  font: 400 12.5px/1.5 var(--font-ui);
+  color: var(--color-text-strong);
+}
+
+/* Дубликат по canonicalUrl — жёлтое предупреждение, не запрет (стори 10). */
+.dupWarn {
+  margin: 10px 0 0;
+  padding: 10px 12px;
+  border-left: 2px solid #d9b44a;
+  background: rgba(217, 180, 74, 0.09);
+  font: 400 13px/1.5 var(--font-ui);
+  color: var(--color-text-strong);
+}
+
+.dupLink {
+  color: #d9b44a;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+/* Бейдж у зоны: «предложено по ссылке» (наследует капс fieldLabel). */
+.hintBadge {
+  display: inline-block;
+  margin-left: 8px;
+  padding: 3px 6px 2px;
+  border: 1px solid var(--ai-accent);
+  color: var(--ai-accent);
+  font: 600 9px/1 var(--font-ui);
+  letter-spacing: 0.08em;
+}
+
+/* Превью «фото из магазина» — над областью загрузки своего фото. */
+.storePhotoRow {
+  margin-bottom: 10px;
+}
+
 /* --- Ошибка (в системе: панель с акцентной кромкой, как в турне 8) --------- */
 
 .error {

@@ -7,8 +7,10 @@ import { getRoomForUser, getSessionUserId } from "@/server/services/rooms";
 import {
   CreateItemError,
   createItem,
+  findDuplicateByUrl,
   ITEM_PHOTO_MAX_BYTES,
   newItemPhotoKey,
+  type DuplicateItem,
 } from "@/server/services/items";
 import { presignPut } from "@/server/s3";
 
@@ -46,6 +48,25 @@ export async function presignItemPhotoAction(input: {
 
   const url = await presignPut(key, contentType, size);
   return { key, url };
+}
+
+export type DuplicateCheckResult = { duplicate: DuplicateItem | null };
+
+/**
+ * Дедуп по canonicalUrl (тикет 06): есть ли в СВОЕЙ комнате вещь с той же
+ * ссылкой. Только предупреждение — сохранить всё равно можно (user story 10).
+ * Без сессии и на мусорном URL честно отвечаем «дубликата нет»: это
+ * вспомогательная подсказка, ломать флоу из-за неё нельзя.
+ */
+export async function checkDuplicateAction(input: { url: string }): Promise<DuplicateCheckResult> {
+  const session = await auth();
+  const userId = await getSessionUserId(session?.user);
+  if (!userId) return { duplicate: null };
+
+  const url = typeof input?.url === "string" ? input.url : "";
+  if (!url.trim()) return { duplicate: null };
+
+  return { duplicate: await findDuplicateByUrl(userId, url) };
 }
 
 export type CreateItemResult = {

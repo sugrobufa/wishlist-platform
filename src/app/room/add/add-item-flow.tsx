@@ -7,10 +7,18 @@
 // «уже моё» или даритель+год — цены в форме нет вовсе.
 // Фото грузится напрямую в MinIO/S3 по pre-signed PUT, в createItem уходит
 // только photoKey. Сохранение — «полоса света», после — redirect в зону.
-import { useState, type CSSProperties, type ChangeEvent, type FormEvent } from "react";
+//
+// Добавление по ссылке (тикет 06): вставил URL (или нажал «Заполнить по
+// ссылке») → POST /api/v1/parse → ответ раскладывается в ПУСТЫЕ поля формы
+// (занятые руками не трогаются), зона-подсказка встаёт с бейджем, фото
+// магазина показывается превью и скачивается воркером в своё S3 после
+// сохранения. Дубликат по canonicalUrl — жёлтое предупреждение, не запрет.
+import { useState, type CSSProperties, type ChangeEvent, type ClipboardEvent, type FormEvent } from "react";
 import { useTranslations } from "next-intl";
 import { sceneMotion } from "@/config/design";
-import { createItemAction, presignItemPhotoAction } from "./actions";
+import type { ParsedProduct } from "@/server/parser";
+import type { DuplicateItem } from "@/server/services/items";
+import { checkDuplicateAction, createItemAction, presignItemPhotoAction } from "./actions";
 import s from "./add-item.module.css";
 
 export type ZoneOption = { key: string; label: string };
@@ -56,12 +64,20 @@ type AddItemFlowProps = {
   zones: ZoneOption[];
   /** Предвыбор из ?zone=… (уже провалидирован страницей). */
   initialZone: string;
+  /** true — зону выбрал пользователь ссылкой ?zone=…; подсказка парсера её не двигает. */
+  zonePreselected?: boolean;
   /** Акцент/ink комнаты из rooms.json. */
   accent: string;
   ink: string;
 };
 
-export function AddItemFlow({ zones, initialZone, accent, ink }: AddItemFlowProps) {
+export function AddItemFlow({
+  zones,
+  initialZone,
+  zonePreselected = false,
+  accent,
+  ink,
+}: AddItemFlowProps) {
   const t = useTranslations("AddItem");
 
   const [state, setState] = useState<ItemState | null>(null);
@@ -73,6 +89,19 @@ export function AddItemFlow({ zones, initialZone, accent, ink }: AddItemFlowProp
   const [url, setUrl] = useState("");
   const [file, setFile] = useState<File | null>(null);
   const [preview, setPreview] = useState<string | null>(null);
+
+  // Добавление по ссылке (тикет 06).
+  const [parsing, setParsing] = useState(false);
+  /** URL, из которого карточка заполнилась (успешный parse) → source=URL. */
+  const [parsedUrl, setParsedUrl] = useState<string | null>(null);
+  const [parseErrorKey, setParseErrorKey] = useState<string | null>(null);
+  const [lowConfidence, setLowConfidence] = useState(false);
+  /** Фото магазина: превью хотлинком только в браузере хозяйки; в S3 его скачает воркер. */
+  const [storeImageUrl, setStoreImageUrl] = useState<string | null>(null);
+  const [zoneSuggested, setZoneSuggested] = useState(false);
+  /** Пользователь выбрал зону сам (руками или ?zone=…) — подсказка её не перетирает. */
+  const [zoneTouched, setZoneTouched] = useState(zonePreselected);
+  const [duplicate, setDuplicate] = useState<DuplicateItem | null>(null);
 
   // WANT.
   const [price, setPrice] = useState("");
@@ -102,6 +131,14 @@ export function AddItemFlow({ zones, initialZone, accent, ink }: AddItemFlowProp
     "--ai-glow-85": withAlpha(accent, 0.85),
     "--ai-ease": sceneMotion.easingOut,
   } as CSSProperties;
+
+  // Парсер может вернуть валюту вне малого набора формы (KGS, KZT…) —
+  // дорисовываем её в options, чтобы select честно показывал выбранное.
+  const currencyOptions: ReadonlyArray<{ code: string; label: string }> = CURRENCIES.some(
+    (option) => option.code === currency,
+  )
+    ? CURRENCIES
+    : [...CURRENCIES, { code: currency, label: currency }];
 
   function pickState(next: ItemState) {
     setState(next);
@@ -137,13 +174,96 @@ export function AddItemFlow({ zones, initialZone, accent, ink }: AddItemFlowProp
     });
   }
 
+  // ---------- Заполнение по ссылке (тикет 06) ----------
+
+  /**
+   * Мерж ответа парсера в форму: ПУСТЫЕ поля заполняются, занятые руками не
+   * трогаются (начальные значения, а не перезапись). Валюта ходит парой к
+   * цене: подставляется только вместе с ней.
+   */
+  function applyParsed(product: ParsedProduct) {
+    if (title.trim() === "" && product.title) setTitle(product.title);
+    if (price.trim() === "" && product.price) {
+      setPrice(product.price);
+      if (product.currency) setCurrency(product.currency);
+    }
+    if (note.trim() === "" && product.description) setNote(product.description);
+    if (
+      product.zoneHint &&
+      !zoneTouched &&
+      zones.some((option) => option.key === product.zoneHint)
+    ) {
+      setZone(product.zoneHint);
+      setZoneSuggested(true);
+    }
+    if (product.imageUrl && !file) setStoreImageUrl(product.imageUrl);
+    setLowConfidence(product.confidence < 0.4);
+  }
+
+  /** Дедуп-подсказка по canonicalUrl своей комнаты; ошибки молча гасятся. */
+  async function runDupCheck(candidate: string) {
+    try {
+      const { duplicate: found } = await checkDuplicateAction({ url: candidate });
+      setDuplicate(found);
+    } catch {
+      setDuplicate(null);
+    }
+  }
+
+  /** POST /api/v1/parse: лоадер «Читаем страницу…», ответ — в пустые поля. */
+  async function runParse(candidate: string) {
+    const target = candidate.trim();
+    if (target === "" || parsing) return;
+    setParsing(true);
+    setParseErrorKey(null);
+    try {
+      const response = await fetch("/api/v1/parse", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ url: target }),
+      });
+      if (response.status === 422) {
+        setParseErrorKey("errParseUrl");
+        return;
+      }
+      if (response.status === 429) {
+        setParseErrorKey("errParseRate");
+        return;
+      }
+      if (!response.ok) {
+        setParseErrorKey("errGeneric");
+        return;
+      }
+      const payload = (await response.json()) as { data: ParsedProduct };
+      applyParsed(payload.data);
+      setParsedUrl(target);
+      void runDupCheck(payload.data.canonicalUrl || target);
+    } catch {
+      setParseErrorKey("errGeneric");
+    } finally {
+      setParsing(false);
+    }
+  }
+
+  /** Авто-подхват: вставили полноценный http(s)-URL — читаем страницу сами. */
+  function onUrlPaste(event: ClipboardEvent<HTMLInputElement>) {
+    const text = event.clipboardData.getData("text").trim();
+    if (/^https?:\/\/\S+$/i.test(text) && text !== parsedUrl) void runParse(text);
+  }
+
   function buildInput(photoKey: string | undefined) {
+    // source=URL — карточка родилась из ссылки (успешный parse) и ссылка
+    // всё ещё в поле; canonicalUrl/domain посчитает сервер (createItem).
+    const fromUrl = parsedUrl !== null && url.trim() !== "";
     const common = {
       zone,
       title: title.trim(),
       note: note.trim() || undefined,
       url: url.trim() || undefined,
       photoKey,
+      source: fromUrl ? ("URL" as const) : ("MANUAL" as const),
+      // Фото магазина скачает воркер (image.ingest); своё фото приоритетнее.
+      imageUrl: fromUrl && !photoKey && storeImageUrl ? storeImageUrl : undefined,
     };
     if (state === "WANT") {
       return {
@@ -259,6 +379,47 @@ export function AddItemFlow({ zones, initialZone, accent, ink }: AddItemFlowProp
       </p>
 
       <form onSubmit={(event) => void onSubmit(event)} className="mt-8 flex flex-col gap-5">
+        {/* Ссылка — точка входа «добавить по URL» (тикет 06): вставка
+            валидного URL парсит сама, кнопка — для набранного руками. */}
+        <div>
+          <span className={s.fieldLabel}>{t("urlLabel")}</span>
+          <div className={s.urlRow}>
+            <input
+              className={s.input}
+              type="url"
+              value={url}
+              onChange={(event) => {
+                setUrl(event.target.value);
+                setParseErrorKey(null);
+              }}
+              onPaste={onUrlPaste}
+              onBlur={() => {
+                if (url.trim() !== "") void runDupCheck(url);
+              }}
+              placeholder={t("urlPlaceholder")}
+            />
+            <button
+              type="button"
+              className={`pressable ${s.fillBtn}`}
+              onClick={() => void runParse(url)}
+              disabled={parsing || url.trim() === ""}
+              aria-busy={parsing}
+            >
+              {parsing ? t("parsing") : t("fillFromUrl")}
+            </button>
+          </div>
+          {parseErrorKey && <p className={s.parseError}>{t(parseErrorKey)}</p>}
+          {!parseErrorKey && lowConfidence && <p className={s.softNote}>{t("parsedLow")}</p>}
+          {duplicate && (
+            <p className={s.dupWarn} role="status">
+              {t("dupWarn", { title: duplicate.title })}{" "}
+              <a className={s.dupLink} href={`/room/zone/${duplicate.zone}`}>
+                {t("dupOpen")}
+              </a>
+            </p>
+          )}
+        </div>
+
         <label>
           <span className={s.fieldLabel}>{t("titleLabel")}</span>
           <input
@@ -273,12 +434,19 @@ export function AddItemFlow({ zones, initialZone, accent, ink }: AddItemFlowProp
         </label>
 
         <label>
-          <span className={s.fieldLabel}>{t("zoneLabel")}</span>
+          <span className={s.fieldLabel}>
+            {t("zoneLabel")}
+            {zoneSuggested && <span className={s.hintBadge}>{t("zoneSuggested")}</span>}
+          </span>
           <select
             className={s.input}
             required
             value={zone}
-            onChange={(event) => setZone(event.target.value)}
+            onChange={(event) => {
+              setZone(event.target.value);
+              setZoneTouched(true);
+              setZoneSuggested(false);
+            }}
           >
             {zones.map((option) => (
               <option key={option.key} value={option.key}>
@@ -311,7 +479,7 @@ export function AddItemFlow({ zones, initialZone, accent, ink }: AddItemFlowProp
                   value={currency}
                   onChange={(event) => setCurrency(event.target.value)}
                 >
-                  {CURRENCIES.map((option) => (
+                  {currencyOptions.map((option) => (
                     <option key={option.code} value={option.code}>
                       {option.label}
                     </option>
@@ -447,6 +615,27 @@ export function AddItemFlow({ zones, initialZone, accent, ink }: AddItemFlowProp
 
         <div>
           <span className={s.fieldLabel}>{t("photoLabel")}</span>
+          {file === null && storeImageUrl && (
+            <div className={`${s.photoPreviewRow} ${s.storePhotoRow}`}>
+              {/* Превью хотлинком живёт только в браузере хозяйки до сохранения;
+                  в комнату попадёт копия из нашего S3 (image.ingest). */}
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src={storeImageUrl}
+                alt=""
+                referrerPolicy="no-referrer"
+                className={s.photoThumb}
+              />
+              <span className={s.photoName}>{t("storePhoto")}</span>
+              <button
+                type="button"
+                className={`pressable ${s.photoRemove}`}
+                onClick={() => setStoreImageUrl(null)}
+              >
+                {t("storePhotoRemove")}
+              </button>
+            </div>
+          )}
           {file === null ? (
             <label className={`pressable ${s.photoDrop}`}>
               <svg
@@ -480,17 +669,6 @@ export function AddItemFlow({ zones, initialZone, accent, ink }: AddItemFlowProp
             </div>
           )}
         </div>
-
-        <label>
-          <span className={s.fieldLabel}>{t("urlLabel")}</span>
-          <input
-            className={s.input}
-            type="url"
-            value={url}
-            onChange={(event) => setUrl(event.target.value)}
-            placeholder={t("urlPlaceholder")}
-          />
-        </label>
 
         {errorKey && <p className={s.error}>{t(errorKey)}</p>}
 

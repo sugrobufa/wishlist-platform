@@ -1,5 +1,6 @@
-// Сервис «Вещь» (Item): чтение зоны для сетки «Люблю»/«Хочу» (тикет 03)
-// и создание вещи вручную (тикет 04, source=MANUAL).
+// Сервис «Вещь» (Item): чтение зоны для сетки «Люблю»/«Хочу» (тикет 03),
+// создание вещи вручную (тикет 04, source=MANUAL) и по ссылке (тикет 06,
+// source=URL: canonicalUrl/domain + очередь image.ingest + дедуп).
 // Бизнес-логика живёт здесь, роуты/страницы остаются тонкими (CLAUDE.md).
 import { randomBytes } from "node:crypto";
 import { revalidateTag } from "next/cache";
@@ -7,6 +8,8 @@ import { Prisma, type Item } from "@prisma/client";
 import { z } from "zod";
 import { prisma } from "@/server/db";
 import { rooms as roomPresets } from "@/config/design";
+import { domainOf, normalizeUrl } from "@/server/parser";
+import { enqueueImageIngest } from "@/server/queues";
 
 const idSchema = z.string().min(1);
 
@@ -129,6 +132,13 @@ const receivedYearSchema = z.preprocess(
     .optional(),
 );
 
+/**
+ * Источник вещи на этой фазе: MANUAL (руки, тикет 04) или URL (по ссылке,
+ * тикет 06). Остальные значения ItemSource (PHOTO/CATALOG/…) — будущие фазы,
+ * из формы их прислать нельзя. Дефолт MANUAL — контракт тикета 04 не меняется.
+ */
+const sourceSchema = z.enum(["MANUAL", "URL"]).default("MANUAL");
+
 /** Поля, общие обеим формам состояния (турн 8: шаг 2). */
 const commonItemFields = {
   zone: z.string().min(1),
@@ -136,6 +146,10 @@ const commonItemFields = {
   note: optionalTrimmed(2000),
   photoKey: photoKeySchema,
   url: urlSchema,
+  source: sourceSchema,
+  /** Фото магазина (только source=URL): скачается воркером в своё S3 —
+   * в БД это поле не пишется, хотлинков нет (инвариант №6). */
+  imageUrl: urlSchema,
 };
 
 /**
@@ -144,26 +158,32 @@ const commonItemFields = {
  * price/currency нет вовсе: лишние поля инпута отбрасываются ДО записи —
  * цена «люблю» не существует даже в БД при создании (инвариант §8).
  */
-export const createItemInputSchema = z.discriminatedUnion("state", [
-  z.object({
-    state: z.literal("WANT"),
-    ...commonItemFields,
-    price: priceSchema,
-    currency: currencySchema,
-    priceVisibility: z.enum(["ALL", "FRIENDS", "ME", "NONE"]).default("ALL"),
-    size: optionalTrimmed(80),
-    color: optionalTrimmed(80),
-    desire: desireSchema,
-  }),
-  z.object({
-    state: z.literal("LOVE"),
-    ...commonItemFields,
-    giverName: optionalTrimmed(120),
-    /** Год «подарен в …»; в БД пишется как receivedAt (полдень UTC 1 января —
-     * год не съезжает ни в одном реальном часовом поясе). */
-    receivedYear: receivedYearSchema,
-  }),
-]);
+export const createItemInputSchema = z
+  .discriminatedUnion("state", [
+    z.object({
+      state: z.literal("WANT"),
+      ...commonItemFields,
+      price: priceSchema,
+      currency: currencySchema,
+      priceVisibility: z.enum(["ALL", "FRIENDS", "ME", "NONE"]).default("ALL"),
+      size: optionalTrimmed(80),
+      color: optionalTrimmed(80),
+      desire: desireSchema,
+    }),
+    z.object({
+      state: z.literal("LOVE"),
+      ...commonItemFields,
+      giverName: optionalTrimmed(120),
+      /** Год «подарен в …»; в БД пишется как receivedAt (полдень UTC 1 января —
+       * год не съезжает ни в одном реальном часовом поясе). */
+      receivedYear: receivedYearSchema,
+    }),
+  ])
+  // «Родилась из ссылки» без ссылки не бывает: source=URL требует url.
+  .refine((data) => data.source !== "URL" || data.url !== undefined, {
+    path: ["url"],
+    message: "source=URL требует ссылку",
+  });
 
 export type CreateItemInput = z.input<typeof createItemInputSchema>;
 
@@ -186,9 +206,31 @@ function visibleZoneKeys(preset: string, zonesOff: readonly string[]): Set<strin
 }
 
 /**
- * Создать вещь вручную (турн 8). Ownership: вещь встаёт ТОЛЬКО в комнату
- * самого пользователя — roomId в инпуте не существует, подменить некуда.
- * Зона обязана входить в видимые зоны комнаты; photoKey — принадлежать ей же.
+ * canonicalUrl/domain для source=URL — считаются ТОЛЬКО на сервере из url
+ * (клиенту это поле не доверяем: canonicalUrl — ключ дедупа). Нормализация
+ * не удалась (экзотический, но валидный http-URL) — честно пишем null.
+ */
+function urlMetaFor(data: { source: "MANUAL" | "URL"; url?: string }): {
+  canonicalUrl: string | null;
+  domain: string | null;
+} {
+  if (data.source !== "URL" || !data.url) return { canonicalUrl: null, domain: null };
+  try {
+    const canonicalUrl = normalizeUrl(data.url);
+    return { canonicalUrl, domain: domainOf(canonicalUrl) };
+  } catch {
+    return { canonicalUrl: null, domain: null };
+  }
+}
+
+/**
+ * Создать вещь (турн 8; вручную — тикет 04, по ссылке — тикет 06).
+ * Ownership: вещь встаёт ТОЛЬКО в комнату самого пользователя — roomId
+ * в инпуте не существует, подменить некуда. Зона обязана входить в видимые
+ * зоны комнаты; photoKey — принадлежать ей же.
+ * source=URL: пишутся url/canonicalUrl/domain, а при imageUrl без своего
+ * фото ставится джоба image.ingest (фото магазина скачается в наше S3 —
+ * сохранение вещи не ждёт и не ломается, если очередь недоступна).
  * После записи инвалидируется кэш комнаты (roomCacheTag).
  */
 export async function createItem(userId: string, input: unknown): Promise<Item> {
@@ -205,6 +247,8 @@ export async function createItem(userId: string, input: unknown): Promise<Item> 
     throw new CreateItemError("FOREIGN_PHOTO_KEY", "photoKey из чужой комнаты");
   }
 
+  const { canonicalUrl, domain } = urlMetaFor(data);
+
   const item = await prisma.item.create({
     data: {
       roomId: room.id,
@@ -214,7 +258,9 @@ export async function createItem(userId: string, input: unknown): Promise<Item> 
       note: data.note ?? null,
       photoKey: data.photoKey ?? null,
       url: data.url ?? null,
-      source: "MANUAL",
+      canonicalUrl,
+      domain,
+      source: data.source,
       ...(data.state === "WANT"
         ? {
             price: new Prisma.Decimal(data.price),
@@ -233,7 +279,44 @@ export async function createItem(userId: string, input: unknown): Promise<Item> 
   });
 
   revalidateRoom(room.id);
+
+  // Фото магазина — в СВОЁ S3 через воркер (инвариант №6: не хотлинкуем).
+  // Своё фото приоритетнее: при photoKey джоба не ставится вовсе.
+  if (data.source === "URL" && data.imageUrl && !data.photoKey) {
+    await enqueueImageIngest({ itemId: item.id, imageUrl: data.imageUrl });
+  }
+
   return item;
+}
+
+// ---------- Дедуп по canonicalUrl (тикет 06) ----------
+
+export type DuplicateItem = { id: string; title: string; zone: string };
+
+/**
+ * Вещь СВОЕЙ комнаты с тем же canonicalUrl — предупреждение «такая ссылка
+ * уже есть», не запрет (user story 10). Ищем только по своей комнате:
+ * чужие комнаты в дедупе не участвуют. Мусорный URL дубликатом не бывает.
+ */
+export async function findDuplicateByUrl(
+  userId: string,
+  rawUrl: string,
+): Promise<DuplicateItem | null> {
+  const room = await prisma.room.findUnique({ where: { userId: idSchema.parse(userId) } });
+  if (!room) return null;
+
+  let canonicalUrl: string;
+  try {
+    canonicalUrl = normalizeUrl(rawUrl);
+  } catch {
+    return null;
+  }
+
+  return prisma.item.findFirst({
+    where: { roomId: room.id, canonicalUrl },
+    select: { id: true, title: true, zone: true },
+    orderBy: { createdAt: "asc" },
+  });
 }
 
 // ---------- Фото вещи: ключ и лимиты (для pre-signed загрузки) ----------
