@@ -1,0 +1,28 @@
+# deps / build
+node_modules/
+.next/
+out/
+dist/
+coverage/
+
+# env & secrets
+.env
+.env.local
+.env*.local
+
+# db / docker volumes
+*.sqlite
+postgres-data/
+minio-data/
+redis-data/
+
+# tests
+playwright-report/
+test-results/
+
+# misc
+.DS_Store
+Thumbs.db
+*.log
+.vercel
+.turbo
