@@ -6,6 +6,7 @@ import { redirect } from "next/navigation";
 import { auth } from "@/server/auth";
 import { getRoomForUser, getSessionUserId } from "@/server/services/rooms";
 import { listZoneItems } from "@/server/services/items";
+import { ownerTakenCount } from "@/server/services/bookings";
 import { itemForOwner } from "@/server/dto/items";
 import { demoGhostsFor } from "@/config/demo-pools";
 import { rooms, scene, type Room, type RoomZone } from "@/config/design";
@@ -37,6 +38,12 @@ export default async function RoomPage() {
   const preset = rooms.find((candidate) => candidate.id === room.preset);
   const sharePath = `/r/${room.shareSlug}`;
 
+  // Счётчик «N вещей уже забраны» (тикет 09) — ЕДИНСТВЕННОЕ, что хозяйка
+  // знает о бронях до праздника (инвариант №1). Страница force-dynamic,
+  // поэтому сервис зовётся напрямую — отдельный fetch не нужен; сам роут
+  // /api/v1/room/taken-count живёт для клиентских обновлений.
+  const takenCount = await ownerTakenCount(userId);
+
   const zoneContent = preset ? await buildZoneContent(room.id, preset, room.zonesOff) : undefined;
 
   return (
@@ -45,6 +52,13 @@ export default async function RoomPage() {
         <header className="px-5 pb-4 pt-6 lg:px-0 lg:pt-10">
           <p className="overline text-text-muted">{t("overline")}</p>
           <h1 className="display mt-2 text-2xl lg:text-4xl">{preset?.name ?? room.preset}</h1>
+          {/* Тихий счётчик движения (турн 11d): только число, никаких намёков,
+              какие вещи. Спокойный оверлайн без акцента; при нуле — тишина. */}
+          {takenCount > 0 && (
+            <p className="overline mt-3 text-text-muted">
+              {t("takenCount", { count: takenCount })}
+            </p>
+          )}
         </header>
 
         {preset && (

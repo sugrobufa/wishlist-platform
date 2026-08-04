@@ -292,6 +292,41 @@ export async function takenForRoomSlug(
   return { itemIds, mine };
 }
 
+// ---------- Канал хозяйки: счётчик «N вещей уже забраны» (тикет 09) ----------
+
+/**
+ * ЕДИНСТВЕННОЕ, что хозяйка узнаёт о бронях до праздника (инвариант №1), —
+ * одно ГОЛОЕ число: сколько вещей её комнаты сейчас занято. Ни id вещей,
+ * ни имён, ни режимов, ни дат — тип возврата number не даёт унести больше.
+ *
+ * Комната ищется по userId СЕССИИ (не по slug: слаг публичный, чужой счётчик
+ * по нему спрашивать нельзя). Гостевой канал (`takenItemIds`,
+ * /rooms/{slug}/taken) сюда сознательно не переиспользуется — он отдаёт id
+ * занятых вещей, а хозяйке нельзя знать, КАКИЕ вещи заняты.
+ * Нет комнаты — честный 0: нет комнаты, нет и занятых вещей.
+ */
+export async function ownerTakenCount(userId: string): Promise<number> {
+  return prisma.booking.count({
+    where: { item: { room: { userId: idSchema.parse(userId) } } },
+  });
+}
+
+/**
+ * Автоснятие брони вещи: deleteMany — идемпотентно (нет брони → false, без
+ * ошибки). Возврат — снялась ли бронь фактически.
+ *
+ * Это МЕХАНИЗМ для мутаций хозяйки: UI скрытия/удаления вещи (тикет 13)
+ * обязан звать эту функцию, чтобы спрятанная вещь не осталась «занятой» и
+ * счётчик не врал. Гостю не шлём ничего — бронь тихо исчезает из его
+ * «моих броней» (симметрично тому, что хозяйка не знала о её появлении).
+ */
+export async function releaseBookingForItem(itemId: string): Promise<boolean> {
+  const { count } = await prisma.booking.deleteMany({
+    where: { itemId: idSchema.parse(itemId) },
+  });
+  return count > 0;
+}
+
 // ---------- Cookie гостя `guest_bookings` ----------
 // Контракт (тикеты 09/15): HTTP-only cookie, значение — JSON-массив
 // cancelToken'ов (48 hex каждый), path=/, maxAge год, sameSite=lax,

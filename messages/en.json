@@ -37,6 +37,7 @@
   },
   "Room": {
     "overline": "Your room",
+    "takenCount": "{count, plural, one {# item already taken} other {# items already taken}}",
     "shareOverline": "Room address",
     "shareHint": "Send the link — a guest enters without signing up and quietly picks a gift.",
     "copy": "Copy link",
