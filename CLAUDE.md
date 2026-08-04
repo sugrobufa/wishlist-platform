@@ -87,6 +87,20 @@ npm run test:e2e              # playwright
    открытый вопрос, дефолт закрытый).
 8. Цена «люблю» не показывается никому; цена «хочу» — по `priceVisibility`.
 
+## Agent skills
+
+### Issue tracker
+
+Local markdown: спеки и тикеты — файлы в `.scratch/<feature-slug>/`. See `docs/agents/issue-tracker.md`.
+
+### Triage labels
+
+Дефолтный словарь пяти ролей (`needs-triage`, `needs-info`, `ready-for-agent`, `ready-for-human`, `wontfix`). See `docs/agents/triage-labels.md`.
+
+### Domain docs
+
+Single-context: `CONTEXT.md` в корне (глоссарий — канон терминов) + `docs/adr/`. See `docs/agents/domain.md`.
+
 ## Порядок работы
 
 - Строго по фазам `docs/ROADMAP.md`; фаза закрыта по DoD (тесты + доки).
