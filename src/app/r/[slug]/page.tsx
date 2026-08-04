@@ -1,67 +1,118 @@
 import type { Metadata } from "next";
+import type { ReactNode } from "react";
+import Link from "next/link";
 import { getTranslations } from "next-intl/server";
 import { notFound } from "next/navigation";
 import { cache } from "react";
-import { getRoomByShareSlug } from "@/server/services/rooms";
-import { rooms } from "@/config/design";
+import { getGuestRoom } from "@/server/services/guest-room";
+import { rooms, scene } from "@/config/design";
 import { roomImageUrl } from "@/app/rooms/room-image";
+import { SceneStage } from "@/components/scene/SceneStage";
+import { ZoneGrid } from "@/components/zone/ZoneGrid";
+
+// Страница одинакова для всех и не читает auth()/cookies (регистрация гостя
+// «по пути» — тикет 08). Рендер — SSR на каждый запрос: свежие preset/zonesOff
+// комнаты; тяжёлое чтение вещей кэшировано в сервисе тегом `room-{id}`.
+// Полностраничный ISR отложен (см. Comments тикета 07).
+export const dynamic = "force-dynamic";
 
 // Один запрос на рендер: generateMetadata и страница делят результат.
-const getRoom = cache(getRoomByShareSlug);
+const getRoom = cache(getGuestRoom);
 
 type Params = { params: Promise<{ slug: string }> };
 
-// Комната гостя доступна по ссылке и не индексируется (инвариант CLAUDE.md §7).
+/** Абсолютный URL для OG: мессенджеры не понимают относительных путей. */
+function absoluteUrl(path: string): string {
+  return new URL(path, process.env.APP_BASE_URL ?? "http://localhost:3000").toString();
+}
+
+// Комната гостя доступна по ссылке и не индексируется (инвариант №7) —
+// noindex стоит и на живой комнате, и на неизвестном слаге.
 export async function generateMetadata({ params }: Params): Promise<Metadata> {
   const { slug } = await params;
-  const room = await getRoom(slug);
-  const preset = room ? rooms.find((candidate) => candidate.id === room.preset) : undefined;
+  const [room, t] = await Promise.all([getRoom(slug), getTranslations("GuestRoom")]);
+  const robots = { index: false, follow: false };
+  if (!room) return { title: t("metaTitle", { name: t("ownerFallback") }), robots };
+
+  const preset = rooms.find((candidate) => candidate.id === room.preset);
+  const title = t("metaTitle", { name: room.ownerName ?? t("ownerFallback") });
+  const description = t("metaDescription");
+  // Кадр комнаты уже раздаёт маршрут /rooms/ — мессенджерам нужен полный адрес.
+  const image = preset ? absoluteUrl(roomImageUrl(preset.base)) : undefined;
+
   return {
-    title: preset?.name ?? "Wishlist Platform",
-    robots: { index: false, follow: false },
+    title,
+    description,
+    robots,
+    openGraph: {
+      title,
+      description,
+      type: "website",
+      ...(image ? { images: [{ url: image }] } : {}),
+    },
+    twitter: {
+      card: "summary_large_image",
+      title,
+      description,
+      ...(image ? { images: [image] } : {}),
+    },
   };
 }
 
 /**
- * Комната глазами гостя — пока заглушка: кадр пресета и имя хозяйки.
- * Полноценная сцена, зоны и тихая бронь придут следующими тикетами.
+ * Комната глазами гостя (тикет 07): та же сцена и зоны, что у хозяйки, но
+ * данные уже отфильтрованы сервером (guest-room.ts) — без спрятанных вещей,
+ * без выключенных зон, цены — по priceVisibility. Демо-призраки видны и
+ * помечены «пример». Бронь и бирка «Подарить» придут тикетом 08.
  */
 export default async function GuestRoomPage({ params }: Params) {
   const { slug } = await params;
   const room = await getRoom(slug);
   if (!room) notFound();
 
-  const t = await getTranslations("GuestRoom");
   const preset = rooms.find((candidate) => candidate.id === room.preset);
-  const ownerName = room.user.displayName ?? room.user.name ?? t("ownerFallback");
+  if (!preset) notFound();
+
+  const t = await getTranslations("GuestRoom");
+  const ownerName = room.ownerName ?? t("ownerFallback");
+
+  // Сетки зон проходят client-границу пропом zoneContent (контракт тикета 02).
+  const zoneContent: Record<string, ReactNode> = Object.fromEntries(
+    Object.entries(room.itemsByZone).map(([zoneKey, items]) => [
+      zoneKey,
+      <ZoneGrid
+        key={zoneKey}
+        items={items}
+        accent={preset.accent}
+        ink={preset.ink}
+        enterDelay="scene"
+      />,
+    ]),
+  );
 
   return (
-    <main className="relative min-h-screen">
-      {preset && (
-        <div
-          aria-hidden
-          className="absolute inset-0"
-          style={{
-            backgroundImage: `url(${roomImageUrl(preset.base)})`,
-            backgroundSize: "cover",
-            backgroundPosition: "50% 40%",
-          }}
-        />
-      )}
-      <div
-        aria-hidden
-        className="absolute inset-0"
-        style={{
-          background:
-            "linear-gradient(0deg, rgba(11,8,6,.94) 0%, rgba(11,8,6,.5) 50%, rgba(11,8,6,.2) 100%)",
-        }}
-      />
+    <main className="min-h-screen pb-16">
+      <div className="mx-auto w-full" style={{ maxWidth: scene.desktop.w }}>
+        <header className="px-5 pb-4 pt-6 lg:px-0 lg:pt-10">
+          <p className="overline text-text-muted">{t("overline")}</p>
+          <h1 className="display mt-2 text-2xl lg:text-4xl">{ownerName}</h1>
+        </header>
 
-      <div className="relative mx-auto flex min-h-screen w-full max-w-3xl flex-col justify-end gap-4 px-6 pb-16 pt-24">
-        <p className="overline text-text-muted">{t("overline")}</p>
-        <h1 className="display text-4xl md:text-6xl">{ownerName}</h1>
-        {preset && <p className="text-text-strong">{preset.name}</p>}
-        <p className="max-w-md text-text-body">{t("sceneSoon")}</p>
+        <SceneStage preset={preset} zonesOff={room.zonesOff} zoneContent={zoneContent} />
+
+        {/* Мягкий призыв внизу: гость пришёл смотреть, не регистрироваться. */}
+        <footer className="mt-10 px-5 lg:px-0">
+          <div className="flex max-w-md flex-col gap-2 border border-surface-hairline bg-surface-fill p-5">
+            <p className="text-sm text-text-muted">{t("ctaHint")}</p>
+            <Link
+              href="/"
+              className="pressable inline-block text-sm font-semibold"
+              style={{ color: preset.accent }}
+            >
+              {t("cta")} →
+            </Link>
+          </div>
+        </footer>
       </div>
     </main>
   );
