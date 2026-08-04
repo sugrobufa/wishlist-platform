@@ -14,5 +14,38 @@
     "submit": "Send me a sign-in link",
     "google": "Continue with Google",
     "sent": "Link sent. In dev mode, check the server console."
+  },
+  "Onboarding": {
+    "stepOverline": "Step {current} of {total}",
+    "zoneSetStep": "Zone set",
+    "zoneSetTitle": "What lives in your room?",
+    "zoneSetSubtitle": "Gender here is a zone-set preset, not a personal attribute. Everything can be changed later.",
+    "zoneSetHint": "The set defines the room's zones: feminine rooms get jewelry, perfume and beauty; masculine ones get watches, gadgets and sport.",
+    "setLabelF": "Feminine",
+    "setLabelM": "Masculine",
+    "setLabelALL": "All 10",
+    "setDescriptionF": "Jewelry, perfume, beauty and care",
+    "setDescriptionM": "Watches, gadgets, vinyl and sport",
+    "setDescriptionALL": "The whole feed: from the cream bedroom to the study",
+    "roomCount": "{count, plural, one {# room} other {# rooms}}",
+    "roomStep": "Room",
+    "presetTitle": "Where will you live?",
+    "presetSubtitle": "You can swap the whole room later — it is not forever.",
+    "back": "Zone set",
+    "create": "Furnish the room",
+    "creating": "Furnishing the room…"
+  },
+  "Room": {
+    "overline": "Your room",
+    "sceneSoon": "The scene with zones and items will appear here in upcoming updates.",
+    "shareOverline": "Room address",
+    "shareHint": "Send the link — a guest enters without signing up and quietly picks a gift.",
+    "copy": "Copy link",
+    "copied": "Link copied"
+  },
+  "GuestRoom": {
+    "overline": "A room by link",
+    "ownerFallback": "Room owner",
+    "sceneSoon": "Soon you will be able to walk the zones and quietly pick a gift."
   }
 }

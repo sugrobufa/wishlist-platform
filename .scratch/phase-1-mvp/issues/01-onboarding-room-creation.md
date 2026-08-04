@@ -7,10 +7,18 @@
 
 **Blocked by:** None — can start immediately.
 
-**Status:** ready-for-agent
+**Status:** done
 
-- [ ] После первого входа — онбординг: шаг «набор зон» (3 плитки), шаг «комната» (лента пресетов с кадрами из design/package/refs, имя и акцент из rooms.json)
-- [ ] Создаётся Room {preset, zoneSet, shareSlug=nanoid(6)}; повторный вход ведёт в комнату, не в онбординг
-- [ ] `/r/{slug}` открывается (пока заглушкой комнаты — сцена придёт тикетом 02)
-- [ ] Сервис rooms в src/server/services, роут тонкий, Zod на входах
-- [ ] Unit: создание комнаты идемпотентно (у пользователя максимум одна)
+- [x] После первого входа — онбординг: шаг «набор зон» (3 плитки), шаг «комната» (лента пресетов с кадрами из design/package/refs, имя и акцент из rooms.json)
+- [x] Создаётся Room {preset, zoneSet, shareSlug=nanoid(6)}; повторный вход ведёт в комнату, не в онбординг
+- [x] `/r/{slug}` открывается (пока заглушкой комнаты — сцена придёт тикетом 02)
+- [x] Сервис rooms в src/server/services, роут тонкий, Zod на входах
+- [x] Unit: создание комнаты идемпотентно (у пользователя максимум одна)
+
+## Comments
+
+- Сделано: онбординг в два шага (`/onboarding`: плитки набора зон → лента пресетов с переключателем над ней, как в турне 14a), server action создаёт Room и уводит в `/room`; заглушки комнаты хозяйки (`/room`: кадр фоном, имя пресета, адрес `/r/{slug}` с кнопкой «скопировать» в стиле «полоса света») и гостя (`/r/{slug}`: кадр + имя хозяйки, robots noindex — инвариант §7). `/` и `/onboarding` редиректят владельца комнаты в `/room`.
+- Файлы: `src/server/services/rooms.ts` (createRoomForUser — идемпотентность через Room.userId @unique + обработка гонки P2002, слаг [a-z0-9]{6} через node:crypto вместо nanoid — без новых зависимостей, что точнее решению гриллинга №3), `src/app/onboarding/{page,actions,onboarding-flow}`, `src/app/room/{page,copy-button}`, `src/app/r/[slug]/page.tsx`, `src/app/rooms/[image]/route.ts` + `room-image.ts`, ключи в `messages/{ru,en}.json`, тесты `tests/rooms.service.test.ts`.
+- Кадры комнат раздаются маршрутом `GET /rooms/{file}` напрямую из `design/package/refs` (без пережатия/переименования, Cache-Control immutable, защита от traversal); `roomImageUrl("refs/x.jpg") → "/rooms/x.jpg"` — маршрут отдаёт и кадры «открыто», пригодится сцене (тикет 02).
+- Проверено: `npm run typecheck` и `npm run lint` чисто; `npm test` 13/13 (8 новых интеграционных на реальной БД: идемпотентность, гонка 6 параллельных вызовов, валидация Zod, слаг, guest-выборка без email; тестовые данные чистятся). Smoke по HTTP: кадры отдаются байт-в-байт, редиректы анонима в /signin, заглушка гостя рендерит имя/кадр/noindex.
+- Осталось/заметки: session.user не содержит id (database-сессия Auth.js без callback) — сервис резолвит владельца по email (`getSessionUserId`), при добавлении session callback ничего менять не придётся; выхода (signOut) на `/room` пока нет — появится с профилем; демо-призраки и сцена — тикеты 02+.
