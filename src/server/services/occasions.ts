@@ -13,6 +13,7 @@ import type { Item, OccasionSummary } from "@prisma/client";
 import { z } from "zod";
 import { prisma } from "@/server/db";
 import { roomCacheTag } from "@/server/services/items";
+import { upsertGiftConnection } from "@/server/services/connections";
 import { itemPhotoUrl } from "@/server/dto/items";
 import { enqueueOccasionOwnerMail } from "@/server/queues";
 
@@ -243,9 +244,10 @@ export async function getOccasionView(userId: string): Promise<OccasionView> {
  * - бронь закрывается (tx.booking.deleteMany — контракт тикета 09);
  * - Связь: если у брони есть guestUserId (гость дарил залогиненным) — у
  *   хозяйки появляется Connection с гостем, origin `gift:{itemId}`, kind
- *   MUTUAL при своей комнате гостя, иначе FOLLOW. Минимум тикета 10 —
- *   расширение (history, «остаться на связи») — тикет 11. Существующая
- *   пара не перезаписывается. Без guestUserId связи нет — есть только имя.
+ *   MUTUAL при своей комнате гостя, иначе FOLLOW (upsertGiftConnection,
+ *   сервис связей тикета 11: history «дарил(а) тебе N раз», дедуп зеркальной
+ *   пары, апгрейд VIEWED→FOLLOW/MUTUAL). Существующая пара kind/origin не
+ *   перезаписывает. Без guestUserId связи нет — есть только имя.
  *
  * Требует существующего OccasionSummary комнаты: раскрытие живёт только
  * в рамках «что подарили» (инвариант №2). Повторный вызов на уже LOVE —
@@ -294,17 +296,14 @@ export async function receiveGift(userId: string, itemId: string): Promise<Item>
     await tx.booking.deleteMany({ where: { itemId: item.id } });
 
     if (booking?.guestUserId && booking.guestUserId !== ownerId) {
-      const pair = { aUserId: ownerId, bUserId: booking.guestUserId };
-      const existing = await tx.connection.findUnique({ where: { aUserId_bUserId: pair } });
-      if (!existing) {
-        const guestRoom = await tx.room.findUnique({
-          where: { userId: booking.guestUserId },
-          select: { id: true },
-        });
-        await tx.connection.create({
-          data: { ...pair, kind: guestRoom ? "MUTUAL" : "FOLLOW", origin: `gift:${item.id}` },
-        });
-      }
+      // Связь из подарка — сервис связей (тикет 11), в ЭТОЙ ЖЕ транзакции:
+      // создание/зеркальный дедуп/апгрейд VIEWED + history «дарил(а) тебе N раз».
+      await upsertGiftConnection(tx, {
+        receiverUserId: ownerId,
+        giverUserId: booking.guestUserId,
+        itemId: item.id,
+        itemTitle: item.title,
+      });
     }
 
     return tx.item.findUniqueOrThrow({ where: { id: item.id } });

@@ -44,6 +44,7 @@
     "copy": "Copy link",
     "copied": "Link copied",
     "hallLink": "Hall of fame",
+    "connectionsLink": "Connections",
     "occasionBanner": "The occasion has passed — open “what was gifted”"
   },
   "Scene": {
@@ -274,7 +275,31 @@
     "notClosedHint": "Once the occasion has passed, the summary appears here: who gifted what. Set the date in settings — or close it manually if it already happened",
     "closeButton": "The occasion has passed",
     "closing": "Opening…",
+    "connectionAppeared": "A connection appeared — take a look",
     "errGeneric": "Something went wrong — try again"
+  },
+  "Connections": {
+    "title": "Connections",
+    "backToRoom": "Back to the room",
+    "countsLine": "{mutual} mutual · {follow} following · {viewed} viewed",
+    "filtersAria": "Connection filters",
+    "filterAll": "All {count}",
+    "filterMUTUAL": "Mutual",
+    "filterFOLLOW": "Following",
+    "filterVIEWED": "Viewed",
+    "badgeMUTUAL": "Mutual",
+    "badgeFOLLOW": "Following",
+    "badgeVIEWED": "Viewed",
+    "nameFallback": "Guest without a name",
+    "originGiftOne": "Gifted you “{title}”",
+    "originGiftOneHall": "Gifted you “{title}” — it is in the hall of fame",
+    "originGiftMany": "{count, plural, one {Gifted you # time} other {Gifted you # times}}",
+    "originGiftGiven": "{count, plural, one {You gifted # time} other {You gifted # times}}",
+    "originGiftBoth": "{received, plural, one {Gifted you # time} other {Gifted you # times}} · you — {given}",
+    "originVisits": "{count, plural, one {Viewed · # visit} other {Viewed · # visits}}",
+    "originLink": "Born from an open link",
+    "empty": "Connections appear from gifts and open links — nothing to add by hand",
+    "emptyFiltered": "Nobody in this list yet"
   },
   "Hall": {
     "title": "Hall of fame",

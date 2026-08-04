@@ -44,6 +44,7 @@
     "copy": "Скопировать ссылку",
     "copied": "Ссылка скопирована",
     "hallLink": "Зал славы",
+    "connectionsLink": "Связи",
     "occasionBanner": "Праздник прошёл — открой «что подарили»"
   },
   "Scene": {
@@ -274,7 +275,31 @@
     "notClosedHint": "Когда праздник пройдёт, здесь появится итог: кто что подарил. Дата задаётся в настройках — а если праздник уже случился, закрой его вручную",
     "closeButton": "Праздник прошёл",
     "closing": "Открываем…",
+    "connectionAppeared": "Связь появилась — посмотреть",
     "errGeneric": "Не получилось — попробуй ещё раз"
+  },
+  "Connections": {
+    "title": "Связи",
+    "backToRoom": "В комнату",
+    "countsLine": "{mutual} взаимно · {follow} слежу · {viewed} смотрели",
+    "filtersAria": "Фильтр связей",
+    "filterAll": "Все {count}",
+    "filterMUTUAL": "Взаимно",
+    "filterFOLLOW": "Я слежу",
+    "filterVIEWED": "Смотрели",
+    "badgeMUTUAL": "Взаимно",
+    "badgeFOLLOW": "Я слежу",
+    "badgeVIEWED": "Смотрел(а)",
+    "nameFallback": "Гость без имени",
+    "originGiftOne": "Подарил(а) «{title}»",
+    "originGiftOneHall": "Подарил(а) «{title}» — она в зале славы",
+    "originGiftMany": "{count, plural, one {Дарил(а) тебе # раз} few {Дарил(а) тебе # раза} many {Дарил(а) тебе # раз} other {Дарил(а) тебе # раза}}",
+    "originGiftGiven": "{count, plural, one {Ты дарил(а) # раз} few {Ты дарил(а) # раза} many {Ты дарил(а) # раз} other {Ты дарил(а) # раза}}",
+    "originGiftBoth": "{received, plural, one {Дарил(а) тебе # раз} few {Дарил(а) тебе # раза} many {Дарил(а) тебе # раз} other {Дарил(а) тебе # раза}} · ты в ответ — {given}",
+    "originVisits": "{count, plural, one {Смотрел(а) · # визит} few {Смотрел(а) · # визита} many {Смотрел(а) · # визитов} other {Смотрел(а) · # визита}}",
+    "originLink": "Появилась из открытой ссылки",
+    "empty": "Связи появляются из подарков и открытых ссылок — добавлять руками нечего",
+    "emptyFiltered": "В этом списке пока никого"
   },
   "Hall": {
     "title": "Зал славы",

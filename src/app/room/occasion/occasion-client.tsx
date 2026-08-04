@@ -118,6 +118,19 @@ export function OccasionRows({ pending, received, accent, ink }: OccasionRowsPro
           </li>
         ))}
       </ul>
+
+      {/* После «Дошло» цикл замыкается связью (тикет 11): тихая ссылка на
+          страницу связей — router.refresh() выше переносит строку в received,
+          и подсказка появляется сама. */}
+      {received.length > 0 && (
+        <Link
+          href="/connections"
+          className="pressable mt-4 inline-block text-xs font-semibold"
+          style={{ color: accent }}
+        >
+          {t("connectionAppeared")} →
+        </Link>
+      )}
     </div>
   );
 }

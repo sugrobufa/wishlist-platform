@@ -27,6 +27,7 @@ export type BookingErrorCode =
   | "NOT_FOUND" // вещи нет (или гостю её «не существует»: hidden / зона выключена)
   | "DEMO_ITEM" // демо-призрак «пример» — не бронируется (гриллинг №4)
   | "NOT_WANT" // бронируются только вещи «хочу»
+  | "OWN_ITEM" // хозяйка «бронирует» свою вещь — подарок себе не бывает (тикет 11)
   | "ALREADY_BOOKED" // уникальность Booking.itemId (P2002) — уже занято
   | "POOL_NOT_SUPPORTED" // складчина — Phase 2 (каркас в БД есть, UI нет)
   | "TOKEN_NOT_FOUND"; // операция по чужому/несуществующему токену
@@ -74,9 +75,19 @@ export type BookItemInput = z.input<typeof bookItemInputSchema>;
  * - только state=WANT; только без активной брони — уникальность Booking.itemId
  *   держит СХЕМА (гонка двух гостей решается P2002, не проверкой заранее);
  * - режим QUIET|SIGNED; POOL — Phase 2, отказ с честным сообщением.
+ *
+ * options.sessionUserId (тикет 11) — userId сессии, если гость залогинен
+ * (auth БЕЗ требования: аноним бронирует как раньше). Пишется в
+ * booking.guestUserId — из него после «Дошло» рождается связь (тикет 10).
+ * Свою вещь хозяйка не «бронирует» — отказ OWN_ITEM: подарок себе не бывает,
+ * а бронь без дарителя лишь врала бы счётчику.
  */
-export async function bookItem(input: unknown): Promise<{ cancelToken: string }> {
+export async function bookItem(
+  input: unknown,
+  options: { sessionUserId?: string | null } = {},
+): Promise<{ cancelToken: string }> {
   const data = bookItemInputSchema.parse(input);
+  const sessionUserId = options.sessionUserId ? idSchema.parse(options.sessionUserId) : null;
 
   if (data.mode === "POOL") {
     throw new BookingError(
@@ -92,12 +103,21 @@ export async function bookItem(input: unknown): Promise<{ cancelToken: string }>
 
   const item = await prisma.item.findUnique({
     where: { id: data.itemId },
-    select: { id: true, state: true, hidden: true, zone: true, room: { select: { zonesOff: true } } },
+    select: {
+      id: true,
+      state: true,
+      hidden: true,
+      zone: true,
+      room: { select: { zonesOff: true, userId: true } },
+    },
   });
   // Спрятанные вещи и вещи выключенных зон гостям не отдаются (инвариант №5) —
   // и не бронируются; отказ неотличим от несуществующего id.
   if (!item || item.hidden || item.room.zonesOff.includes(item.zone)) {
     throw new BookingError("NOT_FOUND", "такой вещи нет");
+  }
+  if (sessionUserId && sessionUserId === item.room.userId) {
+    throw new BookingError("OWN_ITEM", "это твоя вещь — подарить её себе нельзя");
   }
   if (item.state !== "WANT") {
     throw new BookingError("NOT_WANT", "подарить можно только вещь «хочу»");
@@ -111,6 +131,7 @@ export async function bookItem(input: unknown): Promise<{ cancelToken: string }>
         mode: data.mode,
         guestName: data.name,
         guestEmail: data.email ?? null,
+        guestUserId: sessionUserId,
         cancelToken,
       },
     });

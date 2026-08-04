@@ -64,6 +64,13 @@ export default async function RoomPage() {
             {/* Тихая ссылка в настройки (тикет 13) — без акцента, на месте
                 служебных действий шапки. */}
             <div className="flex items-center gap-4">
+              {/* Связи (тикет 11) — тем же тихим тоном служебных ссылок. */}
+              <Link
+                href="/connections"
+                className="pressable text-xs font-semibold text-text-muted hover:text-text-strong"
+              >
+                {t("connectionsLink")}
+              </Link>
               {/* Зал славы (тикет 10) — рядом с настройками, тем же тоном. */}
               <Link
                 href="/room/hall"

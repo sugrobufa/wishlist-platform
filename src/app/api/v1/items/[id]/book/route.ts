@@ -5,6 +5,7 @@
 // не существует в кэшируемых данных (инвариант №1).
 import { NextResponse, type NextRequest } from "next/server";
 import { ZodError } from "zod";
+import { getSessionUserId } from "@/server/services/rooms";
 import { allowBookingAction, clientIp } from "@/server/rate-limit";
 import {
   addGuestBookingToken,
@@ -26,6 +27,7 @@ const BOOKING_ERROR_STATUS: Record<BookingError["code"], number> = {
   NOT_FOUND: 404,
   DEMO_ITEM: 400,
   NOT_WANT: 409,
+  OWN_ITEM: 403,
   ALREADY_BOOKED: 409,
   POOL_NOT_SUPPORTED: 400,
   TOKEN_NOT_FOUND: 404,
@@ -54,6 +56,23 @@ function guestTokens(request: NextRequest): string[] {
   return parseGuestBookingTokens(request.cookies.get(GUEST_BOOKINGS_COOKIE)?.value);
 }
 
+/**
+ * userId сессии БЕЗ требования сессии (тикет 11): гость-аноним бронирует как
+ * раньше, залогиненный получает booking.guestUserId — семя будущей связи.
+ * auth импортируется лениво и под try/catch: он живёт только в runtime Next
+ * (request-scope); вне его — vitest зовёт роут напрямую — гость честно
+ * считается анонимом, и тихая бронь работает как раньше.
+ */
+async function optionalSessionUserId(): Promise<string | null> {
+  try {
+    const { auth } = await import("@/server/auth");
+    const session = await auth();
+    return await getSessionUserId(session?.user);
+  } catch {
+    return null;
+  }
+}
+
 /** Ответ с обновлённой cookie гостя — опции всегда одни и те же. */
 function withGuestCookie(response: NextResponse, tokens: string[]): NextResponse {
   response.cookies.set(GUEST_BOOKINGS_COOKIE, JSON.stringify(tokens), guestBookingsCookieOptions());
@@ -78,10 +97,14 @@ export async function POST(request: NextRequest, { params }: Ctx): Promise<NextR
 
   try {
     // itemId — только из URL: тело его не подменит (спред раньше поля).
-    const { cancelToken } = await bookItem({
-      ...(typeof body === "object" && body !== null ? body : {}),
-      itemId: id,
-    });
+    // sessionUserId — только из сессии: телу гостя это поле не доверяется.
+    const { cancelToken } = await bookItem(
+      {
+        ...(typeof body === "object" && body !== null ? body : {}),
+        itemId: id,
+      },
+      { sessionUserId: await optionalSessionUserId() },
+    );
     const tokens = addGuestBookingToken(guestTokens(request), cancelToken);
     return withGuestCookie(
       NextResponse.json({ data: { cancelToken } }, { status: 201 }),

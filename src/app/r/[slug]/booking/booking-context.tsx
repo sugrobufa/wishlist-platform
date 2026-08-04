@@ -40,6 +40,16 @@ export function GuestBookingProvider({ slug, children }: { slug: string; childre
   const [myBookingsCount, setMyBookingsCount] = useState(0);
 
   useEffect(() => {
+    // Пинг визита (тикет 11): один fire-and-forget POST после первого рендера.
+    // HTML комнаты одинаков для всех (инвариант кэшируемости) — «смотрели»
+    // пишется этим отдельным некэшируемым запросом; аноним на сервере → 204
+    // no-op, ответ не читаем, ошибки глотаем (комната живёт и без пинга).
+    void fetch(`/api/v1/rooms/${encodeURIComponent(slug)}/visit`, { method: "POST" }).catch(
+      () => {},
+    );
+  }, [slug]);
+
+  useEffect(() => {
     const controller = new AbortController();
     void (async () => {
       try {

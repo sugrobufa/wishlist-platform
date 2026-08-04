@@ -1,0 +1,548 @@
+// Тикет 11: связи, рождающиеся сами. Под замком ИНВАРИАНТ №4 (CLAUDE.md):
+// друзья НЕ добавляются — ни поиска людей, ни импорта контактов, ни
+// add/create-API; связь появляется только из подарка (receiveGift) или
+// открытой ссылки (recordVisit). Плюс контракты:
+// - одна строка Connection на пару (дедуп прямой и зеркальной ориентации);
+// - визит не понижает kind, спам-заслон 1/час; своя комната — no-op;
+// - подарок поверх VIEWED поднимает kind (правило тикета 10), понижения нет;
+// - bookItem пишет booking.guestUserId залогиненного гостя, свою вещь
+//   хозяйка не «бронирует» (OWN_ITEM);
+// - listConnections — DTO без email, строка происхождения по каждому виду.
+import "dotenv/config";
+import { randomUUID } from "node:crypto";
+import { readdirSync } from "node:fs";
+import path from "node:path";
+import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
+import { NextRequest } from "next/server";
+
+// Очереди мокаются целиком (как в tests/occasions.test.ts): closeOccasion
+// ставит письмо, Redis тестам не нужен.
+vi.mock("@/server/queues", () => ({
+  enqueueOccasionOwnerMail: vi.fn(async () => true),
+  enqueueImageIngest: vi.fn(async () => true),
+}));
+// Сессия роутов: мок auth — роуты книги/визита живут с auth БЕЗ требования.
+vi.mock("@/server/auth", () => ({ auth: vi.fn(async () => null) }));
+
+import { auth } from "@/server/auth";
+import { prisma } from "../src/server/db";
+import * as connectionsService from "../src/server/services/connections";
+import {
+  listConnections,
+  recordVisit,
+  recordVisitBySlug,
+} from "../src/server/services/connections";
+import { BookingError, bookItem } from "../src/server/services/bookings";
+import { closeOccasion, receiveGift } from "../src/server/services/occasions";
+import { POST as bookRoute } from "../src/app/api/v1/items/[id]/book/route";
+import { POST as visitRoute } from "../src/app/api/v1/rooms/[slug]/visit/route";
+
+const TEST_EMAIL_DOMAIN = "@connections.test";
+const authMock = vi.mocked(auth) as unknown as ReturnType<typeof vi.fn>;
+
+const HOUR_MS = 60 * 60 * 1000;
+
+async function createUser(displayName?: string) {
+  return prisma.user.create({
+    data: { email: `user-${randomUUID()}${TEST_EMAIL_DOMAIN}`, displayName },
+  });
+}
+
+async function createOwnerWithRoom(displayName = "Хозяйка") {
+  const user = await createUser(displayName);
+  const room = await prisma.room.create({
+    data: {
+      userId: user.id,
+      preset: "cream",
+      zoneSet: "F",
+      shareSlug: `cn-${randomUUID().slice(0, 12)}`,
+    },
+  });
+  return { user, room };
+}
+
+async function createWantItem(roomId: string, title = `Вещь-${randomUUID().slice(0, 8)}`) {
+  return prisma.item.create({
+    data: { roomId, zone: "jewelry", state: "WANT", title, price: "5000", currency: "RUB" },
+  });
+}
+
+/** Все строки Connection пары в ЛЮБОЙ ориентации. */
+async function pairRows(userA: string, userB: string) {
+  return prisma.connection.findMany({
+    where: {
+      OR: [
+        { aUserId: userA, bUserId: userB },
+        { aUserId: userB, bUserId: userA },
+      ],
+    },
+  });
+}
+
+/** Полный путь «гость подарил»: бронь с сессией → закрытие → «Дошло». */
+async function giftFlow(owner: { user: { id: string }; room: { id: string } }, giverId: string) {
+  const item = await createWantItem(owner.room.id);
+  await bookItem({ itemId: item.id, name: "Дарительница" }, { sessionUserId: giverId });
+  await closeOccasion(owner.room.id, { manual: true });
+  await receiveGift(owner.user.id, item.id);
+  return item;
+}
+
+const uniqueIp = () => `test-${randomUUID()}`;
+
+function makeRequest(pathName: string, body?: unknown) {
+  const headers = new Headers({ "x-forwarded-for": uniqueIp() });
+  if (body !== undefined) headers.set("content-type", "application/json");
+  return new NextRequest(`http://localhost${pathName}`, {
+    method: "POST",
+    headers,
+    ...(body !== undefined ? { body: JSON.stringify(body) } : {}),
+  });
+}
+
+const itemCtx = (id: string) => ({ params: Promise.resolve({ id }) });
+const slugCtx = (slug: string) => ({ params: Promise.resolve({ slug }) });
+
+// OccasionSummary не связан FK — чистим явно; users каскадом уносят
+// комнаты/вещи/брони/связи (Connection: onDelete Cascade с обеих сторон).
+async function cleanup() {
+  const users = await prisma.user.findMany({
+    where: { email: { endsWith: TEST_EMAIL_DOMAIN } },
+    select: { room: { select: { id: true } } },
+  });
+  const roomIds = users.flatMap((user) => (user.room ? [user.room.id] : []));
+  if (roomIds.length > 0) {
+    await prisma.occasionSummary.deleteMany({ where: { roomId: { in: roomIds } } });
+  }
+  await prisma.user.deleteMany({ where: { email: { endsWith: TEST_EMAIL_DOMAIN } } });
+}
+
+beforeAll(cleanup);
+beforeEach(() => {
+  authMock.mockReset();
+  authMock.mockResolvedValue(null);
+});
+afterAll(async () => {
+  await cleanup();
+  await prisma.$disconnect();
+});
+
+describe("recordVisit — связь «смотрели» из открытой ссылки", () => {
+  it("первый визит: у хозяйки VIEWED (a=хозяйка, b=гость), origin visit, один в паре", async () => {
+    const owner = await createOwnerWithRoom();
+    const viewer = await createUser("Сергей");
+
+    await recordVisit(viewer.id, owner.user.id);
+
+    const rows = await pairRows(owner.user.id, viewer.id);
+    expect(rows).toHaveLength(1);
+    expect(rows[0]).toMatchObject({
+      aUserId: owner.user.id,
+      bUserId: viewer.id,
+      kind: "VIEWED",
+      origin: "visit",
+    });
+    expect(rows[0]?.history).toMatchObject({ visitsByB: 1 });
+  });
+
+  it("дедуп пары + спам-заслон: повтор в течение часа — no-op, спустя час — инкремент", async () => {
+    const owner = await createOwnerWithRoom();
+    const viewer = await createUser();
+
+    await recordVisit(viewer.id, owner.user.id);
+    await recordVisit(viewer.id, owner.user.id); // F5 через секунду
+    let rows = await pairRows(owner.user.id, viewer.id);
+    expect(rows).toHaveLength(1);
+    expect(rows[0]?.history).toMatchObject({ visitsByB: 1 });
+
+    // «Прошло два часа»: сдвигаем отметку последнего визита в прошлое.
+    const history = rows[0]?.history as Record<string, unknown>;
+    await prisma.connection.update({
+      where: { id: rows[0]!.id },
+      data: {
+        history: { ...history, lastVisitByBAt: new Date(Date.now() - 2 * HOUR_MS).toISOString() },
+      },
+    });
+    await recordVisit(viewer.id, owner.user.id);
+    rows = await pairRows(owner.user.id, viewer.id);
+    expect(rows).toHaveLength(1);
+    expect(rows[0]?.history).toMatchObject({ visitsByB: 2 });
+  });
+
+  it("зеркальная пара (b,a): второй строки не появляется, растёт направленный счётчик", async () => {
+    const owner = await createOwnerWithRoom();
+    const viewer = await createUser("Гость-с-историей");
+    // Связь уже есть в ОБРАТНОЙ ориентации: когда-то наша хозяйка дарила гостю.
+    await prisma.connection.create({
+      data: {
+        aUserId: viewer.id,
+        bUserId: owner.user.id,
+        kind: "FOLLOW",
+        origin: "gift:cl-old-item",
+        history: { giftsToA: 1 },
+      },
+    });
+
+    await recordVisit(viewer.id, owner.user.id);
+
+    const rows = await pairRows(owner.user.id, viewer.id);
+    expect(rows).toHaveLength(1); // зеркальный дубль не родился
+    expect(rows[0]).toMatchObject({ aUserId: viewer.id, kind: "FOLLOW", origin: "gift:cl-old-item" });
+    // Визит гостя (сторона a зеркальной строки) в комнату хозяйки (сторона b).
+    expect(rows[0]?.history).toMatchObject({ giftsToA: 1, visitsByA: 1 });
+  });
+
+  it("существующую FOLLOW/MUTUAL визит НЕ понижает — только history", async () => {
+    const owner = await createOwnerWithRoom();
+    const viewer = await createUser();
+    await prisma.connection.create({
+      data: { aUserId: owner.user.id, bUserId: viewer.id, kind: "MUTUAL", origin: "gift:cl-x" },
+    });
+
+    await recordVisit(viewer.id, owner.user.id);
+
+    const rows = await pairRows(owner.user.id, viewer.id);
+    expect(rows).toHaveLength(1);
+    expect(rows[0]?.kind).toBe("MUTUAL"); // не VIEWED
+    expect(rows[0]?.origin).toBe("gift:cl-x"); // происхождение не переписано
+    expect(rows[0]?.history).toMatchObject({ visitsByB: 1 });
+  });
+
+  it("своя комната — no-op: связи с самим собой не существует", async () => {
+    const owner = await createOwnerWithRoom();
+    await recordVisit(owner.user.id, owner.user.id);
+    expect(
+      await prisma.connection.count({
+        where: { OR: [{ aUserId: owner.user.id }, { bUserId: owner.user.id }] },
+      }),
+    ).toBe(0);
+  });
+
+  it("recordVisitBySlug: резолвит и ник, и короткий код; незнакомый слаг — false", async () => {
+    const owner = await createOwnerWithRoom();
+    await prisma.room.update({
+      where: { id: owner.room.id },
+      data: { nick: `nick${randomUUID().slice(0, 8).replaceAll("-", "")}` },
+    });
+    const room = await prisma.room.findUniqueOrThrow({ where: { id: owner.room.id } });
+    const viewer = await createUser();
+
+    expect(await recordVisitBySlug(viewer.id, room.shareSlug)).toBe(true);
+    expect(await recordVisitBySlug(viewer.id, room.nick!)).toBe(true); // та же пара
+    expect(await recordVisitBySlug(viewer.id, "no-such-slug")).toBe(false);
+
+    const rows = await pairRows(owner.user.id, viewer.id);
+    expect(rows).toHaveLength(1);
+    expect(rows[0]?.history).toMatchObject({ visitsByB: 1 }); // заслон: второй заход в тот же час
+  });
+});
+
+describe("bookItem + sessionUserId — семя связи в тихой брони", () => {
+  it("залогиненный гость: booking.guestUserId пишется; аноним — null (как раньше)", async () => {
+    const owner = await createOwnerWithRoom();
+    const guest = await createUser();
+    const signed = await createWantItem(owner.room.id);
+    const anonymous = await createWantItem(owner.room.id);
+
+    await bookItem({ itemId: signed.id, name: "Мила" }, { sessionUserId: guest.id });
+    await bookItem({ itemId: anonymous.id, name: "Инкогнито" });
+
+    expect(
+      (await prisma.booking.findUniqueOrThrow({ where: { itemId: signed.id } })).guestUserId,
+    ).toBe(guest.id);
+    expect(
+      (await prisma.booking.findUniqueOrThrow({ where: { itemId: anonymous.id } })).guestUserId,
+    ).toBeNull();
+  });
+
+  it("своя вещь — отказ OWN_ITEM: подарок себе не бывает, брони нет", async () => {
+    const owner = await createOwnerWithRoom();
+    const item = await createWantItem(owner.room.id);
+
+    await expect(
+      bookItem({ itemId: item.id, name: "Хозяйка себе" }, { sessionUserId: owner.user.id }),
+    ).rejects.toMatchObject({ code: "OWN_ITEM" });
+    expect(await prisma.booking.count({ where: { itemId: item.id } })).toBe(0);
+
+    // Чужому залогиненному гостю та же вещь бронируется как обычно.
+    const guest = await createUser();
+    await expect(
+      bookItem({ itemId: item.id, name: "Гостья" }, { sessionUserId: guest.id }),
+    ).resolves.toMatchObject({ cancelToken: expect.stringMatching(/^[0-9a-f]{48}$/) });
+    expect(new BookingError("OWN_ITEM", "x")).toBeInstanceOf(Error);
+  });
+
+  it("роут POST /items/{id}/book: сессия → guestUserId, хозяйка → 403, без сессии → аноним", async () => {
+    const owner = await createOwnerWithRoom();
+    const guest = await createUser();
+    const item = await createWantItem(owner.room.id);
+
+    // Хозяйка со своей сессией: 403 OWN_ITEM.
+    authMock.mockResolvedValue({ user: { id: owner.user.id } });
+    const own = await bookRoute(makeRequest(`/api/v1/items/${item.id}/book`, { name: "Я" }), itemCtx(item.id));
+    expect(own.status).toBe(403);
+
+    // Гость с сессией: 201, guestUserId проставлен.
+    authMock.mockResolvedValue({ user: { id: guest.id } });
+    const booked = await bookRoute(
+      makeRequest(`/api/v1/items/${item.id}/book`, { name: "Катя" }),
+      itemCtx(item.id),
+    );
+    expect(booked.status).toBe(201);
+    expect(
+      (await prisma.booking.findUniqueOrThrow({ where: { itemId: item.id } })).guestUserId,
+    ).toBe(guest.id);
+
+    // Вне request-scope auth() кидает — роут честно считает гостя анонимом.
+    const second = await createWantItem(owner.room.id);
+    authMock.mockRejectedValue(new Error("headers() outside a request scope"));
+    const anonymous = await bookRoute(
+      makeRequest(`/api/v1/items/${second.id}/book`, { name: "Инкогнито" }),
+      itemCtx(second.id),
+    );
+    expect(anonymous.status).toBe(201);
+    expect(
+      (await prisma.booking.findUniqueOrThrow({ where: { itemId: second.id } })).guestUserId,
+    ).toBeNull();
+  });
+});
+
+describe("POST /rooms/{slug}/visit — пинг визита, auth-опционально", () => {
+  it("без сессии — 204 и no-op; с сессией — 204 и связь VIEWED; чужой слаг — 404", async () => {
+    const owner = await createOwnerWithRoom();
+    const viewer = await createUser();
+    const slug = owner.room.shareSlug;
+
+    const silent = await visitRoute(makeRequest(`/api/v1/rooms/${slug}/visit`), slugCtx(slug));
+    expect(silent.status).toBe(204);
+    expect(await pairRows(owner.user.id, viewer.id)).toHaveLength(0);
+
+    authMock.mockResolvedValue({ user: { id: viewer.id } });
+    const pinged = await visitRoute(makeRequest(`/api/v1/rooms/${slug}/visit`), slugCtx(slug));
+    expect(pinged.status).toBe(204);
+    const rows = await pairRows(owner.user.id, viewer.id);
+    expect(rows).toHaveLength(1);
+    expect(rows[0]?.kind).toBe("VIEWED");
+
+    const missing = await visitRoute(
+      makeRequest(`/api/v1/rooms/no-such-slug/visit`),
+      slugCtx("no-such-slug"),
+    );
+    expect(missing.status).toBe(404);
+  });
+});
+
+describe("подарок и kind — апгрейд без понижения", () => {
+  it("VIEWED → MUTUAL подарком гостя со своей комнатой; origin строки не переписывается", async () => {
+    const owner = await createOwnerWithRoom();
+    const guest = await createOwnerWithRoom("Гостья со своей комнатой");
+    await recordVisit(guest.user.id, owner.user.id); // родилась VIEWED
+
+    const item = await giftFlow(owner, guest.user.id);
+
+    const rows = await pairRows(owner.user.id, guest.user.id);
+    expect(rows).toHaveLength(1); // подарок не размножил пару
+    expect(rows[0]?.kind).toBe("MUTUAL");
+    expect(rows[0]?.origin).toBe("visit"); // рождение связи — история, не последнее событие
+    expect(rows[0]?.history).toMatchObject({
+      visitsByB: 1,
+      giftsToA: 1,
+      lastGiftItemId: item.id,
+      lastGiftTitle: item.title,
+    });
+
+    // Обратного понижения нет: свежий визит спустя час kind не трогает.
+    const history = rows[0]?.history as Record<string, unknown>;
+    await prisma.connection.update({
+      where: { id: rows[0]!.id },
+      data: {
+        history: { ...history, lastVisitByBAt: new Date(Date.now() - 2 * HOUR_MS).toISOString() },
+      },
+    });
+    await recordVisit(guest.user.id, owner.user.id);
+    const after = await pairRows(owner.user.id, guest.user.id);
+    expect(after[0]?.kind).toBe("MUTUAL");
+    expect(after[0]?.history).toMatchObject({ visitsByB: 2, giftsToA: 1 });
+  });
+
+  it("VIEWED → FOLLOW, когда у дарителя нет комнаты", async () => {
+    const owner = await createOwnerWithRoom();
+    const guest = await createUser("Гость без комнаты");
+    await recordVisit(guest.id, owner.user.id);
+
+    await giftFlow(owner, guest.id);
+
+    const rows = await pairRows(owner.user.id, guest.id);
+    expect(rows).toHaveLength(1);
+    expect(rows[0]?.kind).toBe("FOLLOW");
+  });
+
+  it("зеркальный дедуп подарка: существующая (b,a)-строка получает счётчик, дубль не родится", async () => {
+    const owner = await createOwnerWithRoom();
+    const guest = await createOwnerWithRoom("Постоянная пара");
+    // Пара уже связана в ориентации (гость, хозяйка): гость получал 2 подарка.
+    await prisma.connection.create({
+      data: {
+        aUserId: guest.user.id,
+        bUserId: owner.user.id,
+        kind: "MUTUAL",
+        origin: "gift:cl-earlier",
+        history: { giftsToA: 2 },
+      },
+    });
+
+    await giftFlow(owner, guest.user.id);
+
+    const rows = await pairRows(owner.user.id, guest.user.id);
+    expect(rows).toHaveLength(1);
+    expect(rows[0]).toMatchObject({ aUserId: guest.user.id, kind: "MUTUAL", origin: "gift:cl-earlier" });
+    // Хозяйка — сторона b зеркальной строки: её подарок лёг в giftsToB.
+    expect(rows[0]?.history).toMatchObject({ giftsToA: 2, giftsToB: 1 });
+  });
+});
+
+describe("listConnections — DTO без email, происхождение по каждому виду", () => {
+  it("строки происхождения: подарок с названием, «дарил(а) N раз», визиты, legacy без history", async () => {
+    const owner = await createOwnerWithRoom();
+
+    // 1) Подарок c известной вещью (полный цикл — вещь в зале славы).
+    const giver = await createOwnerWithRoom("Катя");
+    const gifted = await giftFlow(owner, giver.user.id);
+
+    // 2) Визиты.
+    const watcher = await createUser("Сергей");
+    await recordVisit(watcher.id, owner.user.id);
+
+    // 3) Legacy-строка тикета 10: origin gift:{itemId}, history нет.
+    const legacyGiver = await createUser("Мила");
+    const legacyItem = await prisma.item.create({
+      data: { roomId: owner.room.id, zone: "jewelry", state: "LOVE", title: "Колье", inHall: true },
+    });
+    await prisma.connection.create({
+      data: {
+        aUserId: owner.user.id,
+        bUserId: legacyGiver.id,
+        kind: "FOLLOW",
+        origin: `gift:${legacyItem.id}`,
+      },
+    });
+
+    const rows = await listConnections(owner.user.id);
+    expect(rows).toHaveLength(3);
+
+    const kate = rows.find((row) => row.displayName === "Катя");
+    expect(kate).toMatchObject({
+      kind: "MUTUAL",
+      origin: { type: "gift", received: 1, given: 0, lastTitle: gifted.title, lastInHall: true },
+    });
+
+    const sergey = rows.find((row) => row.displayName === "Сергей");
+    expect(sergey).toMatchObject({ kind: "VIEWED", origin: { type: "visit", visits: 1 } });
+
+    const mila = rows.find((row) => row.displayName === "Мила");
+    expect(mila).toMatchObject({
+      kind: "FOLLOW",
+      origin: { type: "gift", received: 1, given: 0, lastTitle: "Колье", lastInHall: true },
+    });
+
+    // Несколько подарков → счётчик, не название.
+    const second = await giftFlow(owner, giver.user.id);
+    const after = await listConnections(owner.user.id);
+    const kateAfter = after.find((row) => row.displayName === "Катя");
+    expect(kateAfter?.origin).toMatchObject({
+      type: "gift",
+      received: 2,
+      lastTitle: second.title,
+    });
+  });
+
+  it("email собеседника не существует нигде в DTO (ключи — allowlist)", async () => {
+    const owner = await createOwnerWithRoom();
+    const guest = await createOwnerWithRoom("Дарительница");
+    await giftFlow(owner, guest.user.id);
+    const watcher = await createUser(); // displayName нет — null, не email
+    await recordVisit(watcher.id, owner.user.id);
+
+    const rows = await listConnections(owner.user.id);
+    expect(rows).toHaveLength(2);
+    for (const row of rows) {
+      expect(Object.keys(row).sort()).toEqual([
+        "avatarUrl",
+        "createdAt",
+        "displayName",
+        "id",
+        "kind",
+        "lastAt",
+        "origin",
+      ]);
+    }
+    const serialized = JSON.stringify(rows);
+    expect(serialized).not.toMatch(/@|email|connections\.test/i);
+    // И id собеседников не отдаются (только id самой связи).
+    expect(serialized).not.toContain(guest.user.id);
+    expect(serialized).not.toContain(watcher.id);
+  });
+
+  it("одна строка пары видна обеим сторонам с перевёрнутой перспективой; фильтр по kind", async () => {
+    const owner = await createOwnerWithRoom("Аня");
+    const guest = await createOwnerWithRoom("Мила");
+    await giftFlow(owner, guest.user.id); // Мила подарила Ане
+
+    const forOwner = await listConnections(owner.user.id);
+    expect(forOwner).toHaveLength(1);
+    expect(forOwner[0]).toMatchObject({
+      displayName: "Мила",
+      origin: { type: "gift", received: 1, given: 0 },
+    });
+
+    const forGuest = await listConnections(guest.user.id);
+    expect(forGuest).toHaveLength(1);
+    expect(forGuest[0]).toMatchObject({
+      displayName: "Аня",
+      origin: { type: "gift", received: 0, given: 1 }, // «ты дарил(а)», не «тебе»
+    });
+
+    // Фильтр по kind — на самом сервисе.
+    const viewer = await createUser();
+    await recordVisit(viewer.id, owner.user.id);
+    expect(await listConnections(owner.user.id, { kind: "VIEWED" })).toHaveLength(1);
+    expect(await listConnections(owner.user.id, { kind: "MUTUAL" })).toHaveLength(1);
+    expect(await listConnections(owner.user.id, { kind: "FOLLOW" })).toHaveLength(0);
+  });
+});
+
+describe("ИНВАРИАНТ №4 — друзья не добавляются (негативный)", () => {
+  it("поверхность сервиса связей — ровно рождение из подарка/ссылки и чтение", () => {
+    // Строгий allowlist: НИКАКИХ add/create/search/import по произвольному вводу.
+    expect(Object.keys(connectionsService).sort()).toEqual([
+      "listConnections",
+      "recordVisit",
+      "recordVisitBySlug",
+      "upsertGiftConnection",
+    ]);
+    expect(
+      Object.keys(connectionsService).filter((name) =>
+        /search|import|invite|suggest|friend|contact|people|add/i.test(name),
+      ),
+    ).toEqual([]);
+  });
+
+  it("в приложении нет роутов поиска людей/импорта контактов, у /connections нет мутаций", () => {
+    const appDir = path.join(process.cwd(), "src", "app");
+    const entries = readdirSync(appDir, { recursive: true }).map(String);
+
+    // Ни одного маршрута/файла про поиск людей, друзей, контакты, импорт.
+    expect(
+      entries.filter((entry) => /friend|contact|people|search|import|invite/i.test(entry)),
+    ).toEqual([]);
+
+    // Страница связей — только чтение: ни route.ts, ни actions.ts, ни форм.
+    const connectionsEntries = entries.filter((entry) =>
+      entry.replaceAll("\\", "/").startsWith("connections/"),
+    );
+    expect(connectionsEntries.length).toBeGreaterThan(0);
+    expect(connectionsEntries.filter((entry) => /route\.tsx?$|actions\.tsx?$/.test(entry))).toEqual(
+      [],
+    );
+  });
+});
