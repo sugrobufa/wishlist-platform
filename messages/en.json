@@ -1,0 +1,18 @@
+{
+  "Home": {
+    "overline": "Wishlist Platform · Phase 0",
+    "title": "The room opens soon",
+    "subtitle": "Project skeleton is ready: Next.js 16, design tokens from handoff, passwordless auth.",
+    "signedInAs": "Signed in as {email}",
+    "signIn": "Sign in",
+    "signOut": "Sign out"
+  },
+  "SignIn": {
+    "overline": "Sign in",
+    "title": "Email and a link — no password",
+    "emailLabel": "Your email",
+    "submit": "Send me a sign-in link",
+    "google": "Continue with Google",
+    "sent": "Link sent. In dev mode, check the server console."
+  }
+}

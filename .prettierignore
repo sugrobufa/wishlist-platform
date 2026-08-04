@@ -1,0 +1,7 @@
+node_modules
+.next
+design/package
+src/styles/tokens.css
+playwright-report
+test-results
+package-lock.json

@@ -1,0 +1,314 @@
+// Схема по ARCHITECTURE §4 (v0.3) + модели Auth.js (adapter).
+// Контракт модели вещи — design/package/handoff/items.json.
+
+generator client {
+  provider        = "prisma-client-js"
+  previewFeatures = ["postgresqlExtensions"]
+}
+
+datasource db {
+  provider   = "postgresql"
+  url        = env("DATABASE_URL")
+  extensions = [vector]
+}
+
+// ---------- Пользователь и Auth.js ----------
+
+model User {
+  id            String    @id @default(cuid())
+  email         String    @unique
+  emailVerified DateTime?
+  name          String? // управляется Auth.js (OAuth-профиль)
+  image         String? // управляется Auth.js
+  displayName   String? // продуктовое имя в комнате
+  avatarKey     String? // S3
+  locale        String    @default("ru")
+  secondAuth    Json? // «укрепление» перед первым шером: { provider, sub }
+  createdAt     DateTime  @default(now())
+
+  accounts     Account[]
+  sessions     Session[]
+  room         Room?
+  connectionsA Connection[] @relation("ConnA")
+  connectionsB Connection[] @relation("ConnB")
+}
+
+model Account {
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String?
+  access_token      String?
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String?
+  session_state     String?
+  createdAt         DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([provider, providerAccountId])
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model VerificationToken {
+  identifier String
+  token      String
+  expires    DateTime
+
+  @@id([identifier, token])
+}
+
+// ---------- Комната ----------
+
+model Room {
+  id           String    @id @default(cuid())
+  userId       String    @unique
+  preset       String // 'cream' | 'warm' | ... из design/package/handoff/rooms.json
+  zoneSet      String    @default("ALL") // 'F' | 'M' | 'ALL' — «набор зон»
+  zonesOff     String[] // выключенные зоны исчезают вместе с мебелью
+  shareSlug    String    @unique
+  occasionDate DateTime?
+  createdAt    DateTime  @default(now())
+
+  user  User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  items Item[]
+}
+
+// ---------- Вещь: одно тело, два состояния (items.json) ----------
+
+enum ItemState {
+  LOVE
+  WANT
+}
+
+enum PriceVisibility {
+  ALL
+  FRIENDS
+  ME
+  NONE
+}
+
+enum ItemSource {
+  URL
+  MANUAL
+  PHOTO
+  CATALOG
+  SHARE
+  EXTENSION
+  BOT
+}
+
+model Item {
+  id           String    @id @default(cuid())
+  roomId       String
+  zone         String // ключ зоны из zones.json
+  state        ItemState
+  title        String
+  note         String?
+  photoKey     String? // техническое поле, на состояние не влияет
+  url          String?
+  canonicalUrl String?
+  domain       String?
+
+  // WANT
+  price           Decimal?        @db.Decimal(12, 2)
+  currency        String?
+  priceVisibility PriceVisibility @default(ALL)
+  size            String?
+  color           String?
+  desire          Int? // «насколько хочется», 1–4
+
+  // LOVE
+  giverName      String?
+  receivedAt     DateTime?
+  inHall         Boolean   @default(false)
+  hiddenFromHall Boolean   @default(false)
+
+  hidden           Boolean    @default(false) // видит только хозяйка
+  source           ItemSource @default(MANUAL)
+  catalogProductId String?
+  priceCheckedAt   DateTime?
+  createdAt        DateTime   @default(now())
+  updatedAt        DateTime   @updatedAt
+
+  room           Room            @relation(fields: [roomId], references: [id], onDelete: Cascade)
+  booking        Booking?
+  priceSnapshots PriceSnapshot[]
+
+  @@index([roomId, zone, state])
+  @@index([canonicalUrl])
+}
+
+// ---------- Тихая бронь ----------
+
+enum BookingMode {
+  QUIET
+  SIGNED
+  POOL
+}
+
+model Booking {
+  id          String      @id @default(cuid())
+  itemId      String      @unique
+  mode        BookingMode @default(QUIET)
+  guestName   String // хозяйке НЕ отдаётся до «что подарили» (инвариант §5)
+  guestEmail  String?
+  guestUserId String?
+  cancelToken String      @unique
+  purchased   Boolean     @default(false)
+  createdAt   DateTime    @default(now())
+
+  item Item               @relation(fields: [itemId], references: [id], onDelete: Cascade)
+  pool PoolContribution[]
+}
+
+model PoolContribution {
+  id        String    @id @default(cuid())
+  bookingId String
+  name      String
+  amount    Decimal   @db.Decimal(12, 2)
+  paidAt    DateTime? // оплата — Phase 2, провайдер по решению о рынке
+  createdAt DateTime  @default(now())
+
+  booking Booking @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+}
+
+// «Что подарили»: итог праздника; имена раскрываются ровно один раз
+model OccasionSummary {
+  id         String    @id @default(cuid())
+  roomId     String
+  date       DateTime
+  revealedAt DateTime?
+  createdAt  DateTime  @default(now())
+
+  @@index([roomId, date])
+}
+
+// ---------- Связи (не добавляются вручную) ----------
+
+enum ConnectionKind {
+  MUTUAL
+  FOLLOW
+  VIEWED
+}
+
+model Connection {
+  id        String         @id @default(cuid())
+  aUserId   String
+  bUserId   String
+  kind      ConnectionKind
+  origin    String // 'gift:{itemId}' | 'visit' | 'pool:{bookingId}'
+  history   Json?
+  createdAt DateTime       @default(now())
+
+  a User @relation("ConnA", fields: [aUserId], references: [id], onDelete: Cascade)
+  b User @relation("ConnB", fields: [bUserId], references: [id], onDelete: Cascade)
+
+  @@unique([aUserId, bUserId])
+}
+
+// ---------- Цены и парсинг ----------
+
+model PriceSnapshot {
+  id        String   @id @default(cuid())
+  itemId    String
+  price     Decimal  @db.Decimal(12, 2)
+  currency  String
+  available Boolean?
+  checkedAt DateTime @default(now())
+
+  item Item @relation(fields: [itemId], references: [id], onDelete: Cascade)
+
+  @@index([itemId, checkedAt])
+}
+
+model ParseJob {
+  id        String   @id @default(cuid())
+  url       String
+  userId    String
+  status    String // PENDING | FAST_DONE | BROWSER_PENDING | DONE | FAILED
+  result    Json?
+  error     String?
+  attempts  Int      @default(0)
+  createdAt DateTime @default(now())
+}
+
+// ---------- Каталог фидов (Phase 2–3, флаг CATALOG_ENABLED) ----------
+
+enum CatalogSourceType {
+  ADMITAD
+  EPN
+  YML
+  AMAZON_PAAPI
+  ALIEXPRESS
+}
+
+model CatalogSource {
+  id         String            @id @default(cuid())
+  type       CatalogSourceType
+  name       String
+  config     Json
+  enabled    Boolean           @default(false)
+  lastSyncAt DateTime?
+
+  products CatalogProduct[]
+}
+
+model CatalogProduct {
+  id           String                       @id @default(cuid())
+  sourceId     String
+  externalId   String
+  title        String
+  brand        String?
+  zone         String // маппинг в нашу таксономию зон
+  imageUrl     String
+  price        Decimal                      @db.Decimal(12, 2)
+  currency     String
+  url          String
+  affiliateUrl String?
+  gtin         String?
+  available    Boolean                      @default(true)
+  raw          Json?
+  updatedAt    DateTime                     @updatedAt
+  embedding    Unsupported("vector(768)")?
+
+  source CatalogSource @relation(fields: [sourceId], references: [id], onDelete: Cascade)
+
+  @@unique([sourceId, externalId])
+  @@index([zone, available])
+}
+
+model OutboundClick {
+  id               String   @id @default(cuid())
+  catalogProductId String?
+  itemId           String?
+  context          String // SPACE | ZONE | LIST | RESERVE_PAGE
+  subId            String?
+  createdAt        DateTime @default(now())
+
+  @@index([catalogProductId, createdAt])
+}
+
+// ---------- AI-распознавание (Phase 2, флаг RECOGNIZE_ENABLED) ----------
+
+model RecognitionJob {
+  id         String   @id @default(cuid())
+  userId     String
+  imageKey   String // приватный bucket
+  status     String // PENDING | DONE | FAILED
+  attrs      Json?
+  candidates Json?
+  error      String?
+  createdAt  DateTime @default(now())
+}

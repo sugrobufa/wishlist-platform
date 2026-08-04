@@ -1,0 +1,37 @@
+/* GENERATED FILE — do not edit by hand.
+ * Source: design/package/handoff/tokens.json
+ * Regenerate: npm run tokens */
+
+@theme {
+  --color-surface-app-ground: #0B0806;
+  --color-surface-sheet-ground: #0B0806;
+  --color-surface-overlay-ground: #0F0B08;
+  --color-surface-hall-ground: #070603;
+  --color-surface-doc-ground: #0B0A09;
+  --color-surface-panel-ground: #141210;
+  --color-surface-hairline: rgba(255,255,255,.09);
+  --color-surface-hairline-strong: rgba(255,255,255,.16);
+  --color-surface-fill: rgba(255,255,255,.05);
+  --color-surface-fill-hover: rgba(255,255,255,.08);
+  --color-text-primary: #FFF9F2;
+  --color-text-strong: rgba(255,249,242,.82);
+  --color-text-body: rgba(255,249,242,.68);
+  --color-text-muted: rgba(255,249,242,.6);
+  --color-text-faint: rgba(255,249,242,.5);
+  --color-text-floor: rgba(255,249,242,.48);
+  --font-display: "Archivo", sans-serif;
+  --font-ui: "Onest", sans-serif;
+  --font-annotation: "Instrument Sans", sans-serif;
+  --font-mono: ui-monospace, Menlo, monospace;
+  --radius-pill: 100px;
+  --spacing-gutter: 22px;
+  --spacing-sheet: 22px;
+  --spacing-card: 26px;
+}
+
+:root {
+  --scene-w: 430;
+  --scene-h: 352;
+  --hit-target-min: 44px;
+  --display-tracking: -.035em;
+}

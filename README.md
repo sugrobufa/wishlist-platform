@@ -22,6 +22,19 @@
 | `design/package/` | **Дизайн-пакет — источник правды UI**: интерактивный макет `Main Screen.dc.html`, handoff-контракты (items / rooms / zones / tokens / motion), 41 изображение комнат |
 | `design/DESIGN-BRIEF.md`, `design/inspiration/` | Исходная постановка и референсы (история) |
 
+## Запуск локально (Phase 0 готова)
+
+```bash
+docker compose up -d      # postgres (+pgvector), redis, minio
+npm install
+npx prisma migrate dev    # миграции + сид (демо-комната /r/demo)
+npm run dev               # http://localhost:3000
+npm run worker            # отдельный терминал: BullMQ-очереди
+```
+
+Вход в dev-режиме: почта + ссылка; ссылка печатается в консоль dev-сервера
+(EMAIL_SERVER пустой). Проверки: `npm run lint && npm run typecheck && npm test`.
+
 ## Как использовать
 
 1. Создайте пустой репозиторий и скопируйте в его корень содержимое этой папки.

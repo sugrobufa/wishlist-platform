@@ -1,0 +1,41 @@
+@import "tailwindcss";
+@import "../styles/tokens.css";
+
+body {
+  background: var(--color-surface-app-ground);
+  color: var(--color-text-primary);
+  font-family: var(--font-ui);
+}
+
+/* Дисплейная типографика по контракту tokens.json:
+   Archivo 900, uppercase, плотный трекинг */
+.display {
+  font-family: var(--font-display);
+  font-weight: 900;
+  text-transform: uppercase;
+  letter-spacing: var(--display-tracking);
+}
+
+/* Оверлайны: 9px, разрядка .17em—.24em (tokens.json → type.overline) */
+.overline {
+  font-size: 9px;
+  font-weight: 500;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+}
+
+/* Любой нажимаемый элемент проседает (tokens.json → button.press) */
+@media (hover: hover) and (pointer: fine) {
+  .pressable {
+    transition: transform 160ms cubic-bezier(0.23, 1, 0.32, 1);
+  }
+}
+.pressable:active {
+  transform: scale(0.97);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pressable {
+    transition-duration: 120ms;
+  }
+}
