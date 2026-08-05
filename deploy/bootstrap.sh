@@ -138,7 +138,9 @@ ufw --force reset >/dev/null 2>&1 || true
 ufw default deny incoming >/dev/null
 ufw default allow outgoing >/dev/null
 ufw allow 22/tcp comment "ssh" >/dev/null
-ufw allow 80/tcp comment "http (редирект на https + проверка Let's Encrypt)" >/dev/null
+# Апостроф в комментарии ufw не принимает («ERROR: Invalid syntax»), поэтому
+# «Let's Encrypt» здесь без него — правило важнее красоты подписи.
+ufw allow 80/tcp comment "http (редирект на https + проверка Lets Encrypt)" >/dev/null
 ufw allow 443/tcp comment "https" >/dev/null
 ufw allow 443/udp comment "http/3" >/dev/null
 ufw --force enable >/dev/null
