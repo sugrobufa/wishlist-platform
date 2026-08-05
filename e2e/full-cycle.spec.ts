@@ -42,6 +42,23 @@ const SCENE_BYTES_BUDGET = 2 * 1024 * 1024;
 // Оба теста файла делят состояние (slug комнаты) и порядок — строго serial.
 test.describe.configure({ mode: "serial" });
 
+/**
+ * Хотспот зоны НА САМОЙ СЦЕНЕ.
+ *
+ * После тикета 34 к каждой зоне ведут две кнопки: хотспот на кадре и пункт
+ * указателя зон в нижней полосе (`<nav>` «Зоны комнаты»). Обе законны — это
+ * два способа подойти к одной полке, и на телефоне список вообще единственный
+ * путь к зонам, которые не попали в окно кадра.
+ *
+ * Различает их порядковый номер: у пункта списка имя «01 Музыка — подойти
+ * ближе», у хотспота — без номера. Поэтому `exact`: поиск по вхождению нашёл
+ * бы обе. Здесь мы сознательно проверяем путь через сцену — тот, которым
+ * человек пользуется, увидев комнату.
+ */
+function sceneHotspot(page: Page, zoneLabel: string) {
+  return page.getByRole("button", { name: `${zoneLabel} — подойти ближе`, exact: true });
+}
+
 let mailWorker: Worker | null = null;
 let mailRedis: IORedis | null = null;
 /** Слаг комнаты хозяйки — из UI /room; нужен и перф-тесту. */
@@ -273,7 +290,7 @@ test("полный цикл дарения: хозяйка → гость → с
     await guestPage.goto(`/r/${roomSlug}`);
     await expect(guestPage.getByRole("heading", { name: "Хозяйка комнаты" })).toBeVisible();
 
-    await guestPage.getByRole("button", { name: "Музыка — подойти ближе" }).click();
+    await sceneHotspot(guestPage, "Музыка").click();
     await guestPage.getByRole("tab", { name: /Хочу · 1/ }).click();
     const wantTile = guestPage.locator("li", { hasText: WANT_TITLE });
     await expect(wantTile).toBeVisible();
@@ -312,7 +329,7 @@ test("полный цикл дарения: хозяйка → гость → с
   });
 
   await test.step("гость тихо бронирует: «занято тобой» и «Мои брони · 1»", async () => {
-    await guestPage.getByRole("button", { name: "Музыка — подойти ближе" }).click();
+    await sceneHotspot(guestPage, "Музыка").click();
     await guestPage.getByRole("tab", { name: /Хочу · 1/ }).click();
     await guestPage.getByRole("button", { name: /Подарить$/ }).click();
 

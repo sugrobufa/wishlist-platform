@@ -1,7 +1,8 @@
 // Сервис «Вещь» (Item): чтение зоны для сетки «Люблю»/«Хочу» (тикет 03),
 // создание вещи вручную (тикет 04, source=MANUAL) и по ссылке (тикет 06,
 // source=URL: canonicalUrl/domain + очередь image.ingest + дедуп),
-// скрытие/удаление вещи хозяйкой (тикет 13).
+// скрытие/удаление вещи хозяйкой (тикет 13), правка вещи и перенос между
+// зонами (тикет 39).
 // Бизнес-логика живёт здесь, роуты/страницы остаются тонкими (CLAUDE.md).
 import { randomBytes } from "node:crypto";
 import { revalidateTag } from "next/cache";
@@ -301,10 +302,11 @@ export async function createItem(userId: string, input: unknown): Promise<Item> 
 /** Отказы мутаций вещи. NOT_FOUND и для чужой вещи — существование чужого
  * id владельцу другой комнаты не подтверждаем. NOT_WANT/NOT_LOVE — операции
  * строго одного состояния (тикет 10): «уже моё» только у «хочу», зал славы
- * только у «люблю». */
+ * только у «люблю». ZONE_NOT_VISIBLE — перенос в полку, которой в комнате
+ * нет или которая выключена (тикет 39). */
 export class ItemMutationError extends Error {
   constructor(
-    readonly code: "NOT_FOUND" | "NOT_WANT" | "NOT_LOVE",
+    readonly code: "NOT_FOUND" | "NOT_WANT" | "NOT_LOVE" | "ZONE_NOT_VISIBLE",
     message: string,
   ) {
     super(message);
@@ -322,6 +324,18 @@ async function requireOwnItem(userId: string, itemId: string): Promise<Item> {
     throw new ItemMutationError("NOT_FOUND", "такой вещи нет");
   }
   return item;
+}
+
+/**
+ * Вещь своей комнаты для карточки хозяйки (тикет 39) — или null, если её
+ * нет или она чужая (страница отвечает 404: существование чужого id не
+ * подтверждаем). Booking намеренно НЕ включается: карточка не должна знать
+ * о брони даже случайно (инвариант №1).
+ */
+export async function getOwnItem(userId: string, itemId: string): Promise<Item | null> {
+  return prisma.item.findFirst({
+    where: { id: idSchema.parse(itemId), room: { userId: idSchema.parse(userId) } },
+  });
 }
 
 /**
@@ -364,6 +378,121 @@ export async function deleteItem(userId: string, itemId: string): Promise<void> 
   await releaseBookingForItem(item.id);
   await prisma.item.delete({ where: { id: item.id } });
   revalidateRoom(item.roomId);
+}
+
+// ---------- Правка вещи и перенос между зонами (тикет 39) ----------
+
+/**
+ * Поля правки — те же, что человек заполнял при добавлении, и ровно они.
+ * Ключа `state` в схемах НЕТ ВОВСЕ: правка не меняет состояние вещи. Zod
+ * отбрасывает лишние ключи молча, поэтому `{state:"WANT"}`, присланный
+ * руками вещи «люблю», не доедет до БД — переход «хочу → люблю» остаётся
+ * необратимым (инвариант №2, тест в tests/items.update.test.ts).
+ * Схемы намеренно НЕ экспортируются: в поверхности сервиса не должно быть
+ * имён с «want» (замок инварианта №2 в tests/occasions.test.ts).
+ */
+const updateCommonFields = {
+  zone: z.string().min(1),
+  title: z.string().trim().min(1, "заголовок обязателен").max(200),
+  note: optionalTrimmed(2000),
+};
+
+const updateDesiredSchema = z.object({
+  ...updateCommonFields,
+  price: priceSchema,
+  currency: currencySchema,
+  priceVisibility: z.enum(["ALL", "FRIENDS", "ME", "NONE"]).default("ALL"),
+  size: optionalTrimmed(80),
+  color: optionalTrimmed(80),
+  desire: desireSchema,
+});
+
+const updateOwnedSchema = z.object({
+  ...updateCommonFields,
+  giverName: optionalTrimmed(120),
+  receivedYear: receivedYearSchema,
+});
+
+export type UpdateItemInput = z.input<typeof updateDesiredSchema> | z.input<typeof updateOwnedSchema>;
+
+/**
+ * Правка вещи и перенос между зонами (тикет 39, турны 11e и 8c). До неё
+ * опечатку в названии или ошибку парсера в зоне можно было исправить только
+ * удалением и заведением заново.
+ *
+ * Что правится: название, заметка, зона; у «хочу» — цена, валюта, видимость
+ * цены, размер, цвет, степень желания; у «люблю» — даритель и год. Набор
+ * полей выбирается по СОСТОЯНИЮ ИЗ БД, а не по инпуту: цена в строку «люблю»
+ * не попадает даже полем (инвариант №8), а «хочу» не получает дарителя.
+ *
+ * Перенос: целевая зона обязана быть видимой зоной этой комнаты — есть в
+ * пресете (`rooms.json` минус скрытые продуктом, ADR-0004) и не выключена
+ * (`zonesOff`). Иначе ZONE_NOT_VISIBLE: полка, которой в комнате нет, не
+ * должна молча проглатывать вещь.
+ *
+ * ВЕЩЬ С АКТИВНОЙ БРОНЬЮ ПРАВИТСЯ КАК ЛЮБАЯ ДРУГАЯ, и бронь остаётся жива.
+ * Ни запретить, ни предупредить нельзя: и отказ, и предупреждение сообщили бы
+ * хозяйке, что вещь занята, — это ровно то, что запрещает инвариант №1
+ * (тихая бронь). Бронь ссылается на вещь, а не на снимок её текста: гость
+ * всегда видит текущие название, цену и полку. Снимают бронь операции, после
+ * которых вещь у гостя ИСЧЕЗАЕТ (скрытие и удаление); правка вещь на месте
+ * оставляет — значит и бронь остаётся. Перенос безопасен по той же причине:
+ * зона назначения проверена на видимость, вещь не проваливается в невидимую
+ * полку. Покрыто тестом (бронь и счётчик после правки не двигаются).
+ *
+ * Гонка с «уже моё»: guard `state` прямо в updateMany — если вещь успела
+ * стать «люблю», правка формы «хочу» не запишется ни одним полем.
+ * После записи инвалидируется кэш комнаты (roomCacheTag): без этого гость
+ * видел бы вещь на старой полке до конца окна ISR.
+ */
+export async function updateItem(userId: string, itemId: string, input: unknown): Promise<Item> {
+  const item = await requireOwnItem(userId, itemId);
+  const data =
+    item.state === "WANT" ? updateDesiredSchema.parse(input) : updateOwnedSchema.parse(input);
+
+  const room = await prisma.room.findUniqueOrThrow({ where: { id: item.roomId } });
+  if (!visibleZoneKeys(room.preset, room.zonesOff).has(data.zone)) {
+    throw new ItemMutationError("ZONE_NOT_VISIBLE", `зона «${data.zone}» не из видимых зон комнаты`);
+  }
+
+  const common = { zone: data.zone, title: data.title, note: data.note ?? null };
+  const changed = await prisma.item.updateMany({
+    where: { id: item.id, state: item.state },
+    data:
+      "price" in data
+        ? {
+            ...common,
+            price: new Prisma.Decimal(data.price),
+            currency: data.currency,
+            priceVisibility: data.priceVisibility,
+            size: data.size ?? null,
+            color: data.color ?? null,
+            desire: data.desire ?? null,
+          }
+        : {
+            ...common,
+            giverName: data.giverName ?? null,
+            receivedAt: nextReceivedAt(item.receivedAt, data.receivedYear),
+          },
+  });
+  if (changed.count === 0) {
+    throw new ItemMutationError("NOT_FOUND", "вещь успела измениться — открой её заново");
+  }
+
+  revalidateRoom(item.roomId);
+  return prisma.item.findUniqueOrThrow({ where: { id: item.id } });
+}
+
+/**
+ * Год «подарен в …» → дата. Тот же год, что уже стоит, дату НЕ переписывает:
+ * у подарка из «что подарили» receivedAt — точный момент отметки «Дошло», и
+ * сохранение карточки без правки года не должно ронять его на 1 января
+ * (по нему сортируется витрина зала славы).
+ */
+function nextReceivedAt(current: Date | null, year: number | undefined): Date | null {
+  if (year === undefined) return null;
+  if (current !== null && current.getUTCFullYear() === year) return current;
+  return new Date(Date.UTC(year, 0, 1, 12));
 }
 
 // ---------- Ручные переходы и зал славы (тикет 10) ----------

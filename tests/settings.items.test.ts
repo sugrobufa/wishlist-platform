@@ -2,16 +2,18 @@
 // тикета 09, перекрёстно с ownerTakenCount), deleteItem снимает бронь и вещь,
 // zonesOff НЕ рвёт брони (решение зафиксировано тестом), demoGhostsOff гасит
 // демо-призраков и у хозяйки (zoneDisplayItems), и у гостя (getGuestRoom).
+// Плюс (тикет 39): спрятанная вещь не попадает в счётчик шапки зоны.
 import "dotenv/config";
 import { randomUUID } from "node:crypto";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import { prisma } from "../src/server/db";
-import { deleteItem, setItemHidden } from "../src/server/services/items";
+import { deleteItem, listZoneItems, setItemHidden } from "../src/server/services/items";
 import { bookItem, ownerTakenCount } from "../src/server/services/bookings";
 import { setDemoGhostsOff, setZoneOff } from "../src/server/services/rooms";
 import { getGuestRoom } from "../src/server/services/guest-room";
 import { zoneDisplayItems } from "../src/components/zone/zone-display-items";
 import type { OwnerItemDto } from "../src/server/dto/items";
+import { ownerSummaryItem, zoneSummaryForOwner } from "../src/server/dto/zone-summary";
 
 // Вне Next-рантайма у unstable_cache нет incremental cache — чтение напрямую.
 vi.mock("next/cache", () => ({
@@ -166,6 +168,46 @@ describe("deleteItem — бронь снимается, вещь исчезае�
   });
 });
 
+// ---------- Счётчик в шапке зоны (тикет 39) ----------
+
+describe("шапка /room/zone/{zone}: спрятанное в счётчик не входит (инвариант №5)", () => {
+  it("«N вещей · M в подарок» считает только видимые вещи — тем же срезом, что панель зоны", async () => {
+    const { user, room } = await createOwnerWithRoom();
+    const visibleWant = await createWantItem(room.id, "jewelry");
+    await prisma.item.create({
+      data: { roomId: room.id, zone: "jewelry", state: "LOVE", title: "Цепочка" },
+    });
+    const hiddenWant = await createWantItem(room.id, "jewelry");
+
+    // Ровно тот путь данных, которым живёт страница зоны: listZoneItems →
+    // ownerSummaryItem → zoneSummaryForOwner. Своего подсчёта у шапки нет.
+    const before = zoneSummaryForOwner(
+      "jewelry",
+      (await listZoneItems(room.id, "jewelry")).map(ownerSummaryItem),
+    );
+    expect(before).toMatchObject({ count: 3, wantCount: 2 });
+
+    await setItemHidden(user.id, hiddenWant.id, true);
+
+    const after = zoneSummaryForOwner(
+      "jewelry",
+      (await listZoneItems(room.id, "jewelry")).map(ownerSummaryItem),
+    );
+    // Вещь никуда не делась — она осталась в списке хозяйки, но из чисел ушла.
+    expect((await listZoneItems(room.id, "jewelry")).length).toBe(3);
+    expect(after).toMatchObject({ count: 2, wantCount: 1 });
+
+    // Показали обратно — число вернулось.
+    await setItemHidden(user.id, hiddenWant.id, false);
+    const back = zoneSummaryForOwner(
+      "jewelry",
+      (await listZoneItems(room.id, "jewelry")).map(ownerSummaryItem),
+    );
+    expect(back).toMatchObject({ count: 3, wantCount: 2 });
+    expect(visibleWant.hidden).toBe(false);
+  });
+});
+
 // ---------- Выключение зоны и брони ----------
 
 describe("setZoneOff — брони НЕ рвутся (решение тикета 13, зафиксировано)", () => {
@@ -252,6 +294,7 @@ describe("demoGhostsOff — призраки гаснут и у хозяйки, 
         photoUrl: null,
         hidden: false,
         isDemo: false,
+        createdAt: "2026-01-10T10:00:00.000Z",
         state: "LOVE",
         giverName: null,
         receivedAt: null,

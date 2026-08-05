@@ -42,8 +42,12 @@ function dbItem(overrides: Partial<Item> = {}): Item {
 }
 
 // Допустимые ключи owner-DTO — исчерпывающий список по форме состояния.
+// `createdAt` — «В комнате с {год}» в карточке вещи хозяйки (тикет 39,
+// турн 8c). Поле owner-only: гостевой DTO собирается своим allowlist'ом и
+// про дату появления вещи по-прежнему ничего не знает.
 const WANT_KEYS = [
   "color",
+  "createdAt",
   "currency",
   "desire",
   "hidden",
@@ -59,6 +63,7 @@ const WANT_KEYS = [
   "zone",
 ];
 const LOVE_KEYS = [
+  "createdAt",
   "giverName",
   "hidden",
   "id",
@@ -97,6 +102,7 @@ describe("itemForOwner — строгий состав ключей", () => {
     expect(dto.desire).toBe(4);
     expect(dto.isDemo).toBe(false);
     expect(dto.hidden).toBe(false);
+    expect(dto.createdAt).toBe("2026-01-10T10:00:00.000Z");
   });
 
   it("«люблю»: ровно ключи формы LOVE, receivedAt — ISO-строкой", () => {

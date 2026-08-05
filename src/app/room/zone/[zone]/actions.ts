@@ -1,9 +1,10 @@
 "use server";
 
 // Мутации вещи со страницы зоны хозяйки: спрятать/показать и удалить
-// (тикет 13), «уже моё» и зал славы (тикет 10). Экшены тонкие (CLAUDE.md):
-// ownership, Zod и revalidateTag — в services/items; здесь только сессия
-// и перевод отказов в коды для клиента.
+// (тикет 13), «уже моё» и зал славы (тикет 10), правка и перенос между
+// зонами (тикет 39). Экшены тонкие (CLAUDE.md): ownership, Zod и
+// revalidateTag — в services/items; здесь только сессия и перевод отказов
+// в коды для клиента.
 import { ZodError } from "zod";
 import { auth } from "@/server/auth";
 import { getSessionUserId } from "@/server/services/rooms";
@@ -13,10 +14,13 @@ import {
   selfFulfill,
   setItemHidden,
   toggleHall,
+  updateItem,
 } from "@/server/services/items";
 
 export type ItemActionResult =
-  | { error: "AUTH" | "NOT_FOUND" | "NOT_WANT" | "NOT_LOVE" | "GENERIC" }
+  | {
+      error: "AUTH" | "NOT_FOUND" | "NOT_WANT" | "NOT_LOVE" | "ZONE_NOT_VISIBLE" | "VALIDATION" | "GENERIC";
+    }
   | undefined;
 
 /**
@@ -68,6 +72,28 @@ export async function selfFulfillAction(itemId: string): Promise<ItemActionResul
   } catch (error) {
     if (error instanceof ItemMutationError) return { error: error.code };
     if (error instanceof ZodError) return { error: "GENERIC" };
+    throw error;
+  }
+  return undefined;
+}
+
+/**
+ * Правка вещи и перенос между зонами (тикет 39). Состояние вещи правкой не
+ * меняется: `state` в схемах сервиса нет вовсе — «хочу → люблю» остаётся
+ * необратимым (инвариант №2). Вещь с активной бронью правится молча и
+ * тем же путём: сказать «занято» нельзя (инвариант №1) — решение и
+ * объяснение живут в комментарии к updateItem.
+ */
+export async function updateItemAction(itemId: string, input: unknown): Promise<ItemActionResult> {
+  const session = await auth();
+  const userId = await getSessionUserId(session?.user);
+  if (!userId) return { error: "AUTH" };
+
+  try {
+    await updateItem(userId, String(itemId), input);
+  } catch (error) {
+    if (error instanceof ItemMutationError) return { error: error.code };
+    if (error instanceof ZodError) return { error: "VALIDATION" };
     throw error;
   }
   return undefined;

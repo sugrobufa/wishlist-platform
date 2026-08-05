@@ -146,6 +146,9 @@ export const demoPools: Record<string, readonly DemoSeed[]> = {
 /** Демо-призрак — та же форма, что owner-DTO, но isDemo: true. */
 export type DemoGhostDto = OwnerItemDto & { isDemo: true };
 
+/** Дата «появления» призрака — фиксированная (см. комментарий в demoGhostsFor). */
+const DEMO_CREATED_AT = "2026-01-01T12:00:00.000Z";
+
 /**
  * Демо-призраки зоны: DTO-совместимые объекты с isDemo: true. Пометку
  * «пример — замени на своё» и бейдж «пример» рисует плитка по isDemo
@@ -170,6 +173,10 @@ export function demoGhostsFor(zoneKey: string, poolKey: string): DemoGhostDto[] 
       photoUrl: seed.photo ? roomImageUrl(seed.photo) : null,
       hidden: false,
       isDemo: true as const,
+      // «В комнате с» у призрака смысла не имеет: он не в БД и карточки у
+      // него нет. Дата постоянная — иначе один и тот же призрак приезжал бы
+      // разным при каждом рендере (SSR и клиент разошлись бы).
+      createdAt: DEMO_CREATED_AT,
     };
 
     if (seed.state === "WANT") {

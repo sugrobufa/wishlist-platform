@@ -8,6 +8,7 @@
 // в БД. «Бирки» здесь нет и не будет — она ровно одна, «подарить» у гостя
 // (турн 22). Обратного пути LOVE → WANT в меню нет и не появится (инвариант №2).
 import { useState, useTransition, type ReactNode } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { ZoneGrid } from "@/components/zone/ZoneGrid";
@@ -26,12 +27,14 @@ type OwnerZoneGridProps = {
   items: OwnerGridItem[];
   accent: string;
   ink: string;
+  /** Ключ зоны — из него собирается адрес карточки вещи (тикет 39). */
+  zoneKey: string;
 };
 
 /** Двухшаговые подтверждения: удаление и необратимое «уже моё». */
 type Confirming = { id: string; kind: "delete" | "own" };
 
-export function OwnerZoneGrid({ items, accent, ink }: OwnerZoneGridProps) {
+export function OwnerZoneGrid({ items, accent, ink, zoneKey }: OwnerZoneGridProps) {
   const t = useTranslations("Settings");
   const router = useRouter();
   const [confirming, setConfirming] = useState<Confirming | null>(null);
@@ -97,6 +100,14 @@ export function OwnerZoneGrid({ items, accent, ink }: OwnerZoneGridProps) {
         {item.hidden && (
           <span className="overline text-text-faint">{t("itemHiddenBadge")}</span>
         )}
+        {/* Карточка вещи (тикет 39): правка полей, перенос на другую полку,
+            история «люблю». Отсюда же и только у своих вещей. */}
+        <Link
+          href={`/room/zone/${zoneKey}/i/${item.id}`}
+          className="pressable font-semibold text-text-muted hover:text-text-strong"
+        >
+          {t("itemEdit")}
+        </Link>
         {/* «Хочу»: ручной переход «уже моё» (тикет 10) — с подтверждением,
             потому что обратно в «хочу» пути не существует. */}
         {item.state === "WANT" && (

@@ -88,6 +88,11 @@
     "zoneCounts": "{total, plural, one {# item} other {# items}}{want, plural, =0 {} other { · # to gift}}",
     "backToRoom": "Back to the room"
   },
+  "Shop": {
+    "title": "Where to buy",
+    "go": "Go to the store →",
+    "aria": "Go to the {domain} store"
+  },
   "AddItem": {
     "overline": "New item",
     "backToRoom": "Back to the room",
@@ -258,6 +263,10 @@
     "itemAlreadyMineYes": "Yes, already mine",
     "itemHallAdd": "To the hall of fame",
     "itemHallRemove": "Remove from the hall",
+    "itemEdit": "Edit",
+    "itemSince": "In the room since",
+    "itemGiverRow": "A gift from",
+    "itemPriceHidden": "Hidden",
     "errAuth": "Session expired — sign in again",
     "errValidation": "Check the field — the format is off",
     "errAvatarType": "A photo is needed: JPG, PNG, WebP or HEIC",

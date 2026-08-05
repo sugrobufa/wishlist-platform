@@ -88,6 +88,11 @@
     "zoneCounts": "{total, plural, one {# вещь} few {# вещи} many {# вещей} other {# вещи}}{want, plural, =0 {} other { · # в подарок}}",
     "backToRoom": "В комнату"
   },
+  "Shop": {
+    "title": "Где купить",
+    "go": "Перейти →",
+    "aria": "Перейти в магазин {domain}"
+  },
   "AddItem": {
     "overline": "Новая вещь",
     "backToRoom": "В комнату",
@@ -258,6 +263,10 @@
     "itemAlreadyMineYes": "Да, уже моё",
     "itemHallAdd": "В зал славы",
     "itemHallRemove": "Убрать из зала",
+    "itemEdit": "Изменить",
+    "itemSince": "В комнате с",
+    "itemGiverRow": "Подарок от",
+    "itemPriceHidden": "Скрыта",
     "errAuth": "Пора войти заново",
     "errValidation": "Проверь поле — формат не тот",
     "errAvatarType": "Нужна фотография: JPG, PNG, WebP или HEIC",

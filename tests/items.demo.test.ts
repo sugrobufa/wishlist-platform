@@ -9,8 +9,11 @@ import itemsJson from "@design/items.json";
 import { rooms, zoneKeysHiddenByProduct } from "../src/config/design";
 import { demoGhostsFor, demoPools } from "../src/config/demo-pools";
 
+// `createdAt` приехал вместе с карточкой вещи хозяйки (тикет 39): у призрака
+// он постоянный — призрака нет в БД, и «В комнате с» ему нечем считать.
 const WANT_KEYS = [
   "color",
+  "createdAt",
   "currency",
   "desire",
   "hidden",
@@ -26,6 +29,7 @@ const WANT_KEYS = [
   "zone",
 ];
 const LOVE_KEYS = [
+  "createdAt",
   "giverName",
   "hidden",
   "id",

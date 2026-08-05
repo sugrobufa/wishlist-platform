@@ -22,6 +22,13 @@ type OwnerItemBaseDto = {
   hidden: boolean;
   /** false у настоящих вещей; true — только у демо-призраков (src/config/demo-pools). */
   isDemo: boolean;
+  /**
+   * Когда вещь появилась в комнате, ISO-строкой — строка «В комнате с {год}»
+   * в карточке вещи хозяйки (турн 8c, тикет 39). У «люблю» с известной датой
+   * подарка карточка предпочитает receivedAt, здесь — запасной путь для
+   * вещей «уже моё» и всех «хочу». Гостю это поле не отдаётся.
+   */
+  createdAt: string;
 };
 
 /**
@@ -82,6 +89,7 @@ export function itemForOwner(item: Item): OwnerItemDto {
     photoUrl: itemPhotoUrl(item.photoKey),
     hidden: item.hidden,
     isDemo: false,
+    createdAt: item.createdAt.toISOString(),
   };
 
   if (item.state === "WANT") {

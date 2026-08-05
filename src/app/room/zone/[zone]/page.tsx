@@ -6,6 +6,7 @@ import { auth } from "@/server/auth";
 import { getRoomForUser, getSessionUserId } from "@/server/services/rooms";
 import { listZoneItems } from "@/server/services/items";
 import { itemForOwner } from "@/server/dto/items";
+import { ownerSummaryItem, zoneSummaryForOwner } from "@/server/dto/zone-summary";
 import { rooms, zoneInfo } from "@/config/design";
 import { visibleZones } from "@/components/scene/zones";
 import { zoneDisplayItems } from "@/components/zone/zone-display-items";
@@ -50,13 +51,19 @@ export default async function ZoneListPage({ params }: Params) {
   const t = await getTranslations("ZoneGrid");
   const info = zoneInfo(zone.key);
 
-  const own = (await listZoneItems(room.id, zone.key)).map(itemForOwner);
+  const rows = await listZoneItems(room.id, zone.key);
+  const own = rows.map(itemForOwner);
   const items = zoneDisplayItems(own, zone.key, zone.pool, room.demoGhostsOff);
 
   // Живые счётчики своих вещей вместо счётчика-заглушки пакета (полировка 16):
   // формат тот же, что в zones.json («N вещей · M в подарок»), числа настоящие.
   // Пустая зона (в сетке только демо-призраки с бейджем «пример») — без подписи.
-  const wantCount = own.filter((item) => item.state === "WANT").length;
+  //
+  // Считает их сводка зоны (тикет 34) — ровно та же, что кормит панель сцены
+  // в /room: спрятанные вещи и демо-призраки в неё не входят (инвариант №5,
+  // dto/zone-summary). Своего подсчёта здесь больше нет: два независимых
+  // счётчика уже разъехались однажды — шапка считала и спрятанное.
+  const summary = zoneSummaryForOwner(zone.key, rows.map(ownerSummaryItem));
 
   return (
     <main className="min-h-screen pb-16">
@@ -66,16 +73,22 @@ export default async function ZoneListPage({ params }: Params) {
             ← {t("backToRoom")}
           </Link>
           <h1 className="display mt-5 text-3xl lg:text-4xl">{info?.label ?? zone.label}</h1>
-          {own.length > 0 && (
+          {summary.count > 0 && (
             <p className="mt-2 text-sm text-text-muted">
-              {t("zoneCounts", { total: own.length, want: wantCount })}
+              {t("zoneCounts", { total: summary.count, want: summary.wantCount })}
             </p>
           )}
         </header>
 
         {/* Сетка хозяйки со слотом действий (тикет 13): «Спрятать/Показать»
-            и «Удалить» на своих вещах; у демо-призраков меню нет. */}
-        <OwnerZoneGrid items={items} accent={preset.accent} ink={preset.ink} />
+            и «Удалить» на своих вещах; у демо-призраков меню нет. Оттуда же
+            открывается карточка вещи (тикет 39). */}
+        <OwnerZoneGrid
+          items={items}
+          accent={preset.accent}
+          ink={preset.ink}
+          zoneKey={zone.key}
+        />
 
         {/* Добавить вещь прямо в эту зону (полировка 16): ?zone=…
             предвыбирает её в карточке добавления (контракт тикета 04). */}
