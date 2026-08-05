@@ -73,7 +73,8 @@
           "bloomRot": 0,
           "reshoot": true,
           "notClamped": true,
-          "eyeChecked": true
+          "eyeChecked": true,
+          "accepted": false
         },
         {
           "key": "jewelry",
@@ -109,7 +110,8 @@
           "bloomRot": 0,
           "reshoot": true,
           "notClamped": true,
-          "eyeChecked": true
+          "eyeChecked": true,
+          "accepted": false
         },
         {
           "key": "bags",
@@ -190,7 +192,8 @@
           },
           "remappedRound": 5,
           "wrongTarget": false,
-          "reshootReason": "прямоугольник исправлен в раунде 5 — прежний показывал не тот предмет"
+          "reshootReason": "прямоугольник исправлен в раунде 5 — прежний показывал не тот предмет",
+          "accepted": false
         },
         {
           "key": "books",
@@ -206,7 +209,7 @@
           "openVerb": null,
           "bloomAR": 120,
           "bloomRot": 0,
-          "accepted": true,
+          "accepted": false,
           "notClamped": true,
           "eyeChecked": true,
           "rectOld": {
@@ -217,7 +220,8 @@
           },
           "remappedRound": 5,
           "wrongTarget": false,
-          "reshootReason": "прямоугольник исправлен в раунде 5 — прежний показывал не тот предмет"
+          "reshootReason": "прямоугольник исправлен в раунде 5 — прежний показывал не тот предмет",
+          "reshoot": true
         },
         {
           "key": "music",
@@ -242,7 +246,8 @@
             "w": 40,
             "h": 26
           },
-          "remappedRound": 4
+          "remappedRound": 4,
+          "accepted": false
         },
         {
           "key": "flowers",
@@ -267,7 +272,8 @@
             "w": 32,
             "h": 40
           },
-          "remappedRound": 4
+          "remappedRound": 4,
+          "accepted": false
         },
         {
           "key": "home",
@@ -313,7 +319,8 @@
           "reshoot": true,
           "notClamped": true,
           "eyeChecked": true,
-          "sharedObjectWith": "anything"
+          "sharedObjectWith": "anything",
+          "accepted": false
         }
       ],
       "roomLightness": 0.82,
@@ -351,7 +358,8 @@
           "bloomRot": 0,
           "reshoot": true,
           "notClamped": true,
-          "eyeChecked": true
+          "eyeChecked": true,
+          "accepted": false
         },
         {
           "key": "jewelry",
@@ -363,13 +371,15 @@
             "w": 28,
             "h": 26
           },
-          "openFrame": "refs-2x/warm/o-warm-jewelry.jpg",
-          "openVerb": "шкатулка поднимает крышку",
+          "openFrame": null,
+          "openVerb": null,
           "bloomAR": 62,
           "bloomRot": 0,
-          "accepted": true,
+          "accepted": false,
           "notClamped": true,
-          "eyeChecked": true
+          "eyeChecked": true,
+          "reshoot": true,
+          "reshootReason": "порог не пройден (тикет 46): своя 0.2045, фон 0.0735, отн 2.78 при пороге 3"
         },
         {
           "key": "anything",
@@ -387,7 +397,8 @@
           "bloomRot": 0,
           "reshoot": true,
           "notClamped": true,
-          "eyeChecked": true
+          "eyeChecked": true,
+          "accepted": false
         },
         {
           "key": "beauty",
@@ -406,7 +417,8 @@
           "reshoot": true,
           "notClamped": true,
           "eyeChecked": true,
-          "sharedObjectWith": "perfume"
+          "sharedObjectWith": "perfume",
+          "accepted": false
         },
         {
           "key": "perfume",
@@ -424,7 +436,8 @@
           "bloomRot": 0,
           "reshoot": true,
           "notClamped": true,
-          "eyeChecked": true
+          "eyeChecked": true,
+          "accepted": false
         },
         {
           "key": "bags",
@@ -442,7 +455,8 @@
           "bloomRot": 0,
           "reshoot": true,
           "notClamped": true,
-          "eyeChecked": true
+          "eyeChecked": true,
+          "accepted": false
         },
         {
           "key": "home",
@@ -467,7 +481,8 @@
             "w": 44,
             "h": 110
           },
-          "remappedRound": 4
+          "remappedRound": 4,
+          "accepted": false
         },
         {
           "key": "events",
@@ -492,7 +507,8 @@
             "w": 92,
             "h": 48
           },
-          "remappedRound": 4
+          "remappedRound": 4,
+          "accepted": false
         },
         {
           "key": "travel",
@@ -504,13 +520,15 @@
             "w": 157,
             "h": 109
           },
-          "openFrame": "refs-2x/warm/o-warm-travel.jpg",
-          "openVerb": "чемодан раскрывается",
+          "openFrame": null,
+          "openVerb": null,
           "bloomAR": 84,
           "bloomRot": 0,
-          "accepted": true,
+          "accepted": false,
           "notClamped": true,
-          "eyeChecked": true
+          "eyeChecked": true,
+          "reshoot": true,
+          "reshootReason": "порог не пройден (тикет 46): своя 0.0832, фон 0.0295, отн 2.82 при пороге 3"
         },
         {
           "key": "books",
@@ -535,7 +553,8 @@
             "w": 56,
             "h": 58
           },
-          "remappedRound": 4
+          "remappedRound": 4,
+          "accepted": false
         },
         {
           "key": "music",
@@ -551,13 +570,13 @@
           "openVerb": null,
           "bloomAR": 105,
           "bloomRot": 0,
-          "reshoot": false,
           "notClamped": true,
           "eyeChecked": true,
           "wrongTarget": true,
           "wrongNote": "Проверено глазами (Claude Code, раунд 4): прямоугольник стоит на пустой панели, настоящий предмет правее. Обрезка тут ни при чём — прямоугольник просто неверный.",
           "objectAbsent": true,
-          "absentNote": "Вертушки в кадре нет. Есть шкаф с книгами и ваза с розами, вертушки нет ни слева, ни справа от черты."
+          "absentNote": "Вертушки в кадре нет. Есть шкаф с книгами и ваза с розами, вертушки нет ни слева, ни справа от черты.",
+          "accepted": false
         },
         {
           "key": "flowers",
@@ -582,7 +601,8 @@
             "w": 28,
             "h": 48
           },
-          "remappedRound": 4
+          "remappedRound": 4,
+          "accepted": false
         },
         {
           "key": "money",
@@ -639,7 +659,8 @@
           "bloomRot": 0,
           "reshoot": true,
           "notClamped": true,
-          "eyeChecked": true
+          "eyeChecked": true,
+          "accepted": false
         },
         {
           "key": "bags",
@@ -657,7 +678,8 @@
           "bloomRot": 0,
           "reshoot": true,
           "notClamped": true,
-          "eyeChecked": true
+          "eyeChecked": true,
+          "accepted": false
         },
         {
           "key": "anything",
@@ -694,7 +716,8 @@
           "reshoot": true,
           "notClamped": true,
           "eyeChecked": true,
-          "sharedObjectWith": "perfume"
+          "sharedObjectWith": "perfume",
+          "accepted": false
         },
         {
           "key": "jewelry",
@@ -712,7 +735,8 @@
           "bloomRot": 0,
           "reshoot": true,
           "notClamped": true,
-          "eyeChecked": true
+          "eyeChecked": true,
+          "accepted": false
         },
         {
           "key": "perfume",
@@ -730,7 +754,8 @@
           "bloomRot": 0,
           "reshoot": true,
           "notClamped": true,
-          "eyeChecked": true
+          "eyeChecked": true,
+          "accepted": false
         },
         {
           "key": "events",
@@ -775,7 +800,8 @@
           "bloomRot": 0,
           "reshoot": true,
           "notClamped": true,
-          "eyeChecked": true
+          "eyeChecked": true,
+          "accepted": false
         },
         {
           "key": "books",
@@ -800,7 +826,8 @@
             "w": 56,
             "h": 62
           },
-          "remappedRound": 4
+          "remappedRound": 4,
+          "accepted": false
         },
         {
           "key": "music",
@@ -816,13 +843,13 @@
           "openVerb": null,
           "bloomAR": 116,
           "bloomRot": 0,
-          "reshoot": false,
           "clamped": true,
           "notClamped": false,
           "eyeChecked": true,
           "objectAbsent": true,
           "wrongTarget": true,
-          "absentNote": "Вертушки в кадре нет. В правой части мраморные полки с книгами и орхидеи; проигрывателя не видно."
+          "absentNote": "Вертушки в кадре нет. В правой части мраморные полки с книгами и орхидеи; проигрывателя не видно.",
+          "accepted": false
         },
         {
           "key": "flowers",
@@ -847,7 +874,8 @@
             "w": 22,
             "h": 72
           },
-          "remappedRound": 4
+          "remappedRound": 4,
+          "accepted": false
         },
         {
           "key": "home",
@@ -872,7 +900,8 @@
             "w": 22,
             "h": 96
           },
-          "remappedRound": 4
+          "remappedRound": 4,
+          "accepted": false
         },
         {
           "key": "money",
@@ -928,7 +957,8 @@
           "bloomRot": 0,
           "reshoot": true,
           "notClamped": true,
-          "eyeChecked": true
+          "eyeChecked": true,
+          "accepted": false
         },
         {
           "key": "jewelry",
@@ -964,7 +994,8 @@
           "bloomRot": 0,
           "reshoot": true,
           "notClamped": true,
-          "eyeChecked": true
+          "eyeChecked": true,
+          "accepted": false
         },
         {
           "key": "beauty",
@@ -980,11 +1011,11 @@
           "openVerb": null,
           "bloomAR": 45,
           "bloomRot": 0,
-          "reshoot": true,
           "notClamped": true,
           "eyeChecked": true,
           "objectAbsent": true,
-          "absentNote": "предмета этой категории в интерьере нет"
+          "absentNote": "предмета этой категории в интерьере нет",
+          "accepted": false
         },
         {
           "key": "perfume",
@@ -1002,7 +1033,8 @@
           "bloomRot": 0,
           "reshoot": true,
           "notClamped": true,
-          "eyeChecked": true
+          "eyeChecked": true,
+          "accepted": false
         },
         {
           "key": "bags",
@@ -1072,7 +1104,8 @@
             "w": 74,
             "h": 102
           },
-          "remappedRound": 4
+          "remappedRound": 4,
+          "accepted": false
         },
         {
           "key": "travel",
@@ -1090,7 +1123,8 @@
           "bloomRot": 0,
           "reshoot": true,
           "notClamped": true,
-          "eyeChecked": true
+          "eyeChecked": true,
+          "accepted": false
         },
         {
           "key": "books",
@@ -1116,7 +1150,8 @@
             "w": 52,
             "h": 62
           },
-          "remappedRound": 4
+          "remappedRound": 4,
+          "accepted": false
         },
         {
           "key": "music",
@@ -1170,7 +1205,8 @@
             "w": 25,
             "h": 56
           },
-          "remappedRound": 4
+          "remappedRound": 4,
+          "accepted": false
         },
         {
           "key": "money",
@@ -1188,7 +1224,8 @@
           "bloomRot": 0,
           "reshoot": true,
           "notClamped": true,
-          "eyeChecked": true
+          "eyeChecked": true,
+          "accepted": false
         }
       ],
       "roomLightness": 0.24,
@@ -1226,7 +1263,8 @@
           "bloomRot": 0,
           "reshoot": true,
           "notClamped": true,
-          "eyeChecked": true
+          "eyeChecked": true,
+          "accepted": false
         },
         {
           "key": "beauty",
@@ -1244,7 +1282,8 @@
           "bloomRot": 0,
           "reshoot": true,
           "notClamped": true,
-          "eyeChecked": true
+          "eyeChecked": true,
+          "accepted": false
         },
         {
           "key": "anything",
@@ -1262,7 +1301,8 @@
           "bloomRot": 0,
           "reshoot": true,
           "notClamped": true,
-          "eyeChecked": true
+          "eyeChecked": true,
+          "accepted": false
         },
         {
           "key": "jewelry",
@@ -1368,7 +1408,8 @@
             "w": 26,
             "h": 45
           },
-          "remappedRound": 4
+          "remappedRound": 4,
+          "accepted": false
         },
         {
           "key": "travel",
@@ -1386,7 +1427,8 @@
           "bloomRot": 0,
           "reshoot": true,
           "notClamped": true,
-          "eyeChecked": true
+          "eyeChecked": true,
+          "accepted": false
         },
         {
           "key": "books",
@@ -1412,7 +1454,8 @@
             "w": 50,
             "h": 43
           },
-          "remappedRound": 4
+          "remappedRound": 4,
+          "accepted": false
         },
         {
           "key": "flowers",
@@ -1438,7 +1481,8 @@
             "w": 22,
             "h": 58
           },
-          "remappedRound": 4
+          "remappedRound": 4,
+          "accepted": false
         },
         {
           "key": "home",
@@ -1522,7 +1566,8 @@
           "bloomRot": 0,
           "reshoot": true,
           "notClamped": true,
-          "eyeChecked": true
+          "eyeChecked": true,
+          "accepted": false
         },
         {
           "key": "jewelry",
@@ -1534,13 +1579,15 @@
             "w": 34,
             "h": 20
           },
-          "openFrame": "refs-2x/cottage/o-cottage-jewelry.jpg",
-          "openVerb": "шкатулка поднимает крышку",
+          "openFrame": null,
+          "openVerb": null,
           "bloomAR": 99,
           "bloomRot": 0,
-          "accepted": true,
+          "accepted": false,
           "notClamped": true,
-          "eyeChecked": true
+          "eyeChecked": true,
+          "reshoot": true,
+          "reshootReason": "порог не пройден (тикет 46): своя 0.1843, фон 0.0664, отн 2.78 при пороге 3"
         },
         {
           "key": "anything",
@@ -1558,7 +1605,8 @@
           "bloomRot": 0,
           "reshoot": true,
           "notClamped": true,
-          "eyeChecked": true
+          "eyeChecked": true,
+          "accepted": false
         },
         {
           "key": "beauty",
@@ -1576,7 +1624,8 @@
           "bloomRot": 0,
           "reshoot": true,
           "notClamped": true,
-          "eyeChecked": true
+          "eyeChecked": true,
+          "accepted": false
         },
         {
           "key": "perfume",
@@ -1612,7 +1661,8 @@
           "bloomRot": 0,
           "reshoot": true,
           "notClamped": true,
-          "eyeChecked": true
+          "eyeChecked": true,
+          "accepted": false
         },
         {
           "key": "events",
@@ -1637,7 +1687,8 @@
             "w": 115,
             "h": 52
           },
-          "remappedRound": 4
+          "remappedRound": 4,
+          "accepted": false
         },
         {
           "key": "music",
@@ -1662,7 +1713,8 @@
             "w": 31,
             "h": 18
           },
-          "remappedRound": 4
+          "remappedRound": 4,
+          "accepted": false
         },
         {
           "key": "travel",
@@ -1674,13 +1726,15 @@
             "w": 160,
             "h": 111
           },
-          "openFrame": "refs-2x/cottage/o-cottage-travel.jpg",
-          "openVerb": "чемодан раскрывается",
+          "openFrame": null,
+          "openVerb": null,
           "bloomAR": 84,
           "bloomRot": 0,
-          "accepted": true,
+          "accepted": false,
           "notClamped": true,
-          "eyeChecked": true
+          "eyeChecked": true,
+          "reshoot": true,
+          "reshootReason": "порог не пройден (тикет 46): своя 0.1404, фон 0.0945, отн 1.48 при пороге 3"
         },
         {
           "key": "books",
@@ -1706,7 +1760,8 @@
             "w": 54,
             "h": 55
           },
-          "remappedRound": 4
+          "remappedRound": 4,
+          "accepted": false
         },
         {
           "key": "flowers",
@@ -1732,7 +1787,8 @@
             "w": 30,
             "h": 66
           },
-          "remappedRound": 4
+          "remappedRound": 4,
+          "accepted": false
         },
         {
           "key": "home",
@@ -1758,7 +1814,8 @@
             "w": 22,
             "h": 96
           },
-          "remappedRound": 4
+          "remappedRound": 4,
+          "accepted": false
         },
         {
           "key": "money",
@@ -1832,7 +1889,8 @@
           "bloomRot": 0,
           "reshoot": true,
           "notClamped": true,
-          "eyeChecked": true
+          "eyeChecked": true,
+          "accepted": false
         },
         {
           "key": "anything",
@@ -1850,7 +1908,8 @@
           "bloomRot": 0,
           "reshoot": true,
           "notClamped": true,
-          "eyeChecked": true
+          "eyeChecked": true,
+          "accepted": false
         },
         {
           "key": "gaming",
@@ -1913,7 +1972,8 @@
           "bloomRot": 0,
           "reshoot": true,
           "notClamped": true,
-          "eyeChecked": true
+          "eyeChecked": true,
+          "accepted": false
         },
         {
           "key": "fashion",
@@ -1956,7 +2016,8 @@
             "w": 39,
             "h": 89
           },
-          "remappedRound": 4
+          "remappedRound": 4,
+          "accepted": false
         },
         {
           "key": "travel",
@@ -2002,7 +2063,8 @@
           },
           "remappedRound": 5,
           "wrongTarget": false,
-          "reshootReason": "прямоугольник исправлен в раунде 5 — прежний показывал не тот предмет"
+          "reshootReason": "прямоугольник исправлен в раунде 5 — прежний показывал не тот предмет",
+          "accepted": false
         },
         {
           "key": "music",
@@ -2028,7 +2090,8 @@
             "w": 52,
             "h": 54
           },
-          "remappedRound": 4
+          "remappedRound": 4,
+          "accepted": false
         },
         {
           "key": "books",
@@ -2045,7 +2108,7 @@
           "bloomAR": 41,
           "bloomRot": 0,
           "placedBy": "composition",
-          "accepted": true,
+          "accepted": false,
           "notClamped": true,
           "eyeChecked": true,
           "rectOld": {
@@ -2056,7 +2119,8 @@
           },
           "remappedRound": 5,
           "wrongTarget": false,
-          "reshootReason": "прямоугольник исправлен в раунде 5 — прежний показывал не тот предмет"
+          "reshootReason": "прямоугольник исправлен в раунде 5 — прежний показывал не тот предмет",
+          "reshoot": true
         },
         {
           "key": "money",
@@ -2073,7 +2137,7 @@
           "bloomAR": 32,
           "bloomRot": 0,
           "placedBy": "composition",
-          "accepted": true,
+          "accepted": false,
           "notClamped": true,
           "eyeChecked": true,
           "rectOld": {
@@ -2084,7 +2148,8 @@
           },
           "remappedRound": 5,
           "wrongTarget": false,
-          "reshootReason": "прямоугольник исправлен в раунде 5 — прежний показывал не тот предмет"
+          "reshootReason": "прямоугольник исправлен в раунде 5 — прежний показывал не тот предмет",
+          "reshoot": true
         }
       ],
       "roomLightness": 0.17,
@@ -2138,13 +2203,13 @@
           "openVerb": null,
           "bloomAR": 102,
           "bloomRot": 0,
-          "reshoot": false,
           "clamped": true,
           "notClamped": false,
           "eyeChecked": true,
           "objectAbsent": true,
           "wrongTarget": true,
-          "absentNote": "Часовницы в кадре нет. На столе поднос с уходом, часов на нём нет; в правой части велосипед и полки с книгами."
+          "absentNote": "Часовницы в кадре нет. На столе поднос с уходом, часов на нём нет; в правой части велосипед и полки с книгами.",
+          "accepted": false
         },
         {
           "key": "anything",
@@ -2198,7 +2263,8 @@
           "bloomRot": 0,
           "reshoot": true,
           "notClamped": true,
-          "eyeChecked": true
+          "eyeChecked": true,
+          "accepted": false
         },
         {
           "key": "books",
@@ -2250,7 +2316,8 @@
             "w": 60,
             "h": 34
           },
-          "remappedRound": 4
+          "remappedRound": 4,
+          "accepted": false
         },
         {
           "key": "sport",
@@ -2277,7 +2344,8 @@
           },
           "remappedRound": 5,
           "wrongTarget": false,
-          "reshootReason": "прямоугольник исправлен в раунде 5 — прежний показывал не тот предмет"
+          "reshootReason": "прямоугольник исправлен в раунде 5 — прежний показывал не тот предмет",
+          "accepted": false
         },
         {
           "key": "tech",
@@ -2296,7 +2364,8 @@
           "placedBy": "composition",
           "reshoot": true,
           "notClamped": true,
-          "eyeChecked": true
+          "eyeChecked": true,
+          "accepted": false
         },
         {
           "key": "gaming",
@@ -2313,11 +2382,11 @@
           "bloomAR": 98,
           "bloomRot": 0,
           "placedBy": "composition",
-          "reshoot": true,
           "notClamped": true,
           "eyeChecked": true,
           "objectAbsent": true,
-          "absentNote": "предмета этой категории в интерьере нет"
+          "absentNote": "предмета этой категории в интерьере нет",
+          "accepted": false
         },
         {
           "key": "events",
@@ -2345,7 +2414,8 @@
           },
           "remappedRound": 5,
           "wrongTarget": false,
-          "reshootReason": "прямоугольник исправлен в раунде 5 — прежний показывал не тот предмет"
+          "reshootReason": "прямоугольник исправлен в раунде 5 — прежний показывал не тот предмет",
+          "accepted": false
         },
         {
           "key": "travel",
@@ -2381,7 +2451,7 @@
           "bloomAR": 30,
           "bloomRot": 0,
           "placedBy": "composition",
-          "accepted": true,
+          "accepted": false,
           "notClamped": true,
           "eyeChecked": true,
           "rectOld": {
@@ -2392,7 +2462,8 @@
           },
           "remappedRound": 5,
           "wrongTarget": false,
-          "reshootReason": "прямоугольник исправлен в раунде 5 — прежний показывал не тот предмет"
+          "reshootReason": "прямоугольник исправлен в раунде 5 — прежний показывал не тот предмет",
+          "reshoot": true
         }
       ],
       "roomLightness": 0.55,
@@ -2446,7 +2517,7 @@
           "openVerb": null,
           "bloomAR": 120,
           "bloomRot": 0,
-          "accepted": true,
+          "accepted": false,
           "notClamped": true,
           "eyeChecked": true,
           "rectOld": {
@@ -2457,7 +2528,8 @@
           },
           "remappedRound": 5,
           "wrongTarget": false,
-          "reshootReason": "прямоугольник исправлен в раунде 5 — прежний показывал не тот предмет"
+          "reshootReason": "прямоугольник исправлен в раунде 5 — прежний показывал не тот предмет",
+          "reshoot": true
         },
         {
           "key": "anything",
@@ -2563,7 +2635,8 @@
             "w": 80,
             "h": 40
           },
-          "remappedRound": 4
+          "remappedRound": 4,
+          "accepted": false
         },
         {
           "key": "events",
@@ -2575,11 +2648,10 @@
             "w": 45,
             "h": 35
           },
-          "openFrame": null,
-          "openVerb": null,
+          "openFrame": "refs-2x/study/o-study-events.jpg",
+          "openVerb": "билеты выходят из рамки",
           "bloomAR": 44,
           "bloomRot": 0,
-          "reshoot": true,
           "notClamped": true,
           "eyeChecked": true,
           "rectOld": {
@@ -2590,7 +2662,8 @@
           },
           "remappedRound": 5,
           "wrongTarget": false,
-          "reshootReason": "прямоугольник исправлен в раунде 5 — прежний показывал не тот предмет"
+          "accepted": true,
+          "frameRound": 7
         },
         {
           "key": "tech",
@@ -2607,11 +2680,11 @@
           "bloomAR": 87,
           "bloomRot": 0,
           "placedBy": "composition",
-          "reshoot": true,
           "notClamped": true,
           "eyeChecked": true,
           "objectAbsent": true,
-          "absentNote": "предмета этой категории в интерьере нет"
+          "absentNote": "предмета этой категории в интерьере нет",
+          "accepted": false
         },
         {
           "key": "gaming",
@@ -2628,11 +2701,11 @@
           "bloomAR": 94,
           "bloomRot": 0,
           "placedBy": "composition",
-          "reshoot": true,
           "notClamped": true,
           "eyeChecked": true,
           "objectAbsent": true,
-          "absentNote": "предмета этой категории в интерьере нет"
+          "absentNote": "предмета этой категории в интерьере нет",
+          "accepted": false
         },
         {
           "key": "sport",
@@ -2670,7 +2743,8 @@
           "placedBy": "composition",
           "reshoot": true,
           "notClamped": true,
-          "eyeChecked": true
+          "eyeChecked": true,
+          "accepted": false
         },
         {
           "key": "money",
@@ -2698,7 +2772,8 @@
           },
           "remappedRound": 5,
           "wrongTarget": false,
-          "reshootReason": "прямоугольник исправлен в раунде 5 — прежний показывал не тот предмет"
+          "reshootReason": "прямоугольник исправлен в раунде 5 — прежний показывал не тот предмет",
+          "accepted": false
         }
       ],
       "roomLightness": 0.28,
@@ -2736,7 +2811,8 @@
           "bloomRot": 0,
           "reshoot": true,
           "notClamped": true,
-          "eyeChecked": true
+          "eyeChecked": true,
+          "accepted": false
         },
         {
           "key": "music",
@@ -2754,7 +2830,8 @@
           "bloomRot": 0,
           "reshoot": true,
           "notClamped": true,
-          "eyeChecked": true
+          "eyeChecked": true,
+          "accepted": false
         },
         {
           "key": "anything",
@@ -2772,7 +2849,8 @@
           "bloomRot": 0,
           "reshoot": true,
           "notClamped": true,
-          "eyeChecked": true
+          "eyeChecked": true,
+          "accepted": false
         },
         {
           "key": "sneakers",
@@ -2790,7 +2868,8 @@
           "bloomRot": 0,
           "reshoot": true,
           "notClamped": true,
-          "eyeChecked": true
+          "eyeChecked": true,
+          "accepted": false
         },
         {
           "key": "tech",
@@ -2808,7 +2887,8 @@
           "bloomRot": 0,
           "reshoot": true,
           "notClamped": true,
-          "eyeChecked": true
+          "eyeChecked": true,
+          "accepted": false
         },
         {
           "key": "books",
@@ -2833,7 +2913,8 @@
             "w": 66,
             "h": 100
           },
-          "remappedRound": 4
+          "remappedRound": 4,
+          "accepted": false
         },
         {
           "key": "sport",
@@ -2887,7 +2968,8 @@
           },
           "remappedRound": 5,
           "wrongTarget": false,
-          "reshootReason": "прямоугольник исправлен в раунде 5 — прежний показывал не тот предмет"
+          "reshootReason": "прямоугольник исправлен в раунде 5 — прежний показывал не тот предмет",
+          "accepted": false
         },
         {
           "key": "gaming",
@@ -2904,11 +2986,11 @@
           "bloomAR": 91,
           "bloomRot": 0,
           "placedBy": "composition",
-          "reshoot": true,
           "notClamped": true,
           "eyeChecked": true,
           "objectAbsent": true,
-          "absentNote": "предмета этой категории в интерьере нет"
+          "absentNote": "предмета этой категории в интерьере нет",
+          "accepted": false
         },
         {
           "key": "watches",
@@ -2936,7 +3018,8 @@
           },
           "remappedRound": 5,
           "wrongTarget": false,
-          "reshootReason": "прямоугольник исправлен в раунде 5 — прежний показывал не тот предмет"
+          "reshootReason": "прямоугольник исправлен в раунде 5 — прежний показывал не тот предмет",
+          "accepted": false
         },
         {
           "key": "grooming",
@@ -2955,7 +3038,8 @@
           "placedBy": "composition",
           "reshoot": true,
           "notClamped": true,
-          "eyeChecked": true
+          "eyeChecked": true,
+          "accepted": false
         },
         {
           "key": "travel",
@@ -2974,7 +3058,8 @@
           "placedBy": "composition",
           "reshoot": true,
           "notClamped": true,
-          "eyeChecked": true
+          "eyeChecked": true,
+          "accepted": false
         },
         {
           "key": "money",
@@ -2991,7 +3076,7 @@
           "bloomAR": 47,
           "bloomRot": 0,
           "placedBy": "composition",
-          "accepted": true,
+          "accepted": false,
           "notClamped": true,
           "eyeChecked": true,
           "rectOld": {
@@ -3002,7 +3087,8 @@
           },
           "remappedRound": 5,
           "wrongTarget": false,
-          "reshootReason": "прямоугольник исправлен в раунде 5 — прежний показывал не тот предмет"
+          "reshootReason": "прямоугольник исправлен в раунде 5 — прежний показывал не тот предмет",
+          "reshoot": true
         }
       ],
       "roomLightness": 0.22,
@@ -3023,5 +3109,14 @@
     "objectAbsent": "Предмета нет в кадре. Зону раскрытием не обеспечить — либо доснять предмет в интерьер, либо убрать зону из этой комнаты. См. absentNote.",
     "remappedRound": "В каком раунде прямоугольник переразмечен.",
     "rectOld": "Прежний прямоугольник до переразметки — для сверки."
-  }
+  },
+  "round7": {
+    "shot": 130,
+    "passedOurThreshold": 12,
+    "connected": 1,
+    "note": "Раунд 7 прислал 130 кадров «открыто», порог приёмки не прогонял. Прогнали мы (scripts/check-frames.mjs, порог reshoot-recipe.md: своя зона ≥ 0.05, отношение к фону ≥ 3): прошло 12 из 130. Одиннадцать из двенадцати — те же зоны, что уже подключены, и восемь из них байт-в-байт тот же кадр, что лежит у нас с раунда 3. Новый годный кадр ровно один — study/events. Флаги accepted/reshoot самого пакета не приняты ни в какую сторону: его же acceptedRule расходится с его же данными на 97 зонах.",
+    "rectsNotApplied": "Восемь прямоугольников placeBased (warm/music, lux/music, emerald/beauty, sport/watches, sport/gaming, study/tech, study/gaming, loft/gaming) пакет переставил «по месту». Не применены: предмета в интерьере по-прежнему нет, objectAbsent сохранён. Ждут наших десяти прямоугольников (rects-fix.json, .scratch/STATE.md).",
+    "roomsSkippedByComposition": "emerald 0.0585, cottage 0.0619, loft 0.0719 — базовый кадр пакета разошёлся с нынешним сильнее порога композиции 0.05, кадры этих комнат не берём целиком. Ни одна их зона порог и так не прошла."
+  },
+  "acceptedRule": "accepted ⟺ openFrame — и то и другое ставится НАШИМ измерением (scripts/check-frames.mjs), а не флагами пакета. Одно состояние на зону: accepted | reshoot | objectAbsent."
 }
