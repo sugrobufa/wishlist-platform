@@ -1,0 +1,72 @@
+# Caddy — единственная дверь наружу (тикет 28). Сертификат Let's Encrypt
+# Caddy получает и продлевает сам; редирект HTTP→HTTPS он ставит
+# автоматически для любого сайта с именем хоста — отдельного блока не нужно.
+#
+# ДОМЕН БЕРЁТСЯ ИЗ ОДНОЙ ПЕРЕМЕННОЙ APP_DOMAIN, и это ровно один переезд:
+#   пока домена нет → APP_DOMAIN=155-212-143-124.sslip.io
+#     sslip.io отдаёт A-запись, зашитую в само имя (155.212.143.124), и
+#     Let's Encrypt выдаёт на такие имена НАСТОЯЩИЙ сертификат — HTTPS
+#     честный, замок зелёный. Если выдача упрётся в суточный лимит (имя
+#     общее на всех пользователей службы) — тот же адрес у соседней службы
+#     nip.io: 155-212-143-124.nip.io, замена в .env одной строкой;
+#   домен куплен → APP_DOMAIN=example.ru (плюс APP_BASE_URL и S3_ENDPOINT
+#     в том же .env) → `docker compose up -d` → новый сертификат.
+# Разницы в конфиге между двумя режимами нет: здесь только имя переменной.
+{
+	# Почта для Let's Encrypt: сюда придёт письмо, если сертификат перестанет
+	# продлеваться. Переменная обязательна и не имеет пустого значения по
+	# умолчанию: директива `email` без аргумента — синтаксическая ошибка,
+	# и Caddy просто не стартует. Проверку «задано ли» держит compose
+	# (${ACME_EMAIL:?…}) — там ошибка понятнее, чем в логе Caddy.
+	email {$ACME_EMAIL}
+}
+
+{$APP_DOMAIN:localhost} {
+	log {
+		output stdout
+		format console
+	}
+
+	encode zstd gzip
+
+	# ---- Хранилище файлов (MinIO) под тем же именем хоста ----
+	#
+	# Браузер грузит фото ПРЯМО в хранилище по pre-signed PUT
+	# (src/server/s3.ts → presignPut), поэтому S3 обязан быть доступен
+	# снаружи. Адресация path-style: https://домен/<бакет>/<ключ> —
+	# ровно то, что генерирует SDK при заданном S3_ENDPOINT.
+	#
+	# Путь НЕ переписываем (никакого handle_path и strip_prefix): подпись
+	# SigV4 считается по хосту и полному пути, любой rewrite её ломает —
+	# MinIO ответит SignatureDoesNotMatch.
+	#
+	# Публичной дырой это не является: бакеты MinIO приватны по умолчанию,
+	# без подписи — 403; отдача картинок наружу идёт через маршрут /media
+	# приложения. Консоль MinIO (порт 9001) наружу не выведена вовсе.
+	@s3 path /{$S3_BUCKET:wishlist} /{$S3_BUCKET:wishlist}/* /{$S3_PRIVATE_BUCKET:wishlist-private} /{$S3_PRIVATE_BUCKET:wishlist-private}/*
+	handle @s3 {
+		reverse_proxy minio:9000
+	}
+
+	# ---- Приложение ----
+	handle {
+		header {
+			# HSTS — год, вместе с поддоменами. Ставим осознанно: домен
+			# используется только под это приложение.
+			Strict-Transport-Security "max-age=31536000; includeSubDomains"
+			X-Content-Type-Options "nosniff"
+			Referrer-Policy "strict-origin-when-cross-origin"
+			X-Frame-Options "SAMEORIGIN"
+			Permissions-Policy "camera=(), microphone=(), geolocation=(), payment=()"
+			-Server
+
+			# Content-Security-Policy ЗДЕСЬ НЕ ЗАДАЁМ — сознательно.
+			# Маршрут /media отдаёт свой строгий `default-src 'none'`
+			# (src/app/media/[...key]/route.ts). Браузер применяет ВСЕ
+			# присланные политики разом, пересечением: общий CSP от прокси
+			# наложился бы на медийный и, наоборот, медийный запретил бы
+			# ресурсы страницам. Политика приложения — забота приложения.
+		}
+		reverse_proxy app:3000
+	}
+}

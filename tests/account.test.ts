@@ -251,7 +251,16 @@ describe("buildExport — полнота", () => {
 describe("deleteAccount — в БД не остаётся ни одной строки пользователя", () => {
   it("каскад + явные deleteMany сносят всё; сосед с комнатой и бронью не тронут", async () => {
     // --- Полный граф пользователя A ---
-    const a = await createOwnerWithRoom({ occasionDate: new Date("2026-06-01T00:00:00.000Z") });
+    // Дата праздника — В БУДУЩЕМ, и это принципиально (тикет 30).
+    // `processOccasionClose()` в соседнем форке выбирает ВСЕ комнаты базы с
+    // `occasionDate < now` и заводит каждой `OccasionSummary`. С прошедшей
+    // датой он успевал закрыть эту комнату раньше самого теста, и собственный
+    // `occasionSummary.create` ниже падал с `P2002 (roomId, date)`.
+    // Само значение даты ни на один ассерт не влияет — нужен лишь факт строки
+    // в модели без FK на User, чтобы доказать, что её сносит явный deleteMany.
+    // Дата считается от «сейчас», чтобы через год не стать снова прошедшей.
+    const occasionDate = new Date(Date.now() + 365 * 24 * 60 * 60 * 1000);
+    const a = await createOwnerWithRoom({ occasionDate });
     await prisma.user.update({
       where: { id: a.user.id },
       data: { avatarKey: `avatars/${a.user.id}/${hex(8)}.jpg` },
@@ -302,7 +311,7 @@ describe("deleteAccount — в БД не остаётся ни одной стр
       },
     });
     await prisma.occasionSummary.create({
-      data: { roomId: a.room.id, date: new Date("2026-06-01T00:00:00.000Z") },
+      data: { roomId: a.room.id, date: occasionDate },
     });
     await prisma.parseJob.create({
       data: { url: "https://shop.example/x", userId: a.user.id, status: "DONE" },
@@ -415,8 +424,9 @@ describe("deleteAccount — чистка S3", () => {
   });
 
   it("реальный MinIO: удаляются ключи вещей, сироты обоих префиксов и аватар; чужие объекты живы", async () => {
-    const s = await createOwnerWithRoom();
-    const t = await createOwnerWithRoom(); // сосед — его объекты должны уцелеть
+    // Двое независимых владельцев — заводим разом (тикет 30); сосед `t` нужен
+    // только чтобы доказать, что его объекты уцелели.
+    const [s, t] = await Promise.all([createOwnerWithRoom(), createOwnerWithRoom()]);
 
     const photoKey = `items/${s.room.id}/${hex(8)}.jpg`;
     const orphanPhotoKey = `items/${s.room.id}/${hex(8)}.jpg`; // в бакете есть, в БД нет
@@ -425,18 +435,22 @@ describe("deleteAccount — чистка S3", () => {
     const foreignPhotoKey = `items/${t.room.id}/${hex(8)}.jpg`;
     const foreignAvatarKey = `avatars/${t.user.id}/${hex(8)}.jpg`;
 
-    await createWantItem(s.room.id, "jewelry", { photoKey });
-    await prisma.user.update({ where: { id: s.user.id }, data: { avatarKey } });
-    for (const key of [
-      photoKey,
-      orphanPhotoKey,
-      avatarKey,
-      orphanAvatarKey,
-      foreignPhotoKey,
-      foreignAvatarKey,
-    ]) {
-      await putTestObject(key);
-    }
+    // Вся подготовка разом (тикет 30): вещь, аватар и шесть объектов в бакете
+    // друг от друга не зависят, порядок ни на что не влияет. Последовательный
+    // цикл из шести загрузок стоил 1207 мс из 1770 мс теста — по ~200 мс на
+    // круг до MinIO, и под полным прогоном именно он выносил тест за 5000 мс.
+    await Promise.all([
+      createWantItem(s.room.id, "jewelry", { photoKey }),
+      prisma.user.update({ where: { id: s.user.id }, data: { avatarKey } }),
+      ...[
+        photoKey,
+        orphanPhotoKey,
+        avatarKey,
+        orphanAvatarKey,
+        foreignPhotoKey,
+        foreignAvatarKey,
+      ].map(putTestObject),
+    ]);
     // Санити листинга: видны и ключ из БД, и сирота.
     expect((await listKeysByPrefix(`items/${s.room.id}/`)).sort()).toEqual(
       [photoKey, orphanPhotoKey].sort(),
@@ -445,11 +459,20 @@ describe("deleteAccount — чистка S3", () => {
     const result = await deleteAccount(s.user.id); // настоящий storage по умолчанию
 
     expect(result).toEqual({ s3Cleaned: true });
-    expect(await listKeysByPrefix(`items/${s.room.id}/`)).toEqual([]);
-    expect(await listKeysByPrefix(`avatars/${s.user.id}/`)).toEqual([]);
+    // Четыре независимых ЧТЕНИЯ одного и того же состояния «после удаления» —
+    // спрашиваем разом (тикет 30). Порядок между ними ничего не значит, а
+    // последовательно это были четыре отдельных круга до MinIO.
+    const [ownItems, ownAvatars, foreignItems, foreignAvatar] = await Promise.all([
+      listKeysByPrefix(`items/${s.room.id}/`),
+      listKeysByPrefix(`avatars/${s.user.id}/`),
+      listKeysByPrefix(`items/${t.room.id}/`),
+      getObjectStream(foreignAvatarKey),
+    ]);
+    expect(ownItems).toEqual([]);
+    expect(ownAvatars).toEqual([]);
     // Чужое не задето.
-    expect(await listKeysByPrefix(`items/${t.room.id}/`)).toEqual([foreignPhotoKey]);
-    expect(await getObjectStream(foreignAvatarKey)).not.toBeNull();
+    expect(foreignItems).toEqual([foreignPhotoKey]);
+    expect(foreignAvatar).not.toBeNull();
 
     // Прибираем чужие объекты — заодно deleteObjects проверен напрямую.
     await deleteObjects([foreignPhotoKey, foreignAvatarKey]);

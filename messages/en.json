@@ -24,13 +24,6 @@
     "failedBody": "Something got in the way. Let's try again with a fresh link.",
     "newLink": "Send a new link"
   },
-  "DevLogin": {
-    "overline": "Service",
-    "title": "Quick sign-in",
-    "body": "Email isn't wired up on this stand yet — come in with a key",
-    "keyLabel": "Key",
-    "submit": "Sign in"
-  },
   "Onboarding": {
     "stepOverline": "Step {current} of {total}",
     "zoneSetStep": "Zone set",

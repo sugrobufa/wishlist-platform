@@ -1,0 +1,9 @@
+{
+  "DevLogin": {
+    "overline": "Service",
+    "title": "Quick sign-in",
+    "body": "Email isn't wired up on this stand yet — come in with a key",
+    "keyLabel": "Key",
+    "submit": "Sign in"
+  }
+}

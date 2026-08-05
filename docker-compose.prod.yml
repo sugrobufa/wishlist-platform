@@ -1,0 +1,196 @@
+# Боевой стек wishlist-platform на одном VPS (тикет 28, ARCHITECTURE §9 —
+# «до ~100k MAU: 1–2 web + 1 worker + БД»). Здесь ровно та же топология,
+# только всё на одной машине.
+#
+# Запуск на сервере — из /opt/wishlist:
+#   docker compose -f docker-compose.prod.yml up -d
+# Переменные compose берёт из соседнего .env (см. .env.prod.example).
+# СЕКРЕТОВ В ЭТОМ ФАЙЛЕ НЕТ И БЫТЬ НЕ ДОЛЖНО — только имена переменных.
+#
+# Наружу торчит один Caddy (80/443). Postgres, Redis, MinIO и само
+# приложение портов не публикуют: они видны только внутри сети compose.
+
+name: wishlist
+
+# Логи по умолчанию: без ротации docker съедает диск за недели.
+x-logging: &logging
+  driver: json-file
+  options:
+    max-size: "10m"
+    max-file: "3"
+
+# Общее у app и worker: один и тот же образ, одни и те же переменные,
+# одни и те же зависимости — различает их только команда.
+x-app: &app
+  image: ${APP_IMAGE:?APP_IMAGE не задан — см. .env.prod.example}:${APP_TAG:-latest}
+  restart: unless-stopped
+  env_file: .env
+  environment:
+    NODE_ENV: production
+    # Тег выпуска виден в /api/health — по нему release.sh убеждается,
+    # что поднялся именно новый образ, а не оставшийся старый.
+    APP_VERSION: ${APP_TAG:-latest}
+  depends_on:
+    postgres:
+      condition: service_healthy
+    redis:
+      condition: service_healthy
+    minio:
+      condition: service_healthy
+  networks: [internal]
+  logging: *logging
+
+services:
+  # ------------------------------------------------------------ прокси --
+  caddy:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    ports:
+      # Порты вынесены в переменные ради локальной проверки стека на
+      # свободных портах; на сервере остаются 80 и 443.
+      - "${CADDY_HTTP_PORT:-80}:80"
+      - "${CADDY_HTTPS_PORT:-443}:443"
+      - "${CADDY_HTTPS_PORT:-443}:443/udp" # HTTP/3
+    environment:
+      APP_DOMAIN: ${APP_DOMAIN:?APP_DOMAIN не задан — см. .env.prod.example}
+      # Обязательна: Caddy не стартует с пустой директивой email.
+      ACME_EMAIL: ${ACME_EMAIL:?ACME_EMAIL не задан — впишите свою почту в .env}
+      S3_BUCKET: ${S3_BUCKET:-wishlist}
+      S3_PRIVATE_BUCKET: ${S3_PRIVATE_BUCKET:-wishlist-private}
+    volumes:
+      - ./deploy/Caddyfile:/etc/caddy/Caddyfile:ro
+      # caddy_data хранит выданные сертификаты — том обязателен, иначе
+      # каждый перезапуск заново дёргает Let's Encrypt и упрётся в лимиты.
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      app:
+        condition: service_healthy
+    networks:
+      internal:
+        aliases:
+          # Приложение обращается к своему же S3 по публичному адресу
+          # (S3_ENDPOINT=https://домен — иначе pre-signed ссылки были бы
+          # нерабочими в браузере). Алиас держит этот трафик ВНУТРИ сети
+          # docker: имя домена резолвится в контейнер Caddy, а не уходит
+          # наружу и обратно через публичный IP. Сертификат настоящий,
+          # проверка TLS проходит честно.
+          - ${APP_DOMAIN:?APP_DOMAIN не задан}
+    mem_limit: 128m
+    logging: *logging
+
+  # ------------------------------------------------------- приложение --
+  app:
+    <<: *app
+    # HEALTHCHECK зашит в образ (Dockerfile): 200, пока жива БД.
+    mem_limit: 768m
+
+  worker:
+    <<: *app
+    # Тот же образ — другая команда. tsx лежит в prod-зависимостях (см.
+    # Dockerfile), поэтому воркер идёт тем же путём, что и в разработке.
+    command: ["npm", "run", "worker"]
+    # У воркера нет HTTP-порта: наследованный из образа healthcheck
+    # проверял бы несуществующий сервер — отключаем.
+    healthcheck:
+      disable: true
+    mem_limit: 384m
+
+  # -------------------------------------------------------------- база --
+  postgres:
+    image: pgvector/pgvector:pg17
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-wishlist}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD не задан}
+      POSTGRES_DB: ${POSTGRES_DB:-wishlist}
+      # Ускоряет и делает предсказуемым первичную инициализацию кластера.
+      POSTGRES_INITDB_ARGS: "--data-checksums"
+    # Настройки под маленький VPS: 128 МБ буферов и 50 соединений хватает
+    # одному app + одному worker с запасом (Prisma держит пул на процесс).
+    command:
+      - postgres
+      - -c
+      - shared_buffers=128MB
+      - -c
+      - max_connections=50
+      - -c
+      - work_mem=8MB
+      - -c
+      - maintenance_work_mem=64MB
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-wishlist} -d ${POSTGRES_DB:-wishlist}"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 30s
+    mem_limit: 512m
+    shm_size: 128mb
+    networks: [internal]
+    logging: *logging
+
+  # ------------------------------------------------------------ очереди --
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    # appendonly — очереди BullMQ переживают перезапуск.
+    # noeviction — ВАЖНО: политика по умолчанию выбрасывала бы ключи при
+    # нехватке памяти, а выброшенный ключ очереди означает потерянное
+    # письмо. Лучше честная ошибка записи, чем тихая пропажа джобы.
+    command:
+      - redis-server
+      - --appendonly
+      - "yes"
+      - --appendfsync
+      - everysec
+      - --maxmemory
+      - 192mb
+      - --maxmemory-policy
+      - noeviction
+    volumes:
+      - redisdata:/data
+    healthcheck:
+      test: ["CMD-SHELL", "redis-cli ping | grep -q PONG"]
+      interval: 10s
+      timeout: 3s
+      retries: 10
+    mem_limit: 256m
+    networks: [internal]
+    logging: *logging
+
+  # ----------------------------------------------------------- файлы ----
+  minio:
+    image: minio/minio:latest
+    restart: unless-stopped
+    # Консоль слушает 9001, но НАРУЖУ НЕ ВЫВЕДЕНА: секция ports пустая,
+    # оба порта видны только внутри сети compose. Наружу через Caddy
+    # проходит один S3-API по путям бакетов (см. deploy/Caddyfile).
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: ${S3_ACCESS_KEY:?S3_ACCESS_KEY не задан}
+      MINIO_ROOT_PASSWORD: ${S3_SECRET_KEY:?S3_SECRET_KEY не задан}
+      MINIO_BROWSER: "off"
+    volumes:
+      - miniodata:/data
+    healthcheck:
+      test: ["CMD", "mc", "ready", "local"]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+      start_period: 20s
+    mem_limit: 384m
+    networks: [internal]
+    logging: *logging
+
+networks:
+  internal:
+    driver: bridge
+
+volumes:
+  pgdata:
+  redisdata:
+  miniodata:
+  caddy_data:
+  caddy_config:

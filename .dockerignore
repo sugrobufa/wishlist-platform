@@ -1,0 +1,58 @@
+# Что НЕ уезжает в контекст сборки (тикет 28). Правило простое: node_modules
+# и артефакты ставятся/собираются внутри образа, локальные копии только
+# ломают кэш слоёв и тянут гигабайты по сети в GitHub Actions.
+
+# deps / build
+node_modules
+.next
+out
+dist
+coverage
+*.tsbuildinfo
+
+# env и секреты — В ОБРАЗ НЕ ПОПАДАЮТ НИКОГДА.
+# Прод читает переменные из .env на сервере (docker compose --env-file),
+# а не из слоя образа: слой ушёл бы в registry вместе с паролями.
+.env
+.env.*
+!.env.example
+!.env.prod.example
+
+# vcs и служебное
+.git
+.gitignore
+.github
+.claude
+.scratch
+.vscode
+.idea
+
+# тесты и отчёты
+e2e
+tests
+playwright-report
+test-results
+playwright.config.ts
+vitest.config.ts
+
+# документация и рабочие материалы
+docs
+*.md
+!README.md
+
+# дизайн-пакет: в образ нужны ровно два каталога (refs — кадры комнат для
+# /rooms/[image]; handoff — контракты, которые воркер резолвит через
+# @design/*). Макет, скрипты и retina-версии кадров прод не читает.
+design/package/refs-2x
+design/package/*.html
+design/package/support.js
+
+# прочее
+.DS_Store
+Thumbs.db
+*.log
+.vercel
+.turbo
+Dockerfile
+docker-compose*.yml
+deploy

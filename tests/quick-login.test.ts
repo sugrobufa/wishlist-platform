@@ -18,16 +18,9 @@ vi.mock("next/headers", () => ({
   headers: async () => new Headers({ "x-forwarded-for": currentIp }),
 }));
 
-// Тексты страницы — реальные строки продукта, без request-scope next-intl.
-vi.mock("next-intl/server", () => ({
-  getTranslations: async (namespace: string) => {
-    const messages = (await import("../messages/ru.json")).default as unknown as Record<
-      string,
-      Record<string, string>
-    >;
-    return (key: string) => messages[namespace]?.[key] ?? `!${namespace}.${key}`;
-  },
-}));
+// Язык — вне request-scope его взять неоткуда; всё остальное в next-intl
+// настоящее: страница сама зовёт createTranslator по своему словарю.
+vi.mock("next-intl/server", () => ({ getLocale: async () => "ru" }));
 
 import { renderToStaticMarkup } from "react-dom/server";
 import { handlers } from "@/server/auth";
@@ -48,6 +41,8 @@ import DevLoginPage, { metadata } from "../src/app/dev-login/page";
 import { prisma } from "../src/server/db";
 import ruMessages from "../messages/ru.json";
 import enMessages from "../messages/en.json";
+import devLoginRu from "../messages/dev-login.ru.json";
+import devLoginEn from "../messages/dev-login.en.json";
 
 const ORIGIN = "http://localhost:3000";
 const TEST_EMAIL_DOMAIN = "@quick-login.test";
@@ -484,8 +479,8 @@ describe("служебный экран", () => {
     expect(html).toContain('method="get"');
     expect(html).toContain(`action="${QUICK_LOGIN_PATH}"`);
     expect(html).toContain(`name="${QUICK_LOGIN_KEY_PARAM}"`);
-    expect(html).toContain(ruMessages.DevLogin.title);
-    expect(html).toContain(ruMessages.DevLogin.submit);
+    expect(html).toContain(devLoginRu.DevLogin.title);
+    expect(html).toContain(devLoginRu.DevLogin.submit);
     // Ни ключа, ни почты владельца на экране нет.
     expect(html).not.toContain(SECRET);
     expect(html).not.toContain(OWNER_EMAIL);
@@ -500,11 +495,21 @@ describe("служебный экран", () => {
   it("оба языка знают тексты экрана", () => {
     const keys = ["overline", "title", "body", "keyLabel", "submit"] as const;
     for (const key of keys) {
-      expect(ruMessages.DevLogin[key], `ru.DevLogin.${key}`).toBeTruthy();
-      expect(enMessages.DevLogin[key], `en.DevLogin.${key}`).toBeTruthy();
+      expect(devLoginRu.DevLogin[key], `ru.DevLogin.${key}`).toBeTruthy();
+      expect(devLoginEn.DevLogin[key], `en.DevLogin.${key}`).toBeTruthy();
       // Тон продукта: без восклицательных знаков (design/package/handoff/tone.md).
-      expect(ruMessages.DevLogin[key]).not.toContain("!");
-      expect(enMessages.DevLogin[key]).not.toContain("!");
+      expect(devLoginRu.DevLogin[key]).not.toContain("!");
+      expect(devLoginEn.DevLogin[key]).not.toContain("!");
     }
+  });
+
+  it("служебных слов НЕТ в общем словаре — иначе их видно на каждом экране", () => {
+    // src/app/layout.tsx сериализует весь общий словарь в разметку любой
+    // страницы. Пространство «DevLogin» там означало бы, что обход входа
+    // объявлен всему интернету ещё до всяких попыток его найти.
+    expect(ruMessages).not.toHaveProperty("DevLogin");
+    expect(enMessages).not.toHaveProperty("DevLogin");
+    expect(JSON.stringify(ruMessages)).not.toContain(devLoginRu.DevLogin.title);
+    expect(JSON.stringify(enMessages)).not.toContain(devLoginEn.DevLogin.title);
   });
 });

@@ -1,0 +1,206 @@
+# Боевой выпуск (тикет 28): образ собирается ЗДЕСЬ, на раннере GitHub, и
+# уезжает в ghcr.io; сервер только скачивает готовое и перезапускается.
+#
+# Почему не собирать на сервере. `next build` на пике съедает больше 2 ГБ и
+# несколько минут держит все ядра — на маленьком VPS это значит сборку под
+# OOM-killer'ом и просевший сайт во время каждого выпуска. Раннер GitHub
+# бесплатен для репозитория, даёт 4 ядра и кэш слоёв между запусками, а
+# ghcr.io бесплатен для приватных репозиториев и живёт под тем же аккаунтом —
+# отдельных доступов заводить не нужно. Выпуск на сервере превращается в
+# `docker pull` изменившихся слоёв.
+#
+# Секреты (три, добавляет владелец в Settings → Secrets → Actions):
+#   DEPLOY_HOST     — адрес сервера (155.212.143.124)
+#   DEPLOY_USER     — пользователь деплоя (deploy)
+#   DEPLOY_SSH_KEY  — приватный ключ ~/.ssh/wishlist_deploy целиком
+# Доступ к ghcr.io отдельным секретом НЕ хранится: сервер логинится
+# одноразовым GITHUB_TOKEN этого запуска, который протухает вместе с ним.
+
+name: Deploy
+
+on:
+  # После зелёного CI на main — сам. Красный CI до сервера не доезжает.
+  workflow_run:
+    workflows: ["CI"]
+    types: [completed]
+    branches: [main]
+  # И кнопкой: перевыпуск того же или откат на прошлый тег вручную.
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Тег образа (пусто — собрать из текущего main)"
+        required: false
+        default: ""
+
+# Два выпуска одновременно на один сервер — гарантированная каша.
+concurrency:
+  group: deploy-production
+  cancel-in-progress: false
+
+env:
+  REGISTRY: ghcr.io
+
+jobs:
+  # ------------------------------------------------------------- сборка --
+  build:
+    # Ручной запуск с готовым тегом сборку пропускает — образ уже в registry.
+    if: >-
+      github.event_name == 'workflow_dispatch' && inputs.tag == '' ||
+      github.event_name == 'workflow_run' && github.event.workflow_run.conclusion == 'success'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    outputs:
+      tag: ${{ steps.meta.outputs.tag }}
+      image: ${{ steps.meta.outputs.image }}
+    steps:
+      # workflow_run срабатывает на «тот самый» коммит, а не на верхушку main:
+      # выпускаем ровно то, что прошло CI.
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.workflow_run.head_sha || github.sha }}
+
+      - name: Image name & tag
+        id: meta
+        run: |
+          # ghcr.io принимает только строчные буквы в имени образа.
+          image="${REGISTRY}/$(echo '${{ github.repository }}' | tr '[:upper:]' '[:lower:]')"
+          sha="${{ github.event.workflow_run.head_sha || github.sha }}"
+          echo "image=$image" >> "$GITHUB_OUTPUT"
+          echo "tag=sha-${sha::7}" >> "$GITHUB_OUTPUT"
+
+      - uses: docker/setup-buildx-action@v3
+
+      - uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build & push
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: true
+          tags: |
+            ${{ steps.meta.outputs.image }}:${{ steps.meta.outputs.tag }}
+            ${{ steps.meta.outputs.image }}:latest
+          # Кэш слоёв между запусками: npm ci не переустанавливается, пока
+          # не менялся package-lock.json.
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          provenance: false
+
+  # ------------------------------------------------------------- выпуск --
+  deploy:
+    needs: [build]
+    # always() — ручной запуск с готовым тегом идёт в обход сборки.
+    if: >-
+      always() &&
+      (needs.build.result == 'success' || needs.build.result == 'skipped') &&
+      (github.event_name == 'workflow_dispatch' ||
+       github.event.workflow_run.conclusion == 'success')
+    runs-on: ubuntu-latest
+    environment: production
+    permissions:
+      contents: read
+      packages: read
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.workflow_run.head_sha || github.sha }}
+
+      - name: Resolve tag
+        id: release
+        run: |
+          tag="${{ inputs.tag }}"
+          [ -n "$tag" ] || tag="${{ needs.build.outputs.tag }}"
+          [ -n "$tag" ] || { echo "Нечего выпускать: тег не определён" >&2; exit 1; }
+          echo "tag=$tag" >> "$GITHUB_OUTPUT"
+
+      - name: SSH key & known_hosts
+        env:
+          DEPLOY_SSH_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
+          DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
+        run: |
+          mkdir -p ~/.ssh && chmod 700 ~/.ssh
+          printf '%s\n' "$DEPLOY_SSH_KEY" > ~/.ssh/id_deploy
+          chmod 600 ~/.ssh/id_deploy
+          # Отпечаток сервера снимаем в начале запуска и дальше проверяем
+          # при каждом входе. Это доверие при первом знакомстве, а не полная
+          # проверка — зато ключ сервера не может смениться посреди выпуска.
+          # Полная означала бы четвёртый секрет с отпечатком; для одного
+          # сервера с фиксированным IP цена выше пользы.
+          ssh-keyscan -H "$DEPLOY_HOST" >> ~/.ssh/known_hosts 2>/dev/null
+          cat >> ~/.ssh/config <<CONF
+          Host deploy-target
+            HostName $DEPLOY_HOST
+            User ${{ secrets.DEPLOY_USER }}
+            IdentityFile ~/.ssh/id_deploy
+            IdentitiesOnly yes
+            BatchMode yes
+            ConnectTimeout 20
+          CONF
+
+      # Файлы стека (compose, Caddyfile, скрипты) держим на сервере копией из
+      # репозитория — так серверу не нужен доступ к git, а значит и ещё один
+      # ключ. Код приложения приезжает образом, не файлами.
+      - name: Upload stack files
+        run: |
+          # .env создаёт владелец руками (docs/DEPLOY.md, шаг 3) — секретов у
+          # автоматики нет. Проверяем сразу: без него выпуск всё равно не
+          # поедет, а ошибка здесь понятнее, чем в середине release.sh.
+          ssh deploy-target 'test -f /opt/wishlist/.env' || {
+            echo "::error::На сервере нет /opt/wishlist/.env — создайте его по docs/DEPLOY.md, шаг 3"
+            exit 1
+          }
+          ssh deploy-target 'mkdir -p /opt/wishlist/deploy'
+          scp docker-compose.prod.yml deploy-target:/opt/wishlist/
+          scp deploy/Caddyfile deploy/release.sh deploy/backup.sh deploy/bootstrap.sh deploy-target:/opt/wishlist/deploy/
+          scp .env.prod.example deploy-target:/opt/wishlist/
+          ssh deploy-target 'chmod +x /opt/wishlist/deploy/*.sh'
+
+      - name: Registry login on server
+        env:
+          GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          # Токен идёт по stdin, а не аргументом: в списке процессов сервера
+          # он не появится, и живёт он ровно до конца этого запуска.
+          printf '%s' "$GHCR_TOKEN" | ssh deploy-target \
+            "docker login ${{ env.REGISTRY }} -u ${{ github.actor }} --password-stdin"
+
+      # Имя образа фиксируем в .env сервера: дальше и автоматика, и владелец
+      # руками работают с одной и той же строкой.
+      - name: Pin image in .env
+        env:
+          IMAGE: ${{ needs.build.outputs.image }}
+        run: |
+          image="$IMAGE"
+          [ -n "$image" ] || image="${REGISTRY}/$(echo '${{ github.repository }}' | tr '[:upper:]' '[:lower:]')"
+          ssh deploy-target "cd /opt/wishlist && \
+            if grep -q '^APP_IMAGE=' .env; then \
+              sed -i 's|^APP_IMAGE=.*|APP_IMAGE=$image|' .env; \
+            else \
+              echo 'APP_IMAGE=$image' >> .env; \
+            fi"
+
+      # Миграции, перезапуск, healthcheck и откат — внутри release.sh, чтобы
+      # тот же выпуск можно было повторить руками одной командой.
+      - name: Release (migrate → restart → health → rollback on failure)
+        run: ssh deploy-target "cd /opt/wishlist && ./deploy/release.sh ${{ steps.release.outputs.tag }}"
+
+      - name: Logout on server
+        if: always()
+        run: ssh deploy-target "docker logout ${{ env.REGISTRY }}" || true
+
+      - name: Summary
+        if: always()
+        run: |
+          {
+            echo "### Выпуск ${{ steps.release.outputs.tag }}"
+            echo ""
+            echo "- образ: \`${{ needs.build.outputs.image }}:${{ steps.release.outputs.tag }}\`"
+            echo "- сервер: \`${{ secrets.DEPLOY_HOST }}\`"
+            echo "- результат: **${{ job.status }}**"
+          } >> "$GITHUB_STEP_SUMMARY"
