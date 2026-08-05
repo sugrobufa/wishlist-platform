@@ -1,13 +1,14 @@
 import type { Metadata } from "next";
-import type { ReactNode } from "react";
+import type { CSSProperties, ReactNode } from "react";
 import Link from "next/link";
 import { getTranslations } from "next-intl/server";
 import { notFound, permanentRedirect } from "next/navigation";
 import { cache } from "react";
 import { getGuestRoom } from "@/server/services/guest-room";
-import { rooms, scene } from "@/config/design";
+import { rooms } from "@/config/design";
 import { roomImageUrl } from "@/app/rooms/room-image";
 import { SceneStage } from "@/components/scene/SceneStage";
+import { immersiveLayout } from "@/components/scene/immersive-layout";
 import { GuestBookingProvider } from "./booking/booking-context";
 import { GuestZoneGrid } from "./booking/guest-zone-grid";
 import { MyBookingsLink } from "./booking/my-bookings-link";
@@ -125,48 +126,66 @@ export default async function GuestRoomPage({ params }: Params) {
   );
 
   return (
-    <main className="min-h-screen pb-16">
-      <div className="mx-auto w-full" style={{ maxWidth: scene.desktop.w }}>
-        <header className="px-5 pb-4 pt-6 lg:px-0 lg:pt-10">
-          <p className="overline text-text-muted">{t("overline")}</p>
-          {/* Имя хозяйки + маленький аватар, если загружен (тикет 13).
-              Фон-div, как у плиток вещей: раздача /media, alt не нужен. */}
-          <div className="mt-2 flex items-center gap-3">
-            {room.ownerAvatarUrl && (
-              <div
-                aria-hidden
-                className="h-9 w-9 flex-none rounded-full border border-surface-hairline bg-surface-fill lg:h-11 lg:w-11"
-                style={{
-                  backgroundImage: `url(${room.ownerAvatarUrl})`,
-                  backgroundSize: "cover",
-                  backgroundPosition: "center",
-                }}
-              />
-            )}
-            <h1 className="display text-2xl lg:text-4xl">{ownerName}</h1>
+    <main
+      className="imm"
+      style={
+        {
+          "--imm-gutter": `${immersiveLayout.phone.gap}px`,
+          "--room-image": `url(${roomImageUrl(preset.base)})`,
+        } as CSSProperties
+      }
+    >
+      {/* Та же раскладка «во весь экран», что у хозяйки (тикет 24): размытый
+          кадр фоном, сцена посередине, интерфейс двумя полосами на вуалях. */}
+      <div className="imm-backdrop" aria-hidden />
+      <div className="imm-veil imm-veil-top" aria-hidden />
+      <div className="imm-veil imm-veil-bottom" aria-hidden />
+
+      <GuestBookingProvider slug={slug}>
+        <SceneStage preset={preset} zonesOff={room.zonesOff} zoneContent={zoneContent} />
+
+        <header className="imm-rail imm-rail-top">
+          <div className="imm-row">
+            <div className="imm-titles">
+              <p className="overline text-text-muted">{t("overline")}</p>
+              {/* Имя хозяйки + маленький аватар, если загружен (тикет 13).
+                  Фон-div, как у плиток вещей: раздача /media, alt не нужен. */}
+              <div className="mt-1 flex items-center gap-3">
+                {room.ownerAvatarUrl && (
+                  <div
+                    aria-hidden
+                    className="h-9 w-9 flex-none rounded-full border border-surface-hairline bg-surface-fill lg:h-11 lg:w-11"
+                    style={{
+                      backgroundImage: `url(${room.ownerAvatarUrl})`,
+                      backgroundSize: "cover",
+                      backgroundPosition: "center",
+                    }}
+                  />
+                )}
+                <h1 className="display imm-title text-2xl lg:text-4xl">{ownerName}</h1>
+              </div>
+            </div>
           </div>
         </header>
 
-        <GuestBookingProvider slug={slug}>
-          <SceneStage preset={preset} zonesOff={room.zonesOff} zoneContent={zoneContent} />
-
-          {/* Мягкий призыв внизу: гость пришёл смотреть, не регистрироваться. */}
-          <footer className="mt-10 px-5 lg:px-0">
-            <div className="flex max-w-md flex-col gap-2 border border-surface-hairline bg-surface-fill p-5">
-              <p className="text-sm text-text-muted">{t("ctaHint")}</p>
+        {/* Мягкий призыв внизу: гость пришёл смотреть, не регистрироваться. */}
+        <footer className="imm-rail imm-rail-bottom">
+          <div className="imm-row">
+            <p className="min-w-0 text-xs text-text-muted">{t("ctaHint")}</p>
+            <div className="imm-actions">
+              {/* «Мои брони · N» — появляется после клиентского fetch, если cookie непуст. */}
+              <MyBookingsLink />
               <Link
                 href="/"
-                className="pressable inline-block text-sm font-semibold"
+                className="pressable text-sm font-semibold"
                 style={{ color: preset.accent }}
               >
                 {t("cta")} →
               </Link>
             </div>
-            {/* «Мои брони · N» — появляется после клиентского fetch, если cookie непуст. */}
-            <MyBookingsLink />
-          </footer>
-        </GuestBookingProvider>
-      </div>
+          </div>
+        </footer>
+      </GuestBookingProvider>
     </main>
   );
 }

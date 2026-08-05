@@ -244,8 +244,10 @@ test("полный цикл дарения: хозяйка → гость → с
   });
 
   await test.step("адрес комнаты читается из UI", async () => {
-    await hostessPage.goto("/room");
-    const sharePath = (await hostessPage.getByText(/^\/r\//).textContent())?.trim() ?? "";
+    // Тикет 24 убрал карточку с адресом из комнаты: на экране остался значок
+    // «поделиться», а сам адрес живёт в настройках, рядом с ником.
+    await hostessPage.goto("/settings");
+    const sharePath = (await hostessPage.getByText(/^\/r\//).first().textContent())?.trim() ?? "";
     roomSlug = sharePath.replace("/r/", "");
     expect(roomSlug).not.toBe("");
   });

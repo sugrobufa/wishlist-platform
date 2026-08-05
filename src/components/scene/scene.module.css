@@ -8,14 +8,56 @@
  * (Main Screen.dc.html, турны 15a/17a) и y-ход дрейфа из omDrift.
  */
 
+/* --- Раскладка «комната во весь экран» (тикет 24) ------------------------ */
+
+/* Сцена больше не блок в колонке под шапкой: она лежит на весь экран, а
+ * интерфейс — двумя полосами поверх (числа tokens.json → layout.phoneImmersive
+ * и desktopImmersive, разложены тикетом 21 в tokens.css).
+ *
+ * ПОЧЕМУ КАДР НЕ РАСТЯГИВАЕТСЯ НА ВЕСЬ ЭКРАН. Карта зон покрывает кадр от края
+ * до края: по горизонтали зоны занимают ровно телефонную сцену (0…430 из 430),
+ * по вертикали 5…352 из 352. Любое увеличение сверх ширины экрана выносит
+ * крайние зоны за край — а требование тикета обратное: все 13 зон каждой из
+ * 10 комнат целиком на экране и нажимаемы. Поэтому кадр держит пропорцию
+ * (430:352 телефон, 1120:625 десктоп) и берёт максимум, который помещается
+ * между полосами, а «весь экран» достаётся фоном страницы: тот же кадр,
+ * размытый и притемнённый, лежит под сценой (globals.css → .imm-backdrop).
+ * Числа и проверка — src/components/scene/immersive-layout.ts и
+ * tests/immersive-layout.test.ts. */
+
 .stage {
-  position: relative;
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  overflow: hidden;
+
+  /* Полосы интерфейса: верхняя — «вуаль» контракта, нижняя — railBottom. */
+  --rail-top: var(--imm-top-veil);
+  --rail-bottom: var(--imm-rail-bottom);
+  --band-ar: var(--scene-ar);
+  /* Воздух между кадром и нижней полосой; страница отдаёт сюда spacing.gutter
+     (--imm-gutter). Без него зона нижнего края упирается в полосу вплотную. */
+  --band-gap: var(--imm-gutter, 0px);
+  /* Ширина кадра = min(экран, столько, сколько влезает по высоте). Ровно эта
+     формула проверяется тестом (immersive-layout.ts → sceneBand). */
+  --band-free-h: calc(100dvh - var(--rail-top) - var(--rail-bottom) - var(--band-gap));
+  --band-w: min(100%, calc(var(--band-free-h) * var(--band-ar)));
+  /* Высота — то же самое с другой стороны. Через `--band-w` её не выразить:
+     там min(100%, …), а процент в `max-height` считается от ВЫСОТЫ родителя,
+     и лист вещей получал бы чужое число. */
+  --band-h: min(calc(100vw / (var(--band-ar))), var(--band-free-h));
+
+  padding-top: var(--rail-top);
 }
 
 .viewport {
   position: relative;
+  flex: none;
+  width: var(--band-w);
   overflow: hidden;
-  aspect-ratio: var(--scene-ar);
+  aspect-ratio: var(--band-ar);
   background: #0b0806; /* фон сцены, макет 15a */
   isolation: isolate;
 }
@@ -379,11 +421,14 @@
 
 /* --- Подпись открытой зоны и подсказка ---------------------------------- */
 
+/* Подпись стоит над листом вещей (тикет 24): лист приходит снизу на четверть
+ * кадра, и «Отойти» обязано остаться нажимаемым. Процент считается от высоты
+ * кадра — та же четверть, что у листа. */
 .caption {
   position: absolute;
   left: 20px;
   right: 20px;
-  bottom: 14px;
+  bottom: calc(25% + 12px);
   animation: fade-in var(--grid-in-o) var(--ease-out) both;
 }
 
@@ -456,8 +501,27 @@
 
 /* --- Панель зоны (сюда тикетом 03 встанет сетка вещей) ------------------- */
 
+/* Панель — лист от нижнего края экрана, а не блок в потоке страницы
+ * (тикет 24): страница больше не листается, докручивать до вещей нечего.
+ *
+ * Лист поднимается не выше нижней четверти кадра: наезд ставит зону в середину
+ * кадра, и зона обязана остаться на виду — иначе человек смотрит на вещи и не
+ * видит, откуда они. Снизу лист останавливается над полосой интерфейса, чтобы
+ * «Добавить вещь» и значок «поделиться» оставались на месте. Длинная сетка
+ * листается внутри листа. */
 .panel {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: var(--rail-bottom);
+  z-index: 2;
+  width: var(--band-w);
+  margin-inline: auto;
+  max-height: calc(100dvh - var(--rail-top) - var(--band-h) * 0.75 - var(--rail-bottom));
+  overflow-y: auto;
+  overscroll-behavior: contain;
   border-top: 1px solid var(--color-surface-hairline, rgba(255, 255, 255, 0.09));
+  background: var(--color-surface-sheet-ground, #0b0806);
 }
 
 .panelBody {
@@ -492,8 +556,11 @@
 /* --- Десктоп ≥1024: та же карта, тот же расчёт, другой вид сцены --------- */
 
 @media (min-width: 1024px) {
-  .viewport {
-    aspect-ratio: var(--scene-ar-d);
+  /* Та же формула раскладки, другие числа контракта: вуаль сверху 132,
+     пропорция кадра 1120:625 (весь кадр без телефонного кропа). */
+  .stage {
+    --rail-top: var(--imm-d-top-veil);
+    --band-ar: var(--scene-ar-d);
   }
 
   .camera,
@@ -536,7 +603,7 @@
   .caption {
     left: 44px;
     right: 44px;
-    bottom: 36px;
+    bottom: calc(25% + 24px);
   }
 
   .captionTitle {

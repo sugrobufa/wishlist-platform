@@ -39,3 +39,178 @@ body {
     transition-duration: 120ms;
   }
 }
+
+/* --- Комната во весь экран (тикет 24) ------------------------------------
+ *
+ * Экран комнаты собран не стопкой, а слоями: фон — тот же кадр, размытый и
+ * притемнённый; поверх — сцена с живой картой зон (scene.module.css); поверх
+ * неё две тихие полосы с интерфейсом, лежащие на вуалях. Все числа —
+ * tokens.json → layout.phoneImmersive / desktopImmersive, приезжают
+ * переменными --imm-* из tokens.css. Страница отдаёт --imm-gutter
+ * (spacing.gutter) и --room-image.
+ *
+ * Полоса не отбирает нажатие у зоны: pointer-events включён только на самих
+ * ссылках и кнопках. Раскладка и без того держит зоны в чистой полосе между
+ * полосами интерфейса (это проверяет tests/immersive-layout.test.ts), но
+ * страховка стоит ноль и переживёт любой вьюпорт. */
+
+.imm {
+  position: relative;
+  height: 100dvh;
+  overflow: hidden;
+}
+
+/* «Сцена — весь экран»: кадр комнаты во всю площадь, размытый до состояния
+   света в помещении. Тот же файл, что в сцене, — второго запроса нет. */
+.imm-backdrop {
+  position: absolute;
+  inset: 0;
+  background-image: var(--room-image);
+  background-size: cover;
+  background-position: center;
+  /* scale прячет прозрачные края, которые оставляет blur */
+  transform: scale(1.14);
+  filter: blur(32px) saturate(0.88) brightness(0.52);
+  pointer-events: none;
+}
+
+.imm-veil {
+  position: absolute;
+  left: 0;
+  right: 0;
+  pointer-events: none;
+}
+
+.imm-veil-top {
+  top: 0;
+  height: var(--imm-top-veil);
+  background: linear-gradient(180deg, rgba(11, 8, 6, 0.92), rgba(11, 8, 6, 0.46) 66%, rgba(11, 8, 6, 0));
+}
+
+.imm-veil-bottom {
+  bottom: 0;
+  height: var(--imm-bottom-veil);
+  background: linear-gradient(0deg, rgba(11, 8, 6, 0.88), rgba(11, 8, 6, 0.4) 66%, rgba(11, 8, 6, 0));
+}
+
+.imm-rail {
+  position: absolute;
+  left: 0;
+  right: 0;
+  display: flex;
+  padding-inline: var(--imm-gutter);
+  pointer-events: none;
+}
+
+/* Цель нажатия — не меньше 44 px (rooms.json → hitTargetMin) у всего, что
+   нажимается в полосах. Текст полосы нажатие не перехватывает. */
+.imm-rail a,
+.imm-rail button {
+  display: inline-flex;
+  align-items: center;
+  min-height: var(--hit-target-min);
+  pointer-events: auto;
+}
+
+.imm-rail-top {
+  top: 0;
+  height: var(--imm-top-veil);
+  align-items: flex-start;
+  padding-top: var(--imm-title-top);
+  overflow: hidden; /* длинное имя не имеет права наехать на комнату */
+}
+
+.imm-rail-bottom {
+  bottom: 0;
+  height: var(--imm-rail-bottom);
+  align-items: center;
+}
+
+.imm-row {
+  display: flex;
+  width: 100%;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.imm-rail-bottom .imm-row {
+  align-items: center;
+}
+
+/* Заголовок обрезается многоточием: в полосу он обязан поместиться в одну
+   строку, иначе поедет на комнату. */
+.imm-title {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.imm-titles {
+  min-width: 0;
+}
+
+.imm-actions {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: 18px;
+}
+
+/* Верхняя полоса комнаты хозяйки: на телефоне тихая строка (счётчик,
+   «праздник прошёл») уходит под заголовок, на десктопе встаёт в одну строку —
+   иначе полоса не укладывается в свою высоту и наезжает на комнату. */
+.imm-top-grid {
+  display: grid;
+  width: 100%;
+  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-areas:
+    "titles actions"
+    "quiet quiet";
+  align-items: start;
+  gap: 2px 16px;
+}
+
+.imm-area-titles {
+  grid-area: titles;
+  min-width: 0;
+}
+
+.imm-area-quiet {
+  grid-area: quiet;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 18px;
+}
+
+.imm-area-actions {
+  grid-area: actions;
+  display: flex;
+  align-items: center;
+  gap: 18px;
+}
+
+@media (min-width: 1024px) {
+  .imm-top-grid {
+    grid-template-columns: minmax(0, 1fr) auto auto;
+    grid-template-areas: "titles quiet actions";
+    align-items: center;
+  }
+
+  .imm-rail {
+    padding-inline: var(--imm-d-side-pad);
+  }
+
+  .imm-rail-top {
+    height: var(--imm-d-top-veil);
+  }
+
+  .imm-veil-top {
+    height: var(--imm-d-top-veil);
+  }
+
+  .imm-veil-bottom {
+    height: var(--imm-d-bottom-veil);
+  }
+}

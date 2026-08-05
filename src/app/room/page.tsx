@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import type { ReactNode } from "react";
+import type { CSSProperties, ReactNode } from "react";
 import Link from "next/link";
 import { getTranslations } from "next-intl/server";
 import { redirect } from "next/navigation";
@@ -9,12 +9,14 @@ import { listZoneItems } from "@/server/services/items";
 import { ownerTakenCount } from "@/server/services/bookings";
 import { occasionBannerVisible } from "@/server/services/occasions";
 import { itemForOwner } from "@/server/dto/items";
-import { rooms, scene, type Room, type RoomZone } from "@/config/design";
+import { rooms, type Room, type RoomZone } from "@/config/design";
+import { roomImageUrl } from "@/app/rooms/room-image";
 import { SceneStage } from "@/components/scene/SceneStage";
+import { immersiveLayout } from "@/components/scene/immersive-layout";
 import { visibleZones } from "@/components/scene/zones";
 import { ZoneGrid } from "@/components/zone/ZoneGrid";
 import { zoneDisplayItems } from "@/components/zone/zone-display-items";
-import { CopyButton } from "./copy-button";
+import { ShareButton } from "./share-button";
 
 export const dynamic = "force-dynamic";
 export const metadata: Metadata = { robots: { index: false, follow: false } };
@@ -22,8 +24,12 @@ export const metadata: Metadata = { robots: { index: false, follow: false } };
 /**
  * Комната хозяйки — живая сцена (тикет 02) с сеткой вещей в открытой зоне
  * (тикет 03): вкладки «Люблю»/«Хочу», демо-призраки в зонах без своих вещей.
- * Мобильный вид — сцена сверху, остальное ниже; на десктопе сцена крупно
- * по центру (ширина — из rooms.json → scene.desktop).
+ *
+ * Раскладка «во весь экран» (тикет 24): страница не листается и не собрана
+ * стопкой. Слоями снизу вверх — размытый кадр комнаты на весь экран, сцена с
+ * картой зон посередине, две полосы интерфейса на вуалях. Числа полос —
+ * tokens.json → layout.phoneImmersive/desktopImmersive; геометрия и проверка
+ * видимости зон — components/scene/immersive-layout.ts.
  */
 export default async function RoomPage() {
   const session = await auth();
@@ -55,84 +61,92 @@ export default async function RoomPage() {
     ? await buildZoneContent(room.id, preset, room.zonesOff, room.demoGhostsOff)
     : undefined;
 
+  const accent = preset?.accent ?? "#E7C9A9";
+
   return (
-    <main className="min-h-screen pb-16">
-      <div className="mx-auto w-full" style={{ maxWidth: scene.desktop.w }}>
-        <header className="px-5 pb-4 pt-6 lg:px-0 lg:pt-10">
-          <div className="flex items-start justify-between gap-4">
+    <main
+      className="imm"
+      style={
+        {
+          "--imm-gutter": `${immersiveLayout.phone.gap}px`,
+          ...(preset ? { "--room-image": `url(${roomImageUrl(preset.base)})` } : {}),
+        } as CSSProperties
+      }
+    >
+      {/* Комната на весь экран: тот же кадр фоном, размытый до состояния
+          света в помещении. Резкая часть с зонами — сцена посередине. */}
+      <div className="imm-backdrop" aria-hidden />
+      <div className="imm-veil imm-veil-top" aria-hidden />
+      <div className="imm-veil imm-veil-bottom" aria-hidden />
+
+      {preset && <SceneStage preset={preset} zonesOff={room.zonesOff} zoneContent={zoneContent} />}
+
+      <header className="imm-rail imm-rail-top">
+        <div className="imm-top-grid">
+          <div className="imm-area-titles">
             <p className="overline text-text-muted">{t("overline")}</p>
-            {/* Тихая ссылка в настройки (тикет 13) — без акцента, на месте
-                служебных действий шапки. */}
-            <div className="flex items-center gap-4">
-              {/* Связи (тикет 11) — тем же тихим тоном служебных ссылок. */}
-              <Link
-                href="/connections"
-                className="pressable text-xs font-semibold text-text-muted hover:text-text-strong"
-              >
-                {t("connectionsLink")}
-              </Link>
-              {/* Зал славы (тикет 10) — рядом с настройками, тем же тоном. */}
-              <Link
-                href="/room/hall"
-                className="pressable text-xs font-semibold text-text-muted hover:text-text-strong"
-              >
-                {t("hallLink")}
-              </Link>
-              <Link
-                href="/settings"
-                className="pressable text-xs font-semibold text-text-muted hover:text-text-strong"
-              >
-                {t("settingsLink")}
-              </Link>
-            </div>
+            <h1 className="display imm-title mt-1 text-2xl lg:text-4xl">
+              {preset?.name ?? room.preset}
+            </h1>
           </div>
-          <h1 className="display mt-2 text-2xl lg:text-4xl">{preset?.name ?? room.preset}</h1>
-          {/* Тихий счётчик движения (турн 11d): только число, никаких намёков,
-              какие вещи. Спокойный оверлайн без акцента; при нуле — тишина. */}
-          {takenCount > 0 && (
-            <p className="overline mt-3 text-text-muted">
-              {t("takenCount", { count: takenCount })}
-            </p>
-          )}
-          {/* Праздник прошёл — тихая строка-ссылка на «что подарили»
-              (тикет 10): без баннерной яркости, тем же тоном, что счётчик. */}
-          {showOccasionBanner && (
-            <Link
-              href="/room/occasion"
-              className="pressable mt-3 inline-block text-sm font-semibold"
-              style={{ color: preset?.accent ?? "#E7C9A9" }}
-            >
-              {t("occasionBanner")} →
-            </Link>
-          )}
-          {/* Вход в добавление вещи из самой комнаты (полировка 16: раньше
-              /room/add жил только прямым URL). Маленькая «полоса света» —
-              главная кнопка везде (турн 22), здесь тихого размера. */}
-          <div className="mt-5">
-            <Link
-              href="/room/add"
-              className="pressable inline-block border-b-2 px-4 py-2 text-sm font-semibold text-text-primary"
-              style={{
-                borderColor: preset?.accent ?? "#E7C9A9",
-                boxShadow: `0 4px 18px -3px ${preset?.accent ?? "#E7C9A9"}6B`,
-              }}
-            >
-              {t("addItem")} →
-            </Link>
-          </div>
-        </header>
 
-        {preset && (
-          <SceneStage preset={preset} zonesOff={room.zonesOff} zoneContent={zoneContent} />
-        )}
-
-        <div className="mt-6 px-5 lg:px-0">
-          <div className="flex max-w-md flex-col gap-3 border border-surface-hairline bg-surface-fill p-5">
-            <p className="overline text-text-muted">{t("shareOverline")}</p>
-            <p className="font-mono text-lg text-text-primary">{sharePath}</p>
-            <p className="text-sm text-text-muted">{t("shareHint")}</p>
-            <CopyButton path={sharePath} accent={preset?.accent ?? "#E7C9A9"} />
+          <div className="imm-area-quiet">
+            {/* Тихий счётчик движения (турн 11d): только число, никаких намёков,
+                какие вещи. Спокойный оверлайн без акцента; при нуле — тишина. */}
+            {takenCount > 0 && (
+              <p className="overline text-text-muted">{t("takenCount", { count: takenCount })}</p>
+            )}
+            {/* Праздник прошёл — тихая строка-ссылка на «что подарили»
+                (тикет 10): без баннерной яркости, тем же тоном, что счётчик. */}
+            {showOccasionBanner && (
+              <Link
+                href="/room/occasion"
+                className="pressable text-sm font-semibold"
+                style={{ color: accent }}
+              >
+                {t("occasionBanner")} →
+              </Link>
+            )}
           </div>
+
+          {/* Служебные ссылки (тикеты 10, 11, 13) — тихим тоном, в углу полосы. */}
+          <nav className="imm-area-actions">
+            <Link
+              href="/connections"
+              className="pressable text-xs font-semibold text-text-muted hover:text-text-strong"
+            >
+              {t("connectionsLink")}
+            </Link>
+            <Link
+              href="/room/hall"
+              className="pressable text-xs font-semibold text-text-muted hover:text-text-strong"
+            >
+              {t("hallLink")}
+            </Link>
+            <Link
+              href="/settings"
+              className="pressable text-xs font-semibold text-text-muted hover:text-text-strong"
+            >
+              {t("settingsLink")}
+            </Link>
+          </nav>
+        </div>
+      </header>
+
+      <div className="imm-rail imm-rail-bottom">
+        <div className="imm-row">
+          {/* Вход в добавление вещи (полировка 16). «Полоса света» — главная
+              кнопка везде (турн 22), здесь тихого размера. */}
+          <Link
+            href="/room/add"
+            className="pressable border-b-2 px-4 text-sm font-semibold text-text-primary"
+            style={{ borderColor: accent, boxShadow: `0 4px 18px -3px ${accent}6B` }}
+          >
+            {t("addItem")} →
+          </Link>
+          {/* Вместо карточки с адресом — один значок (тикет 24). Сам адрес
+              живёт в «Настройках», рядом с ником, которым его и меняют. */}
+          <ShareButton path={sharePath} accent={accent} />
         </div>
       </div>
     </main>
