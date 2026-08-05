@@ -32,9 +32,11 @@ const DATE_LATER = "2026-09-04";
 const DATE_FAR = "2026-10-01";
 
 /**
- * Ровно то, что делает `createRoomAction` после третьего шага: комната
- * создаётся сервисом, дата уходит в `setOccasionDate` — второго пути к
- * `Room.occasionDate` в продукте нет.
+ * Дорога даты из `createRoomAction` после третьего шага: комната создаётся
+ * сервисом, дата уходит в `setOccasionDate` — второго пути к
+ * `Room.occasionDate` в продукте нет. Остальное, что делает экшен (имя из
+ * брони, гашение cookie предзаполнения — тикет 38), к дате отношения не имеет
+ * и здесь не повторяется.
  */
 async function finishOnboarding(
   userId: string,

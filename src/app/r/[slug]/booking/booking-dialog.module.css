@@ -164,6 +164,40 @@
   color: var(--color-text-muted);
 }
 
+/* Предложение собрать свою комнату (тикет 38, турн 12c) — карточка в самом
+ * низу успешного листа: сначала человек дочитывает про свой подарок, и только
+ * потом видит наше предложение. Отделена рамкой и заливкой, чтобы читалась
+ * как «а вот ещё», а не как продолжение брони. */
+.offer {
+  display: block;
+  margin-top: 22px;
+  padding: 16px 16px 18px;
+  border: 1px solid var(--color-surface-hairline-strong);
+  background: var(--color-surface-fill);
+}
+
+.offerTitle {
+  margin: 0;
+  font: 600 15px/1.3 var(--font-ui);
+  color: var(--color-text-primary);
+}
+
+.offerBody {
+  margin: 9px 0 0;
+  font: 400 12.5px/1.5 var(--font-ui);
+  color: var(--color-text-muted);
+}
+
+/* Главная кнопка на всю ширину, «Потом» — тихой строкой под ней по центру:
+ * отказ не должен выглядеть равным по весу (турн 12c). */
+.offerFooter {
+  margin-top: 18px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+}
+
 @keyframes bk-fade {
   from {
     opacity: 0;

@@ -20,6 +20,14 @@ export type GuestBookingState = {
   mine: ReadonlySet<string>;
   /** Всего живых броней гостя — строка «Мои брони · N» внизу комнаты. */
   myBookingsCount: number;
+  /**
+   * Сколько вещей ЭТОЙ комнаты гость занял прямо сейчас, за этот заход.
+   * Приветствие вычитает это число из «сколько подарков ещё свободно»: сам
+   * счётчик посчитан при рендере, а страница кэшируется (ISR 300 с) — без
+   * поправки человек занял бы последний подарок и тут же прочитал, что один
+   * ещё свободен. Чужие брони сюда не попадают и попасть не могут.
+   */
+  bookedNow: number;
   /** Успешная бронь: пометить вещь занятой без перезагрузки. */
   markBooked: (itemId: string) => void;
   /** Кто-то успел раньше (409): вещь занята, но не тобой. */
@@ -38,6 +46,7 @@ export function GuestBookingProvider({ slug, children }: { slug: string; childre
   const [taken, setTaken] = useState<ReadonlySet<string>>(new Set());
   const [mine, setMine] = useState<ReadonlySet<string>>(new Set());
   const [myBookingsCount, setMyBookingsCount] = useState(0);
+  const [bookedNow, setBookedNow] = useState(0);
 
   useEffect(() => {
     // Пинг визита (тикет 11): один fire-and-forget POST после первого рендера.
@@ -80,6 +89,7 @@ export function GuestBookingProvider({ slug, children }: { slug: string; childre
     setTaken((prev) => new Set(prev).add(itemId));
     setMine((prev) => new Set(prev).add(itemId));
     setMyBookingsCount((prev) => prev + 1);
+    setBookedNow((prev) => prev + 1);
   }, []);
 
   const markTaken = useCallback((itemId: string) => {
@@ -87,8 +97,8 @@ export function GuestBookingProvider({ slug, children }: { slug: string; childre
   }, []);
 
   const value = useMemo<GuestBookingState>(
-    () => ({ taken, mine, myBookingsCount, markBooked, markTaken }),
-    [taken, mine, myBookingsCount, markBooked, markTaken],
+    () => ({ taken, mine, myBookingsCount, bookedNow, markBooked, markTaken }),
+    [taken, mine, myBookingsCount, bookedNow, markBooked, markTaken],
   );
 
   return <GuestBookingContext.Provider value={value}>{children}</GuestBookingContext.Provider>;

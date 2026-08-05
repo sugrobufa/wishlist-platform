@@ -1,9 +1,11 @@
 import type { Metadata } from "next";
+import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { auth } from "@/server/auth";
 import { getRoomForUser, getSessionUserId } from "@/server/services/rooms";
 import { rooms } from "@/config/design";
 import { roomImageUrl } from "@/app/rooms/room-image";
+import { GUEST_INTRO_COOKIE, parseGuestIntro } from "./guest-intro";
 import { OnboardingFlow, type PresetCard } from "./onboarding-flow";
 
 export const dynamic = "force-dynamic";
@@ -29,10 +31,24 @@ export default async function OnboardingPage() {
     imageUrl: roomImageUrl(room.base),
   }));
 
-  // Шов для тикета 38: сюда подставляется дата, уже известная о человеке
-  // (турн 12c — гость назвал свой день рождения при бронировании), в виде
-  // `YYYY-MM-DD`. Пока такого источника нет — шаг открывается пустым.
-  const prefilledOccasionDate: string | null = null;
+  // Предзаполнение из брони (тикет 38): холодный гость только что назвал имя
+  // (обязательное поле брони) и, если захотел, свой день рождения — в
+  // предложении «Собрать свою комнату». Спрашивать это второй раз невежливо.
+  //
+  // Источник — cookie самого человека (guest-intro.ts), поставленная его же
+  // нажатием; хозяйке она не видна ни при каком стечении обстоятельств, а
+  // мусор в ней молча читается как «ничего не известно». Ничего не приехало —
+  // онбординг открывается пустым, ровно как раньше.
+  const intro = parseGuestIntro((await cookies()).get(GUEST_INTRO_COOKIE)?.value);
 
-  return <OnboardingFlow presets={presets} initialOccasionDate={prefilledOccasionDate} />;
+  return (
+    <OnboardingFlow
+      presets={presets}
+      initialOccasionDate={intro.occasionDate}
+      initialName={intro.name}
+      // Почта из брони: по ней человек только что вошёл, ею же он войдёт
+      // потом. Показываем, а не спрашиваем — пароля в продукте нет.
+      signInEmail={session.user.email ?? null}
+    />
+  );
 }

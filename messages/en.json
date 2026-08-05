@@ -50,7 +50,10 @@
     "occasionSkip": "I don't know yet",
     "occasionSkipHint": "Then reminders and “what you got” will wait — you can add the date later in settings",
     "create": "Furnish the room",
-    "creating": "Furnishing the room…"
+    "creating": "Furnishing the room…",
+    "nameLabel": "Your name",
+    "nameFromBooking": "taken from your booking — you can change it",
+    "emailNote": "You sign in with {email}. No password to invent"
   },
   "Room": {
     "overline": "Your room",
@@ -190,7 +193,20 @@
     "errTaken": "Already taken — someone got there first",
     "errRate": "Too often. Take a breath and try again in a minute",
     "errValidation": "Check the name and email",
-    "errGeneric": "Something went wrong — try again"
+    "errGeneric": "Something went wrong — try again",
+    "offerTitle": "And when is your birthday?",
+    "offerBody": "Let us build you the same kind of room — so your friends stop guessing",
+    "offerDateLabel": "Your next birthday",
+    "offerDateHint": "can stay empty — we will ask again",
+    "offerEmailLabel": "Email",
+    "offerEmailHint": "We will send a link — that is how you get in. No password to invent",
+    "offerSubmit": "Build my own room",
+    "offerSubmitBusy": "Sending…",
+    "offerLater": "Later",
+    "offerSentTitle": "The letter is on its way",
+    "offerSentBody": "Open the link we sent to {email} — and we will build the room",
+    "offerErrEmail": "Check the email — the link goes there",
+    "offerErr": "The letter did not go — try again"
   },
   "MyBookings": {
     "overline": "Guest",
@@ -213,7 +229,12 @@
     "metaTitle": "{name}’s room",
     "metaDescription": "Step in and quietly pick a gift",
     "ctaHint": "Like it? You could have a room of your own.",
-    "cta": "Start your own room"
+    "cta": "Start your own room",
+    "occasionToday": "The occasion is today",
+    "occasionTomorrow": "The occasion is tomorrow",
+    "occasionIn": "The occasion is in {days, plural, one {# day} other {# days}}",
+    "freeGifts": "{count, plural, one {# gift is still free} other {# gifts are still free}}",
+    "noSignup": "No sign-up needed · {name} will not know who looked"
   },
   "Settings": {
     "title": "Settings",

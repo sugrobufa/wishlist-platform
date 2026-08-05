@@ -46,22 +46,31 @@ function filterBySet(presets: PresetCard[], set: ZoneSet): PresetCard[] {
  * неё («Пока не знаю»). Молча проскочить дату нельзя: главная кнопка
  * заперта, пока поле пустое.
  *
- * `initialOccasionDate` — шов для тикета 38: дату можно подать снаружи
- * (`YYYY-MM-DD`), поле откроется заполненным, всё остальное не меняется.
+ * `initialOccasionDate`, `initialName`, `signInEmail` — предзаполнение снаружи
+ * (тикет 38). Холодный гость уже назвал имя и, возможно, день рождения, когда
+ * тихо занимал подарок; шаг открывается заполненным, и человек может любое
+ * поле поправить — предзаполнение ничего не запирает.
  */
 export function OnboardingFlow({
   presets,
   initialOccasionDate = null,
+  initialName = null,
+  signInEmail = null,
 }: {
   presets: PresetCard[];
   /** Предзаполнение даты снаружи (тикет 38); не день — поле будет пустым. */
   initialOccasionDate?: string | null;
+  /** Имя из брони (тикет 38); null — поле пустое и без подписи «взяли из брони». */
+  initialName?: string | null;
+  /** Почта, которой человек вошёл, — показываем, а не спрашиваем. */
+  signInEmail?: string | null;
 }) {
   const t = useTranslations("Onboarding");
   const [step, setStep] = useState<Step>(1);
   const [zoneSet, setZoneSet] = useState<ZoneSet | null>(null);
   const [presetId, setPresetId] = useState<string | null>(null);
   const [occasionDate, setOccasionDate] = useState(() => initialOccasionValue(initialOccasionDate));
+  const [displayName, setDisplayName] = useState(() => (initialName ?? "").trim());
 
   // Акценты наборов — из данных rooms.json (первая комната набора), не из кода.
   const setAccent: Record<ZoneSet, { accent: string; ink: string }> = {
@@ -281,6 +290,25 @@ export function OnboardingFlow({
         <input type="hidden" name="zoneSet" value={zoneSet} />
         <input type="hidden" name="preset" value={selected.id} />
 
+        {/* Имя в комнате. Стоит рядом с датой сознательно: это последний
+            экран, и оба поля — про самого человека, а не про интерьер.
+            Необязательное — кнопку запирает только дата. */}
+        <label className="flex flex-col gap-1.5">
+          <span className="text-sm text-text-muted">{t("nameLabel")}</span>
+          <input
+            type="text"
+            name="displayName"
+            value={displayName}
+            onChange={(event) => setDisplayName(event.target.value)}
+            maxLength={80}
+            autoComplete="name"
+            className="border border-surface-hairline-strong bg-surface-app-ground px-3 py-2.5 text-sm text-text-primary outline-none focus:border-text-faint"
+          />
+          {initialName !== null && initialName.trim() !== "" && (
+            <span className="text-xs text-text-faint">{t("nameFromBooking")}</span>
+          )}
+        </label>
+
         <label className="flex flex-col gap-1.5">
           <span className="text-sm text-text-muted">{t("occasionLabel")}</span>
           <input
@@ -299,6 +327,11 @@ export function OnboardingFlow({
         <div className="mt-2 flex flex-col items-start gap-1.5 border-t border-surface-hairline pt-4">
           <SkipDateButton />
           <p className="text-xs text-text-faint">{t("occasionSkipHint")}</p>
+          {/* Почта, которой человек вошёл: пароля в продукте нет, и об этом
+              лучше сказать прямо один раз (доска, турн 12c). */}
+          {signInEmail && (
+            <p className="text-xs text-text-faint">{t("emailNote", { email: signInEmail })}</p>
+          )}
         </div>
       </form>
     </main>

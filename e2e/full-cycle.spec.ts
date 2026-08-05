@@ -295,6 +295,14 @@ test("полный цикл дарения: хозяйка → гость → с
     await guestPage.goto(`/r/${roomSlug}`);
     await expect(guestPage.getByRole("heading", { name: "Хозяйка комнаты" })).toBeVisible();
 
+    // Приветствие холодного гостя (тикет 38, турн 12b). Свободен ровно один
+    // подарок — единственная вещь «хочу» этой комнаты, и её ещё никто не
+    // занял. Дата праздника у комнаты не задана («Пока не знаю» в онбординге),
+    // поэтому строки отсчёта быть не должно.
+    await expect(guestPage.getByText("1 подарок ещё свободен")).toBeVisible();
+    await expect(guestPage.getByText(/Регистрация не нужна/)).toBeVisible();
+    await expect(guestPage.getByText(/Праздник через/)).toHaveCount(0);
+
     await sceneHotspot(guestPage, "Музыка").click();
     await guestPage.getByRole("tab", { name: /Хочу · 1/ }).click();
     const wantTile = guestPage.locator("li", { hasText: WANT_TITLE });
@@ -345,9 +353,28 @@ test("полный цикл дарения: хозяйка → гость → с
     await dialog.getByRole("button", { name: /Подарить это/ }).click();
 
     await expect(guestPage.getByText("Вещь твоя. Никому не скажем")).toBeVisible();
+
+    // Регистрация по пути (тикет 38, турн 12c): предложение появляется РОВНО
+    // ЗДЕСЬ — сразу после доброго дела — и почта в нём уже своя, из брони.
+    // «Потом» ничего не блокирует: бронь остаётся, лист остаётся открытым.
+    await expect(dialog.getByText("А когда твой день рождения?")).toBeVisible();
+    await expect(dialog.getByLabel("Почта", { exact: true })).toHaveValue(GUEST_EMAIL);
+    await dialog.getByRole("button", { name: "Потом" }).click();
+    await expect(dialog.getByText("А когда твой день рождения?")).toHaveCount(0);
+
     await guestPage.getByRole("button", { name: "Хорошо" }).click();
     await expect(guestPage.getByText("занято тобой")).toBeVisible();
     await expect(guestPage.getByRole("link", { name: /Мои подарки · 1/ })).toBeVisible();
+  });
+
+  await test.step("отметка «уже спрашивали» пережила перезагрузку страницы", async () => {
+    // Доска: «спрашиваем ровно один раз, сразу после того, как гость сделал
+    // доброе дело». Само правило закрыто юнитами (ask-once.test.ts); здесь
+    // проверяется, что отметка действительно легла в браузер и пережила
+    // перезагрузку, — иначе на следующей броне мы спросим второй раз.
+    await guestPage.reload();
+    const asked = await guestPage.evaluate(() => window.localStorage.getItem("wl.room-offer.v1"));
+    expect(asked).not.toBeNull();
   });
 
   await test.step("ИНВАРИАНТ: хозяйка видит только «1 вещь уже забрана», имени гостя нет нигде", async () => {

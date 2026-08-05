@@ -260,6 +260,21 @@ describe("словарь и дизайн-пакет", () => {
     // зоны у 91 зоны без кадра. Убрать вместе с самой подписью — тикет сцены,
     // не приёмка пакета (тикет 33, ADR-0005).
     //
+    // `GuestRoom.occasion*`, `GuestRoom.freeGifts`, `GuestRoom.noSignup` и
+    // `Booking.offer*` — приветствие холодного гостя и предложение собрать
+    // свою комнату (тикет 38). Слова с доски дословно, где они там были:
+    // «Регистрация не нужна · {name} не узнает, кто смотрел» и «подарков ещё
+    // свободны» (турн 12b), «А когда твой день рождения?», «Соберём такую же
+    // комнату — чтобы друзьям не приходилось угадывать», «Собрать свою
+    // комнату», «Потом» (турн 12c). Отсчёт до праздника доска писала как
+    // «День рождения через 12 дней»; у нас он говорит «Праздник через 12
+    // дней» — комната хранит дату, но не знает, что это за праздник, и
+    // обещать «день рождения» было бы враньём у половины комнат.
+    // `Onboarding.nameLabel` и `Onboarding.emailNote` — оттуда же (турн 12c:
+    // «Как тебя зовут», «взяли из брони», «Вход потом по той же почте…
+    // Пароль придумывать не надо»). В messages-ru.json дизайн эти экраны не
+    // положил: словарь пакета собирали до турна 12.
+    //
     // `Onboarding.next` и `Onboarding.occasion*` — третий шаг онбординга,
     // дата праздника (тикет 43). Доска просит три вопроса (турн 11d), но
     // словами про дату дизайн-пакет не занимался: в messages-ru.json есть
@@ -279,6 +294,24 @@ describe("словарь и дизайн-пакет", () => {
       "AddItem.back",
       "AddItem.backToRoom",
       "AddItem.saveHint",
+      "Booking.offerBody",
+      "Booking.offerDateHint",
+      "Booking.offerDateLabel",
+      "Booking.offerEmailHint",
+      "Booking.offerEmailLabel",
+      "Booking.offerErr",
+      "Booking.offerErrEmail",
+      "Booking.offerLater",
+      "Booking.offerSentBody",
+      "Booking.offerSentTitle",
+      "Booking.offerSubmit",
+      "Booking.offerSubmitBusy",
+      "Booking.offerTitle",
+      "GuestRoom.freeGifts",
+      "GuestRoom.noSignup",
+      "GuestRoom.occasionIn",
+      "GuestRoom.occasionToday",
+      "GuestRoom.occasionTomorrow",
       "Hall.priceAbout",
       "Hall.priceHide",
       "Hall.priceSeenAria",
@@ -290,6 +323,9 @@ describe("словарь и дизайн-пакет", () => {
       "Hall.seenNONE",
       "Hall.total",
       "Hall.totalRounded",
+      "Onboarding.emailNote",
+      "Onboarding.nameFromBooking",
+      "Onboarding.nameLabel",
       "Onboarding.next",
       "Onboarding.occasionButtonHint",
       "Onboarding.occasionLabel",

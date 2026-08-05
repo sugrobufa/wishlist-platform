@@ -20,7 +20,9 @@ vi.mock("next/cache", () => ({
 
 const TEST_EMAIL_DOMAIN = "@guest-room.test";
 
-async function createTestRoom(options: { zonesOff?: string[]; displayName?: string } = {}) {
+async function createTestRoom(
+  options: { zonesOff?: string[]; displayName?: string; occasionDate?: Date } = {},
+) {
   const user = await prisma.user.create({
     data: {
       email: `user-${randomUUID()}${TEST_EMAIL_DOMAIN}`,
@@ -34,6 +36,18 @@ async function createTestRoom(options: { zonesOff?: string[]; displayName?: stri
       zoneSet: "F",
       shareSlug: `g-${randomUUID().slice(0, 12)}`,
       zonesOff: options.zonesOff ?? [],
+      occasionDate: options.occasionDate,
+    },
+  });
+}
+
+/** Тихая бронь на вещи: гость занял, хозяйка об этом не узнала (тикет 08). */
+async function bookItem(itemId: string, guestName = "Катя"): Promise<void> {
+  await prisma.booking.create({
+    data: {
+      itemId,
+      guestName,
+      cancelToken: randomUUID().replace(/-/g, "").slice(0, 24) + randomUUID().replace(/-/g, "").slice(0, 24),
     },
   });
 }
@@ -191,6 +205,17 @@ describe("getGuestRoom", () => {
     expect(JSON.stringify(view)).not.toContain("77777.77");
   });
 
+  it("дата праздника отдаётся календарным днём и не съезжает от часового пояса", async () => {
+    // Дата пишется полночью UTC (services/rooms.setOccasionDate). Читать её
+    // поясом машины значило бы получить 30 декабря в Москве — проверяем
+    // именно край года, где ошибка на сутки видна.
+    const room = await createTestRoom({ occasionDate: new Date("2026-12-31T00:00:00.000Z") });
+    expect((await getGuestRoom(room.shareSlug))?.occasionDate).toBe("2026-12-31");
+
+    const noDate = await createTestRoom();
+    expect((await getGuestRoom(noDate.shareSlug))?.occasionDate).toBeNull();
+  });
+
   it("ни у одной вещи выдачи нет ключей hidden/priceVisibility/брони", async () => {
     const room = await createTestRoom();
     await prisma.item.create({ data: wantItem(room.id, "jewelry", "своя вещь") });
@@ -203,5 +228,95 @@ describe("getGuestRoom", () => {
         }
       }
     }
+  });
+});
+
+// «7 подарков ещё свободны» (тикет 38, турн 12b) — самое опасное место
+// тикета: рядом с этим числом легко случайно показать обратное, «сколько уже
+// забрали», а его гость не видит НИКОГДА (инвариант №1).
+describe("getGuestRoom — свободные подарки", () => {
+  it("считает вещи «хочу» без брони; занятая вещь из счёта уходит", async () => {
+    const room = await createTestRoom();
+    const first = await prisma.item.create({ data: wantItem(room.id, "jewelry", "Серьги") });
+    await prisma.item.create({ data: wantItem(room.id, "bags", "Сумка") });
+    await prisma.item.create({ data: wantItem(room.id, "perfume", "Духи") });
+
+    expect((await getGuestRoom(room.shareSlug))?.freeGiftCount).toBe(3);
+
+    await bookItem(first.id);
+    expect((await getGuestRoom(room.shareSlug))?.freeGiftCount).toBe(2);
+  });
+
+  it("«люблю» не подарок: в счёт не идёт даже с ценой", async () => {
+    const room = await createTestRoom();
+    await prisma.item.create({ data: wantItem(room.id, "jewelry", "Браслет") });
+    await prisma.item.create({
+      data: { roomId: room.id, zone: "jewelry", state: "LOVE", title: "Кольцо бабушки" },
+    });
+
+    expect((await getGuestRoom(room.shareSlug))?.freeGiftCount).toBe(1);
+  });
+
+  it("спрятанная вещь и вещь выключенной зоны не обещают подарка", async () => {
+    // Число обязано совпадать с тем, что человек видит глазами: иначе оно
+    // обещает подарки, которых на экране нет (инвариант №5).
+    const room = await createTestRoom({ zonesOff: ["perfume"] });
+    await prisma.item.create({ data: wantItem(room.id, "jewelry", "Видимая") });
+    await prisma.item.create({
+      data: wantItem(room.id, "jewelry", "Спрятанная", { hidden: true }),
+    });
+    await prisma.item.create({ data: wantItem(room.id, "perfume", "В выключенной зоне") });
+
+    expect((await getGuestRoom(room.shareSlug))?.freeGiftCount).toBe(1);
+  });
+
+  it("демо-призраки в счёт не идут: у новой комнаты свободных подарков нет", async () => {
+    // Призраки — пример языка комнаты, а не желания хозяйки. Посчитай мы их —
+    // гость пошёл бы дарить выдуманное (бронировать их сервер и так не даёт).
+    const room = await createTestRoom();
+    const view = await getGuestRoom(room.shareSlug);
+
+    expect(view?.freeGiftCount).toBe(0);
+    expect(view?.itemsByZone.jewelry?.every((item) => item.isDemo)).toBe(true);
+  });
+
+  it("ИНВАРИАНТ №1: сколько ЗАБРАЛИ — из выдачи не вычислить", async () => {
+    // Две комнаты с одинаковым числом свободных подарков, но разным числом
+    // занятых. Всё, что гость получает от сервиса, обязано быть НЕОТЛИЧИМО:
+    // иначе он (а с ним и хозяйка, открывшая свою же ссылку) прочитает из
+    // выдачи «две вещи уже забрали».
+    const quiet = await createTestRoom();
+    const busy = await createTestRoom();
+    for (const title of ["Первая", "Вторая"]) {
+      await prisma.item.create({ data: wantItem(quiet.id, "jewelry", title) });
+      await prisma.item.create({ data: wantItem(busy.id, "jewelry", title) });
+    }
+    for (const title of ["Занятая А", "Занятая Б"]) {
+      const taken = await prisma.item.create({ data: wantItem(busy.id, "bags", title) });
+      await bookItem(taken.id);
+    }
+
+    const quietView = await getGuestRoom(quiet.shareSlug);
+    const busyView = await getGuestRoom(busy.shareSlug);
+
+    expect(quietView?.freeGiftCount).toBe(2);
+    expect(busyView?.freeGiftCount).toBe(2);
+
+    // Ни одного числа, из которого счётчик занятых восстанавливается: у
+    // комнат совпадают и свободные, и все сводки по зоне с вещами.
+    expect(busyView?.summariesByZone.jewelry).toEqual(quietView?.summariesByZone.jewelry);
+  });
+
+  it("в выдаче нет ни одного ключа про занятость — тип не даёт унести больше", async () => {
+    const room = await createTestRoom();
+    const item = await prisma.item.create({ data: wantItem(room.id, "jewelry", "Серьги") });
+    await bookItem(item.id, "Секретная Катя");
+
+    const view = await getGuestRoom(room.shareSlug);
+    for (const key of Object.keys(view ?? {})) {
+      expect(key).not.toMatch(/taken|booked|busy|reserv|occupied/i);
+    }
+    // Имя гостя не течёт никуда — ни строкой, ни в сводке.
+    expect(JSON.stringify(view)).not.toContain("Секретная Катя");
   });
 });

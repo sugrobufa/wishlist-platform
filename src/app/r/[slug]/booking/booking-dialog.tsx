@@ -11,12 +11,18 @@
 // потому что здесь гость решает, потянет ли он подарок; после брони — потому
 // что именно тут кончался сценарий продукта («забронировал и не знает, где
 // оно продаётся»). Ссылку приносит guest-DTO, лист её не добывает.
+//
+// Предложение собрать свою комнату (тикет 38) — тоже здесь и только в
+// успешном состоянии: доска просит спрашивать ровно один раз и ровно в тот
+// момент, когда человек сделал доброе дело. Имя и почту оно берёт из этой же
+// формы — второй раз их печатать не придётся.
 import { useEffect, useId, useState, type CSSProperties, type FormEvent } from "react";
 import { createPortal } from "react-dom";
 import { useTranslations } from "next-intl";
 import { ShopLink } from "@/components/zone/shop-link";
 import { useGuestBooking } from "./booking-context";
 import { GiftTag } from "./gift-tag";
+import { RoomOffer } from "./room-offer";
 import s from "./booking-dialog.module.css";
 
 type BookingDialogProps = {
@@ -120,6 +126,9 @@ export function BookingDialog({ item, ownerName, accent, onClose }: BookingDialo
             </p>
             <p className={s.doneHint}>{t("successHint")}</p>
             {shopBlock}
+            {/* Имя и почта — те самые, что человек напечатал строкой выше;
+                наружу они не уходят никуда, кроме его собственной комнаты. */}
+            <RoomOffer guestName={name.trim()} guestEmail={email.trim()} accent={accent} />
             <div className={s.footer}>
               <button type="button" className={`pressable ${s.quiet}`} onClick={onClose}>
                 {t("close")}

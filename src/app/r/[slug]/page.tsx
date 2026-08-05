@@ -12,8 +12,10 @@ import { immersiveLayout } from "@/components/scene/immersive-layout";
 import { ZoneIndexProvider } from "@/components/scene/zone-index-context";
 import { ZoneRail } from "@/components/scene/zone-rail";
 import { GuestBookingProvider } from "./booking/booking-context";
+import { FreeGifts } from "./booking/free-gifts";
 import { GuestZoneGrid } from "./booking/guest-zone-grid";
 import { MyBookingsLink } from "./booking/my-bookings-link";
+import { daysUntilOccasion } from "./welcome";
 
 // Страница одинакова для всех и не читает auth()/cookies (регистрация гостя
 // «по пути» — тикет 08), поэтому кэшируема ЦЕЛИКОМ — полностраничный ISR
@@ -111,6 +113,24 @@ export default async function GuestRoomPage({ params }: Params) {
   const t = await getTranslations("GuestRoom");
   const ownerName = room.ownerName ?? t("ownerFallback");
 
+  // Приветствие холодному гостю (тикет 38, турн 12b): три тихие строки над
+  // сценой. Первое, что человек видит, — всё ещё чужая комната; приветствие
+  // только отвечает на три вопроса, которые он задал бы сам: «когда у неё
+  // праздник», «есть ли тут вообще что дарить» и «меня не заставят
+  // регистрироваться?».
+  //
+  // Отсчёт считается ЗДЕСЬ, при рендере, а не в сервисе: он про сегодняшний
+  // день, а не про комнату. Прошедший праздник строки не даёт.
+  const daysLeft = daysUntilOccasion(room.occasionDate, new Date());
+  const occasionLine =
+    daysLeft === null
+      ? null
+      : daysLeft === 0
+        ? t("occasionToday")
+        : daysLeft === 1
+          ? t("occasionTomorrow")
+          : t("occasionIn", { days: daysLeft });
+
   // Сетки зон проходят client-границу пропом zoneContent (контракт тикета 02).
   // GuestZoneGrid — та же ZoneGrid, но со слотом действия: бирка «Подарить»
   // у WANT && !isDemo, тихое «занято» у забронированных (тикет 08).
@@ -150,8 +170,12 @@ export default async function GuestRoomPage({ params }: Params) {
           <SceneStage preset={preset} zonesOff={room.zonesOff} zoneContent={zoneContent} />
 
           <header className="imm-rail imm-rail-top">
-            <div className="imm-row">
-              <div className="imm-titles">
+            {/* Та же сетка полосы, что у хозяйки (globals.css → .imm-top-grid):
+                на телефоне тихие строки уходят под имя, на десктопе встают с
+                ним в один ряд — иначе полоса не укладывается в свою высоту и
+                наезжает на комнату. */}
+            <div className="imm-top-grid">
+              <div className="imm-area-titles">
                 <p className="overline text-text-muted">{t("overline")}</p>
                 {/* Имя хозяйки + маленький аватар, если загружен (тикет 13).
                   Фон-div, как у плиток вещей: раздача /media, alt не нужен. */}
@@ -169,6 +193,38 @@ export default async function GuestRoomPage({ params }: Params) {
                   )}
                   <h1 className="display imm-title text-2xl lg:text-4xl">{ownerName}</h1>
                 </div>
+              </div>
+
+              <div className="imm-area-quiet">
+                {/* «Праздник через 12 дней» — дата и так уехала гостю в
+                    приглашении; без неё строки просто нет. */}
+                {occasionLine && <p className="overline text-text-muted">{occasionLine}</p>}
+                {/* «7 подарков ещё свободны» — про желания, а не про брони
+                    (services/guest-room.countFreeGifts объясняет, почему это
+                    не ломает тихую бронь). Число считает сервер, а строка —
+                    клиентская: она вычитает брони, сделанные этим же гостем за
+                    этот заход, иначе кэш страницы обещал бы уже занятое. */}
+                <FreeGifts count={room.freeGiftCount} accent={preset.accent} />
+                {/* Честная строка (турн 12b): человек имеет право знать, что
+                    его не считают и не заставят заводить аккаунт. */}
+                <p className="flex items-center gap-1.5 text-xs text-text-faint">
+                  <svg
+                    viewBox="0 0 24 24"
+                    width="13"
+                    height="13"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="1.8"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    aria-hidden
+                    className="flex-none"
+                  >
+                    <path d="M5 11h14a1 1 0 0 1 1 1v8a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1v-8a1 1 0 0 1 1-1z" />
+                    <path d="M8 11V7.5a4 4 0 0 1 8 0V11" />
+                  </svg>
+                  {t("noSignup", { name: ownerName })}
+                </p>
               </div>
             </div>
           </header>
