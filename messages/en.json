@@ -13,7 +13,23 @@
     "emailLabel": "Your email",
     "submit": "Send me a sign-in link",
     "google": "Continue with Google",
-    "sent": "Link sent. In dev mode, check the server console."
+    "sent": "Link sent. In dev mode, check the server console.",
+    "confirmOverline": "Sign in",
+    "confirmTitle": "Into your room",
+    "confirmBody": "This link is yours. One tap — and the room opens.",
+    "confirmSubmit": "Sign in",
+    "expiredTitle": "This link no longer works",
+    "expiredBody": "A link lives for a day and opens once. We'll send a new one — it only takes a moment.",
+    "failedTitle": "Signing in didn't work",
+    "failedBody": "Something got in the way. Let's try again with a fresh link.",
+    "newLink": "Send a new link"
+  },
+  "DevLogin": {
+    "overline": "Service",
+    "title": "Quick sign-in",
+    "body": "Email isn't wired up on this stand yet — come in with a key",
+    "keyLabel": "Key",
+    "submit": "Sign in"
   },
   "Onboarding": {
     "stepOverline": "Step {current} of {total}",
@@ -74,6 +90,8 @@
   },
   "AddItem": {
     "overline": "New item",
+    "backToRoom": "Back to the room",
+    "back": "Back",
     "question": "What is it to you?",
     "loveLabel": "Love",
     "loveHint": "Already mine. Just showing",

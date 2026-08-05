@@ -10,7 +10,8 @@
 **Источники правды:**
 - продукт — `docs/PRD.md`; архитектура — `docs/ARCHITECTURE.md`; порядок — `docs/ROADMAP.md`;
 - UI и поведение — **дизайн-пакет `design/package/`**: `handoff/items.json`
-  (модель вещи), `rooms.json` (84 зоны), `zones.json`, `tokens.json`,
+  (модель вещи), `rooms.json` (130 зон в контракте, 120 в рендере — зона без
+  записи в `zones.json` не показывается, ADR-0003), `zones.json`, `tokens.json`,
   `motion.json`, макет `Main Screen.dc.html`. Код воплощает эти значения, а не
   изобретает свои. Расхождение с пакетом без согласования = баг.
 

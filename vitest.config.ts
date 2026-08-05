@@ -5,6 +5,13 @@ export default defineConfig({
   test: {
     environment: "node",
     include: ["tests/**/*.test.ts", "src/**/*.test.ts"],
+    server: {
+      // next-auth импортирует "next/server" без расширения, а у пакета next
+      // нет поля exports — нативный ESM-загрузчик Node такой путь не находит.
+      // Прогоняем пакет через резолвер Vite (тикет 19: юниты зовут настоящий
+      // обработчик Auth.js, чтобы проверять одноразовость токена не на моках).
+      deps: { inline: ["next-auth"] },
+    },
   },
   resolve: {
     alias: {

@@ -1,6 +1,6 @@
 import type { CSSProperties } from "react";
 import { sceneMotion, type RoomZone } from "@/config/design";
-import { rectToPercent } from "./camera";
+import { zoneFramePercent } from "./camera";
 import s from "./scene.module.css";
 
 type ZoneHotspotProps = {
@@ -13,22 +13,19 @@ type ZoneHotspotProps = {
 };
 
 /**
- * Невидимая область-кнопка поверх кадра. Позиция — проценты сцены из
- * rooms.json (телефонные и десктопные переменные, медиазапрос выбирает).
- * Контур пульсирует в покое, свечение — отдельный слой на hover/focus.
+ * Невидимая область-кнопка поверх кадра. Позиция — доля КАДРА из rooms.json
+ * (zoneFramePercent): слой хотспотов лежит ровно на кадре, поэтому одни и те
+ * же проценты верны на любой ширине экрана — отдельных десктопных чисел и
+ * медиазапроса не нужно. Контур пульсирует в покое, свечение — отдельный слой
+ * на hover/focus.
  */
 export function ZoneHotspot({ zone, index, ariaLabel, onOpen, buttonRef }: ZoneHotspotProps) {
-  const phone = rectToPercent(zone.rect, "phone");
-  const desktop = rectToPercent(zone.rect, "desktop");
+  const box = zoneFramePercent(zone.rect);
   const style = {
-    "--hs-l": `${phone.left}%`,
-    "--hs-t": `${phone.top}%`,
-    "--hs-w": `${phone.width}%`,
-    "--hs-h": `${phone.height}%`,
-    "--hs-l-d": `${desktop.left}%`,
-    "--hs-t-d": `${desktop.top}%`,
-    "--hs-w-d": `${desktop.width}%`,
-    "--hs-h-d": `${desktop.height}%`,
+    "--hs-l": `${box.left}%`,
+    "--hs-t": `${box.top}%`,
+    "--hs-w": `${box.width}%`,
+    "--hs-h": `${box.height}%`,
     "--pulse-delay": `${index * sceneMotion.pulse.staggerMs}ms`,
   } as CSSProperties;
 

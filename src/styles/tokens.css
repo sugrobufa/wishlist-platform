@@ -34,4 +34,45 @@
   --scene-h: 352;
   --hit-target-min: 44px;
   --display-tracking: -.035em;
+
+  /* Метка зоны (tokens.json → zoneMarker). Прямоугольник из rooms.json
+     остаётся невидимой областью нажатия; эффект живёт внутри него. */
+  --zone-bloom-rest: 0.1;
+  --zone-bloom-hover: 0.3;
+  --zone-bloom-press: 0.42;
+  --zone-bloom-blend: screen;
+  --zone-vignette-rest: 0.34;
+  --zone-vignette-hover: 0.62;
+  --zone-vignette-rgb: 24,14,6;
+  --zone-spark-size: 3px;
+  --zone-spark-blur: 2px;
+  --zone-spark-rest: 0.75;
+  --zone-dim-hover: 0.15;
+  --zone-dim-ms: 300ms;
+  --zone-label-weight: 600;
+  --zone-label-size: 13px;
+  --zone-label-color: #FFF9F2;
+  --zone-label-shadow: 0 1px 8px rgba(0,0,0,.9);
+  --zone-focus-offset: 2px;
+  --zone-marker-ms: 260ms;
+  --zone-marker-ease: cubic-bezier(.23,1,.32,1);
+  --room-lightness: 0.5;
+  --zone-bloom-weight: calc(1 - var(--room-lightness) * 0.75);
+  --zone-vignette-weight: calc(0.25 + var(--room-lightness) * 0.75);
+
+  /* Карточка добавления: выбор состояния кропами комнаты (tokens.json → stateChoice) */
+  --state-choice-ar: 1.35 / 1;
+  --state-choice-dim: 0.62;
+  --state-choice-ms: 240ms;
+
+  /* Сцена почти во весь экран (tokens.json → layout.phoneImmersive/desktopImmersive) */
+  --imm-top-veil: 190px;
+  --imm-bottom-veil: 300px;
+  --imm-title-top: 44px;
+  --imm-rail-bottom: 116px;
+  --imm-tab-bar: 86px;
+  --imm-hit-target-min: 44px;
+  --imm-d-top-veil: 132px;
+  --imm-d-bottom-veil: 210px;
+  --imm-d-side-pad: 44px;
 }

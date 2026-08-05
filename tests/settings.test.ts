@@ -177,8 +177,11 @@ describe("setRoomNick — занятие, смена, освобождение",
 describe("changeRoomPreset — вещи не теряются (решение гриллинга №5)", () => {
   it("несовпавшие зоны переезжают в anything (включая hidden), общие не трогаются", async () => {
     const { user, room } = await createOwnerWithRoom("cream", "F");
-    // cream: fashion,beauty,jewelry,perfume,bags,travel,anything;
-    // loft:  fashion,music,anything,sneakers,tech,books,sport,events.
+    // Наборы зон раунда 2 (по 12 рендерящихся на комнату):
+    // cream: fashion,beauty,jewelry,perfume,bags,travel,anything,events,books,music,flowers,home;
+    // loft:  fashion,music,anything,sneakers,tech,books,sport,events,gaming,watches,grooming,travel.
+    // Не совпадают только beauty,jewelry,perfume,bags,flowers,home — travel
+    // теперь есть у обоих, поэтому переезжают две вещи, а не три.
     const mk = (zone: string, extra: object = {}) =>
       prisma.item.create({
         data: {
@@ -201,7 +204,7 @@ describe("changeRoomPreset — вещи не теряются (решение г
     const { room: updated, movedToAnything } = await changeRoomPreset(user.id, "loft");
 
     expect(updated.preset).toBe("loft");
-    expect(movedToAnything).toBe(3); // beauty, jewelry, travel
+    expect(movedToAnything).toBe(2); // beauty, jewelry
 
     // Ни одна вещь не потерялась и не исчезла из выдачи (включая hidden).
     const after = await prisma.item.findMany({ where: { roomId: room.id } });
@@ -212,7 +215,7 @@ describe("changeRoomPreset — вещи не теряются (решение г
     expect(zonesById.get(anything.id)).toBe("anything");
     expect(zonesById.get(beautyHidden.id)).toBe("anything");
     expect(zonesById.get(jewelry.id)).toBe("anything");
-    expect(zonesById.get(travel.id)).toBe("anything");
+    expect(zonesById.get(travel.id)).toBe("travel"); // тоже общий с раунда 2
 
     // hidden пережил переезд, состояние вещи не изменилось.
     const hidden = after.find((item) => item.id === beautyHidden.id);
@@ -270,8 +273,10 @@ describe("setZoneSet / setZoneOff", () => {
   });
 
   it("зона не из текущего пресета → ZONE_UNKNOWN", async () => {
-    const { user } = await createOwnerWithRoom("cream"); // в cream нет music
-    await expect(setZoneOff(user.id, "music", true)).rejects.toMatchObject({
+    // Раунд 2 достроил женский набор: music в cream теперь есть. Чужая зона —
+    // из мужского набора (gaming), он в женские комнаты не входит по контракту.
+    const { user } = await createOwnerWithRoom("cream");
+    await expect(setZoneOff(user.id, "gaming", true)).rejects.toMatchObject({
       code: "ZONE_UNKNOWN",
     });
   });

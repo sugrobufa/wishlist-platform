@@ -70,8 +70,9 @@ function magicLinksTo(email: string): MailRecord[] {
 }
 
 /**
- * Вход по magic link: форма /signin → ссылка из E2E_MAIL_FILE → переход.
- * Ссылку ждём «свежую» (записей стало больше, чем до отправки формы).
+ * Вход по magic link: форма /signin → ссылка из E2E_MAIL_FILE → страница
+ * подтверждения → кнопка «Войти» (тикет 19). Ссылку ждём «свежую» (записей
+ * стало больше, чем до отправки формы).
  */
 async function signInWithMagicLink(page: Page, email: string): Promise<void> {
   const seenBefore = magicLinksTo(email).length;
@@ -93,9 +94,18 @@ async function signInWithMagicLink(page: Page, email: string): Promise<void> {
     )
     .toBeGreaterThan(seenBefore);
 
+  // Ссылка ведёт на НАШУ страницу подтверждения: её GET не тратит токен.
+  // Заходим дважды — эмуляция предзагрузки адресной строки Chrome и почтового
+  // сканера, кликающего ссылку за человека: после обоих заходов вход обязан
+  // остаться рабочим (тикет 19).
   await page.goto(magicUrl);
-  // Auth.js подтвердил токен и увёл с /api/auth/*; ошибка входа — /signin?error=…
-  // (callbackUrl ссылки — referer формы, поэтому финальный адрес тут не важен).
+  await page.goto(magicUrl);
+  await expect(page).toHaveURL(/\/signin\/confirm/);
+  await expect(page.getByRole("heading", { name: "Вход в комнату" })).toBeVisible();
+
+  // Токен расходуется только нажатием (обычная форма POST, без JS).
+  await page.getByRole("button", { name: "Войти" }).click();
+  await page.waitForURL(/\/(room|onboarding)/);
   await expect(page).not.toHaveURL(/error/i);
   await expect(page).not.toHaveURL(/api\/auth/);
 }

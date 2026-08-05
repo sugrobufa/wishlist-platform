@@ -1,6 +1,7 @@
 import { getTranslations } from "next-intl/server";
 import { redirect } from "next/navigation";
-import { signIn } from "@/server/auth";
+import { auth, signIn } from "@/server/auth";
+import { AFTER_SIGNIN_PATH } from "@/server/auth-links";
 
 export const dynamic = "force-dynamic";
 
@@ -9,6 +10,11 @@ export default async function SignInPage({
 }: {
   searchParams: Promise<{ sent?: string }>;
 }) {
+  // Вошедшему форма входа не нужна: он думал, что вход не сработал
+  // (приёмка п.9). /room сам уведёт в /onboarding, если комнаты нет.
+  const session = await auth();
+  if (session?.user) redirect(AFTER_SIGNIN_PATH);
+
   const t = await getTranslations("SignIn");
   const { sent } = await searchParams;
   const googleEnabled = Boolean(process.env.AUTH_GOOGLE_ID && process.env.AUTH_GOOGLE_SECRET);

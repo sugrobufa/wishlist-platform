@@ -12,6 +12,12 @@ import { POST as purchasedRoute } from "../src/app/api/v1/items/[id]/book/purcha
 import { GET as takenRoute } from "../src/app/api/v1/rooms/[slug]/taken/route";
 import { GUEST_BOOKINGS_COOKIE } from "../src/server/services/bookings";
 
+// ВРЕМЕННАЯ ИНСТРУМЕНТАЦИЯ (тикет 30) — снять после замера.
+const T_MODULE = performance.now();
+const tlog = (label: string, ms: number) =>
+  console.log(`[T30] ${label}=${ms.toFixed(0)}ms  (t+${(performance.now() / 1000).toFixed(1)}s)`);
+tlog("module-loaded", T_MODULE);
+
 const TEST_EMAIL_DOMAIN = "@bookings-api.test";
 
 async function createTestRoom() {
@@ -73,7 +79,17 @@ async function cleanup() {
   await prisma.user.deleteMany({ where: { email: { endsWith: TEST_EMAIL_DOMAIN } } });
 }
 
-beforeAll(cleanup);
+beforeAll(async () => {
+  const t0 = performance.now();
+  await prisma.$connect();
+  tlog("prisma.$connect", performance.now() - t0);
+  const t1 = performance.now();
+  await prisma.$queryRaw`SELECT 1`;
+  tlog("first-query(SELECT 1)", performance.now() - t1);
+  const t2 = performance.now();
+  await cleanup();
+  tlog("cleanup(deleteMany)", performance.now() - t2);
+});
 afterAll(async () => {
   await cleanup();
   await prisma.$disconnect();
@@ -81,15 +97,28 @@ afterAll(async () => {
 
 describe("POST /api/v1/items/{id}/book", () => {
   it("201: cancelToken в теле и в HTTP-only cookie на год", async () => {
+    const tA = performance.now();
     const room = await createTestRoom();
+    tlog("createTestRoom", performance.now() - tA);
+    const tB = performance.now();
     const item = await createWantItem(room.id);
+    tlog("createWantItem", performance.now() - tB);
 
+    const tR = performance.now();
+    await import("ioredis");
+    tlog("import(ioredis)", performance.now() - tR);
+    const tN = performance.now();
+    await import("@/server/auth");
+    tlog("import(@/server/auth)", performance.now() - tN);
+
+    const tC = performance.now();
     const response = await bookRoute(
       makeRequest(`/api/v1/items/${item.id}/book`, {
         body: { name: "Гость", email: "guest@mail.test", mode: "SIGNED" },
       }),
       itemCtx(item.id),
     );
+    tlog("bookRoute(FIRST)", performance.now() - tC);
 
     expect(response.status).toBe(201);
     const payload = (await response.json()) as { data: { cancelToken: string } };

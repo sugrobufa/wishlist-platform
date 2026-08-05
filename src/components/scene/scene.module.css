@@ -91,9 +91,15 @@
 
 /* --- Хотспоты ------------------------------------------------------------ */
 
+/* Слой хотспотов повторяет геометрию слоя кадра (.frame) — тогда координата
+ * зоны это доля КАДРА, одинаковая на любой ширине экрана. Всё, что вылезает
+ * за вьюпорт (на телефоне кадр шире сцены), режет overflow: hidden. */
 .hotspots {
   position: absolute;
-  inset: 0;
+  left: var(--frame-l);
+  top: var(--frame-t);
+  width: var(--frame-w);
+  height: var(--frame-h);
 }
 
 .hotspot {
@@ -297,7 +303,8 @@
     animation-duration: var(--drift-ms-d);
   }
 
-  .frame {
+  .frame,
+  .hotspots {
     left: var(--frame-l-d);
     top: var(--frame-t-d);
     width: var(--frame-w-d);
@@ -306,13 +313,6 @@
 
   .openFrameOn {
     transition-delay: var(--frame-delay-d);
-  }
-
-  .hotspot {
-    left: var(--hs-l-d);
-    top: var(--hs-t-d);
-    width: var(--hs-w-d);
-    height: var(--hs-h-d);
   }
 
   .caption {

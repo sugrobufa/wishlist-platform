@@ -13,7 +13,16 @@
 // (занятые руками не трогаются), зона-подсказка встаёт с бейджем, фото
 // магазина показывается превью и скачивается воркером в своё S3 после
 // сохранения. Дубликат по canonicalUrl — жёлтое предупреждение, не запрет.
-import { useState, type CSSProperties, type ChangeEvent, type ClipboardEvent, type FormEvent } from "react";
+import {
+  useEffect,
+  useState,
+  type CSSProperties,
+  type ChangeEvent,
+  type ClipboardEvent,
+  type FormEvent,
+} from "react";
+import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { sceneMotion } from "@/config/design";
 import type { ParsedProduct } from "@/server/parser";
@@ -66,6 +75,8 @@ type AddItemFlowProps = {
   initialZone: string;
   /** true — зону выбрал пользователь ссылкой ?zone=…; подсказка парсера её не двигает. */
   zonePreselected?: boolean;
+  /** Куда уводит выход из карточки: зона, из которой пришли, или комната. */
+  exitHref: string;
   /** Акцент/ink комнаты из rooms.json. */
   accent: string;
   ink: string;
@@ -75,10 +86,12 @@ export function AddItemFlow({
   zones,
   initialZone,
   zonePreselected = false,
+  exitHref,
   accent,
   ink,
 }: AddItemFlowProps) {
   const t = useTranslations("AddItem");
+  const router = useRouter();
 
   const [state, setState] = useState<ItemState | null>(null);
 
@@ -139,6 +152,18 @@ export function AddItemFlow({
   )
     ? CURRENCIES
     : [...CURRENCIES, { code: currency, label: currency }];
+
+  // Esc на шаге выбора уводит туда же, куда «В комнату» (приёмка п.1).
+  // На шаге формы Esc намеренно не слушаем: терять заполненное одной
+  // случайной клавишей нельзя — оттуда выходят осознанно, ссылкой.
+  useEffect(() => {
+    if (state !== null) return;
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") router.push(exitHref);
+    };
+    document.addEventListener("keydown", onKeyDown);
+    return () => document.removeEventListener("keydown", onKeyDown);
+  }, [state, router, exitHref]);
 
   function pickState(next: ItemState) {
     setState(next);
@@ -332,7 +357,14 @@ export function AddItemFlow({
   if (state === null) {
     return (
       <main className={`${s.root} mx-auto min-h-screen w-full max-w-xl px-6 py-10`} style={style}>
-        <p className="overline text-text-muted">{t("overline")}</p>
+        {/* Тихий выход в шапке: путь назад виден, но не спорит с двумя тайлами. */}
+        <nav className={s.nav}>
+          <Link href={exitHref} className={`pressable ${s.navLink}`}>
+            ← {t("backToRoom")}
+          </Link>
+        </nav>
+
+        <p className="overline mt-6 text-text-muted">{t("overline")}</p>
         <h1 className="display mt-3 text-3xl md:text-4xl">{t("question")}</h1>
 
         <div className={s.tileGrid}>
@@ -362,13 +394,16 @@ export function AddItemFlow({
 
   return (
     <main className={`${s.root} mx-auto min-h-screen w-full max-w-xl px-6 py-10`} style={style}>
-      <button
-        type="button"
-        onClick={() => setState(null)}
-        className="pressable text-sm text-text-muted hover:text-text-strong"
-      >
-        ← {t("question")}
-      </button>
+      {/* Два пути назад: к вопросу «что это для тебя» (введённое остаётся —
+          компонент не размонтируется) и совсем из карточки. */}
+      <nav className={s.nav}>
+        <button type="button" onClick={() => setState(null)} className={`pressable ${s.navLink}`}>
+          ← {t("back")}
+        </button>
+        <Link href={exitHref} className={`pressable ${s.navLink} ${s.navExit}`}>
+          {t("backToRoom")}
+        </Link>
+      </nav>
 
       <p className="overline mt-6 text-text-muted">{t("overline")}</p>
       <h1 className="display mt-3 text-3xl md:text-4xl">

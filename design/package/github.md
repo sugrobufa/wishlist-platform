@@ -1,27 +1,41 @@
-repo: pbakaus/impeccable
+repo: sugrobufa/wishlist-platform
 branch: main
+path: design/package
 
 ## Last sync
-date: 2026-08-04T10:22:00Z
+date: 2026-08-05T08:45:00Z
+commit: e31ea837ded3
 
 ### Updated in this project
-- Ревизия движения по стандартам emilkowalski/skills: 6 правок применено, 3 расхождения
-  оставлены осознанно. Отчёт — турн 18.
-- Аудит по правилам Impeccable (5 измерений, шкала 0–4): 13/20 → 17/20. Отчёт — турн 16.
-- Исправлено: контраст текста (353 замены), prefers-reduced-motion, role+tabIndex, цели 44 px,
-  кривые ease-out вместо ease, длительности под порог, отклик на нажатие.
+- Прочитан бриф второй приёмки (`design/DESIGN-BRIEF-02.md`) и три текущих контракта из
+  репозитория. Ответы на все четыре задачи — турн 23 макета.
+- **Карта зон достроена: 84 → 130.** Причина жалобы «проигрыватель не подсвечен» — зон
+  `music`, `books`, `flowers`, `home`, `money` в rooms.json просто не было. Теперь у каждой
+  комнаты полные 12 зон + деньги, пересечений ноль.
+- `tokens.json` — новый блок `zoneMarker` (свет вместо квадратиков) и `stateChoice`.
+- `motion.json` — `openZone` переписан на «походку»: 7 фаз, рассинхрон scale и translate,
+  адаптивный масштаб наезда вместо фиксированного ×1.72.
+- `messages-ru.json` + `tone.md` — тексты переписаны, ключи прежние.
+
+## Как синхронизировать
+Читать я умею: `design/package/` и `messages/ru.json` вижу напрямую, файлы из репозитория
+в чат приносить не нужно. Писать в репозиторий не умею — обновлённые файлы забирает
+владелец из этого проекта и кладёт в `design/package/`.
 
 ## Screen map
 | Что взято | Из каких файлов репозитория |
 |---|---|
-| Пять измерений аудита и шкала 0–4 | pbakaus/impeccable → skill/reference/audit.md |
-| Список запрещённых привычек («refuse») | pbakaus/impeccable → skill/reference/craft-floor.md |
-| Стандарты движения: кривые, длительности, стаггер, физичность | emilkowalski/skills → skills/review-animations/STANDARDS.md |
+| Бриф второй приёмки, задачи A–D | design/DESIGN-BRIEF-02.md |
+| Действующие тексты продукта | messages/ru.json · design/messages-ru-current.json |
+| Действующие токены и партитура | design/package/handoff/tokens.json · motion.json |
+| Контракт зон, который достраивали | design/package/handoff/rooms.json |
 
 ## Sync history
-- 2026-08-04T10:00Z — первый прогон аудита Impeccable (13/20 → 17/20), турн 16.
+- 2026-08-04T10:22Z — ревизия движения по emilkowalski/skills (турн 18) и аудит
+  pbakaus/impeccable, 13/20 → 17/20 (турн 16).
+- 2026-08-04T10:00Z — первый прогон аудита Impeccable.
 
 ## Notes
-Второй источник правил: emilkowalski/skills@main (проверка анимаций).
-Визуальные системы обоих репозиториев НЕ применялись — у проекта своя художественная
-директива. Использованы только правила проверки.
+Правила проверки брали из pbakaus/impeccable@main (аудит) и emilkowalski/skills@main
+(анимация). Визуальные системы этих репозиториев НЕ применялись — у проекта своя
+художественная директива.

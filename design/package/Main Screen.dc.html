@@ -39,6 +39,346 @@ a:hover{color:#FFD2A4}
 }
 </style></helmet>
 
+<section class="dv-turn" id="t23">
+<div class="dv-thd"><a class="dv-tid" href="#t23">23</a><span class="dv-tname">Ответ на приёмку: экран добавления, метки зон, походка камеры, тексты</span></div>
+
+<div class="dv-opts">
+
+<div class="dv-opt" id="23a">
+<div class="dv-olabel"><a class="dv-oid" href="#23a">23a</a>Экран добавления · <b style="font-weight:600;color:#E8B27A">выбор жмётся</b> — я не нарисовал пустое состояние, отсюда пустота на скриншоте</div>
+<div class="dv-card" style="width:1180px">
+<div style="display:flex;padding:26px 30px;gap:24px;background:#151210;align-items:flex-start;flex-wrap:wrap">
+
+<div style="flex:none">
+<div style="font:500 9px/1 'Instrument Sans',sans-serif;letter-spacing:.17em;text-transform:uppercase;color:rgba(242,237,228,.5);margin-bottom:12px">Ничего не введено — экран уже полон</div>
+<div style="position:relative;width:430px;height:932px;overflow:hidden;background:#0B0806;font-family:'Onest',sans-serif;box-shadow:0 30px 70px -20px rgba(0,0,0,.8)">
+
+  <div style="position:absolute;left:0px;right:0px;top:0px;height:76px;display:flex;align-items:center;padding:0 20px;z-index:5">
+    <span style="width:34px;height:34px;border-radius:50%;background:rgba(255,255,255,.08);display:flex;align-items:center;justify-content:center;flex:none"><svg viewBox="0 0 24 24" width="19" height="19" fill="none" stroke="rgba(255,249,242,.78)" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="display:block"><path d="M11 5.5L4.5 12l6.5 6.5"></path><path d="M4.5 12h15"></path></svg></span>
+    <span style="flex:1;text-align:center;font:600 9px/1 'Onest',sans-serif;letter-spacing:.22em;text-transform:uppercase;color:rgba(255,249,242,.55)">Новая вещь</span>
+    <span style="width:34px;flex:none"></span>
+  </div>
+
+  <div style="position:absolute;left:22px;right:22px;top:88px">
+    <div style="font:900 30px/1.05 'Archivo',sans-serif;letter-spacing:-.03em;text-transform:uppercase;color:#FFF9F2">Что это<br>для тебя?</div>
+  </div>
+
+  <div style="position:absolute;left:22px;right:22px;top:194px;display:flex;gap:10px">
+    <div onClick="{{ pickLove }}" style="flex:1;cursor:pointer;transition:opacity 240ms cubic-bezier(.23,1,.32,1);opacity:{{ chLoveOp }}">
+      <div style="position:relative;height:132px;overflow:hidden;background:#161009">
+        <div style="position:absolute;left:-104px;top:-96px;width:396px;height:325px;background-image:url(refs/c-jewel-open.jpg);background-size:396px 325px"></div>
+        <div style="position:absolute;inset:0;background:radial-gradient(ellipse 62% 58% at 50% 44%,rgba(255,226,190,.22),rgba(11,8,6,.72) 78%)"></div>
+      </div>
+      <div style="height:2px;background:{{ chLoveBar }};box-shadow:{{ chLoveGlow }};transition:box-shadow 240ms cubic-bezier(.23,1,.32,1)"></div>
+      <div style="padding:13px 2px 0">
+        <div style="font:700 16px/1 'Onest',sans-serif;color:#FFF9F2">Люблю</div>
+        <div style="font:400 12px/1.45 'Onest',sans-serif;color:rgba(255,249,242,.62);margin-top:7px">Уже моё. Просто покажи</div>
+      </div>
+    </div>
+    <div onClick="{{ pickWant }}" style="flex:1;cursor:pointer;transition:opacity 240ms cubic-bezier(.23,1,.32,1);opacity:{{ chWantOp }}">
+      <div style="position:relative;height:132px;overflow:hidden;background:#161009">
+        <div style="position:absolute;left:-104px;top:-96px;width:396px;height:325px;background-image:url(refs/c-jewel-open.jpg);background-size:396px 325px;filter:saturate(.35) brightness(.5)"></div>
+        <div style="position:absolute;inset:0;background:radial-gradient(ellipse 62% 58% at 50% 44%,rgba(255,226,190,.08),rgba(11,8,6,.8) 78%)"></div>
+        <div style="position:absolute;left:52px;top:44px;width:74px;height:40px;border:1px dashed rgba(255,214,168,.85);background:linear-gradient(180deg,rgba(255,214,168,.14),rgba(255,214,168,0))"></div>
+        <div style="position:absolute;left:52px;top:84px;width:74px;height:2px;background:#E8B27A;box-shadow:0 0 14px 2px rgba(232,178,122,.85)"></div>
+      </div>
+      <div style="height:2px;background:{{ chWantBar }};box-shadow:{{ chWantGlow }};transition:box-shadow 240ms cubic-bezier(.23,1,.32,1)"></div>
+      <div style="padding:13px 2px 0">
+        <div style="font:700 16px/1 'Onest',sans-serif;color:#FFF9F2">Хочу</div>
+        <div style="font:400 12px/1.45 'Onest',sans-serif;color:rgba(255,249,242,.62);margin-top:7px">В подарок. Место готово</div>
+      </div>
+    </div>
+  </div>
+
+  <div style="position:absolute;left:22px;right:22px;top:452px">
+    <div style="font:500 9px/1 'Onest',sans-serif;letter-spacing:.2em;text-transform:uppercase;color:rgba(255,249,242,.5)">Откуда вещь</div>
+    <div style="margin-top:14px;padding:17px 18px;background:rgba(255,255,255,.04);border-bottom:2px solid rgba(232,178,122,.55);display:flex;align-items:center;gap:13px">
+      <svg viewBox="0 0 24 24" width="19" height="19" fill="none" stroke="#E8B27A" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" style="display:block;flex:none"><path d="M10.5 13.5a4 4 0 0 0 5.7 0l3-3a4 4 0 0 0-5.7-5.7l-1.2 1.2"></path><path d="M13.5 10.5a4 4 0 0 0-5.7 0l-3 3a4 4 0 0 0 5.7 5.7l1.2-1.2"></path></svg>
+      <span style="flex:1;font:500 14.5px/1 'Onest',sans-serif;color:rgba(255,249,242,.5)">вставь ссылку — заполним сами</span>
+    </div>
+    <div style="display:flex;gap:8px;margin-top:10px">
+      <div style="flex:1;padding:14px;display:flex;align-items:center;justify-content:center;gap:9px;border:1px solid rgba(255,255,255,.14)">
+        <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="rgba(255,249,242,.72)" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" style="display:block"><path d="M3.5 7.5h4l1.6-2.2h5.8L18.5 7.5h2v11.5a1 1 0 0 1-1 1h-15a1 1 0 0 1-1-1z"></path><circle cx="12" cy="13.5" r="3.4"></circle></svg>
+        <span style="font:600 12.5px/1 'Onest',sans-serif;color:rgba(255,249,242,.78)">Снять фото</span>
+      </div>
+      <div style="flex:1;padding:14px;display:flex;align-items:center;justify-content:center;gap:9px;border:1px solid rgba(255,255,255,.14)">
+        <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="rgba(255,249,242,.72)" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" style="display:block"><path d="M4 5.5h16v13H4z"></path><path d="M4 15l4.5-4 4 3.5 3-2.5L20 16"></path></svg>
+        <span style="font:600 12.5px/1 'Onest',sans-serif;color:rgba(255,249,242,.78)">Из галереи</span>
+      </div>
+    </div>
+    <div style="text-align:center;font:500 12.5px/1 'Onest',sans-serif;color:rgba(255,249,242,.5);margin-top:16px">или впишу руками</div>
+  </div>
+
+  <div style="position:absolute;left:22px;right:22px;top:718px;padding-top:20px;border-top:1px solid rgba(255,255,255,.09)">
+    <div style="display:flex;align-items:center;justify-content:space-between">
+      <span style="font:500 9px/1 'Onest',sans-serif;letter-spacing:.2em;text-transform:uppercase;color:rgba(255,249,242,.5)">Куда в комнате</span>
+      <span style="font:500 11px/1 'Onest',sans-serif;color:rgba(255,249,242,.5)">подскажем по ссылке</span>
+    </div>
+    <div style="display:flex;align-items:center;gap:12px;margin-top:13px">
+      <div style="position:relative;width:64px;height:44px;overflow:hidden;flex:none;border:1px solid rgba(255,255,255,.12)">
+        <div style="position:absolute;left:-8px;top:-6px;width:100px;height:56px;background-image:url(refs/v4-cream.jpg);background-size:100px 56px"></div>
+        <div style="position:absolute;left:8px;top:12px;width:20px;height:16px;box-shadow:0 0 12px 3px rgba(231,201,169,.8)"></div>
+      </div>
+      <span style="flex:1;font:600 14px/1 'Onest',sans-serif;color:#FFF9F2">Украшения</span>
+      <span style="font:500 11.5px/1 'Onest',sans-serif;color:rgba(255,249,242,.5)">Сменить</span>
+    </div>
+  </div>
+
+  <div style="position:absolute;left:22px;right:22px;bottom:34px">
+    <div style="display:flex;align-items:center;gap:12px;padding:0 2px 14px">
+      <span style="flex:1;font:700 17px/1 'Onest',sans-serif;color:rgba(255,249,242,.45)">Поставить в комнату</span>
+      <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="rgba(255,249,242,.35)" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" style="display:block;flex:none"><path d="M4.5 12h15"></path><path d="M13 5.5l6.5 6.5L13 18.5"></path></svg>
+    </div>
+    <div style="height:2px;background:rgba(255,255,255,.14)"></div>
+    <div style="font:400 11.5px/1.4 'Onest',sans-serif;color:rgba(255,249,242,.5);margin-top:13px;text-align:center">Кнопка загорится, когда появится название</div>
+  </div>
+</div>
+</div>
+
+<div style="flex:none">
+<div style="font:500 9px/1 'Instrument Sans',sans-serif;letter-spacing:.17em;text-transform:uppercase;color:#E8B27A;margin-bottom:12px">Ссылка распознана</div>
+<div style="position:relative;width:430px;height:932px;overflow:hidden;background:#0B0806;font-family:'Onest',sans-serif;box-shadow:0 30px 70px -20px rgba(0,0,0,.8)">
+
+  <div style="position:absolute;left:0px;right:0px;top:0px;height:76px;display:flex;align-items:center;padding:0 20px;z-index:5">
+    <span style="width:34px;height:34px;border-radius:50%;background:rgba(255,255,255,.08);display:flex;align-items:center;justify-content:center;flex:none"><svg viewBox="0 0 24 24" width="19" height="19" fill="none" stroke="rgba(255,249,242,.78)" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="display:block"><path d="M11 5.5L4.5 12l6.5 6.5"></path><path d="M4.5 12h15"></path></svg></span>
+    <span style="flex:1;text-align:center;font:600 9px/1 'Onest',sans-serif;letter-spacing:.22em;text-transform:uppercase;color:rgba(255,249,242,.55)">Новая вещь</span>
+    <span style="width:34px;flex:none"></span>
+  </div>
+
+  <div style="position:absolute;left:0px;right:0px;top:76px;height:246px;overflow:hidden;background:#12100E">
+    <div style="position:absolute;left:0px;top:0px;width:430px;height:246px;background-image:url(refs/p-emerald.jpg);background-size:cover;background-position:center"></div>
+    <div style="position:absolute;inset:0;background:linear-gradient(0deg,rgba(11,8,6,.95) 4%,rgba(11,8,6,.12) 58%,rgba(11,8,6,.4))"></div>
+    <div style="position:absolute;left:20px;top:16px;display:flex;align-items:center;gap:8px;padding:7px 12px;background:rgba(11,8,6,.72);backdrop-filter:blur(8px)">
+      <span style="width:6px;height:6px;border-radius:50%;background:#E8B27A"></span>
+      <span style="font:600 9.5px/1 'Onest',sans-serif;letter-spacing:.14em;text-transform:uppercase;color:#E8B27A">Atelier Perle</span>
+    </div>
+    <div style="position:absolute;left:20px;right:20px;bottom:14px">
+      <div style="font:700 21px/1.2 'Onest',sans-serif;color:#FFF9F2">Колье с барочным жемчугом</div>
+      <div style="display:flex;align-items:baseline;gap:11px;margin-top:11px">
+        <span style="font:700 24px/1 'Onest',sans-serif;color:#E8B27A">48 000 ₽</span>
+        <span style="font:500 11.5px/1 'Onest',sans-serif;color:rgba(255,249,242,.55)">atelier-perle.fr</span>
+      </div>
+    </div>
+  </div>
+
+  <div style="position:absolute;left:22px;right:22px;top:344px;display:flex;gap:10px">
+    <div style="flex:1;opacity:.62">
+      <div style="position:relative;height:104px;overflow:hidden;background:#161009">
+        <div style="position:absolute;left:-104px;top:-104px;width:396px;height:325px;background-image:url(refs/c-jewel-open.jpg);background-size:396px 325px"></div>
+        <div style="position:absolute;inset:0;background:radial-gradient(ellipse 62% 58% at 50% 44%,rgba(255,226,190,.2),rgba(11,8,6,.74) 78%)"></div>
+      </div>
+      <div style="height:2px;background:rgba(255,255,255,.12)"></div>
+      <div style="padding:12px 2px 0"><div style="font:700 15px/1 'Onest',sans-serif;color:#FFF9F2">Люблю</div><div style="font:400 11.5px/1.4 'Onest',sans-serif;color:rgba(255,249,242,.58);margin-top:7px">Уже моё</div></div>
+    </div>
+    <div style="flex:1">
+      <div style="position:relative;height:104px;overflow:hidden;background:#161009">
+        <div style="position:absolute;left:-104px;top:-104px;width:396px;height:325px;background-image:url(refs/c-jewel-open.jpg);background-size:396px 325px;filter:saturate(.35) brightness(.5)"></div>
+        <div style="position:absolute;inset:0;background:radial-gradient(ellipse 62% 58% at 50% 44%,rgba(255,226,190,.07),rgba(11,8,6,.82) 78%)"></div>
+        <div style="position:absolute;left:52px;top:30px;width:74px;height:38px;border:1px dashed rgba(255,214,168,.85);background:linear-gradient(180deg,rgba(255,214,168,.14),rgba(255,214,168,0))"></div>
+        <div style="position:absolute;left:52px;top:68px;width:74px;height:2px;background:#E8B27A;box-shadow:0 0 14px 2px rgba(232,178,122,.85)"></div>
+      </div>
+      <div style="height:2px;background:#E8B27A;box-shadow:0 4px 20px -4px rgba(232,178,122,.55)"></div>
+      <div style="padding:12px 2px 0"><div style="font:700 15px/1 'Onest',sans-serif;color:#FFF9F2">Хочу</div><div style="font:400 11.5px/1.4 'Onest',sans-serif;color:rgba(255,249,242,.58);margin-top:7px">Место готово</div></div>
+    </div>
+  </div>
+
+  <div style="position:absolute;left:22px;right:22px;top:566px;padding-top:20px;border-top:1px solid rgba(255,255,255,.09);display:flex;align-items:center;gap:12px">
+    <div style="position:relative;width:64px;height:44px;overflow:hidden;flex:none;border:1px solid rgba(255,255,255,.12)">
+      <div style="position:absolute;left:-8px;top:-6px;width:100px;height:56px;background-image:url(refs/v4-cream.jpg);background-size:100px 56px"></div>
+      <div style="position:absolute;left:8px;top:12px;width:20px;height:16px;box-shadow:0 0 12px 3px rgba(231,201,169,.8)"></div>
+    </div>
+    <div style="flex:1"><div style="font:600 14px/1 'Onest',sans-serif;color:#FFF9F2">Украшения</div><div style="font:400 11px/1 'Onest',sans-serif;color:rgba(255,249,242,.5);margin-top:6px">подсказали по ссылке</div></div>
+    <span style="font:500 11.5px/1 'Onest',sans-serif;color:rgba(255,249,242,.5)">Сменить</span>
+  </div>
+
+  <div style="position:absolute;left:22px;right:22px;top:684px;display:flex;flex-direction:column;gap:1px;background:rgba(255,255,255,.09)">
+    <div style="background:#0B0806;padding:13px 0;display:flex;align-items:center;gap:12px">
+      <span style="flex:1;font:500 13px/1 'Onest',sans-serif;color:rgba(255,249,242,.82)">Насколько хочется</span>
+      <span style="display:flex;gap:3px;align-items:center"><span style="width:16px;height:4px;background:#E8B27A"></span><span style="width:16px;height:4px;background:#E8B27A"></span><span style="width:16px;height:4px;background:#E8B27A"></span><span style="width:16px;height:4px;background:rgba(255,255,255,.14)"></span></span>
+      <span style="font:500 11.5px/1 'Onest',sans-serif;color:rgba(255,249,242,.6);flex:none">очень</span>
+    </div>
+    <div style="background:#0B0806;padding:13px 0;display:flex;align-items:center;gap:12px">
+      <span style="flex:1;font:500 13px/1 'Onest',sans-serif;color:rgba(255,249,242,.82)">Кто видит цену</span>
+      <span style="font:600 12.5px/1 'Onest',sans-serif;color:#E8B27A;flex:none">Только друзья</span>
+    </div>
+    <div style="background:#0B0806;padding:13px 0;display:flex;align-items:center;gap:12px">
+      <span style="flex:1;font:500 13px/1 'Onest',sans-serif;color:rgba(255,249,242,.5)">Размер, цвет, заметка</span>
+      <span style="font:500 11.5px/1 'Onest',sans-serif;color:rgba(255,249,242,.5);flex:none">по желанию</span>
+    </div>
+  </div>
+
+  <div style="position:absolute;left:22px;right:22px;bottom:34px">
+    <div style="display:flex;align-items:center;gap:12px;padding:0 2px 14px">
+      <span style="flex:1;font:700 17px/1 'Onest',sans-serif;color:#FFF9F2">Поставить в комнату</span>
+      <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="#E8B27A" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" style="display:block;flex:none"><path d="M4.5 12h15"></path><path d="M13 5.5l6.5 6.5L13 18.5"></path></svg>
+    </div>
+    <div style="height:2px;background:#E8B27A;box-shadow:0 4px 18px -3px rgba(232,178,122,.42)"></div>
+  </div>
+</div>
+</div>
+
+<div style="flex:1;min-width:240px">
+  <div style="font:600 12.5px/1.4 'Instrument Sans',sans-serif;color:#EDE6D8">Моя вина, и она структурная</div>
+  <div style="font:400 12.5px/1.55 'Instrument Sans',sans-serif;color:rgba(242,237,228,.6);margin-top:9px">В турне 8 я нарисовал карточку <b style="font-weight:600;color:#EDE6D8">заполненную</b> — с фото товара, ценой и названием. Код собрал её честно. Но экран открывается пустым, и без фото от карточки остаются два плитки в пустоте. Пустого состояния в пакете не было — значит его не существовало</div>
+
+  <div style="font:600 9px/1 'Instrument Sans',sans-serif;letter-spacing:.17em;text-transform:uppercase;color:rgba(242,237,228,.5);margin-top:22px">Что изменилось по существу</div>
+  <div style="font:400 12.5px/1.55 'Instrument Sans',sans-serif;color:rgba(242,237,228,.6);margin-top:9px"><b style="font-weight:600;color:#EDE6D8">Выбор показывает комнату, а не абстракцию.</b> Было два пустых квадрата с магентовым прямоугольником внутри. Стало два кропа настоящей мебели: слева вещь стоит плотно и освещена, справа то же место с призрачным контуром и светящейся полкой. Один и тот же кадр, две обработки — человек видит, что с ним будет, и заодно учит язык продукта</div>
+  <div style="font:400 12.5px/1.55 'Instrument Sans',sans-serif;color:rgba(242,237,228,.6);margin-top:10px"><b style="font-weight:600;color:#EDE6D8">Ввод стоит ниже выбора, а не выше.</b> Сначала «что это для тебя», потом «откуда». Порядок продиктован моделью: состояние вещи — главное решение, остальное подробности</div>
+  <div style="font:400 12.5px/1.55 'Instrument Sans',sans-serif;color:rgba(242,237,228,.6);margin-top:10px"><b style="font-weight:600;color:#EDE6D8">Экран заполнен в обоих состояниях.</b> Пустой держится на трёх опорах: выбор, ввод, зона. Заполненный получает фото товара во всю ширину и превращается в карточку вещи, а не в анкету</div>
+  <div style="font:400 12.5px/1.55 'Instrument Sans',sans-serif;color:rgba(242,237,228,.6);margin-top:10px"><b style="font-weight:600;color:#EDE6D8">Главная кнопка выключена, пока нечего сохранять</b> — серая полоса вместо светящейся, с подписью почему. Раньше она была активна всегда</div>
+
+  <div style="margin-top:20px;padding:14px 16px;background:rgba(232,178,122,.07);border:1px solid rgba(232,178,122,.24)">
+    <div style="font:600 12px/1.4 'Instrument Sans',sans-serif;color:#EDE6D8">Кроп берётся из комнаты пользователя</div>
+    <div style="font:400 12px/1.5 'Instrument Sans',sans-serif;color:rgba(242,237,228,.6);margin-top:8px">Кадр для обеих панелей — фрагмент прямоугольника выбранной зоны из <span style="font-family:ui-monospace,Menlo,monospace;font-size:11px">rooms.json</span>. Отдельных картинок не нужно: те же кадры «открыто», которые уже лежат в <span style="font-family:ui-monospace,Menlo,monospace;font-size:11px">refs/</span>. Значения — <span style="font-family:ui-monospace,Menlo,monospace;font-size:11px">tokens.json → stateChoice</span></div>
+  </div>
+</div>
+
+</div>
+</div>
+</div>
+
+<div class="dv-opt" id="23b">
+<div class="dv-olabel"><a class="dv-oid" href="#23b">23b</a>Метки зон · <b style="font-weight:600;color:#E8B27A">наведи на сцены</b> — свет вместо квадратиков, на светлой и тёмной комнате</div>
+<div class="dv-card" style="width:1180px">
+<div style="padding:26px 30px;background:#151210">
+
+<div style="display:flex;gap:20px;flex-wrap:wrap">
+  <div style="flex:none">
+    <div style="font:500 9px/1 'Instrument Sans',sans-serif;letter-spacing:.17em;text-transform:uppercase;color:rgba(242,237,228,.5);margin-bottom:11px">Светлая · roomLightness 0.82</div>
+    <div onMouseLeave="{{ mkLeave }}" style="position:relative;width:340px;height:190px;overflow:hidden;background:#1A1410">
+      <img src="refs/v4-cream.jpg" alt="Кремовая комната" style="position:absolute;left:0px;top:0px;width:340px;height:190px;object-fit:cover;display:block"></img>
+      <div style="position:absolute;inset:0;background:rgba(11,8,6,1);transition:opacity 300ms cubic-bezier(.23,1,.32,1);opacity:{{ mkDimA }};pointer-events:none"></div>
+      <sc-for list="{{ mkZonesA }}" as="z" hint-placeholder-count="3">
+        <div onMouseEnter="{{ z.enter }}" style="position:absolute;left:{{ z.x }}px;top:{{ z.y }}px;width:{{ z.w }}px;height:{{ z.h }}px;cursor:pointer">
+          <div style="position:absolute;inset:0;background:{{ z.vig }};mix-blend-mode:multiply;transition:opacity 260ms cubic-bezier(.23,1,.32,1);opacity:{{ z.vigOp }}"></div>
+          <div style="position:absolute;inset:0;background:{{ z.bloom }};mix-blend-mode:screen;transition:opacity 260ms cubic-bezier(.23,1,.32,1);opacity:{{ z.bloomOp }}"></div>
+          <div style="position:absolute;left:{{ z.sparkL }}px;top:{{ z.sparkT }}px;width:4px;height:4px;transition:opacity 260ms ease;opacity:{{ z.sparkOp }}"><div style="position:absolute;inset:0;border-radius:50%;background:{{ z.spark }};filter:blur(1.4px);animation:omPulse 5200ms ease-in-out infinite"></div></div>
+          <div style="position:absolute;left:0px;top:100%;padding-top:6px;white-space:nowrap;font:600 12px/1 'Onest',sans-serif;color:#FFF9F2;text-shadow:0 1px 8px rgba(0,0,0,.9);transition:opacity 240ms cubic-bezier(.23,1,.32,1),transform 240ms cubic-bezier(.23,1,.32,1);opacity:{{ z.labOp }};transform:translateY({{ z.labY }})">{{ z.label }}</div>
+        </div>
+      </sc-for>
+    </div>
+    <div style="font:400 12px/1.5 'Instrument Sans',sans-serif;color:rgba(242,237,228,.55);margin-top:11px;max-width:340px">Здесь работает <b style="font-weight:600;color:#EDE6D8">тень</b>: свет на светлом фоне не виден, поэтому вокруг предмета кадр притемняется. Вес тени 0.87 против света 0.39</div>
+  </div>
+
+  <div style="flex:none">
+    <div style="font:500 9px/1 'Instrument Sans',sans-serif;letter-spacing:.17em;text-transform:uppercase;color:rgba(242,237,228,.5);margin-bottom:11px">Тёмная · roomLightness 0.15</div>
+    <div onMouseLeave="{{ mkLeave }}" style="position:relative;width:340px;height:190px;overflow:hidden;background:#180A22">
+      <img src="refs/v5-bold-a.jpg" alt="Дерзкая комната" style="position:absolute;left:0px;top:0px;width:340px;height:190px;object-fit:cover;display:block"></img>
+      <div style="position:absolute;inset:0;background:rgba(11,8,6,1);transition:opacity 300ms cubic-bezier(.23,1,.32,1);opacity:{{ mkDimB }};pointer-events:none"></div>
+      <sc-for list="{{ mkZonesB }}" as="z" hint-placeholder-count="3">
+        <div onMouseEnter="{{ z.enter }}" style="position:absolute;left:{{ z.x }}px;top:{{ z.y }}px;width:{{ z.w }}px;height:{{ z.h }}px;cursor:pointer">
+          <div style="position:absolute;inset:0;background:{{ z.vig }};mix-blend-mode:multiply;transition:opacity 260ms cubic-bezier(.23,1,.32,1);opacity:{{ z.vigOp }}"></div>
+          <div style="position:absolute;inset:0;background:{{ z.bloom }};mix-blend-mode:screen;transition:opacity 260ms cubic-bezier(.23,1,.32,1);opacity:{{ z.bloomOp }}"></div>
+          <div style="position:absolute;left:{{ z.sparkL }}px;top:{{ z.sparkT }}px;width:4px;height:4px;transition:opacity 260ms ease;opacity:{{ z.sparkOp }}"><div style="position:absolute;inset:0;border-radius:50%;background:{{ z.spark }};filter:blur(1.4px);animation:omPulse 5200ms ease-in-out infinite"></div></div>
+          <div style="position:absolute;left:0px;top:100%;padding-top:6px;white-space:nowrap;font:600 12px/1 'Onest',sans-serif;color:#FFF9F2;text-shadow:0 1px 8px rgba(0,0,0,.9);transition:opacity 240ms cubic-bezier(.23,1,.32,1),transform 240ms cubic-bezier(.23,1,.32,1);opacity:{{ z.labOp }};transform:translateY({{ z.labY }})">{{ z.label }}</div>
+        </div>
+      </sc-for>
+    </div>
+    <div style="font:400 12px/1.5 'Instrument Sans',sans-serif;color:rgba(242,237,228,.55);margin-top:11px;max-width:340px">Здесь работает <b style="font-weight:600;color:#EDE6D8">свет</b>: вес 0.89 против тени 0.36. Механизм один и тот же, меняется только одно число комнаты</div>
+  </div>
+
+  <div style="flex:1;min-width:280px">
+    <div style="font:600 12.5px/1.4 'Instrument Sans',sans-serif;color:#EDE6D8">Рамки в покое нет вообще</div>
+    <div style="font:400 12.5px/1.55 'Instrument Sans',sans-serif;color:rgba(242,237,228,.6);margin-top:9px">Прямоугольник из <span style="font-family:ui-monospace,Menlo,monospace;font-size:11px">rooms.json</span> остаётся, но становится невидимой областью нажатия. Видно только пятно света и одну точку-искру в центре. Края пятна растворяются на 72% радиуса — поэтому оно не читается как фигура, а читается как освещение</div>
+
+    <div style="font:600 9px/1 'Instrument Sans',sans-serif;letter-spacing:.17em;text-transform:uppercase;color:#E8B27A;margin-top:20px">Ответ на «белое свечение пропадает на светлом»</div>
+    <div style="font:400 12.5px/1.55 'Instrument Sans',sans-serif;color:rgba(242,237,228,.6);margin-top:9px">У метки два противоположных слоя — тёплое пятно и мягкая тень по краям, — и их вес считается из светлоты интерьера. <b style="font-weight:600;color:#EDE6D8">Одно число на комнату вместо 84 масок.</b> На кремовой метка это тень, на неоновой — свет, а механизм не раздваивается</div>
+
+    <div style="font:600 9px/1 'Instrument Sans',sans-serif;letter-spacing:.17em;text-transform:uppercase;color:rgba(242,237,228,.5);margin-top:20px">Про силуэт — не советую</div>
+    <div style="font:400 12.5px/1.55 'Instrument Sans',sans-serif;color:rgba(242,237,228,.6);margin-top:9px">84 маски это 84 файла, которые придётся пересобирать при любой смене кадра, — и метка станет обводкой, то есть той же рамкой, только кривой. Вместо этого пятно вытягивается по пропорции зоны: <span style="font-family:ui-monospace,Menlo,monospace;font-size:11px">bloomAR = w/h × 58</span>. У шкафа получается вертикальное, у полки горизонтальное. Два числа на зону, посчитаны скриптом, уже лежат в <span style="font-family:ui-monospace,Menlo,monospace;font-size:11px">rooms.json</span></div>
+
+    <div style="margin-top:18px;padding:13px 15px;background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.08);font:400 12px/1.5 'Instrument Sans',sans-serif;color:rgba(242,237,228,.55)">Состояния и все значения — <span style="font-family:ui-monospace,Menlo,monospace;font-size:11px">tokens.json → zoneMarker</span>. Фокус с клавиатуры — единственное место, где пунктирная рамка законна: фокус обязан быть геометрически явным</div>
+  </div>
+</div>
+</div>
+</div>
+</div>
+
+<div class="dv-opt" id="23c">
+<div class="dv-olabel"><a class="dv-oid" href="#23c">23c</a>Походка камеры и сцена во весь экран</div>
+<div class="dv-card" style="width:1180px">
+<div style="display:flex;padding:26px 30px;gap:24px;background:#151210;align-items:flex-start;flex-wrap:wrap">
+
+<div style="flex:none">
+<div style="font:500 9px/1 'Instrument Sans',sans-serif;letter-spacing:.17em;text-transform:uppercase;color:rgba(242,237,228,.5);margin-bottom:12px">Сцена во весь экран · интерфейс на вуали</div>
+<div style="position:relative;width:430px;height:932px;overflow:hidden;background:#0B0806;font-family:'Onest',sans-serif;box-shadow:0 30px 70px -20px rgba(0,0,0,.8)">
+  <img src="refs/v4-cream.jpg" alt="Комната" style="position:absolute;left:-345px;top:0px;width:1120px;height:932px;object-fit:cover;display:block"></img>
+  <div style="position:absolute;left:0px;right:0px;top:0px;height:190px;background:linear-gradient(180deg,rgba(11,8,6,.88),rgba(11,8,6,0))"></div>
+  <div style="position:absolute;left:0px;right:0px;bottom:0px;height:300px;background:linear-gradient(0deg,rgba(11,8,6,.94) 26%,rgba(11,8,6,0))"></div>
+
+  <div style="position:absolute;left:22px;right:22px;top:44px;display:flex;align-items:flex-start;gap:14px">
+    <div style="flex:1">
+      <div style="font:900 34px/1 'Archivo',sans-serif;letter-spacing:-.035em;text-transform:uppercase;color:#FFF9F2">Мила</div>
+      <div style="font:500 10px/1 'Onest',sans-serif;letter-spacing:.14em;text-transform:uppercase;color:rgba(255,249,242,.62);margin-top:9px">142 желания · 19 в подарок</div>
+    </div>
+    <span style="width:44px;height:44px;border-radius:50%;background:rgba(255,255,255,.1);backdrop-filter:blur(10px);display:flex;align-items:center;justify-content:center;flex:none"><svg viewBox="0 0 24 24" width="19" height="19" fill="none" stroke="rgba(255,249,242,.85)" stroke-width="1.7" stroke-linecap="round" style="display:block"><path d="M3.5 7h9"></path><path d="M17 7h3.5"></path><path d="M3.5 17h4"></path><path d="M12 17h8.5"></path><circle cx="14.8" cy="7" r="2.2"></circle><circle cx="9.8" cy="17" r="2.2"></circle></svg></span>
+  </div>
+
+  <div style="position:absolute;left:150px;top:378px;width:44px;height:46px"><div style="position:absolute;inset:0;background:radial-gradient(ellipse 58% 62% at 50% 42%,rgba(231,201,169,.5),transparent 72%)"></div><div style="position:absolute;left:20px;top:21px;width:4px;height:4px;border-radius:50%;background:#E7C9A9;filter:blur(1.4px)"></div></div>
+  <div style="position:absolute;left:250px;top:300px;width:70px;height:44px"><div style="position:absolute;inset:0;background:radial-gradient(ellipse 92% 62% at 50% 42%,rgba(231,201,169,.4),transparent 72%)"></div><div style="position:absolute;left:33px;top:20px;width:4px;height:4px;border-radius:50%;background:#E7C9A9;filter:blur(1.4px)"></div></div>
+  <div style="position:absolute;left:64px;top:262px;width:48px;height:96px"><div style="position:absolute;inset:0;background:radial-gradient(ellipse 30% 62% at 50% 42%,rgba(231,201,169,.42),transparent 72%)"></div><div style="position:absolute;left:22px;top:46px;width:4px;height:4px;border-radius:50%;background:#E7C9A9;filter:blur(1.4px)"></div></div>
+
+  <div style="position:absolute;left:0px;right:0px;bottom:190px;display:flex;justify-content:center">
+    <span style="padding:9px 16px;border-radius:100px;background:rgba(11,8,6,.6);backdrop-filter:blur(10px);font:500 10px/1 'Onest',sans-serif;letter-spacing:.14em;text-transform:uppercase;color:rgba(255,249,242,.72)">коснись зоны — подойдём ближе</span>
+  </div>
+
+  <div style="position:absolute;left:22px;right:22px;bottom:116px">
+    <div style="display:flex;align-items:center;gap:12px;padding:0 2px 13px">
+      <span style="flex:1;font:700 16px/1 'Onest',sans-serif;color:#FFF9F2">Добавить вещь</span>
+      <span style="font:500 11px/1 'Onest',sans-serif;color:rgba(255,249,242,.55)">Зал славы</span>
+      <span style="width:1px;height:12px;background:rgba(255,249,242,.28)"></span>
+      <span style="font:500 11px/1 'Onest',sans-serif;color:rgba(255,249,242,.55)">Связи</span>
+    </div>
+    <div style="height:2px;background:#E7C9A9;box-shadow:0 4px 18px -3px rgba(231,201,169,.42)"></div>
+  </div>
+
+  <div style="position:absolute;left:0px;right:0px;bottom:0px;height:86px;display:flex;align-items:flex-start;padding:13px 20px 0">
+    <div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:7px"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="#E7C9A9" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" style="display:block"><path d="M4 20.5V11a8 8 0 0 1 16 0v9.5"></path><path d="M2.5 20.5h19"></path></svg><span style="font:600 9.5px/1 'Onest',sans-serif;color:#E7C9A9">Комната</span></div>
+    <div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:7px"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="rgba(255,249,242,.55)" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" style="display:block"><circle cx="9" cy="8.5" r="3.1"></circle><path d="M3.4 19.5c0-3.1 2.5-5.6 5.6-5.6s5.6 2.5 5.6 5.6"></path><path d="M16.4 6.1a3.1 3.1 0 0 1 0 5.4"></path></svg><span style="font:600 9.5px/1 'Onest',sans-serif;color:rgba(255,249,242,.55)">Друзья</span></div>
+    <div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:5px"><span style="width:34px;height:34px;border-radius:50%;background:#E7C9A9;display:flex;align-items:center;justify-content:center;margin-top:-5px"><svg viewBox="0 0 24 24" width="19" height="19" fill="none" stroke="#241A0E" stroke-width="2.1" stroke-linecap="round" style="display:block"><path d="M12 5.5v13"></path><path d="M5.5 12h13"></path></svg></span><span style="font:600 9.5px/1 'Onest',sans-serif;color:rgba(255,249,242,.55)">Добавить</span></div>
+    <div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:7px"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="rgba(255,249,242,.55)" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" style="display:block"><circle cx="12" cy="8" r="3.5"></circle><path d="M5.5 20.5c0-3.6 2.9-6.5 6.5-6.5s6.5 2.9 6.5 6.5"></path></svg><span style="font:600 9.5px/1 'Onest',sans-serif;color:rgba(255,249,242,.55)">Профиль</span></div>
+  </div>
+</div>
+</div>
+
+<div style="flex:1;min-width:420px">
+  <div style="font:600 12.5px/1.4 'Instrument Sans',sans-serif;color:#EDE6D8">Сцена перестала быть полосой</div>
+  <div style="font:400 12.5px/1.55 'Instrument Sans',sans-serif;color:rgba(242,237,228,.6);margin-top:9px">Было: шапка 80 px, сцена 352 px, шит с содержимым, таб-бар. Стало: комната занимает всё, интерфейс лежит на двух вуалях-градиентах. «Добавить вещь» больше не плашка над сценой — это полоса света внизу, и рядом с ней в одну строку помещаются «Зал славы» и «Связи». Три ссылки заняли высоту одной</div>
+  <div style="font:400 12.5px/1.55 'Instrument Sans',sans-serif;color:rgba(242,237,228,.6);margin-top:10px">Полки видны сразу — три пятна света на кадре. Раньше сцена была слишком мала, чтобы разглядеть, куда идти</div>
+
+  <div style="font:600 9px/1 'Instrument Sans',sans-serif;letter-spacing:.17em;text-transform:uppercase;color:#E8B27A;margin-top:22px">Про соотношение сторон — менять не надо</div>
+  <div style="font:400 12.5px/1.55 'Instrument Sans',sans-serif;color:rgba(242,237,228,.6);margin-top:9px">Кадры 16:9, сцена 430:352. Во весь экран телефона кадр входит кропом по центру композиции — карта координат не меняется, потому что зоны заданы в системе сцены, а кроп это свойство показа. На десктопе кадр показывается целиком. <b style="font-weight:600;color:#EDE6D8">Геометрию не трогаем</b> — а значит эта правка бесплатна</div>
+
+  <div style="font:600 9px/1 'Instrument Sans',sans-serif;letter-spacing:.17em;text-transform:uppercase;color:rgba(242,237,228,.5);margin-top:22px">Походка вместо рывка · фазы</div>
+  <div style="display:flex;flex-direction:column;gap:1px;background:rgba(255,255,255,.08);margin-top:12px">
+    <div style="background:#0B0A09;padding:10px 13px;display:flex;gap:12px;align-items:baseline"><span style="flex:none;width:78px;font:600 10.5px/1 ui-monospace,Menlo,monospace;color:#E8B27A">0–150</span><div style="flex:1;font:400 12px/1.45 'Instrument Sans',sans-serif;color:rgba(242,237,228,.62)"><b style="font-weight:600;color:#EDE6D8">Вес переносится назад.</b> Масштаб 1.02 → 1.008. Микродвижение в 1.2%, которого не видно, но которое читается как намерение. <b style="font-weight:600;color:#EDE6D8">Именно эта фаза убирает рывок</b> — раньше движение начиналось из мёртвой точки</div></div>
+    <div style="background:#0B0A09;padding:10px 13px;display:flex;gap:12px;align-items:baseline"><span style="flex:none;width:78px;font:600 10.5px/1 ui-monospace,Menlo,monospace;color:#E8B27A">150–870</span><div style="flex:1;font:400 12px/1.45 'Instrument Sans',sans-serif;color:rgba(242,237,228,.62)"><b style="font-weight:600;color:#EDE6D8">Шаг.</b> Кривая <span style="font-family:ui-monospace,Menlo,monospace;font-size:11px">(.38,.06,.16,1)</span> — медленный старт, длинный тихий выкат. Масштаб идёт 620 мс, сдвиг 720 мс: <b style="font-weight:600;color:#EDE6D8">на 100 мс дольше</b>. Из-за расхождения путь выгибается — тело идёт вперёд, голова доворачивается к предмету. Синхронные scale и translate дают проезд по рельсам</div></div>
+    <div style="background:#0B0A09;padding:10px 13px;display:flex;gap:12px;align-items:baseline"><span style="flex:none;width:78px;font:600 10.5px/1 ui-monospace,Menlo,monospace;color:#E8B27A">770–1190</span><div style="flex:1;font:400 12px/1.45 'Instrument Sans',sans-serif;color:rgba(242,237,228,.62)"><b style="font-weight:600;color:#EDE6D8">Оседание.</b> Перелёт на 3% сходит к цели за 420 мс. Пружина не нужна: на масштабе фотографии она читается как желе</div></div>
+    <div style="background:#0B0A09;padding:10px 13px;display:flex;gap:12px;align-items:baseline"><span style="flex:none;width:78px;font:600 10.5px/1 ui-monospace,Menlo,monospace;color:rgba(242,237,228,.5)">90–650</span><div style="flex:1;font:400 12px/1.45 'Instrument Sans',sans-serif;color:rgba(242,237,228,.62)">Периферия темнеет — старт сдвинут с нуля на 90 мс. Темнота следует за шагом, а не предупреждает о нём</div></div>
+    <div style="background:#0B0A09;padding:10px 13px;display:flex;gap:12px;align-items:baseline"><span style="flex:none;width:78px;font:600 10.5px/1 ui-monospace,Menlo,monospace;color:rgba(242,237,228,.5)">520–980</span><div style="flex:1;font:400 12px/1.45 'Instrument Sans',sans-serif;color:rgba(242,237,228,.62)">Мебель раскрывается, пока камера ещё идёт. Створки открываются навстречу</div></div>
+    <div style="background:#0B0A09;padding:10px 13px;display:flex;gap:12px;align-items:baseline"><span style="flex:none;width:78px;font:600 10.5px/1 ui-monospace,Menlo,monospace;color:rgba(242,237,228,.5)">820+</span><div style="flex:1;font:400 12px/1.45 'Instrument Sans',sans-serif;color:rgba(242,237,228,.62)">Вещи встают в сетку, шаг 60 мс. Первая появляется во время оседания — ни одна фаза не ждёт предыдущую</div></div>
+  </div>
+
+  <div style="margin-top:16px;padding:14px 16px;background:rgba(232,178,122,.07);border:1px solid rgba(232,178,122,.24)">
+    <div style="font:600 12px/1.4 'Instrument Sans',sans-serif;color:#EDE6D8">Заодно нашёл ошибку в своём же пакете</div>
+    <div style="font:400 12px/1.5 'Instrument Sans',sans-serif;color:rgba(242,237,228,.6);margin-top:8px">Масштаб ×1.72 был <b style="font-weight:600;color:#EDE6D8">один на все зоны</b>. Но ширина зон в rooms.json от 20 до 269 px: крошечная так и остаётся крошечной, большая вылезает за кадр. Теперь масштаб считается — <span style="font-family:ui-monospace,Menlo,monospace;font-size:11px">clamp(430 / (w × 2.4), 1.45, 2.6)</span>. Зона в 20 px получает ×2.6, зона в 269 px — ×1.45</div>
+  </div>
+
+  <div style="margin-top:12px;padding:14px 16px;background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.08)">
+    <div style="font:600 12px/1.4 'Instrument Sans',sans-serif;color:#EDE6D8">Выход и сокращённое движение</div>
+    <div style="font:400 12px/1.5 'Instrument Sans',sans-serif;color:rgba(242,237,228,.6);margin-top:8px">Наружу спокойнее, чем внутрь: 760 против 620, без перелёта. Отступать спиной с покачиванием — не человеческий жест. Внутрь ведёт намерение, наружу просто отпустил</div>
+    <div style="font:400 12px/1.5 'Instrument Sans',sans-serif;color:rgba(242,237,228,.6);margin-top:8px">При <span style="font-family:ui-monospace,Menlo,monospace;font-size:11px">prefers-reduced-motion</span> фазы «вес» и «оседание» пропускаются целиком: один переход 120 мс, scale и translate синхронно. Походка — украшение; при выключенном движении важно только куда переехал кадр</div>
+  </div>
+</div>
+
+</div>
+</div>
+</div>
+
+</div>
+<p class="dv-next">Дальше: «прогони новую метку по прототипу 15a» · «нейросетевой апскейл флагманской комнаты» · «карточка вещи хозяйки и гостя»</p>
+</section>
+
 <section class="dv-turn" id="t22">
 <div class="dv-thd"><a class="dv-tid" href="#t22">22</a><span class="dv-tname">Кнопки — пять направлений вместо залитой плашки</span></div>
 
@@ -1085,7 +1425,12 @@ a:hover{color:#FFD2A4}
 
     <sc-if value="{{ rIdle }}" hint-placeholder-val="{{ true }}">
       <sc-for list="{{ rHots }}" as="h" hint-placeholder-count="8">
-        <div role="button" tabIndex="0" onClick="{{ h.tap }}" title="{{ h.label }}" style="position:absolute;left:{{ h.x }}px;top:{{ h.y }}px;width:{{ h.w }}px;height:{{ h.h }}px;cursor:pointer;box-shadow:inset 0 0 0 1px rgba(255,240,220,.34);animation:omPulse 4.5s ease-in-out {{ h.delay }} infinite" style-hover="box-shadow:inset 0 0 0 1px rgba(255,240,220,.95),0 0 40px 8px rgba(255,220,180,.32)"></div>
+        <div role="button" tabIndex="0" onClick="{{ h.tap }}" onMouseEnter="{{ h.enter }}" onMouseLeave="{{ h.leave }}" title="{{ h.label }}" style="position:absolute;left:{{ h.x }}px;top:{{ h.y }}px;width:{{ h.w }}px;height:{{ h.h }}px;cursor:pointer">
+          <div style="position:absolute;inset:0;background:{{ h.vig }};mix-blend-mode:multiply;transition:opacity 260ms cubic-bezier(.23,1,.32,1);opacity:{{ h.vigOp }}"></div>
+          <div style="position:absolute;inset:0;background:{{ h.bloom }};mix-blend-mode:screen;transition:opacity 260ms cubic-bezier(.23,1,.32,1);opacity:{{ h.bloomOp }}"></div>
+          <div style="position:absolute;left:{{ h.sparkL }}px;top:{{ h.sparkT }}px;width:4px;height:4px;transition:opacity 260ms ease;opacity:{{ h.sparkOp }}"><div style="position:absolute;inset:0;border-radius:50%;background:{{ h.tint }};filter:blur(1.4px);animation:omPulse 5200ms ease-in-out {{ h.delay }} infinite"></div></div>
+          <div style="position:absolute;left:2px;top:100%;padding-top:5px;white-space:nowrap;font:600 12px/1 'Onest',sans-serif;color:#FFF9F2;text-shadow:0 1px 8px rgba(0,0,0,.9);pointer-events:none;transition:opacity 240ms cubic-bezier(.23,1,.32,1),transform 240ms cubic-bezier(.23,1,.32,1);opacity:{{ h.labOp }};transform:translateY({{ h.labY }})">{{ h.label }}</div>
+        </div>
       </sc-for>
       <div style="position:absolute;left:0px;right:0px;bottom:14px;display:flex;justify-content:center">
         <span style="padding:9px 16px;border-radius:100px;background:rgba(11,8,6,.72);font:500 10px/1 'Onest',sans-serif;letter-spacing:.14em;text-transform:uppercase;color:rgba(255,249,242,.72)">коснись зоны — подойдём ближе</span>
@@ -2901,7 +3246,7 @@ a:hover{color:#FFD2A4}
 
   <div style="font:600 9px/1 'Instrument Sans',sans-serif;letter-spacing:.17em;text-transform:uppercase;color:rgba(242,237,228,.52);margin-top:22px">Что видит хозяйка</div>
   <div style="font:400 12.5px/1.55 'Instrument Sans',sans-serif;color:rgba(242,237,228,.55);margin-top:9px">Ты просил, чтобы хозяин понимал, что происходит с комнатой. Правило: <b style="font-weight:600;color:rgba(242,237,228,.8)">она видит движение, но не имя и не вещь</b>. В комнате появляется счётчик «3 вещи уже кем-то забраны», а какие именно — нет. Иначе сюрприза не будет</div>
-  <div style="font:400 12.5px/1.55 'Instrument Sans',sans-serif;color:rgba(242,237,228,.56);margin-top:9px">Исключение — складчина: там она видит, что собирают на пальто, потому что скрыть сбор от пяти человек всё равно невозможно</div>
+  <div style="font:400 12.5px/1.55 'Instrument Sans',sans-serif;color:rgba(242,237,228,.56);margin-top:9px">Складчина здесь не исключение: прогресс сбора нужен гостям, чтобы присоединяться, а хозяйке он не нужен — она видит тот же счётчик. Если к дате не собрали, взносы возвращаются автоматически и она не узнаёт, что сбор был</div>
 
   <div style="font:600 9px/1 'Instrument Sans',sans-serif;letter-spacing:.17em;text-transform:uppercase;color:rgba(242,237,228,.52);margin-top:22px">Почему тихая бронь по умолчанию</div>
   <div style="font:400 12.5px/1.55 'Instrument Sans',sans-serif;color:rgba(242,237,228,.55);margin-top:9px">Она решает единственную настоящую боль — два человека дарят одно и то же — и ничего не отнимает у сюрприза. Остальные два способа для тех, кто договаривается вслух</div>
@@ -4939,6 +5284,7 @@ POOL.gaming = [iG('Игра года', '5 400 ₽'), iG('Второй геймп
 POOL.sport = [iP('runners', 'Беговые', 'люблю'), iG('Гантели 12 кг', '11 000 ₽'), iG('Коврик', '4 800 ₽'), iG('Фитнес-браслет', '16 000 ₽'), iG('Бутылка', '2 400 ₽')];
 POOL.home = [iP('ceramic', 'Керамика ручной работы', '4 800 ₽'), iP('cottage', 'Ваза с букетом', 'люблю'), iG('Плед из шерсти', '12 000 ₽'), iG('Свечи', '3 400 ₽'), iG('Постель из льна', '18 000 ₽')];
 POOL.flowers = [iP('cottage', 'Букет пионов', '8 900 ₽'), iG('Подписка на цветы', '4 200 ₽'), iG('Сухоцветы', '3 100 ₽'), iG('Ваза', '6 800 ₽'), iG('Орхидея', '5 400 ₽')];
+POOL.money = [iG('На любую сумму', 'открыто'), iG('Копилка на поездку', '34 000 ₽'), iG('Сертификат', '5 000 ₽')];
 
 const KEYS = {
   beauty:   ['Красота и уход', '31 вещь · 9 в подарок', 'органайзер раскрывается', 'beauty', '+26'],
@@ -4958,7 +5304,8 @@ const KEYS = {
   sport:    ['Спорт', '15 вещей · 4 в подарок', 'стойка подсвечивается', 'sport', '+10'],
   grooming: ['Уход', '9 вещей · 3 в подарок', 'тюбики выходят на свет', 'perfume', '+4'],
   sneakers: ['Обувь и рюкзаки', '16 вещей · 5 в подарок', 'витрина открывается', 'sneakers', '+11'],
-  watches:  ['Часы', '8 вещей · 3 в подарок', 'крышка поднимается', 'watches', '+3']
+  watches:  ['Часы', '8 вещей · 3 в подарок', 'крышка поднимается', 'watches', '+3'],
+  money:    ['Просто деньги', 'основной подарок · открыт для всех', 'конверт светится', 'money', '—']
 };
 
 const zone = (key, x, y, w, h, frame, poolOverride) => {
@@ -4967,16 +5314,16 @@ const zone = (key, x, y, w, h, frame, poolOverride) => {
 };
 
 const ROOMS = [
-  { id: 'cream', name: 'Кремовая', owner: 'Мила', base: 'refs/v4-cream.jpg', accent: '#E7C9A9', ink: '#241A0E', counts: '142 желания · 19 в подарок', tod: 'вечер · 22:10', sex: 'F', zones: [zone('fashion',134,91,83,191,'refs/c-wardrobe-open.jpg'),zone('beauty',281,125,87,52,'refs/c-vanity-open.jpg'),zone('jewelry',0,114,121,82,'refs/c-jewel-open.jpg'),zone('perfume',343,179,39,20),zone('bags',0,209,121,50),zone('travel',2,266,108,70),zone('anything',119,297,85,48)] },
-  { id: 'warm', name: 'Тихая роскошь', owner: 'Ирина', base: 'refs/v4-warm.jpg', accent: '#E8B27A', ink: '#241505', counts: '238 желаний · 21 в подарок', tod: 'вечер · 21:40', sex: 'F', zones: [zone('fashion',2,23,119,168,'refs/o-warm.jpg'),zone('jewelry',233,160,28,26,'refs/o-warm-jewel.jpg'),zone('anything',123,215,80,120,'refs/o-warm-any.jpg'),zone('beauty',176,5,96,150),zone('perfume',171,161,59,32),zone('bags',4,200,117,59),zone('home',380,222,50,129),zone('events',315,82,92,48),zone('travel',219,222,157,109)] },
-  { id: 'lux', name: 'Пентхаус', owner: 'Ирина', base: 'refs/v4-lux.jpg', accent: '#E5C989', ink: '#20180A', counts: '341 желание · 26 в подарок', tod: 'сумерки · 20:15', sex: 'F', zones: [zone('fashion',0,68,194,97,'refs/o-lux-fashion.jpg'),zone('bags',0,191,98,64,'refs/o-lux.jpg'),zone('anything',98,168,101,164,'refs/o-lux-any.jpg'),zone('beauty',226,129,66,75),zone('jewelry',272,218,98,23),zone('perfume',228,204,44,23),zone('events',356,107,51,84),zone('travel',277,242,107,107)] },
-  { id: 'emerald', name: 'Изумруд', owner: 'Ирина', base: 'refs/v4-emerald.jpg', accent: '#D9B978', ink: '#1B2119', counts: '238 желаний · 21 в подарок', tod: 'ночь · 23:05', sex: 'F', zones: [zone('fashion',31,34,64,159,'refs/o-emerald-fashion.jpg'),zone('jewelry',281,177,46,36,'refs/o-emerald.jpg'),zone('anything',0,195,77,123,'refs/o-emerald-any.jpg'),zone('beauty',221,57,92,118),zone('perfume',212,193,46,20),zone('bags',105,215,69,66),zone('home',363,215,67,136),zone('events',356,73,74,102),zone('travel',208,248,146,102)] },
-  { id: 'bold', name: 'Дерзкая', owner: 'Ирина', base: 'refs/v5-bold-a.jpg', accent: '#FF57C8', ink: '#2A0420', counts: '187 желаний · 25 в подарок', tod: 'ночь · 23:40', sex: 'F', zones: [zone('fashion',41,39,156,163,'refs/o-bold-fashion.jpg'),zone('beauty',199,172,127,93,'refs/o-bold.jpg'),zone('anything',0,267,269,85,'refs/o-bold-any.jpg'),zone('jewelry',342,169,35,29),zone('perfume',328,200,25,32),zone('bags',47,211,149,53),zone('events',364,70,66,56),zone('music',404,163,26,45),zone('travel',283,270,107,82)] },
-  { id: 'cottage', name: 'Загородная', owner: 'Ирина', base: 'refs/v4-cottage.jpg', accent: '#D98E6A', ink: '#25120A', counts: '108 желаний · 13 в подарок', tod: 'день · 16:20', sex: 'F', zones: [zone('fashion',0,46,125,181,'refs/o-cottage.jpg'),zone('jewelry',238,147,34,20,'refs/o-cottage-jewel.jpg'),zone('anything',123,250,103,95,'refs/o-cottage-any.jpg'),zone('beauty',180,105,50,73),zone('perfume',185,179,53,18),zone('bags',2,227,119,55),zone('events',315,84,115,52),zone('music',396,213,34,23),zone('travel',238,233,160,111)] },
-  { id: 'gamer', name: 'Геймер', owner: 'Артём', base: 'refs/m-gamer.jpg', accent: '#7FB2FF', ink: '#06121F', counts: '96 желаний · 14 в подарок', tod: 'ночь · 00:20', sex: 'M', zones: [zone('sneakers',42,182,119,57,'refs/o-gamer.jpg'),zone('tech',238,147,84,34,'refs/o-gamer-tech.jpg'),zone('anything',0,241,114,95,'refs/o-gamer-any.jpg'),zone('gaming',189,129,47,16),zone('sport',375,214,55,72),zone('grooming',227,183,30,23),zone('fashion',42,84,119,93,null,'fashionM'),zone('events',391,79,39,89),zone('travel',174,227,91,91)] },
-  { id: 'sport', name: 'Спорт и дуб', owner: 'Артём', base: 'refs/m-sport.jpg', accent: '#D9A76C', ink: '#241705', counts: '124 желания · 17 в подарок', tod: 'вечер · 20:40', sex: 'M', zones: [zone('fashion',22,56,112,158,'refs/o-sport.jpg','fashionM'),zone('watches',330,150,70,40,'refs/o-sport-watch.jpg'),zone('anything',157,264,101,74,'refs/o-sport-any.jpg'),zone('sneakers',24,220,110,50),zone('grooming',200,170,60,34),zone('books',360,90,70,60),zone('music',355,200,60,34),zone('sport',250,250,110,90)] },
-  { id: 'study', name: 'Кабинет', owner: 'Артём', base: 'refs/m-study.jpg', accent: '#D3B064', ink: '#1E1608', counts: '208 желаний · 22 в подарок', tod: 'вечер · 22:35', sex: 'M', zones: [zone('fashion',0,60,129,150,'refs/o-study-fashion.jpg','fashionM'),zone('watches',230,169,95,45,'refs/o-study.jpg'),zone('anything',89,253,135,85,'refs/o-study-any.jpg'),zone('sneakers',4,215,120,55),zone('grooming',175,175,55,32),zone('books',345,60,85,110),zone('music',350,190,80,40),zone('events',300,80,45,60)] },
-  { id: 'loft', name: 'Лофт', owner: 'Артём', base: 'refs/m-loft.jpg', accent: '#D2703A', ink: '#1E0E05', counts: '167 желаний · 20 в подарок', tod: 'ночь · 23:15', sex: 'M', zones: [zone('fashion',22,51,135,163,'refs/o-loft-fashion.jpg','fashionM'),zone('music',241,158,118,56,'refs/o-loft.jpg'),zone('anything',72,259,141,79,'refs/o-loft-any.jpg'),zone('sneakers',24,222,130,48),zone('tech',190,165,70,40),zone('books',350,70,80,100),zone('sport',340,215,90,70),zone('events',300,75,45,55)] }
+  { id: 'cream', name: 'Кремовая', owner: 'Мила', base: 'refs/v4-cream.jpg', accent: '#E7C9A9', ink: '#241A0E', counts: '142 желания · 19 в подарок', tod: 'вечер · 22:10', sex: 'F', light: 0.82, zones: [zone('fashion',134,91,83,191,'refs/c-wardrobe-open.jpg'),zone('beauty',281,125,87,52,'refs/c-vanity-open.jpg'),zone('jewelry',0,114,121,82,'refs/c-jewel-open.jpg'),zone('perfume',343,179,39,20),zone('bags',0,209,121,50),zone('travel',2,266,108,70),zone('anything',119,297,85,48),zone('events',300,84,86,26),zone('books',296,182,44,20),zone('music',374,150,40,26),zone('flowers',398,108,32,40),zone('home',338,214,92,80),zone('money',236,200,32,28)] },
+  { id: 'warm', name: 'Тихая роскошь', owner: 'Ирина', base: 'refs/v4-warm.jpg', accent: '#E8B27A', ink: '#241505', counts: '238 желаний · 21 в подарок', tod: 'вечер · 21:40', sex: 'F', light: 0.46, zones: [zone('fashion',2,23,119,168,'refs/o-warm.jpg'),zone('jewelry',233,160,28,26,'refs/o-warm-jewel.jpg'),zone('anything',123,215,80,120,'refs/o-warm-any.jpg'),zone('beauty',176,5,96,150),zone('perfume',171,161,59,32),zone('bags',4,200,117,59),zone('home',386,232,44,110),zone('events',315,82,92,48),zone('travel',219,222,157,109),zone('books',350,18,56,58),zone('music',358,192,40,22),zone('flowers',148,108,28,48),zone('money',264,164,43,27)] },
+  { id: 'lux', name: 'Пентхаус', owner: 'Ирина', base: 'refs/v4-lux.jpg', accent: '#E5C989', ink: '#20180A', counts: '341 желание · 26 в подарок', tod: 'сумерки · 20:15', sex: 'F', light: 0.52, zones: [zone('fashion',0,68,194,97,'refs/o-lux-fashion.jpg'),zone('bags',0,191,98,64,'refs/o-lux.jpg'),zone('anything',98,168,101,164,'refs/o-lux-any.jpg'),zone('beauty',226,129,66,75),zone('jewelry',272,218,98,23),zone('perfume',228,204,44,23),zone('events',356,107,51,84),zone('travel',277,242,107,107),zone('books',352,26,56,62),zone('music',352,192,48,24),zone('flowers',400,120,30,72),zone('home',389,236,22,96),zone('money',295,181,33,30)] },
+  { id: 'emerald', name: 'Изумруд', owner: 'Ирина', base: 'refs/v4-emerald.jpg', accent: '#D9B978', ink: '#1B2119', counts: '238 желаний · 21 в подарок', tod: 'ночь · 23:05', sex: 'F', light: 0.24, zones: [zone('fashion',31,34,64,159,'refs/o-emerald-fashion.jpg'),zone('jewelry',281,177,46,36,'refs/o-emerald.jpg'),zone('anything',0,195,77,123,'refs/o-emerald-any.jpg'),zone('beauty',221,57,92,118),zone('perfume',212,193,46,20),zone('bags',105,215,69,66),zone('home',363,215,67,136),zone('events',356,73,74,102),zone('travel',208,248,146,102),zone('books',352,10,52,64),zone('music',350,180,52,20),zone('flowers',402,10,28,56),zone('money',328,194,29,21)] },
+  { id: 'bold', name: 'Дерзкая', owner: 'Ирина', base: 'refs/v5-bold-a.jpg', accent: '#FF57C8', ink: '#2A0420', counts: '187 желаний · 25 в подарок', tod: 'ночь · 23:40', sex: 'F', light: 0.15, zones: [zone('fashion',41,39,156,163,'refs/o-bold-fashion.jpg'),zone('beauty',199,172,127,93,'refs/o-bold.jpg'),zone('anything',0,267,269,85,'refs/o-bold-any.jpg'),zone('jewelry',342,169,35,29),zone('perfume',328,200,25,32),zone('bags',47,211,149,53),zone('events',364,70,66,56),zone('music',404,163,26,45),zone('travel',283,270,107,82),zone('books',356,22,50,43),zone('flowers',382,148,22,58),zone('home',395,230,22,100),zone('money',355,198,30,35)] },
+  { id: 'cottage', name: 'Загородная', owner: 'Ирина', base: 'refs/v4-cottage.jpg', accent: '#D98E6A', ink: '#25120A', counts: '108 желаний · 13 в подарок', tod: 'день · 16:20', sex: 'F', light: 0.58, zones: [zone('fashion',0,46,125,181,'refs/o-cottage.jpg'),zone('jewelry',238,147,34,20,'refs/o-cottage-jewel.jpg'),zone('anything',123,250,103,95,'refs/o-cottage-any.jpg'),zone('beauty',180,105,50,73),zone('perfume',185,179,53,22),zone('bags',2,227,119,55),zone('events',315,84,115,52),zone('music',396,213,34,23),zone('travel',238,233,160,111),zone('books',350,28,54,58),zone('flowers',400,150,30,66),zone('home',401,236,22,96),zone('money',238,170,34,28)] },
+  { id: 'gamer', name: 'Геймер', owner: 'Артём', base: 'refs/m-gamer.jpg', accent: '#7FB2FF', ink: '#06121F', counts: '96 желаний · 14 в подарок', tod: 'ночь · 00:20', sex: 'M', light: 0.17, zones: [zone('sneakers',42,182,119,57,'refs/o-gamer.jpg'),zone('tech',238,147,84,34,'refs/o-gamer-tech.jpg'),zone('anything',0,241,114,95,'refs/o-gamer-any.jpg'),zone('gaming',189,125,47,20),zone('sport',375,214,55,72),zone('grooming',227,183,30,23),zone('fashion',42,84,119,93,null,'fashionM'),zone('events',391,79,39,89),zone('travel',174,227,91,91),zone('watches',356,148,30,26),zone('music',350,24,52,56),zone('books',352,92,34,48),zone('money',269,268,22,40)] },
+  { id: 'sport', name: 'Спорт и дуб', owner: 'Артём', base: 'refs/m-sport.jpg', accent: '#D9A76C', ink: '#241705', counts: '124 желания · 17 в подарок', tod: 'вечер · 20:40', sex: 'M', light: 0.55, zones: [zone('fashion',22,56,112,158,'refs/o-sport.jpg','fashionM'),zone('watches',330,150,70,40,'refs/o-sport-watch.jpg'),zone('anything',157,264,101,74,'refs/o-sport-any.jpg'),zone('sneakers',24,220,110,50),zone('grooming',200,170,60,34),zone('books',360,90,70,60),zone('music',355,200,60,34),zone('sport',250,250,110,90),zone('tech',192,137,62,28),zone('gaming',258,150,44,26),zone('events',300,80,55,30),zone('travel',10,278,84,60),zone('money',365,268,22,42)] },
+  { id: 'study', name: 'Кабинет', owner: 'Артём', base: 'refs/m-study.jpg', accent: '#D3B064', ink: '#1E1608', counts: '208 желаний · 22 в подарок', tod: 'вечер · 22:35', sex: 'M', light: 0.28, zones: [zone('fashion',0,60,129,150,'refs/o-study-fashion.jpg','fashionM'),zone('watches',230,169,95,45,'refs/o-study.jpg'),zone('anything',89,253,135,85,'refs/o-study-any.jpg'),zone('sneakers',4,215,120,33),zone('grooming',175,175,55,32),zone('books',345,60,85,110),zone('music',350,190,80,40),zone('events',300,80,45,60),zone('tech',186,144,39,26),zone('gaming',250,138,42,26),zone('sport',300,244,68,86),zone('travel',6,276,80,62),zone('money',262,268,34,42)] },
+  { id: 'loft', name: 'Лофт', owner: 'Артём', base: 'refs/m-loft.jpg', accent: '#D2703A', ink: '#1E0E05', counts: '167 желаний · 20 в подарок', tod: 'ночь · 23:15', sex: 'M', light: 0.22, zones: [zone('fashion',22,51,135,163,'refs/o-loft-fashion.jpg','fashionM'),zone('music',241,158,118,56,'refs/o-loft.jpg'),zone('anything',72,259,141,79,'refs/o-loft-any.jpg'),zone('sneakers',24,222,130,32),zone('tech',190,165,46,40),zone('books',364,70,66,100),zone('sport',340,215,90,70),zone('events',300,75,45,55),zone('gaming',252,125,44,28),zone('watches',300,127,48,26),zone('grooming',196,197,52,20),zone('travel',8,272,59,64),zone('money',288,268,34,42)] }
 ];
 
 const SW = 430, SH = 352, SCALE = 1.72;
@@ -4995,7 +5342,7 @@ const BRANDS = {
 };
 
 class Component extends DCLogic {
-  state = { mz: null, mp: 0, shown: 0, ri: 0, rz: null, rp: 0, rShown: 0, di: 0, dh: null, dz: null, dp: 0, dShown: 0 };
+  state = { mz: null, mp: 0, shown: 0, ri: 0, rz: null, rp: 0, rShown: 0, rh: null, di: 0, dh: null, dz: null, dp: 0, dShown: 0 };
 
   clearAll() { (this._t || []).forEach(clearTimeout); this._t = []; }
 
@@ -5016,6 +5363,40 @@ class Component extends DCLogic {
     this._t.push(setTimeout(() => this.setState({ mz: null }), 640));
   }
 
+  mkOn(k) { this.setState({ mk: k }); }
+  mkOff() { this.setState({ mk: null }); }
+  chOn(k) { this.setState({ ch: k }); }
+
+  mkList(room) {
+    const Z = {
+      A: [
+        { id: 'A1', x: 8, y: 62, w: 66, h: 44, ar: 87, label: 'Украшения', lightness: .82, c: '#E7C9A9' },
+        { id: 'A2', x: 158, y: 68, w: 47, h: 28, ar: 97, label: 'Красота и уход', lightness: .82, c: '#E7C9A9' },
+        { id: 'A3', x: 79, y: 49, w: 45, h: 103, ar: 30, label: 'Одежда', lightness: .82, c: '#E7C9A9' }
+      ],
+      B: [
+        { id: 'B1', x: 12, y: 12, w: 48, h: 50, ar: 56, label: 'Одежда', lightness: .15, c: '#FF57C8' },
+        { id: 'B2', x: 114, y: 93, w: 74, h: 50, ar: 86, label: 'Красота и уход', lightness: .15, c: '#FF57C8' },
+        { id: 'B3', x: 203, y: 38, w: 55, h: 30, ar: 106, label: 'Впечатления', lightness: .15, c: '#78E6BE' }
+      ]
+    }[room];
+    return Z.map(z => {
+      const on = this.state.mk === z.id;
+      const bw = 1 - z.lightness * .75, vw = .25 + z.lightness * .75;
+      return {
+        x: z.x, y: z.y, w: z.w, h: z.h, label: z.label, spark: z.c,
+        bloom: 'radial-gradient(ellipse ' + z.ar + '% 62% at 50% 42%, ' + z.c + ' 0%, ' + z.c + '55 38%, transparent 72%)',
+        bloomOp: ((on ? .34 : .12) * bw).toFixed(3),
+        vig: 'radial-gradient(ellipse 78% 78% at 50% 50%, rgba(24,14,6,0) 38%, rgba(24,14,6,1) 100%)',
+        vigOp: ((on ? .62 : .34) * vw).toFixed(3),
+        sparkOp: on ? '0' : '.8',
+        sparkL: Math.round(z.w / 2 - 2), sparkT: Math.round(z.h / 2 - 2),
+        labOp: on ? '1' : '0', labY: on ? '0px' : '4px',
+        enter: () => this.mkOn(z.id)
+      };
+    });
+  }
+
   clearR() { (this._r || []).forEach(clearTimeout); this._r = []; }
 
   pickRoom(i) {
@@ -5026,7 +5407,7 @@ class Component extends DCLogic {
   tapR(k) {
     if (this.state.rz === k) { this.backR(); return; }
     this.clearR();
-    this.setState({ rz: k, rp: 1, rShown: 0 });
+    this.setState({ rz: k, rp: 1, rShown: 0, rh: null });
     this._r.push(setTimeout(() => this.setState({ rp: 2 }), 420));
     for (let i = 1; i <= 6; i++) {
       this._r.push(setTimeout(() => this.setState({ rp: 3, rShown: i }), 620 + i * 60));
@@ -5115,13 +5496,39 @@ class Component extends DCLogic {
       rHasFrame: !!(Z && Z.frame), rNoFrame: !!(Z && !Z.frame),
       rZoneCount: R.zones.length,
       rFramedCount: R.zones.filter(function (q) { return q.frame; }).length,
-      rHots: R.zones.map((zz, i) => ({
-        x: Math.max(0, Math.round(zz.x - Math.max(0, (44 - zz.w) / 2))),
-        y: Math.max(0, Math.round(zz.y - Math.max(0, (44 - zz.h) / 2))),
-        w: Math.max(44, zz.w), h: Math.max(44, zz.h), label: zz.label,
-        delay: (i * 0.9).toFixed(1) + 's',
-        tap: () => this.tapR(i)
-      })),
+      rHots: R.zones.map((zz, i) => {
+        const L = R.light === undefined ? .4 : R.light;
+        const bw = 1 - L * .75, vw = .25 + L * .75;
+        const on = this.state.rh === i;
+        // цель нажатия не меньше 44 px, но не за пределами сцены и без наезда на соседей
+        let pad = 44;
+        for (let k = 0; k < R.zones.length; k++) {
+          if (k === i) continue;
+          const o = R.zones[k];
+          const gx = Math.max(zz.x - (o.x + o.w), o.x - (zz.x + zz.w));
+          const gy = Math.max(zz.y - (o.y + o.h), o.y - (zz.y + zz.h));
+          if (gx < 0 && gy >= 0 && gy < 14) pad = Math.min(pad, zz.h + gy * 2);
+          if (gy < 0 && gx >= 0 && gx < 14) pad = Math.min(pad, zz.w + gx * 2);
+        }
+        let w = Math.max(Math.min(pad, 44), zz.w), h = Math.max(Math.min(pad, 44), zz.h);
+        let x = Math.round(zz.x - (w - zz.w) / 2), y = Math.round(zz.y - (h - zz.h) / 2);
+        x = Math.max(0, Math.min(x, 430 - w));
+        y = Math.max(0, Math.min(y, 352 - h));
+        const ar = Math.max(30, Math.min(120, Math.round(zz.w / zz.h * 58)));
+        return {
+          x: x, y: y, w: w, h: h, label: zz.label,
+          delay: (i * 0.9).toFixed(1) + 's',
+          bloom: 'radial-gradient(ellipse ' + ar + '% 62% at 50% 42%, ' + R.accent + ' 0%, ' + R.accent + '55 38%, transparent 72%)',
+          bloomOp: ((on ? .34 : .12) * bw).toFixed(3), tint: R.accent,
+          vig: 'radial-gradient(ellipse 78% 78% at 50% 50%, rgba(24,14,6,0) 38%, rgba(24,14,6,1) 100%)',
+          vigOp: ((on ? .62 : .34) * vw).toFixed(3),
+          sparkOp: on ? '0' : '.8', sparkL: Math.round(w / 2 - 2), sparkT: Math.round(h / 2 - 2),
+          labOp: on ? '1' : '0', labY: on ? '0px' : '4px',
+          enter: () => this.setState({ rh: i }),
+          leave: () => this.setState({ rh: null }),
+          tap: () => this.tapR(i)
+        };
+      }),
       rChips: this.state.rz === null
         ? R.zones.map((zz, i) => ({
             label: zz.label,
@@ -5141,6 +5548,21 @@ class Component extends DCLogic {
         bar: (!t.more && t.price !== 'люблю') ? R.accent : 'rgba(255,255,255,0)',
         bd: (!t.more && t.price !== 'люблю') ? '1px dashed ' + R.accent : '1px solid rgba(255,255,255,.09)'
       })),
+      mkLeave: () => this.mkOff(),
+      mkDimA: this.state.mk && this.state.mk[0] === 'A' ? '.15' : '0',
+      mkDimB: this.state.mk && this.state.mk[0] === 'B' ? '.15' : '0',
+      mkZonesA: this.mkList('A'),
+      mkZonesB: this.mkList('B'),
+      chLove: (this.state.ch || 'want') === 'love',
+      chWant: (this.state.ch || 'want') === 'want',
+      chLoveOp: (this.state.ch || 'want') === 'love' ? '1' : '.62',
+      chWantOp: (this.state.ch || 'want') === 'want' ? '1' : '.62',
+      chLoveBar: (this.state.ch || 'want') === 'love' ? '#E8B27A' : 'rgba(255,255,255,.12)',
+      chWantBar: (this.state.ch || 'want') === 'want' ? '#E8B27A' : 'rgba(255,255,255,.12)',
+      chLoveGlow: (this.state.ch || 'want') === 'love' ? '0 4px 20px -4px rgba(232,178,122,.55)' : 'none',
+      chWantGlow: (this.state.ch || 'want') === 'want' ? '0 4px 20px -4px rgba(232,178,122,.55)' : 'none',
+      pickLove: () => this.chOn('love'),
+      pickWant: () => this.chOn('want'),
       rBack: () => this.backR(),
 
       dRooms: ROOMS.map((r, i) => ({

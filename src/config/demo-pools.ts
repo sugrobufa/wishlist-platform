@@ -151,9 +151,16 @@ export type DemoGhostDto = OwnerItemDto & { isDemo: true };
  * «пример — замени на своё» и бейдж «пример» рисует плитка по isDemo
  * (строки — messages, ns ZoneGrid). Не бронируются, в БД не пишутся,
  * показываются только пока у зоны нет ни одной своей вещи.
+ *
+ * Незнакомый ключ пула — не исключение, а пустой список: контракт живёт
+ * отдельно от кода и приезжает раньше него. Раунд 2 привёз зону `money`
+ * с пулом `money`, которого в пакете нет; содержимое такого пула мы не
+ * выдумываем — это вопрос к дизайну (ADR-0003). Проверка `hasOwn` вместо
+ * `?? []` нужна, чтобы ключи прототипа (`constructor`, `toString`) не
+ * пролезали как «найденный пул».
  */
 export function demoGhostsFor(zoneKey: string, poolKey: string): DemoGhostDto[] {
-  const seeds = demoPools[poolKey] ?? [];
+  const seeds = (Object.hasOwn(demoPools, poolKey) ? demoPools[poolKey] : undefined) ?? [];
   return seeds.map((seed, index) => {
     const base = {
       id: `demo:${zoneKey}:${index}`,

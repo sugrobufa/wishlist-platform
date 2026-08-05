@@ -49,6 +49,9 @@ export default async function AddItemPage({ searchParams }: SearchParams) {
       initialZone={initialZone}
       // Пришли «добавить в эту зону» (?zone=…) — подсказка парсера зону не двигает.
       zonePreselected={preselected !== undefined}
+      // Выход из карточки ведёт туда, откуда пришли: со страницы зоны (?zone=…)
+      // обратно в неё, иначе в комнату (приёмка п.1).
+      exitHref={preselected ? `/room/zone/${preselected}` : "/room"}
       accent={preset.accent}
       ink={preset.ink}
     />

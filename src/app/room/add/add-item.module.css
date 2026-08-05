@@ -12,6 +12,44 @@
   color-scheme: dark;
 }
 
+/* --- Путь назад: тихая навигация в шапке обоих шагов (приёмка п.1) --------- */
+
+/* В потоке, а не поверх формы: на узком экране ничего не перекрывает и
+ * никуда не уезжает. Единственная «полоса света» карточки — «Сохранить». */
+.nav {
+  display: flex;
+  align-items: center;
+  gap: 8px 16px;
+  flex-wrap: wrap;
+}
+
+.navLink {
+  border: 0;
+  background: none;
+  padding: 4px 0;
+  font: 500 12.5px/1.2 var(--font-ui);
+  color: var(--color-text-muted);
+  text-decoration: none;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .navLink {
+    transition: color 160ms var(--ai-ease);
+  }
+
+  .navLink:hover {
+    color: var(--color-text-strong);
+  }
+}
+
+/* Выход из карточки — вторым и ещё тише «Назад». */
+.navExit {
+  margin-left: auto;
+  color: var(--color-text-faint);
+}
+
 /* --- Шаг 1: тайлы состояния ---------------------------------------------- */
 
 .tileGrid {
