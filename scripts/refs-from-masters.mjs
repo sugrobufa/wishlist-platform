@@ -41,6 +41,19 @@ const CONTRACT = path.join(REPO, "design/package/handoff/rooms.json");
 
 /** Порог «композиция не поехала»: средний модуль разности яркости с нынешним кадром. */
 const COMPOSITION_MAX = 0.05;
+
+/**
+ * Комнаты, которым порог прощён ПОИМЁННО (`--allow warm,loft`).
+ *
+ * Порог — прокси: он охраняет прямоугольники зон, но измеряет кадр целиком.
+ * Когда прямоугольники сверены с новым кадром ГЛАЗАМИ и стоят на предметах,
+ * прокси больше не нужен — есть прямое наблюдение, которое сильнее.
+ *
+ * Именной пропуск, а не пониженный порог: снизить число значило бы молча
+ * пропускать и то, что никто не смотрел. Здесь же в командной строке видно,
+ * за какую комнату человек поручился.
+ */
+const ALLOW = (args[args.indexOf("--allow") + 1] ?? "").split(",").filter(Boolean);
 /** Рабочий размер сравнения — как в scripts/name-masters.mjs. */
 const CMP_W = 1200, CMP_H = 670;
 
@@ -75,9 +88,15 @@ async function main() {
     const curBase = path.join(REFS, baseName);
 
     const drift = l1(await grey(curBase), await grey(srcBase));
-    const passed = drift <= COMPOSITION_MAX;
+    const allowed = ALLOW.includes(room.id);
+    const passed = drift <= COMPOSITION_MAX || allowed;
+    const verdict = drift <= COMPOSITION_MAX
+      ? "принят"
+      : allowed
+        ? "ПРОПУЩЕН ИМЕНЕМ — зоны сверены глазами"
+        : "ОТКЛОНЁН — кадры комнаты не берём";
     console.log(
-      `${room.id.padEnd(9)} композиция ${drift.toFixed(4)} ${passed ? "≤" : ">"} ${COMPOSITION_MAX}  ${passed ? "принят" : "ОТКЛОНЁН — кадры комнаты не берём"}`,
+      `${room.id.padEnd(9)} композиция ${drift.toFixed(4)} ${drift <= COMPOSITION_MAX ? "≤" : ">"} ${COMPOSITION_MAX}  ${verdict}`,
     );
     if (!passed) {
       rejected.push({ room: room.id, drift: +drift.toFixed(4) });
