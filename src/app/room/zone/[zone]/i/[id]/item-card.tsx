@@ -16,8 +16,11 @@
 import { useState, useTransition, type CSSProperties } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useTranslations } from "next-intl";
+import { useLocale, useTranslations } from "next-intl";
 import type { OwnerItemDto } from "@/server/dto/items";
+import type { HallPriceAudience } from "@/server/dto/hall";
+import { formatHallMoney } from "@/app/room/hall/money";
+import { PriceSeenBadge } from "@/app/room/hall/price-seen-badge";
 import {
   deleteItemAction,
   setItemHiddenAction,
@@ -70,8 +73,26 @@ function errorToKey(code: NonNullable<ItemActionResult>["error"]): string {
   }
 }
 
+/**
+ * Цена вещи «люблю» для истории — считана `hallItemForOwner` на сервере
+ * (тикет 35, ADR-0004). Отдельно от `item`, потому что форма LOVE в owner-DTO
+ * цены не несёт и не должна: цена «люблю» появляется ровно по настройке.
+ * `null` — вещь не «люблю».
+ */
+export type LovePriceDto = {
+  /** Строка Decimal, уже округлённая, если включён тумблер. `null` — цены нет. */
+  price: string | null;
+  currency: string | null;
+  /** Показана округлённой — подпись «около …». */
+  rounded: boolean;
+  /** Кому адресована цена — ключ подписи `Hall.seen*`. */
+  priceAudience: HallPriceAudience;
+};
+
 type ItemCardProps = {
   item: OwnerItemDto;
+  /** Цена «люблю» и кому она видна; `null` у вещи «хочу». */
+  lovePrice: LovePriceDto | null;
   /** Видимые зоны комнаты — куда вещь можно перенести. */
   zones: ZoneOption[];
   /** Подпись зоны, в которой вещь лежит сейчас (путь назад). */
@@ -80,12 +101,16 @@ type ItemCardProps = {
   ink: string;
 };
 
-export function ItemCard({ item, zones, zoneLabel, accent, ink }: ItemCardProps) {
+export function ItemCard({ item, lovePrice, zones, zoneLabel, accent, ink }: ItemCardProps) {
   // Действия вещи и строки истории — ns Settings (там же живут «Спрятать»,
   // «Удалить», «Уже моё»); подписи полей — ns AddItem: карточка правки
-  // говорит теми же словами, что карточка добавления.
+  // говорит теми же словами, что карточка добавления. Строки про цену «люблю»
+  // и «кто её видит» — ns Hall: они принадлежат залу славы, и говорить о цене
+  // в двух местах разными словами нельзя.
   const t = useTranslations("Settings");
   const tField = useTranslations("AddItem");
+  const tHall = useTranslations("Hall");
+  const locale = useLocale();
   const router = useRouter();
 
   const want = item.state === "WANT" ? item : null;
@@ -212,12 +237,27 @@ export function ItemCard({ item, zones, zoneLabel, accent, ink }: ItemCardProps)
                   <dd className="text-text-primary">{love.giverName}</dd>
                 </div>
               )}
-              {/* Цена вещи «люблю» гостю не видна (инвариант №8): настройка
-                  зала славы — отдельный разговор (ADR-0004, тикет 35). */}
-              <div className="flex items-baseline justify-between gap-4">
-                <dt className="text-text-muted">{tField("priceLabel")}</dt>
-                <dd className="text-text-primary">{t("itemPriceHidden")}</dd>
-              </div>
+              {/* Цена вещи «люблю». Раньше здесь безусловно стояло «Скрыта» —
+                  это перестало быть правдой с тикетом 35: цену открывает
+                  настройка зала славы (ADR-0004). Хозяйке её собственная цена
+                  видна всегда, а значок рядом честно говорит, кто видит её
+                  КРОМЕ неё. Цены у вещи нет вовсе — строки нет: сказать
+                  нечего, а «Скрыта» соврало бы второй раз. */}
+              {lovePrice?.price != null && (
+                <div className="flex items-baseline justify-between gap-4">
+                  <dt className="text-text-muted">{tField("priceLabel")}</dt>
+                  <dd className="flex flex-wrap items-center justify-end gap-x-2 gap-y-1.5 text-text-primary">
+                    <span>
+                      {lovePrice.rounded
+                        ? tHall("priceAbout", {
+                            price: formatHallMoney(lovePrice.price, lovePrice.currency, locale),
+                          })
+                        : formatHallMoney(lovePrice.price, lovePrice.currency, locale)}
+                    </span>
+                    <PriceSeenBadge audience={lovePrice.priceAudience} />
+                  </dd>
+                </div>
+              )}
             </dl>
           </section>
         )}

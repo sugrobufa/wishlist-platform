@@ -31,6 +31,7 @@ import {
   hallItemForOwner,
   hallSettingsOf,
   hallTotals,
+  priceAudienceHidden,
   roundHallPrice,
   type HallSettings,
 } from "../src/server/dto/hall";
@@ -514,5 +515,31 @@ describe("сквозной путь: комната по ссылке", () => {
     expect("priceVisibility" in item).toBe(false);
     expect("hidden" in item).toBe(false);
     expect(JSON.stringify(view)).not.toContain("hallPriceVisibility");
+  });
+});
+
+describe("значок «кто видит цену»", () => {
+  // Значок стоит и в зале славы, и в истории вещи (тикет 39). Правило одно на
+  // оба места, поэтому и живёт оно в dto/hall.ts, а не в разметке.
+  it("перечёркнут везде, где гость цену не увидит", () => {
+    expect(priceAudienceHidden("ITEM")).toBe(true);
+    expect(priceAudienceHidden("ME")).toBe(true);
+    expect(priceAudienceHidden("NONE")).toBe(true);
+  });
+
+  it("открыт там, где цену кто-то видит", () => {
+    expect(priceAudienceHidden("ALL")).toBe(false);
+    expect(priceAudienceHidden("FRIENDS")).toBe(false);
+  });
+
+  it("не спорит с подписью: закрытому адресату — закрытый глаз", () => {
+    // Ровно этот случай и был сломан: «цену не видит никто» с открытым глазом.
+    const hiddenToGuest = (["ME", "NONE", "ITEM"] as const).every((audience) =>
+      audience === "ITEM" ? true : !guestSeesHallPrice(audience),
+    );
+    expect(hiddenToGuest).toBe(true);
+    for (const audience of ["ME", "NONE", "ITEM"] as const) {
+      expect(priceAudienceHidden(audience)).toBe(true);
+    }
   });
 });

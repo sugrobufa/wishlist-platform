@@ -4,6 +4,7 @@ import { auth } from "@/server/auth";
 import { getRoomForUser, getSessionUserId } from "@/server/services/rooms";
 import { getOwnItem } from "@/server/services/items";
 import { itemForOwner } from "@/server/dto/items";
+import { hallItemForOwner, hallSettingsOf } from "@/server/dto/hall";
 import { rooms, zoneInfo } from "@/config/design";
 import { visibleZones } from "@/components/scene/zones";
 import { ItemCard, type ZoneOption } from "./item-card";
@@ -24,12 +25,19 @@ export async function generateMetadata({ params }: Params): Promise<Metadata> {
  * Карточка вещи глазами хозяйки (тикет 39, турны 11e и 8c; P0-экран из 19b):
  * правка полей, перенос на другую полку, «спрятать» и «удалить». У вещи
  * «люблю» сверху — её история: «В комнате с {год}», «Подарок от {кто}»,
- * «Цена · скрыта» и заметка, которая до сих пор не показывалась нигде (Б21).
+ * цена и заметка, которая до сих пор не показывалась нигде (Б21).
  *
  * Страница тонкая: читает свою вещь (чужая и несуществующая одинаково — 404,
  * существование чужого id не подтверждаем), собирает видимые зоны комнаты и
  * отдаёт клиентской карточке. Про бронь здесь не знает никто — DTO хозяйки
  * booking не содержит (инвариант №1).
+ *
+ * ЦЕНА ВЕЩИ «ЛЮБЛЮ» идёт ОТДЕЛЬНЫМ путём, а не через `itemForOwner`. Форма
+ * LOVE в owner-DTO цены не несёт — так задумано (ADR-0004: «цена „люблю"
+ * появляется ровно на одном экране и ровно по настройке»), и ослаблять её
+ * ради этой карточки нельзя: снапшот ключей owner-DTO под тестом. Поэтому
+ * цену считает `hallItemForOwner` — тот же расчёт, что в зале славы, включая
+ * округление и подпись «кто её видит». Хозяйке цена видна всегда.
  */
 export default async function OwnerItemPage({ params }: Params) {
   const { zone: zoneKey, id } = await params;
@@ -63,9 +71,22 @@ export default async function OwnerItemPage({ params }: Params) {
   const zone = zones.find((candidate) => candidate.key === item.zone);
   if (!zone) notFound();
 
+  // Фотография здесь своя, из карточки; витрине зала она в этом месте не нужна.
+  const hall = item.state === "LOVE" ? hallItemForOwner(item, hallSettingsOf(room), null) : null;
+
   return (
     <ItemCard
       item={itemForOwner(item)}
+      lovePrice={
+        hall === null
+          ? null
+          : {
+              price: hall.price,
+              currency: hall.currency,
+              rounded: hall.rounded,
+              priceAudience: hall.priceAudience,
+            }
+      }
       zones={zones}
       zoneLabel={zone.label}
       accent={preset.accent}
