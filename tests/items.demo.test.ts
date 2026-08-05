@@ -6,7 +6,7 @@ import { existsSync } from "node:fs";
 import { resolve } from "node:path";
 import zonesJson from "@design/zones.json";
 import itemsJson from "@design/items.json";
-import { rooms } from "../src/config/design";
+import { rooms, zoneKeysHiddenByProduct } from "../src/config/design";
 import { demoGhostsFor, demoPools } from "../src/config/demo-pools";
 
 const WANT_KEYS = [
@@ -40,10 +40,16 @@ const LOVE_KEYS = [
 ];
 
 const packagePoolKeys = (itemsJson as { demoPools: { poolKeys: string[] } }).demoPools.poolKeys;
-const zonesPoolKeys = Object.values(
+// Пулы зон справочника — кроме тех зон, которые продукт не показывает вовсе.
+// Раунд 4 дописал в справочник ключ `money` с пулом `money`, но зона скрыта
+// решением владельца (PRD §12а, «деньги через сервис не ходят никогда»), и
+// демо-вещей для неё нет и не должно быть: см. zoneKeysHiddenByProduct.
+const zonesPoolKeys = Object.entries(
   (zonesJson as unknown as { keys: Record<string, [string, string, string, string, string]> })
     .keys,
-).map((row) => row[3]);
+)
+  .filter(([key]) => !zoneKeysHiddenByProduct.includes(key))
+  .map(([, row]) => row[3]);
 const roomPoolKeys = rooms.flatMap((room) => room.zones.map((zone) => zone.pool));
 
 describe("demoPools — покрытие пулов дизайн-пакета", () => {

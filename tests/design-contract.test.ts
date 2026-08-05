@@ -1,22 +1,40 @@
 import { describe, it, expect } from "vitest";
-import { readFileSync, existsSync } from "node:fs";
+import { readFileSync, existsSync, readdirSync } from "node:fs";
 import { resolve } from "node:path";
-import { rooms, roomsContract, zoneInfo, zoneKeysWithoutCatalogEntry } from "../src/config/design";
+import {
+  framePath,
+  rooms,
+  roomsContract,
+  zoneInfo,
+  zoneKeysHiddenByProduct,
+  zoneKeysWithoutCatalogEntry,
+} from "../src/config/design";
 
 // Контракт дизайн-пакета: эти числа зафиксированы в handoff/README.md.
 // Если тест упал — кто-то тронул rooms.json или изображения. Это баг процесса,
 // а не повод поправить ожидания.
 //
-// Раунд 2 (2026-08-05): карта зон достроена с 84 до 130 — по 12 зон + деньги
-// на комнату. Проверяем СЫРОЙ контракт (roomsContract.rooms, все 130), а не
-// то, что рендерит продукт: продукт зону `money` прячет, потому что её нет в
-// справочнике zones.json (см. блок «дырка money» ниже и ADR-0003).
+// Раунд 4 (2026-08-05, тикет 33). Что изменилось против раунда 2:
+//   • у зоны появились флаги `accepted` / `reshoot` — результат нашей же
+//     числовой приёмки кадров, который дизайн внёс прямо в контракт: 49 зон
+//     с кадром «открыто», 81 без него (`openFrame: null`);
+//   • пересечений прямоугольников больше нет — реестр долга на 14 пар удалён;
+//   • `zones.json` дописан ключом `money`, поэтому дырок в справочнике нет;
+//   • зона `money` при этом не рендерится — но уже по решению ВЛАДЕЛЬЦА
+//     (PRD §12а), а не из-за контракта. Отсюда 130 в контракте и 120 в продукте;
+//   • `verified` сменил смысл на машинное «не попало под обрезку» (x + w < 400),
+//     рядом появился `clamped` на 36 зонах.
+//
+// Проверяем СЫРОЙ контракт (roomsContract.rooms, все 130), а не то, что
+// рендерит продукт: разница между ними — предмет отдельных блоков ниже.
 const contractRooms = roomsContract.rooms;
 
 /** Все зоны контракта с адресом вида "cream/fashion" — для внятных падений. */
 const allZones = contractRooms.flatMap((room) =>
   room.zones.map((zone) => ({ id: `${room.id}/${zone.key}`, room, zone })),
 );
+
+const PKG = resolve(__dirname, "../design/package");
 
 describe("design handoff contract", () => {
   it("10 комнат", () => {
@@ -78,21 +96,6 @@ describe("design handoff contract", () => {
     }
   });
 
-  it("кадры комнат и кадры «открыто» существуют в design/package", () => {
-    const pkg = resolve(__dirname, "../design/package");
-    for (const room of contractRooms) {
-      expect(existsSync(resolve(pkg, room.base)), room.base).toBe(true);
-      for (const zone of room.zones) {
-        if (zone.openFrame) {
-          expect(existsSync(resolve(pkg, zone.openFrame)), zone.openFrame).toBe(true);
-        }
-      }
-    }
-    // Раскрытие требует отдельной съёмки — кадров по-прежнему 30, по три на комнату.
-    const withFrame = allZones.filter(({ zone }) => zone.openFrame);
-    expect(withFrame).toHaveLength(30);
-  });
-
   it("tokens.css сгенерирован из tokens.json и содержит базовые токены", () => {
     const css = readFileSync(resolve(__dirname, "../src/styles/tokens.css"), "utf8");
     expect(css).toContain("--color-surface-app-ground");
@@ -107,46 +110,155 @@ describe("design handoff contract", () => {
 });
 
 // ---------------------------------------------------------------------------
-// Дырка `money`: зона есть во всех 10 комнатах, записи в zones.json нет.
-// Продукт её не показывает (решение — ADR-0003). Контракт при этом не тронут:
-// допишут ключ в zones.json — зона появится сама, без правок кода.
+// Кадры «открыто»: 49 принятых из 130 — и почему в продукте их 44.
+//
+// Порог приёмки (DESIGN-BRIEF-04, `scripts/name-masters.mjs`): собственный
+// прямоугольник обязан измениться на ≥ 0.05 и при этом в ≥ 3 раза сильнее фона.
+// Первое означает «предмет действительно изменился», второе — «изменился
+// только он»: продукт делает кроссфейд между базовым кадром и «открыто», и
+// поплывший фон читается как рывок всей комнаты.
 // ---------------------------------------------------------------------------
-describe("справочник зон (zones.json)", () => {
-  it("все ключи зон есть в справочнике — кроме известной дырки money", () => {
-    const missing = [...new Set(allZones.filter(({ zone }) => !zoneInfo(zone.key)).map(({ zone }) => zone.key))];
-    expect(missing.sort()).toEqual(["money"]);
-    expect(zoneKeysWithoutCatalogEntry).toEqual(["money"]);
+describe("кадры «открыто» (accepted / reshoot)", () => {
+  const accepted = allZones.filter(({ zone }) => zone.accepted);
+  const reshoot = allZones.filter(({ zone }) => zone.reshoot);
+
+  it("49 принятых, 81 к пересъёмке, третьего состояния нет", () => {
+    expect(accepted).toHaveLength(49);
+    expect(reshoot).toHaveLength(81);
+    expect(accepted.length + reshoot.length).toBe(130);
+    for (const { id, zone } of allZones) {
+      expect(Boolean(zone.accepted) !== Boolean(zone.reshoot), `${id}: ровно один флаг`).toBe(true);
+    }
   });
 
-  it("зона money есть в каждой комнате контракта и ни в одной — в рендере", () => {
-    for (const room of contractRooms) {
-      expect(room.zones.some((zone) => zone.key === "money"), `${room.id}`).toBe(true);
+  it("кадр обещан ровно у принятых зон: accepted ⟺ openFrame", () => {
+    // Это и есть правило «зона без обещания честнее зоны, открывающейся ничем».
+    for (const { id, zone } of allZones) {
+      expect(Boolean(zone.openFrame), `${id} openFrame`).toBe(Boolean(zone.accepted));
+      if (zone.reshoot) expect(zone.openFrame ?? null, `${id}`).toBeNull();
     }
+  });
+
+  it("имя кадра выводится из данных: refs-2x/<комната>/o-<комната>-<зона>.jpg", () => {
+    for (const { room, zone } of accepted) {
+      expect(zone.openFrame, `${room.id}/${zone.key}`).toBe(
+        `refs-2x/${room.id}/o-${room.id}-${zone.key}.jpg`,
+      );
+    }
+  });
+
+  it("базовые кадры всех десяти комнат лежат в design/package/refs", () => {
+    for (const room of contractRooms) {
+      const file = framePath(room.base);
+      expect(existsSync(resolve(PKG, file)), file).toBe(true);
+    }
+  });
+
+  it("39 кадров «открыто» подключены: 49 принятых − 5 (warm, loft) − 5 (money)", () => {
+    // Пять принятых зон остались без кадра: у комнат `warm` и `loft` базовый
+    // кадр пакета разошёлся с нынешним сильнее порога композиции 0.05
+    // (0.0727 и 0.0685 против 0.029…0.045 у восьми принятых) — мебель поехала,
+    // и прямоугольники к этим кадрам не подходят. Разбор — ADR-0005.
+    // Ещё пять принятых кадров лежат у скрытой зоны `money` (тест ниже).
+    const connected = rooms.flatMap((room) =>
+      room.zones.filter((zone) => zone.openFrame).map((zone) => `${room.id}/${zone.key}`),
+    );
+    expect(connected).toHaveLength(39);
+    expect(connected.filter((id) => id.startsWith("warm/") || id.startsWith("loft/"))).toEqual([]);
     for (const room of rooms) {
-      expect(room.zones.some((zone) => zone.key === "money"), `${room.id}`).toBe(false);
-      expect(room.zones).toHaveLength(12);
+      for (const zone of room.zones) {
+        if (!zone.openFrame) continue;
+        expect(existsSync(resolve(PKG, zone.openFrame)), zone.openFrame).toBe(true);
+      }
     }
-    expect(rooms.reduce((n, room) => n + room.zones.length, 0)).toBe(120);
   });
 
-  it("у зоны money свой пул, кадра «открыто» нет — призраков не будет, и это норма", () => {
-    // Не выдумываем содержимое пула money: это вопрос к дизайну. Проверяем лишь,
-    // что мягкий фолбэк demo-pools отрабатывает молча (тест пула — items.demo).
-    for (const room of contractRooms) {
-      const money = room.zones.find((zone) => zone.key === "money");
-      expect(money?.pool, `${room.id}`).toBe("money");
-      expect(money?.openFrame ?? null, `${room.id}`).toBeNull();
-      expect(money?.openVerb ?? null, `${room.id}`).toBeNull();
+  it("кадры скрытой зоны money тоже на диске — флаг можно снять без 404", () => {
+    // zoneKeysHiddenByProduct прячет зону, но не выбрасывает её кадры: пять
+    // принятых «money» (кроме warm и loft) лежат готовыми.
+    const moneyFrames = accepted
+      .filter(({ room, zone }) => zone.key === "money" && !["warm", "loft"].includes(room.id))
+      .map(({ zone }) => framePath(zone.openFrame as string));
+    expect(moneyFrames).toHaveLength(5);
+    for (const file of moneyFrames) {
+      expect(existsSync(resolve(PKG, file)), file).toBe(true);
+    }
+  });
+
+  it("на именах непринятых зон в refs не лежит ничего", () => {
+    // Обратная сторона правила. Кадры прежних раундов звались по той же схеме
+    // `o-<комната>-<зона>.jpg` и заняли бы имена, которые контракт отдаст новым
+    // кадрам после пересъёмки: продукт молча показал бы старый кадр вместо
+    // нового. Поэтому прежние 30 уехали в `refs/legacy/` (раздача их не видит —
+    // маршрут принимает только плоские имена), а тест сторожит имена.
+    const shipped = new Set(readdirSync(resolve(PKG, "refs")));
+    for (const { id, room, zone } of reshoot) {
+      expect(shipped.has(`o-${room.id}-${zone.key}.jpg`), `${id}: кадра быть не должно`).toBe(
+        false,
+      );
+    }
+    // И у warm с loft — тоже: их принятые зоны кадра не получили.
+    for (const { id, room, zone } of accepted.filter(({ room }) =>
+      ["warm", "loft"].includes(room.id),
+    )) {
+      expect(shipped.has(`o-${room.id}-${zone.key}.jpg`), `${id}: кадра быть не должно`).toBe(
+        false,
+      );
     }
   });
 });
 
 // ---------------------------------------------------------------------------
-// Пересечения прямоугольников. README пакета утверждает «пересечений ноль —
-// проверено попарно по всем 130». Это не так: 14 пар налезают друг на друга.
-// Ниже — реестр долга, а не разрешение: список зафиксирован, чтобы новые
-// пересечения падали, а исправленные заставляли список укоротить.
-// Разбор и передача дизайну — тикет 26 (сверка зон с кадрами).
+// Справочник зон (zones.json) и то, что продукт из него показывает.
+// ---------------------------------------------------------------------------
+describe("справочник зон (zones.json)", () => {
+  it("справочник покрывает все 130 ключей контракта — дырок больше нет", () => {
+    // Раунды 2–3 жили с дыркой `money`: ключа в справочнике не было, и зона
+    // пряталась сама собой (ADR-0003). Раунд 4 ключ дописал.
+    const missing = [
+      ...new Set(allZones.filter(({ zone }) => !zoneInfo(zone.key)).map(({ zone }) => zone.key)),
+    ];
+    expect(missing).toEqual([]);
+    expect(zoneKeysWithoutCatalogEntry).toEqual([]);
+  });
+
+  it("зона money есть в каждой комнате контракта и ни в одной — в рендере", () => {
+    // Теперь это решение владельца, а не следствие дырки: PRD §12а «деньги
+    // через сервис не ходят никогда». Платежей нет ни в какой фазе, экрана
+    // складчины нет, пула демо-вещей нет — человек нажал бы на конверт и
+    // упёрся в пустоту. Снимается решением владельца, одним списком в
+    // src/config/design.ts.
+    expect(zoneKeysHiddenByProduct).toEqual(["money"]);
+    for (const room of contractRooms) {
+      expect(
+        room.zones.some((zone) => zone.key === "money"),
+        `${room.id}`,
+      ).toBe(true);
+    }
+    for (const room of rooms) {
+      expect(
+        room.zones.some((zone) => zone.key === "money"),
+        `${room.id}`,
+      ).toBe(false);
+      expect(room.zones).toHaveLength(12);
+    }
+    expect(rooms.reduce((n, room) => n + room.zones.length, 0)).toBe(120);
+  });
+
+  it("у зоны money свой пул и подпись из справочника — но показывать нечего", () => {
+    expect(zoneInfo("money")?.pool).toBe("money");
+    expect(zoneInfo("money")?.label).toBe("Просто деньги");
+    for (const room of contractRooms) {
+      expect(room.zones.find((zone) => zone.key === "money")?.pool, `${room.id}`).toBe("money");
+    }
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Пересечения прямоугольников. Раунд 2 их обещал ноль, а было 14 пар — реестр
+// долга на 14 пар жил здесь до раунда 3. Раунд 3 развёл их с нулевым допуском
+// (прежняя проверка дизайна шла с допуском 8 px и пропускала кромки), реестр
+// удалён. Проверка осталась как щит: новое пересечение уронит тест.
 // ---------------------------------------------------------------------------
 describe("пересечения прямоугольников зон", () => {
   /** Попарное пересечение зон одной комнаты: адрес и площадь наложения в px². */
@@ -166,40 +278,54 @@ describe("пересечения прямоугольников зон", () => {
     return found;
   }
 
-  const overlaps = contractRooms.flatMap(overlapsIn);
-
-  it("пересекаются ровно известные 14 пар и ни одной сверх того", () => {
-    expect(overlaps.map((o) => o.id).sort()).toEqual(
-      [
-        "bold/flowers×money",
-        "cottage/events×books",
-        "cottage/music×flowers",
-        "cottage/music×travel",
-        "emerald/books×flowers",
-        "emerald/events×books",
-        "emerald/music×money",
-        "gamer/events×music",
-        "loft/events×watches",
-        "loft/music×grooming",
-        "loft/tech×grooming",
-        "lux/events×flowers",
-        "sport/anything×sport",
-        "sport/grooming×gaming",
-      ].sort(),
-    );
+  it("ни одной пересекающейся пары во всех 130 зонах", () => {
+    expect(contractRooms.flatMap(overlapsIn).map((o) => `${o.id} (${o.area} px²)`)).toEqual([]);
   });
 
-  it("ни одно пересечение не крупнее 600 px² — клик уводит в чужую зону не больше, чем на кромке", () => {
-    // Худшие: sport/anything×sport 592 px² и lux/events×flowers 497 px² —
-    // узкие вертикальные полосы, а не наложенные друг на друга зоны.
-    for (const { id, area } of overlaps) {
-      expect(area, id).toBeLessThanOrEqual(600);
+  it("в рендере (120 зон, без money) их тоже ноль", () => {
+    expect(rooms.flatMap(overlapsIn)).toEqual([]);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Обрезка правого края (раунд 4, handoff/coords-fix.md).
+//
+// Прямоугольники заданы в координатах ОКНА 430, а кадр шириной 630 сдвинут на
+// −12: правая треть кадра в окно не попадает, и зоны, физически стоящие там,
+// при разметке прижались к x + w = 430. Дизайн пометил их `clamped: true` и
+// переразметит сам — кодом мы это не чиним и координаты не трогаем.
+// ---------------------------------------------------------------------------
+describe("обрезка правого края (clamped)", () => {
+  it("36 зон помечены clamped, 94 — нет", () => {
+    expect(allZones.filter(({ zone }) => zone.clamped)).toHaveLength(36);
+    expect(allZones.filter(({ zone }) => !zone.clamped)).toHaveLength(94);
+  });
+
+  it("verified теперь машинное «не попало под обрезку»: verified ⟺ x + w < 400", () => {
+    // Прежний смысл флага («дизайн сверил глазами») был расставлен наоборот:
+    // обрезанные зоны стояли проверенными, точные — нет. Новое правило хотя бы
+    // проверяемо, и мы его проверяем.
+    for (const { id, zone } of allZones) {
+      expect(Boolean(zone.verified), `${id}`).toBe(zone.rect.x + zone.rect.w < 400);
+      expect(Boolean(zone.clamped), `${id}`).toBe(!zone.verified);
     }
   });
 
-  it("в рендере (без money) пересечений на две меньше", () => {
-    const rendered = rooms.flatMap(overlapsIn);
-    expect(rendered).toHaveLength(12);
-    expect(rendered.some(({ id }) => id.includes("money"))).toBe(false);
+  it("правый край ровно 430 у 19 зон — след самой обрезки", () => {
+    const atEdge = allZones.filter(({ zone }) => zone.rect.x + zone.rect.w === 430);
+    expect(atEdge).toHaveLength(19);
+    // И ни в одной комнате нет зоны правее: 430 — это стена окна, а не кадра.
+    for (const room of contractRooms) {
+      const right = Math.max(...room.zones.map((zone) => zone.rect.x + zone.rect.w));
+      expect(right, `${room.id}`).toBe(430);
+    }
+  });
+
+  it("26 обрезанных зон ждут пересъёмки, 10 обрезанных кадр всё же прошли", () => {
+    // Числа из handoff/coords-fix.md. Десять принятых обрезанных зон —
+    // те, где предмет случайно попал и в окно тоже.
+    const clamped = allZones.filter(({ zone }) => zone.clamped);
+    expect(clamped.filter(({ zone }) => zone.reshoot)).toHaveLength(26);
+    expect(clamped.filter(({ zone }) => zone.accepted)).toHaveLength(10);
   });
 });

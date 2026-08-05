@@ -119,8 +119,15 @@ describe("наезд камеры (формула motion.json → openZone)", ()
 
   it("масштаб наезда — формула motion.json, числа rooms.json в сцене не участвуют", () => {
     // Критерий тикета 22: cameraScale из rooms.json (1.72/1.45) перестал
-    // действовать. В контракте он остаётся — дизайну предложено его убрать.
-    expect(roomsContract.cameraScale).toEqual({ phone: 1.72, desktop: 1.45 });
+    // действовать. Раунд 4 согласился: блок помечен УСТАРЕЛО, ключ `desktop`
+    // переименован в `desktopLegacy`, а рядом записан действующий потолок
+    // формулы — 2.05 (он же max в motion.json → cameraScale.desktop).
+    expect(roomsContract.cameraScale.phone).toBe(1.72);
+    expect(roomsContract.cameraScale.desktopLegacy).toBe(1.45);
+    expect(roomsContract.cameraScale.desktopCeiling).toBe(
+      sceneMotion.cameraScaleFormula.desktop.max,
+    );
+    expect(roomsContract.cameraScale.note).toMatch(/УСТАРЕЛО/u);
     const widths = new Set<number>();
     for (const room of rooms) {
       for (const zone of room.zones) {

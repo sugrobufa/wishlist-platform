@@ -137,15 +137,30 @@ async function main() {
     const greys = new Map();
     for (const p of pack) greys.set(p.file, await grey(path.join(SRC, p.file), CMP_W, CMP_H));
 
-    // базовый — минимальная сумма расстояний до остальных
+    const zones = room.zones.filter((z) => zoneKeys.has(z.key));
+
+    // Базовый кадр — через ПОПИКСЕЛЬНУЮ МЕДИАНУ пачки. Медиана устойчива к
+    // одиночным правкам: где один кадр раскрыл шкаф, остальные тринадцать
+    // показывают его закрытым, и медиана берёт их сторону. Значит у любого
+    // «открыто» найдётся зона, сильно расходящаяся с медианой, а у базового
+    // такой зоны нет — по этому минимуму его и опознаём.
+    //
+    // Прежний критерий (минимум суммы расстояний до остальных) на этом пакете
+    // не работал: кадры расходятся между собой всем полем, и сумма расстояний
+    // измеряла общий разброс, а не «кто здесь исходный».
+    const median = Buffer.alloc(CMP_W * CMP_H);
+    const column = new Array(pack.length);
+    for (let i = 0; i < CMP_W * CMP_H; i++) {
+      for (let k = 0; k < pack.length; k++) column[k] = greys.get(pack[k].file)[i];
+      column.sort((a, b) => a - b);
+      median[i] = column[column.length >> 1];
+    }
     let base = null;
     for (const p of pack) {
-      let sum = 0;
-      for (const q of pack) if (q !== p) sum += l1(greys.get(p.file), greys.get(q.file));
-      if (!base || sum < base.sum) base = { file: p.file, sum };
+      const peak = Math.max(...zones.map((z) => regionDiff(median, greys.get(p.file), z.rect, img) ?? 0));
+      if (!base || peak < base.peak) base = { file: p.file, peak };
     }
     const baseGrey = greys.get(base.file);
-    const zones = room.zones.filter((z) => zoneKeys.has(z.key));
 
     const opens = pack.filter((p) => p.file !== base.file);
 

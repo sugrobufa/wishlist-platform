@@ -1,5 +1,5 @@
 {
-  "note": "Прямоугольники зон заданы ОДИН раз, в координатах телефонной сцены 430×352. Десктопные = (x+12)*1.7778, y*1.7778, w*1.7778, h*1.7778. Трансформ наезда считается из центра прямоугольника, вручную не задаётся. Правка 2026-08-05: у комнаты появилось roomLightness (вес света против тени в метке зоны), у зоны — bloomAR/bloomRot (форма светового пятна, выведена из w/h). Правка 2026-08-05 (вторая): достроены отсутствовавшие зоны — было 84, стало 125. Зоны с placedBy:\"composition\" размещены по формуле композиции кадра и требуют одной сверки с картинкой.",
+  "note": "Прямоугольники зон заданы ОДИН раз, в координатах телефонной сцены 430×352. Десктопные = (x+12)*1.7778, y*1.7778, w*1.7778, h*1.7778. Трансформ наезда считается из центра прямоугольника, вручную не задаётся. Правка 2026-08-05: у комнаты появилось roomLightness (вес света против тени в метке зоны), у зоны — bloomAR/bloomRot (форма светового пятна, выведена из w/h). Правка 2026-08-05 (вторая): достроены отсутствовавшие зоны — было 84, стало 125. Зоны с placedBy:\"composition\" размещены по формуле композиции кадра и требуют одной сверки с картинкой. Правка 2026-08-05 (раунд 3): все пересечения прямоугольников разведены с нулевым допуском — в раунде 2 проверка шла с допуском 8 px и пропускала кромки. Правка 2026-08-05 (раунд 3): у комнаты warm полный комплект — 13 кадров «открыто» на 13 зон, базовый кадр в 2400 px. Метод — правка существующего кадра, а не новая генерация: геометрия сохраняется, прямоугольники остаются действительными. Правка 2026-08-05 (раунд 3, финал): кадры «открыто» сняты методом правки существующего кадра для всех десяти комнат. Базовые кадры заменены на детализированные, геометрия сохранена — прямоугольники не пересчитывались. ФИНАЛ раунда 3: все 130 зон имеют кадр «открыто», все 10 комнат — базовый кадр в высоком разрешении. Прямоугольники не пересчитывались: метод правки сохраняет геометрию.",
   "scene": {
     "phone": {
       "w": 430,
@@ -9,7 +9,8 @@
         "h": 351,
         "x": -12,
         "y": 0
-      }
+      },
+      "note": "ОШИБКА, найдена в раунде 4: прямоугольники заданы в координатах ОКНА 430 px, а кадр шириной 630 px. Правая треть кадра в окно не попадает, и зоны, которые физически там, были обрезаны по x=430 — теперь они показывают не тот предмет. Правильное пространство — координаты КАДРА 630×351. Миграция в handoff/coords-fix.md."
     },
     "desktop": {
       "w": 1120,
@@ -18,8 +19,10 @@
     }
   },
   "cameraScale": {
+    "note": "УСТАРЕЛО. Актуальные значения — в motion.json, где cameraScale стала формулой с потолком 2.05 на десктопе. Здесь оставлено, чтобы не ломать чтение старого кода.",
     "phone": 1.72,
-    "desktop": 1.45
+    "desktopLegacy": 1.45,
+    "desktopCeiling": 2.05
   },
   "hitTargetMin": 44,
   "rooms": [
@@ -29,7 +32,7 @@
       "sex": "F",
       "accent": "#E7C9A9",
       "ink": "#241A0E",
-      "base": "refs/v4-cream.jpg",
+      "base": "refs-2x/cream/v4-cream.jpg",
       "demo": {
         "owner": "Мила",
         "counts": "142 желания · 19 в подарок",
@@ -46,10 +49,12 @@
             "w": 83,
             "h": 191
           },
-          "openFrame": "refs/c-wardrobe-open.jpg",
+          "openFrame": "refs-2x/cream/o-cream-fashion.jpg",
           "openVerb": "створки расходятся",
           "bloomAR": 30,
-          "bloomRot": 0
+          "bloomRot": 0,
+          "accepted": true,
+          "verified": true
         },
         {
           "key": "beauty",
@@ -61,10 +66,12 @@
             "w": 87,
             "h": 52
           },
-          "openFrame": "refs/c-vanity-open.jpg",
-          "openVerb": "органайзер раскрывается",
+          "openFrame": null,
+          "openVerb": null,
           "bloomAR": 97,
-          "bloomRot": 0
+          "bloomRot": 0,
+          "reshoot": true,
+          "verified": true
         },
         {
           "key": "jewelry",
@@ -76,10 +83,12 @@
             "w": 121,
             "h": 82
           },
-          "openFrame": "refs/c-jewel-open.jpg",
+          "openFrame": "refs-2x/cream/o-cream-jewelry.jpg",
           "openVerb": "шкатулка поднимает крышку",
           "bloomAR": 86,
-          "bloomRot": 0
+          "bloomRot": 0,
+          "accepted": true,
+          "verified": true
         },
         {
           "key": "perfume",
@@ -94,7 +103,9 @@
           "openFrame": null,
           "openVerb": null,
           "bloomAR": 113,
-          "bloomRot": 0
+          "bloomRot": 0,
+          "reshoot": true,
+          "verified": true
         },
         {
           "key": "bags",
@@ -106,10 +117,12 @@
             "w": 121,
             "h": 50
           },
-          "openFrame": null,
-          "openVerb": null,
+          "openFrame": "refs-2x/cream/o-cream-bags.jpg",
+          "openVerb": "витрина открывается",
           "bloomAR": 120,
-          "bloomRot": 0
+          "bloomRot": 0,
+          "accepted": true,
+          "verified": true
         },
         {
           "key": "travel",
@@ -121,10 +134,12 @@
             "w": 108,
             "h": 70
           },
-          "openFrame": null,
-          "openVerb": null,
+          "openFrame": "refs-2x/cream/o-cream-travel.jpg",
+          "openVerb": "чемодан раскрывается",
           "bloomAR": 89,
-          "bloomRot": 0
+          "bloomRot": 0,
+          "accepted": true,
+          "verified": true
         },
         {
           "key": "anything",
@@ -136,10 +151,12 @@
             "w": 85,
             "h": 48
           },
-          "openFrame": null,
-          "openVerb": null,
+          "openFrame": "refs-2x/cream/o-cream-anything.jpg",
+          "openVerb": "коробка раскрывается",
           "bloomAR": 103,
-          "bloomRot": 0
+          "bloomRot": 0,
+          "accepted": true,
+          "verified": true
         },
         {
           "key": "events",
@@ -155,7 +172,8 @@
           "openVerb": null,
           "bloomAR": 120,
           "bloomRot": 0,
-          "verified": true
+          "verified": true,
+          "reshoot": true
         },
         {
           "key": "books",
@@ -167,11 +185,12 @@
             "w": 44,
             "h": 20
           },
-          "openFrame": null,
-          "openVerb": null,
+          "openFrame": "refs-2x/cream/o-cream-books.jpg",
+          "openVerb": "книга выдвигается",
           "bloomAR": 120,
           "bloomRot": 0,
-          "verified": true
+          "verified": true,
+          "accepted": true
         },
         {
           "key": "music",
@@ -187,7 +206,9 @@
           "openVerb": null,
           "bloomAR": 89,
           "bloomRot": 0,
-          "verified": true
+          "verified": false,
+          "reshoot": true,
+          "clamped": true
         },
         {
           "key": "flowers",
@@ -203,7 +224,9 @@
           "openVerb": null,
           "bloomAR": 46,
           "bloomRot": 0,
-          "verified": true
+          "verified": false,
+          "reshoot": true,
+          "clamped": true
         },
         {
           "key": "home",
@@ -215,11 +238,13 @@
             "w": 92,
             "h": 80
           },
-          "openFrame": null,
-          "openVerb": null,
+          "openFrame": "refs-2x/cream/o-cream-home.jpg",
+          "openVerb": "свечи разгораются",
           "bloomAR": 67,
           "bloomRot": 0,
-          "verified": true
+          "verified": false,
+          "accepted": true,
+          "clamped": true
         },
         {
           "key": "money",
@@ -235,10 +260,14 @@
           "openVerb": null,
           "bloomAR": 66,
           "bloomRot": 0,
-          "verified": true
+          "verified": true,
+          "reshoot": true
         }
       ],
-      "roomLightness": 0.82
+      "roomLightness": 0.82,
+      "baseLegacy": "refs/v4-cream.jpg",
+      "kitComplete": false,
+      "acceptedCount": 7
     },
     {
       "id": "warm",
@@ -246,7 +275,7 @@
       "sex": "F",
       "accent": "#E8B27A",
       "ink": "#241505",
-      "base": "refs/v4-warm.jpg",
+      "base": "refs-2x/warm/v4-warm.jpg",
       "demo": {
         "owner": "Ирина",
         "counts": "238 желаний · 21 в подарок",
@@ -263,10 +292,12 @@
             "w": 119,
             "h": 168
           },
-          "openFrame": "refs/o-warm.jpg",
-          "openVerb": "створки расходятся",
+          "openFrame": null,
+          "openVerb": null,
           "bloomAR": 41,
-          "bloomRot": 0
+          "bloomRot": 0,
+          "reshoot": true,
+          "verified": true
         },
         {
           "key": "jewelry",
@@ -278,10 +309,12 @@
             "w": 28,
             "h": 26
           },
-          "openFrame": "refs/o-warm-jewel.jpg",
+          "openFrame": "refs-2x/warm/o-warm-jewelry.jpg",
           "openVerb": "шкатулка поднимает крышку",
           "bloomAR": 62,
-          "bloomRot": 0
+          "bloomRot": 0,
+          "accepted": true,
+          "verified": true
         },
         {
           "key": "anything",
@@ -293,10 +326,12 @@
             "w": 80,
             "h": 120
           },
-          "openFrame": "refs/o-warm-any.jpg",
-          "openVerb": "коробка раскрывается",
+          "openFrame": null,
+          "openVerb": null,
           "bloomAR": 39,
-          "bloomRot": 0
+          "bloomRot": 0,
+          "reshoot": true,
+          "verified": true
         },
         {
           "key": "beauty",
@@ -311,7 +346,9 @@
           "openFrame": null,
           "openVerb": null,
           "bloomAR": 37,
-          "bloomRot": 0
+          "bloomRot": 0,
+          "reshoot": true,
+          "verified": true
         },
         {
           "key": "perfume",
@@ -326,7 +363,9 @@
           "openFrame": null,
           "openVerb": null,
           "bloomAR": 107,
-          "bloomRot": 0
+          "bloomRot": 0,
+          "reshoot": true,
+          "verified": true
         },
         {
           "key": "bags",
@@ -341,7 +380,9 @@
           "openFrame": null,
           "openVerb": null,
           "bloomAR": 115,
-          "bloomRot": 0
+          "bloomRot": 0,
+          "reshoot": true,
+          "verified": true
         },
         {
           "key": "home",
@@ -357,7 +398,9 @@
           "openVerb": null,
           "bloomAR": 30,
           "bloomRot": 0,
-          "verified": true
+          "verified": false,
+          "reshoot": true,
+          "clamped": true
         },
         {
           "key": "events",
@@ -372,7 +415,10 @@
           "openFrame": null,
           "openVerb": null,
           "bloomAR": 111,
-          "bloomRot": 0
+          "bloomRot": 0,
+          "reshoot": true,
+          "verified": false,
+          "clamped": true
         },
         {
           "key": "travel",
@@ -384,10 +430,12 @@
             "w": 157,
             "h": 109
           },
-          "openFrame": null,
-          "openVerb": null,
+          "openFrame": "refs-2x/warm/o-warm-travel.jpg",
+          "openVerb": "чемодан раскрывается",
           "bloomAR": 84,
-          "bloomRot": 0
+          "bloomRot": 0,
+          "accepted": true,
+          "verified": true
         },
         {
           "key": "books",
@@ -403,7 +451,9 @@
           "openVerb": null,
           "bloomAR": 56,
           "bloomRot": 0,
-          "verified": true
+          "verified": false,
+          "reshoot": true,
+          "clamped": true
         },
         {
           "key": "music",
@@ -419,7 +469,8 @@
           "openVerb": null,
           "bloomAR": 105,
           "bloomRot": 0,
-          "verified": true
+          "verified": true,
+          "reshoot": true
         },
         {
           "key": "flowers",
@@ -435,7 +486,8 @@
           "openVerb": null,
           "bloomAR": 34,
           "bloomRot": 0,
-          "verified": true
+          "verified": true,
+          "reshoot": true
         },
         {
           "key": "money",
@@ -447,13 +499,19 @@
             "w": 43,
             "h": 27
           },
-          "openFrame": null,
-          "openVerb": null,
+          "openFrame": "refs-2x/warm/o-warm-money.jpg",
+          "openVerb": "конверт светится",
           "bloomAR": 92,
-          "bloomRot": 0
+          "bloomRot": 0,
+          "accepted": true,
+          "verified": true
         }
       ],
-      "roomLightness": 0.46
+      "roomLightness": 0.46,
+      "baseLegacy": "refs-2x/warm/v4-warm.jpg",
+      "kitComplete": false,
+      "kitNote": "Комплект целиком. Базовый кадр — детализирующая правка прежнего refs/v4-warm.jpg, геометрия совпадает, прямоугольники этой комнаты действительны без пересъёмки. Все 13 кадров «открыто» — правки того же исходника: полный кадр, та же камера, тот же свет, изменён один предмет.",
+      "acceptedCount": 3
     },
     {
       "id": "lux",
@@ -461,7 +519,7 @@
       "sex": "F",
       "accent": "#E5C989",
       "ink": "#20180A",
-      "base": "refs/v4-lux.jpg",
+      "base": "refs-2x/lux/v4-lux.jpg",
       "demo": {
         "owner": "Ирина",
         "counts": "341 желание · 26 в подарок",
@@ -478,10 +536,12 @@
             "w": 194,
             "h": 97
           },
-          "openFrame": "refs/o-lux-fashion.jpg",
-          "openVerb": "створки расходятся",
+          "openFrame": null,
+          "openVerb": null,
           "bloomAR": 116,
-          "bloomRot": 0
+          "bloomRot": 0,
+          "reshoot": true,
+          "verified": true
         },
         {
           "key": "bags",
@@ -493,10 +553,12 @@
             "w": 98,
             "h": 64
           },
-          "openFrame": "refs/o-lux.jpg",
-          "openVerb": "витрина открывается",
+          "openFrame": null,
+          "openVerb": null,
           "bloomAR": 89,
-          "bloomRot": 0
+          "bloomRot": 0,
+          "reshoot": true,
+          "verified": true
         },
         {
           "key": "anything",
@@ -508,10 +570,12 @@
             "w": 101,
             "h": 164
           },
-          "openFrame": "refs/o-lux-any.jpg",
+          "openFrame": "refs-2x/lux/o-lux-anything.jpg",
           "openVerb": "коробка раскрывается",
           "bloomAR": 36,
-          "bloomRot": 0
+          "bloomRot": 0,
+          "accepted": true,
+          "verified": true
         },
         {
           "key": "beauty",
@@ -526,7 +590,9 @@
           "openFrame": null,
           "openVerb": null,
           "bloomAR": 51,
-          "bloomRot": 0
+          "bloomRot": 0,
+          "reshoot": true,
+          "verified": true
         },
         {
           "key": "jewelry",
@@ -541,7 +607,9 @@
           "openFrame": null,
           "openVerb": null,
           "bloomAR": 120,
-          "bloomRot": 0
+          "bloomRot": 0,
+          "reshoot": true,
+          "verified": true
         },
         {
           "key": "perfume",
@@ -556,7 +624,9 @@
           "openFrame": null,
           "openVerb": null,
           "bloomAR": 111,
-          "bloomRot": 0
+          "bloomRot": 0,
+          "reshoot": true,
+          "verified": true
         },
         {
           "key": "events",
@@ -568,10 +638,13 @@
             "w": 51,
             "h": 84
           },
-          "openFrame": null,
-          "openVerb": null,
+          "openFrame": "refs-2x/lux/o-lux-events.jpg",
+          "openVerb": "билеты выходят из рамки",
           "bloomAR": 35,
-          "bloomRot": 0
+          "bloomRot": 0,
+          "accepted": true,
+          "verified": false,
+          "clamped": true
         },
         {
           "key": "travel",
@@ -586,7 +659,9 @@
           "openFrame": null,
           "openVerb": null,
           "bloomAR": 58,
-          "bloomRot": 0
+          "bloomRot": 0,
+          "reshoot": true,
+          "verified": true
         },
         {
           "key": "books",
@@ -602,7 +677,9 @@
           "openVerb": null,
           "bloomAR": 52,
           "bloomRot": 0,
-          "verified": true
+          "verified": false,
+          "reshoot": true,
+          "clamped": true
         },
         {
           "key": "music",
@@ -618,23 +695,27 @@
           "openVerb": null,
           "bloomAR": 116,
           "bloomRot": 0,
-          "verified": true
+          "verified": false,
+          "reshoot": true,
+          "clamped": true
         },
         {
           "key": "flowers",
           "label": "Цветы",
           "pool": "flowers",
           "rect": {
-            "x": 400,
+            "x": 408,
             "y": 120,
-            "w": 30,
+            "w": 22,
             "h": 72
           },
           "openFrame": null,
           "openVerb": null,
           "bloomAR": 30,
           "bloomRot": 0,
-          "verified": true
+          "verified": false,
+          "reshoot": true,
+          "clamped": true
         },
         {
           "key": "home",
@@ -650,7 +731,9 @@
           "openVerb": null,
           "bloomAR": 30,
           "bloomRot": 0,
-          "verified": true
+          "verified": false,
+          "reshoot": true,
+          "clamped": true
         },
         {
           "key": "money",
@@ -662,13 +745,18 @@
             "w": 33,
             "h": 30
           },
-          "openFrame": null,
-          "openVerb": null,
+          "openFrame": "refs-2x/lux/o-lux-money.jpg",
+          "openVerb": "конверт светится",
           "bloomAR": 64,
-          "bloomRot": 0
+          "bloomRot": 0,
+          "accepted": true,
+          "verified": true
         }
       ],
-      "roomLightness": 0.52
+      "roomLightness": 0.52,
+      "baseLegacy": "refs/v4-lux.jpg",
+      "kitComplete": false,
+      "acceptedCount": 3
     },
     {
       "id": "emerald",
@@ -676,7 +764,7 @@
       "sex": "F",
       "accent": "#D9B978",
       "ink": "#1B2119",
-      "base": "refs/v4-emerald.jpg",
+      "base": "refs-2x/emerald/v4-emerald.jpg",
       "demo": {
         "owner": "Ирина",
         "counts": "238 желаний · 21 в подарок",
@@ -693,10 +781,12 @@
             "w": 64,
             "h": 159
           },
-          "openFrame": "refs/o-emerald-fashion.jpg",
-          "openVerb": "створки расходятся",
+          "openFrame": null,
+          "openVerb": null,
           "bloomAR": 30,
-          "bloomRot": 0
+          "bloomRot": 0,
+          "reshoot": true,
+          "verified": true
         },
         {
           "key": "jewelry",
@@ -708,10 +798,12 @@
             "w": 46,
             "h": 36
           },
-          "openFrame": "refs/o-emerald.jpg",
+          "openFrame": "refs-2x/emerald/o-emerald-jewelry.jpg",
           "openVerb": "шкатулка поднимает крышку",
           "bloomAR": 74,
-          "bloomRot": 0
+          "bloomRot": 0,
+          "accepted": true,
+          "verified": true
         },
         {
           "key": "anything",
@@ -723,10 +815,12 @@
             "w": 77,
             "h": 123
           },
-          "openFrame": "refs/o-emerald-any.jpg",
-          "openVerb": "коробка раскрывается",
+          "openFrame": null,
+          "openVerb": null,
           "bloomAR": 36,
-          "bloomRot": 0
+          "bloomRot": 0,
+          "reshoot": true,
+          "verified": true
         },
         {
           "key": "beauty",
@@ -741,7 +835,9 @@
           "openFrame": null,
           "openVerb": null,
           "bloomAR": 45,
-          "bloomRot": 0
+          "bloomRot": 0,
+          "reshoot": true,
+          "verified": true
         },
         {
           "key": "perfume",
@@ -756,7 +852,9 @@
           "openFrame": null,
           "openVerb": null,
           "bloomAR": 120,
-          "bloomRot": 0
+          "bloomRot": 0,
+          "reshoot": true,
+          "verified": true
         },
         {
           "key": "bags",
@@ -768,10 +866,12 @@
             "w": 69,
             "h": 66
           },
-          "openFrame": null,
-          "openVerb": null,
+          "openFrame": "refs-2x/emerald/o-emerald-bags.jpg",
+          "openVerb": "витрина открывается",
           "bloomAR": 61,
-          "bloomRot": 0
+          "bloomRot": 0,
+          "accepted": true,
+          "verified": true
         },
         {
           "key": "home",
@@ -783,10 +883,13 @@
             "w": 67,
             "h": 136
           },
-          "openFrame": null,
-          "openVerb": null,
+          "openFrame": "refs-2x/emerald/o-emerald-home.jpg",
+          "openVerb": "свечи разгораются",
           "bloomAR": 30,
-          "bloomRot": 0
+          "bloomRot": 0,
+          "accepted": true,
+          "verified": false,
+          "clamped": true
         },
         {
           "key": "events",
@@ -801,7 +904,10 @@
           "openFrame": null,
           "openVerb": null,
           "bloomAR": 42,
-          "bloomRot": 0
+          "bloomRot": 0,
+          "reshoot": true,
+          "verified": false,
+          "clamped": true
         },
         {
           "key": "travel",
@@ -816,7 +922,9 @@
           "openFrame": null,
           "openVerb": null,
           "bloomAR": 83,
-          "bloomRot": 0
+          "bloomRot": 0,
+          "reshoot": true,
+          "verified": true
         },
         {
           "key": "books",
@@ -826,13 +934,16 @@
             "x": 352,
             "y": 10,
             "w": 52,
-            "h": 64
+            "h": 62
           },
           "openFrame": null,
           "openVerb": null,
-          "bloomAR": 47,
+          "bloomAR": 49,
           "bloomRot": 0,
-          "placedBy": "composition"
+          "placedBy": "composition",
+          "reshoot": true,
+          "verified": false,
+          "clamped": true
         },
         {
           "key": "music",
@@ -844,27 +955,33 @@
             "w": 52,
             "h": 20
           },
-          "openFrame": null,
-          "openVerb": null,
+          "openFrame": "refs-2x/emerald/o-emerald-music.jpg",
+          "openVerb": "ящики винила выезжают",
           "bloomAR": 120,
           "bloomRot": 0,
-          "placedBy": "composition"
+          "placedBy": "composition",
+          "accepted": true,
+          "verified": false,
+          "clamped": true
         },
         {
           "key": "flowers",
           "label": "Цветы",
           "pool": "flowers",
           "rect": {
-            "x": 402,
+            "x": 405,
             "y": 10,
-            "w": 28,
+            "w": 25,
             "h": 56
           },
           "openFrame": null,
           "openVerb": null,
           "bloomAR": 30,
           "bloomRot": 0,
-          "placedBy": "composition"
+          "placedBy": "composition",
+          "reshoot": true,
+          "verified": false,
+          "clamped": true
         },
         {
           "key": "money",
@@ -872,17 +989,22 @@
           "pool": "money",
           "rect": {
             "x": 328,
-            "y": 194,
+            "y": 201,
             "w": 29,
             "h": 21
           },
           "openFrame": null,
           "openVerb": null,
           "bloomAR": 80,
-          "bloomRot": 0
+          "bloomRot": 0,
+          "reshoot": true,
+          "verified": true
         }
       ],
-      "roomLightness": 0.24
+      "roomLightness": 0.24,
+      "baseLegacy": "refs/v4-emerald.jpg",
+      "kitComplete": false,
+      "acceptedCount": 4
     },
     {
       "id": "bold",
@@ -890,7 +1012,7 @@
       "sex": "F",
       "accent": "#FF57C8",
       "ink": "#2A0420",
-      "base": "refs/v5-bold-a.jpg",
+      "base": "refs-2x/bold/v5-bold-a.jpg",
       "demo": {
         "owner": "Ирина",
         "counts": "187 желаний · 25 в подарок",
@@ -907,10 +1029,12 @@
             "w": 156,
             "h": 163
           },
-          "openFrame": "refs/o-bold-fashion.jpg",
-          "openVerb": "створки расходятся",
+          "openFrame": null,
+          "openVerb": null,
           "bloomAR": 56,
-          "bloomRot": 0
+          "bloomRot": 0,
+          "reshoot": true,
+          "verified": true
         },
         {
           "key": "beauty",
@@ -922,10 +1046,12 @@
             "w": 127,
             "h": 93
           },
-          "openFrame": "refs/o-bold.jpg",
-          "openVerb": "органайзер раскрывается",
+          "openFrame": null,
+          "openVerb": null,
           "bloomAR": 79,
-          "bloomRot": 0
+          "bloomRot": 0,
+          "reshoot": true,
+          "verified": true
         },
         {
           "key": "anything",
@@ -937,10 +1063,12 @@
             "w": 269,
             "h": 85
           },
-          "openFrame": "refs/o-bold-any.jpg",
-          "openVerb": "коробка раскрывается",
+          "openFrame": null,
+          "openVerb": null,
           "bloomAR": 120,
-          "bloomRot": 0
+          "bloomRot": 0,
+          "reshoot": true,
+          "verified": true
         },
         {
           "key": "jewelry",
@@ -952,10 +1080,12 @@
             "w": 35,
             "h": 29
           },
-          "openFrame": null,
-          "openVerb": null,
+          "openFrame": "refs-2x/bold/o-bold-jewelry.jpg",
+          "openVerb": "шкатулка поднимает крышку",
           "bloomAR": 70,
-          "bloomRot": 0
+          "bloomRot": 0,
+          "accepted": true,
+          "verified": true
         },
         {
           "key": "perfume",
@@ -967,10 +1097,12 @@
             "w": 25,
             "h": 32
           },
-          "openFrame": null,
-          "openVerb": null,
+          "openFrame": "refs-2x/bold/o-bold-perfume.jpg",
+          "openVerb": "флаконы выходят на свет",
           "bloomAR": 45,
-          "bloomRot": 0
+          "bloomRot": 0,
+          "accepted": true,
+          "verified": true
         },
         {
           "key": "bags",
@@ -982,10 +1114,12 @@
             "w": 149,
             "h": 53
           },
-          "openFrame": null,
-          "openVerb": null,
+          "openFrame": "refs-2x/bold/o-bold-bags.jpg",
+          "openVerb": "витрина открывается",
           "bloomAR": 120,
-          "bloomRot": 0
+          "bloomRot": 0,
+          "accepted": true,
+          "verified": true
         },
         {
           "key": "events",
@@ -997,10 +1131,13 @@
             "w": 66,
             "h": 56
           },
-          "openFrame": null,
-          "openVerb": null,
+          "openFrame": "refs-2x/bold/o-bold-events.jpg",
+          "openVerb": "билеты выходят из рамки",
           "bloomAR": 68,
-          "bloomRot": 0
+          "bloomRot": 0,
+          "accepted": true,
+          "verified": false,
+          "clamped": true
         },
         {
           "key": "music",
@@ -1015,7 +1152,10 @@
           "openFrame": null,
           "openVerb": null,
           "bloomAR": 34,
-          "bloomRot": 0
+          "bloomRot": 0,
+          "reshoot": true,
+          "verified": false,
+          "clamped": true
         },
         {
           "key": "travel",
@@ -1030,7 +1170,9 @@
           "openFrame": null,
           "openVerb": null,
           "bloomAR": 76,
-          "bloomRot": 0
+          "bloomRot": 0,
+          "reshoot": true,
+          "verified": true
         },
         {
           "key": "books",
@@ -1046,7 +1188,10 @@
           "openVerb": null,
           "bloomAR": 67,
           "bloomRot": 0,
-          "placedBy": "composition"
+          "placedBy": "composition",
+          "reshoot": true,
+          "verified": false,
+          "clamped": true
         },
         {
           "key": "flowers",
@@ -1062,7 +1207,10 @@
           "openVerb": null,
           "bloomAR": 30,
           "bloomRot": 0,
-          "placedBy": "composition"
+          "placedBy": "composition",
+          "reshoot": true,
+          "verified": false,
+          "clamped": true
         },
         {
           "key": "home",
@@ -1074,11 +1222,14 @@
             "w": 22,
             "h": 100
           },
-          "openFrame": null,
-          "openVerb": null,
+          "openFrame": "refs-2x/bold/o-bold-home.jpg",
+          "openVerb": "свечи разгораются",
           "bloomAR": 30,
           "bloomRot": 0,
-          "placedBy": "composition"
+          "placedBy": "composition",
+          "accepted": true,
+          "verified": false,
+          "clamped": true
         },
         {
           "key": "money",
@@ -1087,16 +1238,21 @@
           "rect": {
             "x": 355,
             "y": 198,
-            "w": 30,
+            "w": 26,
             "h": 35
           },
-          "openFrame": null,
-          "openVerb": null,
-          "bloomAR": 50,
-          "bloomRot": 0
+          "openFrame": "refs-2x/bold/o-bold-money.jpg",
+          "openVerb": "конверт светится",
+          "bloomAR": 43,
+          "bloomRot": 0,
+          "accepted": true,
+          "verified": true
         }
       ],
-      "roomLightness": 0.15
+      "roomLightness": 0.15,
+      "baseLegacy": "refs/v5-bold-a.jpg",
+      "kitComplete": false,
+      "acceptedCount": 6
     },
     {
       "id": "cottage",
@@ -1104,7 +1260,7 @@
       "sex": "F",
       "accent": "#D98E6A",
       "ink": "#25120A",
-      "base": "refs/v4-cottage.jpg",
+      "base": "refs-2x/cottage/v4-cottage.jpg",
       "demo": {
         "owner": "Ирина",
         "counts": "108 желаний · 13 в подарок",
@@ -1121,10 +1277,12 @@
             "w": 125,
             "h": 181
           },
-          "openFrame": "refs/o-cottage.jpg",
-          "openVerb": "створки расходятся",
+          "openFrame": null,
+          "openVerb": null,
           "bloomAR": 40,
-          "bloomRot": 0
+          "bloomRot": 0,
+          "reshoot": true,
+          "verified": true
         },
         {
           "key": "jewelry",
@@ -1136,10 +1294,12 @@
             "w": 34,
             "h": 20
           },
-          "openFrame": "refs/o-cottage-jewel.jpg",
+          "openFrame": "refs-2x/cottage/o-cottage-jewelry.jpg",
           "openVerb": "шкатулка поднимает крышку",
           "bloomAR": 99,
-          "bloomRot": 0
+          "bloomRot": 0,
+          "accepted": true,
+          "verified": true
         },
         {
           "key": "anything",
@@ -1151,10 +1311,12 @@
             "w": 103,
             "h": 95
           },
-          "openFrame": "refs/o-cottage-any.jpg",
-          "openVerb": "коробка раскрывается",
+          "openFrame": null,
+          "openVerb": null,
           "bloomAR": 63,
-          "bloomRot": 0
+          "bloomRot": 0,
+          "reshoot": true,
+          "verified": true
         },
         {
           "key": "beauty",
@@ -1169,7 +1331,9 @@
           "openFrame": null,
           "openVerb": null,
           "bloomAR": 40,
-          "bloomRot": 0
+          "bloomRot": 0,
+          "reshoot": true,
+          "verified": true
         },
         {
           "key": "perfume",
@@ -1181,10 +1345,12 @@
             "w": 53,
             "h": 22
           },
-          "openFrame": null,
-          "openVerb": null,
+          "openFrame": "refs-2x/cottage/o-cottage-perfume.jpg",
+          "openVerb": "флаконы выходят на свет",
           "bloomAR": 120,
-          "bloomRot": 0
+          "bloomRot": 0,
+          "accepted": true,
+          "verified": true
         },
         {
           "key": "bags",
@@ -1199,7 +1365,9 @@
           "openFrame": null,
           "openVerb": null,
           "bloomAR": 120,
-          "bloomRot": 0
+          "bloomRot": 0,
+          "reshoot": true,
+          "verified": true
         },
         {
           "key": "events",
@@ -1214,22 +1382,28 @@
           "openFrame": null,
           "openVerb": null,
           "bloomAR": 120,
-          "bloomRot": 0
+          "bloomRot": 0,
+          "reshoot": true,
+          "verified": false,
+          "clamped": true
         },
         {
           "key": "music",
           "label": "Музыка",
           "pool": "music",
           "rect": {
-            "x": 396,
-            "y": 213,
-            "w": 34,
-            "h": 23
+            "x": 399,
+            "y": 217,
+            "w": 31,
+            "h": 18
           },
           "openFrame": null,
           "openVerb": null,
-          "bloomAR": 86,
-          "bloomRot": 0
+          "bloomAR": 100,
+          "bloomRot": 0,
+          "reshoot": true,
+          "verified": false,
+          "clamped": true
         },
         {
           "key": "travel",
@@ -1241,10 +1415,12 @@
             "w": 160,
             "h": 111
           },
-          "openFrame": null,
-          "openVerb": null,
+          "openFrame": "refs-2x/cottage/o-cottage-travel.jpg",
+          "openVerb": "чемодан раскрывается",
           "bloomAR": 84,
-          "bloomRot": 0
+          "bloomRot": 0,
+          "accepted": true,
+          "verified": true
         },
         {
           "key": "books",
@@ -1254,13 +1430,16 @@
             "x": 350,
             "y": 28,
             "w": 54,
-            "h": 58
+            "h": 55
           },
           "openFrame": null,
           "openVerb": null,
-          "bloomAR": 54,
+          "bloomAR": 57,
           "bloomRot": 0,
-          "placedBy": "composition"
+          "placedBy": "composition",
+          "reshoot": true,
+          "verified": false,
+          "clamped": true
         },
         {
           "key": "flowers",
@@ -1276,7 +1455,10 @@
           "openVerb": null,
           "bloomAR": 30,
           "bloomRot": 0,
-          "placedBy": "composition"
+          "placedBy": "composition",
+          "reshoot": true,
+          "verified": false,
+          "clamped": true
         },
         {
           "key": "home",
@@ -1292,7 +1474,10 @@
           "openVerb": null,
           "bloomAR": 30,
           "bloomRot": 0,
-          "placedBy": "composition"
+          "placedBy": "composition",
+          "reshoot": true,
+          "verified": false,
+          "clamped": true
         },
         {
           "key": "money",
@@ -1304,13 +1489,18 @@
             "w": 34,
             "h": 28
           },
-          "openFrame": null,
-          "openVerb": null,
+          "openFrame": "refs-2x/cottage/o-cottage-money.jpg",
+          "openVerb": "конверт светится",
           "bloomAR": 70,
-          "bloomRot": 0
+          "bloomRot": 0,
+          "accepted": true,
+          "verified": true
         }
       ],
-      "roomLightness": 0.58
+      "roomLightness": 0.58,
+      "baseLegacy": "refs/v4-cottage.jpg",
+      "kitComplete": false,
+      "acceptedCount": 4
     },
     {
       "id": "gamer",
@@ -1318,7 +1508,7 @@
       "sex": "M",
       "accent": "#7FB2FF",
       "ink": "#06121F",
-      "base": "refs/m-gamer.jpg",
+      "base": "refs-2x/gamer/m-gamer.jpg",
       "demo": {
         "owner": "Артём",
         "counts": "96 желаний · 14 в подарок",
@@ -1335,10 +1525,12 @@
             "w": 119,
             "h": 57
           },
-          "openFrame": "refs/o-gamer.jpg",
+          "openFrame": "refs-2x/gamer/o-gamer-sneakers.jpg",
           "openVerb": "витрина открывается",
           "bloomAR": 120,
-          "bloomRot": 0
+          "bloomRot": 0,
+          "accepted": true,
+          "verified": true
         },
         {
           "key": "tech",
@@ -1350,10 +1542,12 @@
             "w": 84,
             "h": 34
           },
-          "openFrame": "refs/o-gamer-tech.jpg",
-          "openVerb": "ящик выезжает",
+          "openFrame": null,
+          "openVerb": null,
           "bloomAR": 120,
-          "bloomRot": 0
+          "bloomRot": 0,
+          "reshoot": true,
+          "verified": true
         },
         {
           "key": "anything",
@@ -1365,10 +1559,12 @@
             "w": 114,
             "h": 95
           },
-          "openFrame": "refs/o-gamer-any.jpg",
-          "openVerb": "коробка раскрывается",
+          "openFrame": null,
+          "openVerb": null,
           "bloomAR": 70,
-          "bloomRot": 0
+          "bloomRot": 0,
+          "reshoot": true,
+          "verified": true
         },
         {
           "key": "gaming",
@@ -1380,10 +1576,12 @@
             "w": 47,
             "h": 20
           },
-          "openFrame": null,
-          "openVerb": null,
+          "openFrame": "refs-2x/gamer/o-gamer-gaming.jpg",
+          "openVerb": "консоль выходит вперёд",
           "bloomAR": 120,
-          "bloomRot": 0
+          "bloomRot": 0,
+          "accepted": true,
+          "verified": true
         },
         {
           "key": "sport",
@@ -1395,10 +1593,13 @@
             "w": 55,
             "h": 72
           },
-          "openFrame": null,
-          "openVerb": null,
+          "openFrame": "refs-2x/gamer/o-gamer-sport.jpg",
+          "openVerb": "стойка раскрывается",
           "bloomAR": 44,
-          "bloomRot": 0
+          "bloomRot": 0,
+          "accepted": true,
+          "verified": false,
+          "clamped": true
         },
         {
           "key": "grooming",
@@ -1413,7 +1614,9 @@
           "openFrame": null,
           "openVerb": null,
           "bloomAR": 76,
-          "bloomRot": 0
+          "bloomRot": 0,
+          "reshoot": true,
+          "verified": true
         },
         {
           "key": "fashion",
@@ -1425,10 +1628,12 @@
             "w": 119,
             "h": 93
           },
-          "openFrame": null,
-          "openVerb": null,
+          "openFrame": "refs-2x/gamer/o-gamer-fashion.jpg",
+          "openVerb": "створки расходятся",
           "bloomAR": 74,
-          "bloomRot": 0
+          "bloomRot": 0,
+          "accepted": true,
+          "verified": true
         },
         {
           "key": "events",
@@ -1443,7 +1648,10 @@
           "openFrame": null,
           "openVerb": null,
           "bloomAR": 30,
-          "bloomRot": 0
+          "bloomRot": 0,
+          "reshoot": true,
+          "verified": false,
+          "clamped": true
         },
         {
           "key": "travel",
@@ -1455,10 +1663,12 @@
             "w": 91,
             "h": 91
           },
-          "openFrame": null,
-          "openVerb": null,
+          "openFrame": "refs-2x/gamer/o-gamer-travel.jpg",
+          "openVerb": "чемодан раскрывается",
           "bloomAR": 58,
-          "bloomRot": 0
+          "bloomRot": 0,
+          "accepted": true,
+          "verified": true
         },
         {
           "key": "watches",
@@ -1474,7 +1684,9 @@
           "openVerb": null,
           "bloomAR": 67,
           "bloomRot": 0,
-          "placedBy": "composition"
+          "placedBy": "composition",
+          "reshoot": true,
+          "verified": true
         },
         {
           "key": "music",
@@ -1484,13 +1696,16 @@
             "x": 350,
             "y": 24,
             "w": 52,
-            "h": 56
+            "h": 54
           },
           "openFrame": null,
           "openVerb": null,
-          "bloomAR": 54,
+          "bloomAR": 56,
           "bloomRot": 0,
-          "placedBy": "composition"
+          "placedBy": "composition",
+          "reshoot": true,
+          "verified": false,
+          "clamped": true
         },
         {
           "key": "books",
@@ -1502,11 +1717,13 @@
             "w": 34,
             "h": 48
           },
-          "openFrame": null,
-          "openVerb": null,
+          "openFrame": "refs-2x/gamer/o-gamer-books.jpg",
+          "openVerb": "книга выдвигается",
           "bloomAR": 41,
           "bloomRot": 0,
-          "placedBy": "composition"
+          "placedBy": "composition",
+          "accepted": true,
+          "verified": true
         },
         {
           "key": "money",
@@ -1518,14 +1735,19 @@
             "w": 22,
             "h": 40
           },
-          "openFrame": null,
-          "openVerb": null,
+          "openFrame": "refs-2x/gamer/o-gamer-money.jpg",
+          "openVerb": "конверт светится",
           "bloomAR": 32,
           "bloomRot": 0,
-          "placedBy": "composition"
+          "placedBy": "composition",
+          "accepted": true,
+          "verified": true
         }
       ],
-      "roomLightness": 0.17
+      "roomLightness": 0.17,
+      "baseLegacy": "refs/m-gamer.jpg",
+      "kitComplete": false,
+      "acceptedCount": 7
     },
     {
       "id": "sport",
@@ -1533,7 +1755,7 @@
       "sex": "M",
       "accent": "#D9A76C",
       "ink": "#241705",
-      "base": "refs/m-sport.jpg",
+      "base": "refs-2x/sport/m-sport.jpg",
       "demo": {
         "owner": "Артём",
         "counts": "124 желания · 17 в подарок",
@@ -1550,10 +1772,12 @@
             "w": 112,
             "h": 158
           },
-          "openFrame": "refs/o-sport.jpg",
+          "openFrame": "refs-2x/sport/o-sport-fashion.jpg",
           "openVerb": "створки расходятся",
           "bloomAR": 41,
-          "bloomRot": 0
+          "bloomRot": 0,
+          "accepted": true,
+          "verified": true
         },
         {
           "key": "watches",
@@ -1565,10 +1789,13 @@
             "w": 70,
             "h": 40
           },
-          "openFrame": "refs/o-sport-watch.jpg",
-          "openVerb": "крышка поднимается",
+          "openFrame": null,
+          "openVerb": null,
           "bloomAR": 102,
-          "bloomRot": 0
+          "bloomRot": 0,
+          "reshoot": true,
+          "verified": false,
+          "clamped": true
         },
         {
           "key": "anything",
@@ -1577,13 +1804,15 @@
           "rect": {
             "x": 157,
             "y": 264,
-            "w": 101,
+            "w": 92,
             "h": 74
           },
-          "openFrame": "refs/o-sport-any.jpg",
+          "openFrame": "refs-2x/sport/o-sport-anything.jpg",
           "openVerb": "коробка раскрывается",
-          "bloomAR": 79,
-          "bloomRot": 0
+          "bloomAR": 72,
+          "bloomRot": 0,
+          "accepted": true,
+          "verified": true
         },
         {
           "key": "sneakers",
@@ -1595,10 +1824,12 @@
             "w": 110,
             "h": 50
           },
-          "openFrame": null,
-          "openVerb": null,
+          "openFrame": "refs-2x/sport/o-sport-sneakers.jpg",
+          "openVerb": "витрина открывается",
           "bloomAR": 120,
-          "bloomRot": 0
+          "bloomRot": 0,
+          "accepted": true,
+          "verified": true
         },
         {
           "key": "grooming",
@@ -1613,7 +1844,9 @@
           "openFrame": null,
           "openVerb": null,
           "bloomAR": 102,
-          "bloomRot": 0
+          "bloomRot": 0,
+          "reshoot": true,
+          "verified": true
         },
         {
           "key": "books",
@@ -1625,10 +1858,13 @@
             "w": 70,
             "h": 60
           },
-          "openFrame": null,
-          "openVerb": null,
+          "openFrame": "refs-2x/sport/o-sport-books.jpg",
+          "openVerb": "книга выдвигается",
           "bloomAR": 68,
-          "bloomRot": 0
+          "bloomRot": 0,
+          "accepted": true,
+          "verified": false,
+          "clamped": true
         },
         {
           "key": "music",
@@ -1643,7 +1879,10 @@
           "openFrame": null,
           "openVerb": null,
           "bloomAR": 102,
-          "bloomRot": 0
+          "bloomRot": 0,
+          "reshoot": true,
+          "verified": false,
+          "clamped": true
         },
         {
           "key": "sport",
@@ -1658,7 +1897,9 @@
           "openFrame": null,
           "openVerb": null,
           "bloomAR": 71,
-          "bloomRot": 0
+          "bloomRot": 0,
+          "reshoot": true,
+          "verified": true
         },
         {
           "key": "tech",
@@ -1674,14 +1915,16 @@
           "openVerb": null,
           "bloomAR": 120,
           "bloomRot": 0,
-          "placedBy": "composition"
+          "placedBy": "composition",
+          "reshoot": true,
+          "verified": true
         },
         {
           "key": "gaming",
           "label": "Игры",
           "pool": "gaming",
           "rect": {
-            "x": 258,
+            "x": 261,
             "y": 150,
             "w": 44,
             "h": 26
@@ -1690,7 +1933,9 @@
           "openVerb": null,
           "bloomAR": 98,
           "bloomRot": 0,
-          "placedBy": "composition"
+          "placedBy": "composition",
+          "reshoot": true,
+          "verified": true
         },
         {
           "key": "events",
@@ -1706,7 +1951,9 @@
           "openVerb": null,
           "bloomAR": 106,
           "bloomRot": 0,
-          "placedBy": "composition"
+          "placedBy": "composition",
+          "reshoot": true,
+          "verified": true
         },
         {
           "key": "travel",
@@ -1718,11 +1965,13 @@
             "w": 84,
             "h": 60
           },
-          "openFrame": null,
-          "openVerb": null,
+          "openFrame": "refs-2x/sport/o-sport-travel.jpg",
+          "openVerb": "чемодан раскрывается",
           "bloomAR": 81,
           "bloomRot": 0,
-          "placedBy": "composition"
+          "placedBy": "composition",
+          "accepted": true,
+          "verified": true
         },
         {
           "key": "money",
@@ -1734,14 +1983,19 @@
             "w": 22,
             "h": 42
           },
-          "openFrame": null,
-          "openVerb": null,
+          "openFrame": "refs-2x/sport/o-sport-money.jpg",
+          "openVerb": "конверт светится",
           "bloomAR": 30,
           "bloomRot": 0,
-          "placedBy": "composition"
+          "placedBy": "composition",
+          "accepted": true,
+          "verified": true
         }
       ],
-      "roomLightness": 0.55
+      "roomLightness": 0.55,
+      "baseLegacy": "refs/m-sport.jpg",
+      "kitComplete": false,
+      "acceptedCount": 6
     },
     {
       "id": "study",
@@ -1749,7 +2003,7 @@
       "sex": "M",
       "accent": "#D3B064",
       "ink": "#1E1608",
-      "base": "refs/m-study.jpg",
+      "base": "refs-2x/study/m-study.jpg",
       "demo": {
         "owner": "Артём",
         "counts": "208 желаний · 22 в подарок",
@@ -1766,10 +2020,12 @@
             "w": 129,
             "h": 150
           },
-          "openFrame": "refs/o-study-fashion.jpg",
+          "openFrame": "refs-2x/study/o-study-fashion.jpg",
           "openVerb": "створки расходятся",
           "bloomAR": 50,
-          "bloomRot": 0
+          "bloomRot": 0,
+          "accepted": true,
+          "verified": true
         },
         {
           "key": "watches",
@@ -1781,10 +2037,12 @@
             "w": 95,
             "h": 45
           },
-          "openFrame": "refs/o-study.jpg",
+          "openFrame": "refs-2x/study/o-study-watches.jpg",
           "openVerb": "крышка поднимается",
           "bloomAR": 120,
-          "bloomRot": 0
+          "bloomRot": 0,
+          "accepted": true,
+          "verified": true
         },
         {
           "key": "anything",
@@ -1796,10 +2054,12 @@
             "w": 135,
             "h": 85
           },
-          "openFrame": "refs/o-study-any.jpg",
+          "openFrame": "refs-2x/study/o-study-anything.jpg",
           "openVerb": "коробка раскрывается",
           "bloomAR": 92,
-          "bloomRot": 0
+          "bloomRot": 0,
+          "accepted": true,
+          "verified": true
         },
         {
           "key": "sneakers",
@@ -1811,10 +2071,12 @@
             "w": 120,
             "h": 33
           },
-          "openFrame": null,
-          "openVerb": null,
+          "openFrame": "refs-2x/study/o-study-sneakers.jpg",
+          "openVerb": "витрина открывается",
           "bloomAR": 120,
-          "bloomRot": 0
+          "bloomRot": 0,
+          "accepted": true,
+          "verified": true
         },
         {
           "key": "grooming",
@@ -1826,10 +2088,12 @@
             "w": 55,
             "h": 32
           },
-          "openFrame": null,
-          "openVerb": null,
+          "openFrame": "refs-2x/study/o-study-grooming.jpg",
+          "openVerb": "несессер раскрывается",
           "bloomAR": 100,
-          "bloomRot": 0
+          "bloomRot": 0,
+          "accepted": true,
+          "verified": true
         },
         {
           "key": "books",
@@ -1841,10 +2105,13 @@
             "w": 85,
             "h": 110
           },
-          "openFrame": null,
-          "openVerb": null,
+          "openFrame": "refs-2x/study/o-study-books.jpg",
+          "openVerb": "книга выдвигается",
           "bloomAR": 45,
-          "bloomRot": 0
+          "bloomRot": 0,
+          "accepted": true,
+          "verified": false,
+          "clamped": true
         },
         {
           "key": "music",
@@ -1859,7 +2126,10 @@
           "openFrame": null,
           "openVerb": null,
           "bloomAR": 116,
-          "bloomRot": 0
+          "bloomRot": 0,
+          "reshoot": true,
+          "verified": false,
+          "clamped": true
         },
         {
           "key": "events",
@@ -1874,7 +2144,9 @@
           "openFrame": null,
           "openVerb": null,
           "bloomAR": 44,
-          "bloomRot": 0
+          "bloomRot": 0,
+          "reshoot": true,
+          "verified": true
         },
         {
           "key": "tech",
@@ -1890,7 +2162,9 @@
           "openVerb": null,
           "bloomAR": 87,
           "bloomRot": 0,
-          "placedBy": "composition"
+          "placedBy": "composition",
+          "reshoot": true,
+          "verified": true
         },
         {
           "key": "gaming",
@@ -1906,7 +2180,9 @@
           "openVerb": null,
           "bloomAR": 94,
           "bloomRot": 0,
-          "placedBy": "composition"
+          "placedBy": "composition",
+          "reshoot": true,
+          "verified": true
         },
         {
           "key": "sport",
@@ -1918,11 +2194,13 @@
             "w": 68,
             "h": 86
           },
-          "openFrame": null,
-          "openVerb": null,
+          "openFrame": "refs-2x/study/o-study-sport.jpg",
+          "openVerb": "стойка раскрывается",
           "bloomAR": 46,
           "bloomRot": 0,
-          "placedBy": "composition"
+          "placedBy": "composition",
+          "accepted": true,
+          "verified": true
         },
         {
           "key": "travel",
@@ -1938,7 +2216,9 @@
           "openVerb": null,
           "bloomAR": 75,
           "bloomRot": 0,
-          "placedBy": "composition"
+          "placedBy": "composition",
+          "reshoot": true,
+          "verified": true
         },
         {
           "key": "money",
@@ -1954,10 +2234,15 @@
           "openVerb": null,
           "bloomAR": 47,
           "bloomRot": 0,
-          "placedBy": "composition"
+          "placedBy": "composition",
+          "reshoot": true,
+          "verified": true
         }
       ],
-      "roomLightness": 0.28
+      "roomLightness": 0.28,
+      "baseLegacy": "refs/m-study.jpg",
+      "kitComplete": false,
+      "acceptedCount": 7
     },
     {
       "id": "loft",
@@ -1965,7 +2250,7 @@
       "sex": "M",
       "accent": "#D2703A",
       "ink": "#1E0E05",
-      "base": "refs/m-loft.jpg",
+      "base": "refs-2x/loft/m-loft.jpg",
       "demo": {
         "owner": "Артём",
         "counts": "167 желаний · 20 в подарок",
@@ -1982,10 +2267,12 @@
             "w": 135,
             "h": 163
           },
-          "openFrame": "refs/o-loft-fashion.jpg",
-          "openVerb": "створки расходятся",
+          "openFrame": null,
+          "openVerb": null,
           "bloomAR": 48,
-          "bloomRot": 0
+          "bloomRot": 0,
+          "reshoot": true,
+          "verified": true
         },
         {
           "key": "music",
@@ -1997,10 +2284,12 @@
             "w": 118,
             "h": 56
           },
-          "openFrame": "refs/o-loft.jpg",
-          "openVerb": "ящики винила выезжают",
+          "openFrame": null,
+          "openVerb": null,
           "bloomAR": 120,
-          "bloomRot": 0
+          "bloomRot": 0,
+          "reshoot": true,
+          "verified": true
         },
         {
           "key": "anything",
@@ -2012,10 +2301,12 @@
             "w": 141,
             "h": 79
           },
-          "openFrame": "refs/o-loft-any.jpg",
-          "openVerb": "коробка раскрывается",
+          "openFrame": null,
+          "openVerb": null,
           "bloomAR": 104,
-          "bloomRot": 0
+          "bloomRot": 0,
+          "reshoot": true,
+          "verified": true
         },
         {
           "key": "sneakers",
@@ -2030,7 +2321,9 @@
           "openFrame": null,
           "openVerb": null,
           "bloomAR": 120,
-          "bloomRot": 0
+          "bloomRot": 0,
+          "reshoot": true,
+          "verified": true
         },
         {
           "key": "tech",
@@ -2045,7 +2338,9 @@
           "openFrame": null,
           "openVerb": null,
           "bloomAR": 67,
-          "bloomRot": 0
+          "bloomRot": 0,
+          "reshoot": true,
+          "verified": true
         },
         {
           "key": "books",
@@ -2060,7 +2355,10 @@
           "openFrame": null,
           "openVerb": null,
           "bloomAR": 38,
-          "bloomRot": 0
+          "bloomRot": 0,
+          "reshoot": true,
+          "verified": false,
+          "clamped": true
         },
         {
           "key": "sport",
@@ -2072,10 +2370,13 @@
             "w": 90,
             "h": 70
           },
-          "openFrame": null,
-          "openVerb": null,
+          "openFrame": "refs-2x/loft/o-loft-sport.jpg",
+          "openVerb": "стойка раскрывается",
           "bloomAR": 75,
-          "bloomRot": 0
+          "bloomRot": 0,
+          "accepted": true,
+          "verified": false,
+          "clamped": true
         },
         {
           "key": "events",
@@ -2090,7 +2391,9 @@
           "openFrame": null,
           "openVerb": null,
           "bloomAR": 47,
-          "bloomRot": 0
+          "bloomRot": 0,
+          "reshoot": true,
+          "verified": true
         },
         {
           "key": "gaming",
@@ -2106,7 +2409,9 @@
           "openVerb": null,
           "bloomAR": 91,
           "bloomRot": 0,
-          "placedBy": "composition"
+          "placedBy": "composition",
+          "reshoot": true,
+          "verified": true
         },
         {
           "key": "watches",
@@ -2114,7 +2419,7 @@
           "pool": "watches",
           "rect": {
             "x": 300,
-            "y": 127,
+            "y": 131,
             "w": 48,
             "h": 26
           },
@@ -2122,7 +2427,9 @@
           "openVerb": null,
           "bloomAR": 107,
           "bloomRot": 0,
-          "placedBy": "composition"
+          "placedBy": "composition",
+          "reshoot": true,
+          "verified": true
         },
         {
           "key": "grooming",
@@ -2130,15 +2437,17 @@
           "pool": "perfume",
           "rect": {
             "x": 196,
-            "y": 197,
-            "w": 52,
+            "y": 206,
+            "w": 44,
             "h": 20
           },
           "openFrame": null,
           "openVerb": null,
           "bloomAR": 120,
           "bloomRot": 0,
-          "placedBy": "composition"
+          "placedBy": "composition",
+          "reshoot": true,
+          "verified": true
         },
         {
           "key": "travel",
@@ -2154,7 +2463,9 @@
           "openVerb": null,
           "bloomAR": 53,
           "bloomRot": 0,
-          "placedBy": "composition"
+          "placedBy": "composition",
+          "reshoot": true,
+          "verified": true
         },
         {
           "key": "money",
@@ -2166,14 +2477,19 @@
             "w": 34,
             "h": 42
           },
-          "openFrame": null,
-          "openVerb": null,
+          "openFrame": "refs-2x/loft/o-loft-money.jpg",
+          "openVerb": "конверт светится",
           "bloomAR": 47,
           "bloomRot": 0,
-          "placedBy": "composition"
+          "placedBy": "composition",
+          "accepted": true,
+          "verified": true
         }
       ],
-      "roomLightness": 0.22
+      "roomLightness": 0.22,
+      "baseLegacy": "refs/m-loft.jpg",
+      "kitComplete": false,
+      "acceptedCount": 2
     }
   ]
 }

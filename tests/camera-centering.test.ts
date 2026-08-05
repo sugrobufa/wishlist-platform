@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { cameraScale, rooms, roomsContract, sceneMotion } from "../src/config/design";
+import { rooms, roomsContract, sceneMotion } from "../src/config/design";
 import {
   cameraOrigin,
   computeZoneCamera,
@@ -157,12 +157,18 @@ describe("наезд доводит зону до центра (тикет 20)",
     expect((tl.y + br.y) / 2).toBeCloseTo(c.y, 6);
   });
 
-  it("формула контракта (с делением на scale) промахивается на (S−1)·смещение", () => {
-    // Именной тест на сам баг: считаем ровно то, что написано в motion.json,
-    // и показываем, куда это приводит. Если формулу контракта поправят — тест
-    // упадёт и напомнит про ADR-0002.
+  it("прежняя формула (с делением на scale) промахивалась на (S−1)·смещение", () => {
+    // Именной тест на сам баг. Раунд 4 формулу контракта ИСПРАВИЛ (см. тест
+    // ниже), поэтому здесь она уже не читается из motion.json, а считается
+    // руками — как памятка о том, что именно чинил ADR-0002 и какой ценой.
+    // Масштабы берём из блока `cameraScale`, помеченного в контракте устаревшим:
+    // это ровно те числа, при которых замерялся промах приёмки.
     expect(roomsContract.cameraScale.phone).toBe(1.72);
-    expect(roomsContract.cameraScale.desktop).toBe(1.45);
+    expect(roomsContract.cameraScale.desktopLegacy).toBe(1.45);
+    const legacyScale: Record<SceneView, number> = {
+      phone: roomsContract.cameraScale.phone,
+      desktop: roomsContract.cameraScale.desktopLegacy,
+    };
     const bold = must(
       rooms.find((room) => room.id === "bold"),
       "комната bold",
@@ -174,7 +180,7 @@ describe("наезд доводит зону до центра (тикет 20)",
 
     const missOf = (view: SceneView) => {
       const { w, h } = sceneSize(view);
-      const scale = cameraScale[view];
+      const scale = legacyScale[view];
       const r = zoneRectFor(music.rect, view);
       const c = viewportCenter(view);
       const zc = { x: r.x + r.w / 2, y: r.y + r.h / 2 };
@@ -196,10 +202,36 @@ describe("наезд доводит зону до центра (тикет 20)",
     for (const view of VIEWS) {
       const r = zoneRectFor(music.rect, view);
       const c = viewportCenter(view);
-      const expected = (cameraScale[view] - 1) * (r.x + r.w / 2 - c.x);
+      const expected = (legacyScale[view] - 1) * (r.x + r.w / 2 - c.x);
       expect(missOf(view).pxX, view).toBeCloseTo(expected, 6);
       // А починенный расчёт даёт ноль.
       expect(zoneCenterAfterCamera(music.rect, view).x - c.x, view).toBeCloseTo(0, 9);
+    }
+  });
+
+  it("раунд 4: контракт считает сдвиг без деления на scale — отступления больше нет", () => {
+    // Это снятие расхождения, ради которого писался ADR-0002. Формула пакета
+    // теперь совпадает с тем, что считает код; флаг сторожит, чтобы деление
+    // не вернулось в следующем пакете молча.
+    expect(sceneMotion.camera.panFormula.dividesByScale).toBe(false);
+    expect(sceneMotion.camera.panFormula.dx).toBe("((sceneW/2 - (x + w/2)) / sceneW) * 100");
+    expect(sceneMotion.camera.panFormula.dy).toBe("((sceneH/2 - (y + h/2)) / sceneH) * 100");
+
+    // И буква контракта, посчитанная как написано, доводит зону до центра —
+    // с тем единственным множителем S, который ставит стопка слоёв (тикет 22:
+    // сдвиг лежит СНАРУЖИ масштаба, поэтому браузер его больше не домножает).
+    for (const view of VIEWS) {
+      const { w, h } = sceneSize(view);
+      const c = viewportCenter(view);
+      for (const { id, rect } of allZones) {
+        const r = zoneRectFor(rect, view);
+        const { scale, dx, dy } = computeZoneCamera(rect, view);
+        const contractDx = ((w / 2 - (r.x + r.w / 2)) / w) * 100;
+        const contractDy = ((h / 2 - (r.y + r.h / 2)) / h) * 100;
+        expect(dx, `${id} ${view} dx`).toBeCloseTo(contractDx * scale, 9);
+        expect(dy, `${id} ${view} dy`).toBeCloseTo(contractDy * scale, 9);
+        expect(zoneCenterAfterCamera(rect, view).x - c.x, `${id} ${view}`).toBeCloseTo(0, 9);
+      }
     }
   });
 
