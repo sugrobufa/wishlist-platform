@@ -1,0 +1,122 @@
+{
+  "note": "Партитура одинакова для всех комнат. Проверено по стандартам emilkowalski/skills, турн 18.",
+  "easing": {
+    "out": "cubic-bezier(.23,1,.32,1)",
+    "note": "ease-in в проекте не используется нигде. Встроенный ease слишком слабый."
+  },
+  "openZone": [
+    {
+      "at": 0,
+      "what": "Камера идёт к зоне",
+      "prop": "transform",
+      "duration": {
+        "phone": 560,
+        "desktop": 620
+      },
+      "easing": "out",
+      "origin": "50% 50%",
+      "from": "scale(1.02)",
+      "to": "scale(1.72) translate(dx%, dy%)",
+      "dx": "((sceneW/2 - (x + w/2)) / sceneW) * 100 / scale",
+      "dy": "((sceneH/2 - (y + h/2)) / sceneH) * 100 / scale"
+    },
+    {
+      "at": 0,
+      "what": "Периферия темнеет",
+      "prop": "opacity",
+      "duration": 400,
+      "easing": "out",
+      "target": "радиальная вуаль, гасит края на 55%"
+    },
+    {
+      "at": {
+        "phone": 420,
+        "desktop": 440
+      },
+      "what": "Мебель раскрывается",
+      "prop": "opacity",
+      "duration": 400,
+      "easing": "out",
+      "target": "кроссфейд в кадр «открыто» этой зоны; кадры лежат стопкой, активный к 1, остальные 0"
+    },
+    {
+      "at": {
+        "phone": 620,
+        "desktop": 660
+      },
+      "what": "Вещи встают в сетку",
+      "step": 60,
+      "perTile": {
+        "opacity": 260,
+        "transform": 380
+      },
+      "easing": "out",
+      "from": "translateY(18px)",
+      "note": "Первая плитка появляется раньше, чем закончился кроссфейд — сцены сшиваются, а не идут очередью"
+    }
+  ],
+  "closeZone": [
+    {
+      "at": 0,
+      "what": "Сетка гаснет",
+      "duration": 220
+    },
+    {
+      "at": 220,
+      "what": "Камера отъезжает",
+      "duration": {
+        "phone": 560,
+        "desktop": 620
+      },
+      "note": "Быстро внутрь, спокойно наружу"
+    }
+  ],
+  "ambient": {
+    "drift": {
+      "keyframes": "omDrift",
+      "duration": {
+        "phone": 15000,
+        "desktop": 22000
+      },
+      "easing": "ease-in-out",
+      "loop": "yoyo",
+      "amplitude": "translate ±1.1%, scale 1.10→1.13",
+      "note": "Отдельный слой ПОД камерой, поэтому дыхание не сбивается при наезде. ease-in-out осознанно: маятник разворачивается на концах."
+    },
+    "pulse": {
+      "keyframes": "omPulse",
+      "duration": 4500,
+      "easing": "ease-in-out",
+      "stagger": 900,
+      "target": "контур хотспота в покое"
+    },
+    "spin": {
+      "keyframes": "omSpin",
+      "duration": 9000,
+      "easing": "ease-in-out",
+      "target": "вещь в зале славы",
+      "note": "В продакшне — three.js с инерцией от пальца, а не CSS"
+    }
+  },
+  "hover": {
+    "glow": {
+      "prop": "opacity",
+      "duration": 260,
+      "easing": "out",
+      "note": "Свечение вынесено в отдельный слой: анимируем opacity, не box-shadow"
+    }
+  },
+  "reducedMotion": {
+    "rule": "prefers-reduced-motion: reduce",
+    "drift": "animation:none",
+    "pulse": "animation:none",
+    "spin": "animation:none",
+    "transitions": "duration → 120ms",
+    "note": "Не глобальное убийство в 0.01ms — смена состояния должна остаться читаемой"
+  },
+  "todoForProduction": [
+    "Ворота (hover:hover) and (pointer:fine) на всё, что висит на mouseenter — тач даёт ложное наведение",
+    "Пружина duration .5 / bounce .2, если появится жест «оттянуть, чтобы выйти»: сохраняет скорость при перехвате",
+    "blur(2px) на время кроссфейда, если на каком-то интерьере проступят два состояния сразу"
+  ]
+}

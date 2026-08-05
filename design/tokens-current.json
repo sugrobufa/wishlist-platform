@@ -1,0 +1,191 @@
+{
+  "note": "Все значения сняты с макета Main Screen.dc.html. В макете они инлайновые — здесь собраны один раз. Акценты комнат живут в rooms.json, а не тут: их десять, и они меняются вместе с интерьером.",
+  "surface": {
+    "appGround": "#0B0806",
+    "sheetGround": "#0B0806",
+    "overlayGround": "#0F0B08",
+    "hallGround": "#070603",
+    "docGround": "#0B0A09",
+    "panelGround": "#141210",
+    "hairline": "rgba(255,255,255,.09)",
+    "hairlineStrong": "rgba(255,255,255,.16)",
+    "fill": "rgba(255,255,255,.05)",
+    "fillHover": "rgba(255,255,255,.08)"
+  },
+  "text": {
+    "note": "Пол контраста 4.5:1 над appGround. Самая тихая ступень — .48. Ниже опускаться нельзя: проверено расчётом, турн 16.",
+    "primary": "#FFF9F2",
+    "strong": "rgba(255,249,242,.82)",
+    "body": "rgba(255,249,242,.68)",
+    "muted": "rgba(255,249,242,.6)",
+    "faint": "rgba(255,249,242,.5)",
+    "floor": "rgba(255,249,242,.48)",
+    "onAccent": "см. ink комнаты в rooms.json"
+  },
+  "type": {
+    "display": {
+      "family": "Archivo",
+      "weight": 900,
+      "tracking": "-.035em",
+      "transform": "uppercase",
+      "sizes": [
+        96,
+        58,
+        44,
+        34,
+        32,
+        30,
+        28,
+        26,
+        24,
+        22
+      ]
+    },
+    "ui": {
+      "family": "Onest",
+      "weights": [
+        400,
+        500,
+        600,
+        700
+      ],
+      "sizes": [
+        22,
+        19,
+        17,
+        16,
+        15,
+        14,
+        13.5,
+        13,
+        12.5,
+        12,
+        11.5,
+        11,
+        10.5
+      ]
+    },
+    "annotation": {
+      "family": "Instrument Sans",
+      "weights": [
+        400,
+        500,
+        600
+      ],
+      "sizes": [
+        19,
+        13.5,
+        12.5,
+        12,
+        11,
+        9
+      ]
+    },
+    "mono": {
+      "family": "ui-monospace, Menlo",
+      "usage": "только настоящие данные: ключи зон, hex, миллисекунды"
+    },
+    "overline": {
+      "size": 9,
+      "weight": 500,
+      "tracking": ".17em—.24em",
+      "transform": "uppercase"
+    }
+  },
+  "radius": {
+    "none": 0,
+    "pill": "100px",
+    "circle": "50%",
+    "note": "Прямые углы по умолчанию. Скругление только у пилюль-подсказок и аватаров."
+  },
+  "spacing": {
+    "scale": [
+      6,
+      7,
+      8,
+      9,
+      10,
+      11,
+      12,
+      13,
+      14,
+      16,
+      18,
+      20,
+      22,
+      24,
+      26,
+      30,
+      34
+    ],
+    "gutter": 22,
+    "sheetPadding": 22,
+    "cardPadding": 26
+  },
+  "layout": {
+    "phone": {
+      "w": 430,
+      "h": 932,
+      "header": 80,
+      "scene": 352,
+      "tabBar": 86,
+      "hitTargetMin": 44
+    },
+    "desktop": {
+      "w": 1120,
+      "h": 625,
+      "topRule": 76,
+      "bottomRule": 88,
+      "zoneIndex": 88
+    }
+  },
+  "button": {
+    "note": "Решено в турне 22: полоса света — главная кнопка везде, бирка — ровно одно действие «подарить» в режиме гостя.",
+    "primary": {
+      "id": "01-light-bar",
+      "structure": "Текст + стрелка в строке, нижняя граница 2px акцентом, ореол вниз. Заливки нет.",
+      "rest": "border-bottom:2px solid {accent}; box-shadow:0 4px 18px -3px {accent 42%}",
+      "hover": "box-shadow:0 6px 32px 0 {accent 85%}",
+      "active": "box-shadow:0 2px 7px -4px {accent 25%}; border-color:{accent shade -20%}",
+      "transition": "box-shadow 240ms, border-color 240ms — оба на easeOut"
+    },
+    "gift": {
+      "id": "04-tag",
+      "usage": "ТОЛЬКО действие «подарить» в режиме гостя. Нигде больше.",
+      "structure": "Бумажная бирка 218×66. Скошенный торец через clip-path, пробитое отверстие с латунной окантовкой, нить с узелком сверху, складка вдоль края, имя получателя над надписью.",
+      "clipPath": "polygon(0% 50%, 15% 0%, 100% 0%, 100% 100%, 15% 100%)",
+      "paper": "linear-gradient(152deg,#F6ECDA 0%,#EADCC2 46%,#DCC9AC 100%)",
+      "ink": "#2A1806",
+      "shadow": "filter:drop-shadow(0 7px 11px rgba(0,0,0,.6)) — filter, а не box-shadow: тень должна следовать clip-path",
+      "rest": "transform:rotate(-3deg); transform-origin:28px 33px (отверстие)",
+      "hover": "transform:rotate(0deg)",
+      "active": "transform:rotate(2deg) translateY(3px)",
+      "transition": "transform 300ms easeOut"
+    },
+    "secondary": {
+      "structure": "1px граница rgba(255,255,255,.16), текст .82, без заливки",
+      "active": "scale(.97) 160ms"
+    },
+    "press": {
+      "note": "Любой нажимаемый элемент проседает",
+      "transform": "scale(.97)",
+      "duration": "160ms",
+      "easing": "easeOut"
+    }
+  },
+  "ghostItem": {
+    "note": "Вещь, которой ещё нет — «хочу». Не заглушка, а рабочее состояние.",
+    "border": "1px dashed {accent}",
+    "bar": "2px сплошной {accent} по нижнему краю",
+    "fill": "rgba(255,255,255,.04)"
+  },
+  "icons": {
+    "note": "Все иконки нарисованы. Глифов из шрифта в интерфейсе нет.",
+    "grid": 24,
+    "stroke": 1.7,
+    "cap": "round",
+    "join": "round",
+    "fill": "none",
+    "exception": "Точка-лампа внутри иконки «Комната» — единственная заливка"
+  }
+}
