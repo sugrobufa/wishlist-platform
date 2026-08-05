@@ -133,7 +133,13 @@ export function ZoneIndex({ zones, zonesOff, summaries, viewer, accent }: ZoneIn
                     else itemRefs.current.delete(zone.key);
                   }}
                   className={`pressable ${s.button} ${state}`}
-                  aria-label={t("zoneAria", { label })}
+                  // Номер входит в имя не для красоты: без него у пункта списка
+                  // и у хотспота сцены получается ОДНО имя на две кнопки —
+                  // тот, кто идёт по списку кнопок голосом, слышит «Одежда —
+                  // подойти ближе» дважды и не понимает, чем они отличаются.
+                  // Номер к тому же есть на экране, а имя обязано содержать
+                  // видимый текст (WCAG 2.5.3).
+                  aria-label={t("zoneAria", { label: `${ordinal(index)} ${label}` })}
                   aria-current={zone.key === active ? "true" : undefined}
                   onClick={() => actions?.open(zone.key)}
                   onPointerEnter={() => actions?.setLit(zone.key)}
