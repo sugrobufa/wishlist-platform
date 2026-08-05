@@ -16,6 +16,12 @@ export type ZoneGridItem = {
   price?: string | null;
   currency?: string | null;
   priceVisibility?: "ALL" | "FRIENDS" | "ME" | "NONE";
+  /**
+   * «Хочу» глазами гостя: где купить (тикет 37). Ключ приезжает ровно там же,
+   * где цена, — и только из guest-DTO: у хозяйки ссылка живёт в карточке вещи,
+   * а не на плитке («бирка» и переход наружу — язык гостевого режима).
+   */
+  shop?: { url: string; domain: string } | null;
   /** «Люблю»: подпись «Подарен в {год} · {даритель}» вместо цены. */
   giverName?: string | null;
   receivedAt?: string | null;

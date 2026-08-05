@@ -1,0 +1,72 @@
+/* «Где купить» (тикет 37, турн 8b: строка магазина и «Перейти →» справа).
+ *
+ * Акцент комнаты приезжает переменной от того, кто нас показывает: в сетке
+ * зоны это --zg-accent (ZoneGrid), в листе брони --bk-accent (BookingDialog).
+ * Своих цветов у файла нет — только токены. Чисел движения тоже: нажатие
+ * держит общий класс .pressable (globals.css).
+ */
+
+.link {
+  --sl-accent: var(--zg-accent, var(--bk-accent, var(--color-text-primary)));
+  display: flex;
+  min-width: 0;
+  text-decoration: none;
+  color: var(--color-text-muted);
+  -webkit-tap-highlight-color: transparent;
+}
+
+.domain {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.go {
+  color: var(--sl-accent);
+  white-space: nowrap;
+}
+
+.link:focus-visible {
+  outline: 1px solid var(--sl-accent);
+  outline-offset: 2px;
+}
+
+/* --- Плитка: два коротких ряда под названием, без рамки ------------------- */
+
+.tile {
+  flex-direction: column;
+  gap: 2px;
+  margin-top: 7px;
+  font: 500 10.5px/1.25 var(--font-ui);
+}
+
+/* --- Лист брони: строка магазина, «Перейти →» прижато вправо (турн 8b) ---- */
+
+.sheet {
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 11px 12px;
+  border: 1px solid var(--color-surface-hairline);
+  background: var(--color-surface-fill);
+  font: 500 13px/1.2 var(--font-ui);
+}
+
+.sheet .domain {
+  color: var(--color-text-primary);
+}
+
+.sheet .go {
+  font-weight: 600;
+}
+
+/* Наведение — за воротами (hover:hover) and (pointer:fine), CLAUDE.md. */
+@media (hover: hover) and (pointer: fine) {
+  .sheet:hover {
+    border-color: var(--sl-accent);
+  }
+
+  .tile:hover .domain {
+    color: var(--color-text-primary);
+  }
+}

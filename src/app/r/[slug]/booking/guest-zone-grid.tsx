@@ -62,7 +62,12 @@ export function GuestZoneGrid({ items, accent, ink, ownerName }: GuestZoneGridPr
       />
       {bookingItem && (
         <BookingDialog
-          item={{ id: bookingItem.id, title: bookingItem.title }}
+          item={{
+            id: bookingItem.id,
+            title: bookingItem.title,
+            // Ссылку на магазин лист не добывает сам — она уже в вещи (тикет 37).
+            shop: bookingItem.shop ?? null,
+          }}
           ownerName={ownerName}
           accent={accent}
           onClose={() => setBookingItem(null)}

@@ -12,6 +12,21 @@
 //   цена осталась от прежнего «хочу» (инвариант №8);
 // - полей брони нет и не будет: «занято» приедет отдельным лёгким каналом
 //   (тикет 08) мимо кэшируемого guest-DTO (инвариант №1 — тихая бронь).
+//
+// ГДЕ КУПИТЬ (тикет 37, турны 8b/8e доски). До сих пор ключа `url` в этой
+// форме не было вовсе — гость выбирал подарок и упирался в тупик. Теперь у
+// «хочу» появился ключ `shop` (домен + канонический адрес), и живёт он РОВНО
+// ТАМ ЖЕ, ГДЕ ЦЕНА:
+// - страница магазина показывает цену, поэтому скрытая цена, открытая
+//   ссылкой, — та же самая утечка (инвариант №8). Ключ `shop` появляется в
+//   том же `if`, что price/currency, и других условий у него нет;
+// - у LOVE ключа `shop` не существует в принципе — как и price. Ссылка вещи
+//   «люблю» откроется гостю той же дверью, что и её цена: настройкой зала
+//   (ADR-0004, тикет 35), а не отдельным правилом здесь;
+// - наружу уходит только `canonicalUrl` — его посчитал сервер при добавлении
+//   по ссылке (parser/normalize: https, хост в нижнем регистре, трекинг-
+//   параметры выброшены). Сырой `Item.url` — пользовательский ввод, и гостю
+//   он не показывается ни адресом, ни доменом (инвариант №6).
 import type { Item } from "@prisma/client";
 import { itemPhotoUrl, type PriceVisibilityDto } from "@/server/dto/items";
 import type { DemoGhostDto } from "@/config/demo-pools";
@@ -29,8 +44,22 @@ type GuestItemBaseDto = {
 };
 
 /**
+ * Магазин вещи глазами гостя — «дарящему не надо искать самому» (турн 8b).
+ * Полный блок доски — это несколько магазинов с ценами и наличием; у вещи
+ * ссылка одна, поэтому честно отдаём одну (мультимагазинность — каталог за
+ * флагом CATALOG_ENABLED, отдельный разговор).
+ */
+export type GuestShopDto = {
+  /** Канонический адрес страницы товара — куда ведёт «Перейти →». */
+  url: string;
+  /** Хост без «www.»: человеку важно «ozon.ru», а не путь с параметрами. */
+  domain: string;
+};
+
+/**
  * «Хочу» для гостя: размер/цвет/желание видны всегда, цена — только при
- * priceVisibility ALL | FRIENDS. Скрытая цена = ключей price/currency нет.
+ * priceVisibility ALL | FRIENDS. Скрытая цена = ключей price/currency нет,
+ * и ключа shop тоже: ссылка подчиняется тому же правилу (см. шапку файла).
  */
 export type GuestWantItemDto = GuestItemBaseDto & {
   state: "WANT";
@@ -38,13 +67,19 @@ export type GuestWantItemDto = GuestItemBaseDto & {
   price?: string | null;
   /** ISO 4217. Ключ есть только при видимой цене. */
   currency?: string | null;
+  /** Где купить. Ключ есть только при видимой цене И разбираемом canonicalUrl. */
+  shop?: GuestShopDto;
   size: string | null;
   color: string | null;
   /** «Насколько хочется», 1–4. */
   desire: number | null;
 };
 
-/** «Люблю» для гостя: история подарка без цены — ключей price/currency нет. */
+/**
+ * «Люблю» для гостя: история подарка без цены — ключей price/currency нет,
+ * и ключа shop нет тоже. Эта вещь не для покупки, она рассказывает о хозяйке
+ * (турн 8c: «у люблю магазинов нет»), а её ссылка косвенно назвала бы цену.
+ */
 export type GuestLoveItemDto = GuestItemBaseDto & {
   state: "LOVE";
   giverName: string | null;
@@ -63,6 +98,30 @@ export type GuestItemDto = GuestWantItemDto | GuestLoveItemDto;
  */
 export function guestSeesPrice(visibility: PriceVisibilityDto): boolean {
   return visibility === "ALL" || visibility === "FRIENDS";
+}
+
+/**
+ * Ссылка на магазин из канонического адреса вещи. На вход — только
+ * `Item.canonicalUrl`: его посчитал сервер (services/items → normalizeUrl),
+ * а `Item.url` вводит человек, и наружу он не идёт (инвариант №6). Домен
+ * берётся из разобранного адреса, а не из колонки `Item.domain`: колонка
+ * могла отстать от адреса, а показываем мы именно то, куда уводим.
+ *
+ * Всё, что не разбирается в http(s)-адрес, ссылки не даёт вовсе: у вещи,
+ * добавленной руками, магазина просто нет, и это честнее пустой кнопки.
+ */
+export function guestShop(canonicalUrl: string | null): GuestShopDto | null {
+  if (canonicalUrl === null || canonicalUrl === "") return null;
+  let parsed: URL;
+  try {
+    parsed = new URL(canonicalUrl);
+  } catch {
+    return null;
+  }
+  if (parsed.protocol !== "https:" && parsed.protocol !== "http:") return null;
+  const domain = parsed.hostname.replace(/^www\./, "");
+  if (domain === "") return null;
+  return { url: parsed.toString(), domain };
 }
 
 /**
@@ -91,6 +150,11 @@ export function itemForGuest(item: Item): GuestItemDto {
     if (guestSeesPrice(item.priceVisibility)) {
       want.price = item.price === null ? null : item.price.toString();
       want.currency = item.currency;
+      // Тот же `if`, что у цены, — и никакого второго условия: страница
+      // магазина показывает цену, значит ссылка при скрытой цене обошла бы
+      // настройку хозяйки (инвариант №8).
+      const shop = guestShop(item.canonicalUrl);
+      if (shop) want.shop = shop;
     }
     return want;
   }
@@ -108,6 +172,8 @@ export function itemForGuest(item: Item): GuestItemDto {
  * Демо-призрак (owner-форма из src/config/demo-pools) → guest-форма.
  * Призраки проходят тот же шлюз цены и теряют те же ключи (hidden,
  * priceVisibility), что и настоящие вещи, — у гостя ровно один словарь форм.
+ * Ключа shop у призрака нет и быть не может: он выдуман, у него нет адреса —
+ * значит и «Перейти →» на его плитке не появится (и переход не запишется).
  */
 export function ghostForGuest(ghost: DemoGhostDto): GuestItemDto {
   const base: GuestItemBaseDto = {

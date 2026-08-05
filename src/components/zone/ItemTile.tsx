@@ -5,6 +5,7 @@
 // tile-appearance.ts под тестом). Демо-призрак — полупрозрачность и бейдж «пример».
 import type { CSSProperties, ReactNode } from "react";
 import { useLocale, useTranslations } from "next-intl";
+import { ShopLink } from "./shop-link";
 import { tileAppearance } from "./tile-appearance";
 import type { ZoneGridItem } from "./types";
 import s from "./zone-grid.module.css";
@@ -57,11 +58,7 @@ export function ItemTile({ item, staggerIndex, action }: ItemTileProps) {
     meta = t("loveCaption");
   }
 
-  const mediaClass = [
-    s.media,
-    look.dashed ? s.mediaDashed : "",
-    look.greyFill ? s.mediaGrey : "",
-  ]
+  const mediaClass = [s.media, look.dashed ? s.mediaDashed : "", look.greyFill ? s.mediaGrey : ""]
     .filter(Boolean)
     .join(" ");
 
@@ -83,6 +80,11 @@ export function ItemTile({ item, staggerIndex, action }: ItemTileProps) {
       </div>
       <p className={s.title}>{item.title}</p>
       {meta && <p className={item.state === "LOVE" ? `${s.meta} ${s.metaLove}` : s.meta}>{meta}</p>}
+      {/* «Где купить» (тикет 37): ключ shop приезжает только из гостевого DTO
+          и только у «хочу» с видимой ценой — плитка ничего не решает сама. */}
+      {item.shop && (
+        <ShopLink itemId={item.id} url={item.shop.url} domain={item.shop.domain} place="tile" />
+      )}
       {action != null && <div className={s.action}>{action}</div>}
     </li>
   );

@@ -45,6 +45,20 @@
   color: var(--color-text-primary);
 }
 
+/* «Где купить» (тикет 37, турн 8b): заголовок блока и строка магазина.
+ * Саму строку рисует components/zone/shop-link — она одна на плитку и лист. */
+.shop {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 18px;
+}
+
+.shopTitle {
+  font: 500 11.5px/1 var(--font-ui);
+  color: var(--color-text-muted);
+}
+
 .field {
   display: flex;
   flex-direction: column;

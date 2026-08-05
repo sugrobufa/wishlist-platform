@@ -6,15 +6,21 @@
 // Подтверждение — кнопка-бирка (единственное её применение, турн 22).
 // Успех — «Вещь занята. Никому не скажем», вещь помечается занятой без
 // перезагрузки (booking-context).
+//
+// Блок «Где купить» (тикет 37) стоит в листе дважды и намеренно: до брони —
+// потому что здесь гость решает, потянет ли он подарок; после брони — потому
+// что именно тут кончался сценарий продукта («забронировал и не знает, где
+// оно продаётся»). Ссылку приносит guest-DTO, лист её не добывает.
 import { useEffect, useId, useState, type CSSProperties, type FormEvent } from "react";
 import { createPortal } from "react-dom";
 import { useTranslations } from "next-intl";
+import { ShopLink } from "@/components/zone/shop-link";
 import { useGuestBooking } from "./booking-context";
 import { GiftTag } from "./gift-tag";
 import s from "./booking-dialog.module.css";
 
 type BookingDialogProps = {
-  item: { id: string; title: string };
+  item: { id: string; title: string; shop?: { url: string; domain: string } | null };
   ownerName: string;
   /** Акцент комнаты из rooms.json — рамки активных элементов листа. */
   accent: string;
@@ -26,6 +32,7 @@ type ErrorKey = "taken" | "rate" | "validation" | "generic" | null;
 
 export function BookingDialog({ item, ownerName, accent, onClose }: BookingDialogProps) {
   const t = useTranslations("Booking");
+  const tShop = useTranslations("Shop");
   const { markBooked, markTaken } = useGuestBooking();
   const [phase, setPhase] = useState<Phase>("form");
   const [error, setError] = useState<ErrorKey>(null);
@@ -83,6 +90,14 @@ export function BookingDialog({ item, ownerName, accent, onClose }: BookingDialo
   // Лист — портал в body: сцена живёт в transform-контексте (наезд камеры),
   // position:fixed внутри него считался бы от сцены, не от окна. Компонент
   // монтируется только по клику (после гидратации) — document здесь есть всегда.
+  // Один блок на оба состояния листа: «Где купить» + строка магазина.
+  const shopBlock = item.shop ? (
+    <section className={s.shop}>
+      <p className={s.shopTitle}>{tShop("title")}</p>
+      <ShopLink itemId={item.id} url={item.shop.url} domain={item.shop.domain} place="sheet" />
+    </section>
+  ) : null;
+
   return createPortal(
     <div
       className={s.backdrop}
@@ -104,6 +119,7 @@ export function BookingDialog({ item, ownerName, accent, onClose }: BookingDialo
               {t("successTitle")}
             </p>
             <p className={s.doneHint}>{t("successHint")}</p>
+            {shopBlock}
             <div className={s.footer}>
               <button type="button" className={`pressable ${s.quiet}`} onClick={onClose}>
                 {t("close")}
@@ -116,6 +132,8 @@ export function BookingDialog({ item, ownerName, accent, onClose }: BookingDialo
             <h2 className={s.title} id={titleId}>
               {item.title}
             </h2>
+
+            {shopBlock}
 
             <div className={s.field}>
               <label className={s.fieldLabel} htmlFor={`${titleId}-name`}>
