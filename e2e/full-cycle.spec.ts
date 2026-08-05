@@ -78,9 +78,9 @@ async function signInWithMagicLink(page: Page, email: string): Promise<void> {
   const seenBefore = magicLinksTo(email).length;
 
   await page.goto("/signin");
-  await page.getByLabel("Ваша почта").fill(email);
-  await page.getByRole("button", { name: "Прислать ссылку для входа" }).click();
-  await expect(page.getByText("Ссылка отправлена")).toBeVisible();
+  await page.getByLabel("Твоя почта").fill(email);
+  await page.getByRole("button", { name: "Прислать ссылку" }).click();
+  await expect(page.getByText("Письмо ушло")).toBeVisible();
 
   let magicUrl = "";
   await expect
@@ -101,7 +101,7 @@ async function signInWithMagicLink(page: Page, email: string): Promise<void> {
   await page.goto(magicUrl);
   await page.goto(magicUrl);
   await expect(page).toHaveURL(/\/signin\/confirm/);
-  await expect(page.getByRole("heading", { name: "Вход в комнату" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Дверь открыта" })).toBeVisible();
 
   // Токен расходуется только нажатием (обычная форма POST, без JS).
   await page.getByRole("button", { name: "Войти" }).click();
@@ -201,7 +201,7 @@ test("полный цикл дарения: хозяйка → гость → с
   });
 
   await test.step("онбординг: набор «Все 10» → комната «Дерзкая»", async () => {
-    await hostessPage.getByRole("button", { name: /Все 10/ }).click();
+    await hostessPage.getByRole("button", { name: /Всё вместе/ }).click();
     await hostessPage.getByRole("button", { name: /Дерзкая/ }).click();
     await hostessPage.getByRole("button", { name: /Обставить комнату/ }).click();
     await hostessPage.waitForURL(/\/room$/);
@@ -306,7 +306,7 @@ test("полный цикл дарения: хозяйка → гость → с
     // У хозяйки появилась связь «смотрели» — без имени брони, просто визит.
     await hostessPage.goto("/connections");
     const viewedRow = hostessPage.locator("li", { hasText: "Гость без имени" });
-    await expect(viewedRow).toContainText("Смотрел(а)");
+    await expect(viewedRow).toContainText("Заходил");
   });
 
   await test.step("гость тихо бронирует: «занято тобой» и «Мои брони · 1»", async () => {
@@ -315,20 +315,20 @@ test("полный цикл дарения: хозяйка → гость → с
     await guestPage.getByRole("button", { name: /Подарить$/ }).click();
 
     const dialog = guestPage.getByRole("dialog");
-    await dialog.getByLabel("Твоё имя").fill(GUEST_NAME);
+    await dialog.getByLabel("Как тебя звать").fill(GUEST_NAME);
     await dialog.getByLabel(/Почта/).fill(GUEST_EMAIL);
     await dialog.getByRole("radio", { name: /^Тихо/ }).click();
     await dialog.getByRole("button", { name: /Подарить это/ }).click();
 
-    await expect(guestPage.getByText("Вещь занята. Никому не скажем")).toBeVisible();
+    await expect(guestPage.getByText("Вещь твоя. Никому не скажем")).toBeVisible();
     await guestPage.getByRole("button", { name: "Хорошо" }).click();
     await expect(guestPage.getByText("занято тобой")).toBeVisible();
-    await expect(guestPage.getByRole("link", { name: /Мои брони · 1/ })).toBeVisible();
+    await expect(guestPage.getByRole("link", { name: /Мои подарки · 1/ })).toBeVisible();
   });
 
   await test.step("ИНВАРИАНТ: хозяйка видит только «1 вещь уже забрана», имени гостя нет нигде", async () => {
     await hostessPage.goto("/room");
-    await expect(hostessPage.getByText("1 вещь уже забрана")).toBeVisible();
+    await expect(hostessPage.getByText("1 вещь уже забрали")).toBeVisible();
 
     // DOM текущей страницы…
     expect(await hostessPage.content()).not.toMatch(/Тайный|guest-e2e/);
@@ -349,26 +349,26 @@ test("полный цикл дарения: хозяйка → гость → с
   await test.step("«праздник прошёл» вручную → строка с именем → «Дошло» → «уже в зале славы»", async () => {
     await hostessPage.goto("/room/occasion");
     await expect(
-      hostessPage.getByRole("heading", { name: "Праздник ещё не закрыт" }),
+      hostessPage.getByRole("heading", { name: "Праздник ещё впереди" }),
     ).toBeVisible();
     await hostessPage.getByRole("button", { name: /Праздник прошёл/ }).click();
 
     // Ручное закрытие работает без даты: появляется итог с раскрытым именем.
-    await expect(hostessPage.getByText(`Подарил(а) ${GUEST_NAME}`)).toBeVisible({
+    await expect(hostessPage.getByText(`Подарок от ${GUEST_NAME}`)).toBeVisible({
       timeout: 20_000,
     });
     await hostessPage.getByRole("button", { name: "Дошло" }).click();
     await expect(hostessPage.getByText(`${GUEST_NAME} · уже в зале славы`)).toBeVisible({
       timeout: 20_000,
     });
-    await expect(hostessPage.getByRole("link", { name: /Связь появилась/ })).toBeVisible();
+    await expect(hostessPage.getByRole("link", { name: /Появилась связь/ })).toBeVisible();
   });
 
   await test.step("зал славы: вещь на подиуме с подписью дарителя", async () => {
     await hostessPage.goto("/room/hall");
     await expect(hostessPage.getByText(WANT_TITLE)).toBeVisible();
     const year = new Date().getUTCFullYear();
-    await expect(hostessPage.getByText(`Подарен в ${year} · ${GUEST_NAME}`)).toBeVisible();
+    await expect(hostessPage.getByText(`Подарок ${year} года · от ${GUEST_NAME}`)).toBeVisible();
   });
 
   await test.step("связи: «Я слежу» (у гостя нет комнаты) с историей подарка", async () => {
