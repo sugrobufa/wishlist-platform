@@ -265,7 +265,7 @@ export async function findTokenForItem(
   return booking?.cancelToken ?? null;
 }
 
-// ---------- Канал «занято» для гостей ----------
+// ---------- Канал «занято»: гостям — да, хозяйке — нет (тикеты 08 и 41) ----------
 
 /**
  * id забронированных вещей комнаты — и НИЧЕГО больше: ни имён, ни режимов,
@@ -281,36 +281,106 @@ export async function takenItemIds(roomId: string): Promise<string[]> {
 }
 
 /**
- * «Занято» для гостевой страницы по слагу: все занятые вещи комнаты плюс
- * `mine` — какие из них заняты ЭТИМ гостем (по токенам его же cookie; о чужих
- * бронях это не говорит ничего). Неизвестный слаг → null (роут ответит 404).
+ * Ответ канала «занято» целиком — ровно то, что уезжает в гостевую комнату
+ * (роут только заворачивает это в `{ data }`). Форма ОДНА на обоих зрителей,
+ * и это тот же приём, что в сводке зоны (dto/zone-summary.ts): разница между
+ * хозяйкой и гостем живёт не в наборе ключей, а в числах внутри, и решается
+ * в ОДНОМ месте — иначе «а этот ключ хозяйке можно?» пришлось бы отвечать
+ * заново на каждом новом поле.
  */
-export async function takenForRoomSlug(
-  slug: string,
+export type TakenChannelDto = {
+  /** Занятые вещи комнаты — ТОЛЬКО id, без имён. */
+  itemIds: string[];
+  /** Какие из них заняты ЭТИМ гостем (по токенам его же cookie). */
+  mine: string[];
+  /** Всего живых броней гостя — строка «Мои подарки · N» внизу комнаты. */
+  myBookingsCount: number;
+};
+
+/**
+ * Ответ ХОЗЯЙКЕ, открывшей СВОЮ ЖЕ ссылку (тикет 41): комната выглядит так,
+ * будто не занято ничего. Инвариант №1 говорит «ни в API, ни в кэше», а это
+ * ровно API — и ссылку хозяйка получает кнопкой «поделиться», которую мы сами
+ * ей и показываем.
+ *
+ * Пустой ответ, а не «частичный», сознательно: это одно правило, которое
+ * наследует любое будущее поле этой формы. `myBookingsCount` тоже 0 — её
+ * брони в ЧУЖИХ комнатах существуют, но число, показанное в её собственной
+ * комнате, читается как «сколько тут занято», а не «сколько я подарила»;
+ * дорога к «моим подаркам» у неё остаётся из тех комнат, где она гость.
+ *
+ * Это НЕ криптографическая защита: хозяйка может выйти из аккаунта и открыть
+ * ту же ссылку гостем. Обещание инварианта — «продукт ей не показывает», а не
+ * «она не может подсмотреть» (ADR-0007).
+ */
+function takenForOwner(): TakenChannelDto {
+  return { itemIds: [], mine: [], myBookingsCount: 0 };
+}
+
+/**
+ * Ответ ГОСТЮ: все занятые вещи комнаты плюс `mine` — какие из них заняты
+ * ЭТИМ гостем (по токенам его же cookie; о чужих бронях это не говорит
+ * ничего). Ради этой координации мы у гостя имя и спрашиваем.
+ */
+async function takenForGuest(
+  roomId: string,
   tokens: readonly string[],
-): Promise<{ itemIds: string[]; mine: string[] } | null> {
-  const parsedSlug = slugSchema.safeParse(slug);
-  if (!parsedSlug.success) return null;
-
-  const room = await prisma.room.findUnique({
-    where: { shareSlug: parsedSlug.data },
-    select: { id: true },
-  });
-  if (!room) return null;
-
-  const itemIds = await takenItemIds(room.id);
+): Promise<TakenChannelDto> {
+  const itemIds = await takenItemIds(roomId);
   const valid = validTokens(tokens);
   const mine =
     valid.length === 0 || itemIds.length === 0
       ? []
       : (
           await prisma.booking.findMany({
-            where: { cancelToken: { in: valid }, item: { roomId: room.id } },
+            where: { cancelToken: { in: valid }, item: { roomId } },
             select: { itemId: true },
           })
         ).map((row) => row.itemId);
 
-  return { itemIds, mine };
+  return { itemIds, mine, myBookingsCount: await countBookingsByTokens(tokens) };
+}
+
+/**
+ * «Занято» для гостевой страницы по слагу. Единственная дверь канала: здесь
+ * комната резолвится и здесь же выбирается ветка зрителя.
+ *
+ * `options.viewerUserId` — userId сессии, если зритель вошёл (auth БЕЗ
+ * требования: аноним получает гостевой ответ, как раньше). Совпал с хозяйкой
+ * комнаты — ответ `takenForOwner()`. Тот же приём, что у визита
+ * (connections.recordVisit: «своя комната → no-op»).
+ *
+ * Неизвестный слаг → null (роут ответит 404).
+ */
+export async function takenForRoomSlug(
+  slug: string,
+  tokens: readonly string[],
+  options: { viewerUserId?: string | null } = {},
+): Promise<TakenChannelDto | null> {
+  const parsedSlug = slugSchema.safeParse(slug);
+  if (!parsedSlug.success) return null;
+
+  // Адрес резолвится как ник ИЛИ короткий код — тем же порядком, что
+  // guest-room.getGuestRoom и connections.recordVisitBySlug: страница /r/{slug}
+  // уводит на канонический /r/{nick}, и по этому адресу канал обязан отвечать
+  // так же, как по коду (иначе у комнаты с ником он молча мёртв — и ветка
+  // хозяйки в нём никогда бы не сработала). Ник, совпадающий с чужим кодом,
+  // не выдаётся (services/rooms.setRoomNick), поэтому порядок безопасен.
+  const room =
+    (await prisma.room.findUnique({
+      where: { nick: parsedSlug.data },
+      select: { id: true, userId: true },
+    })) ??
+    (await prisma.room.findUnique({
+      where: { shareSlug: parsedSlug.data },
+      select: { id: true, userId: true },
+    }));
+  if (!room) return null;
+
+  const viewerUserId = options.viewerUserId ? idSchema.parse(options.viewerUserId) : null;
+  if (viewerUserId !== null && viewerUserId === room.userId) return takenForOwner();
+
+  return takenForGuest(room.id, tokens);
 }
 
 // ---------- Канал хозяйки: счётчик «N вещей уже забраны» (тикет 09) ----------

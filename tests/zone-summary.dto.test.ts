@@ -138,6 +138,76 @@ describe("правило 1 — счётчика занятых нет ни у к
   });
 });
 
+describe("правило 1а — в ветке ХОЗЯЙКИ нет ни одного числа, производного от броней", () => {
+  // Ответ дизайна, раунд 6 (тикет 41). Та же утечка, что в канале «занято»,
+  // только в медленном варианте:
+  //   гостю   — занято и свободно по зоне: это его координация;
+  //   хозяйке — про занятость по зонам НИЧЕГО, один счётчик на комнату.
+  // «7 свободно» при восьми положенных вещах — это «забрали одну из восьми»,
+  // сказанное вежливее. `count` и `wantCount` у хозяйки остаются: это её
+  // собственные данные о своих вещах, от броней они не зависят.
+  const EIGHT = 8;
+  const eight = Array.from({ length: EIGHT }, (_, index) =>
+    want(`w${index + 1}`, 3_000 + index * 1_000),
+  );
+
+  /** Те же восемь вещей, но одна занята — строкой из БД с relation'ом. */
+  const oneBooked = eight.map((item, index) =>
+    index === 0
+      ? Object.assign(dbItem(item), {
+          booking: {
+            id: "booking_w1",
+            guestName: "Оля",
+            guestEmail: "olya@example.com",
+            mode: "QUIET",
+            purchased: true,
+            cancelToken: "secret",
+          },
+        })
+      : item,
+  );
+
+  /** Все числа сводки, включая вложенные: цены — строки, они сюда не попадут. */
+  function numbersIn(value: unknown): number[] {
+    if (typeof value === "number") return [value];
+    if (Array.isArray(value)) return value.flatMap(numbersIn);
+    if (typeof value === "object" && value !== null) {
+      return Object.values(value).flatMap(numbersIn);
+    }
+    return [];
+  }
+
+  it("бронь не меняет сводку хозяйки ни на одно число", () => {
+    expect(ownerSummary(oneBooked)).toEqual(ownerSummary(eight));
+  });
+
+  it("каждое число объясняется её собственными вещами; «7 из 8» не появляется", () => {
+    const dto = ownerSummary(oneBooked);
+
+    expect(dto.count).toBe(EIGHT); // всего вещей — её данные
+    expect(dto.wantCount).toBe(EIGHT); // помечено «хочу» — тоже её, НЕ «свободно»
+    expect(dto.more).toBe(EIGHT - ZONE_SUMMARY_THUMBS); // хвост за миниатюрами
+
+    // Числовые ключи — исчерпывающе: новый счётчик у хозяйки не заведётся молча.
+    const numericKeys = Object.entries(dto)
+      .filter(([, value]) => typeof value === "number")
+      .map(([key]) => key)
+      .sort();
+    expect(numericKeys).toEqual(["count", "more", "wantCount"]);
+
+    // И главное: числа «свободных» (8 − 1 занятая) в сводке нет нигде.
+    expect(numbersIn(dto)).not.toContain(EIGHT - 1);
+  });
+
+  it("«свободно» не прячется и в других формулировках: ключей про занятость нет", () => {
+    // Появится когда-нибудь «свободно» для гостя — оно обязано родиться в
+    // ГОСТЕВОЙ ветке и получить брони на вход, которых у сводки сегодня нет.
+    for (const key of Object.keys(ownerSummary(oneBooked))) {
+      expect(key).not.toMatch(/free|available|left|remain|свобод|остал/i);
+    }
+  });
+});
+
 describe("правило 2 — вилка цен: только «хочу» с видимой ценой и только от трёх", () => {
   it("порог — три вещи: на двух вилки нет вовсе (ключа нет)", () => {
     expect(ZONE_SUMMARY_PRICE_MIN).toBe(3);

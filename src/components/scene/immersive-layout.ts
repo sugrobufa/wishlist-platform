@@ -1,22 +1,24 @@
 // Раскладка «комната во весь экран» (тикет 24) — числа и геометрия.
 //
 // ЗАЧЕМ ОТДЕЛЬНЫЙ МОДУЛЬ. Раскладку рисует CSS (scene.module.css → .viewport,
-// globals.css → полосы), а проверяет тест: все 13 зон каждой из 10 комнат
-// обязаны остаться на экране целиком, нажимаемыми и не под интерфейсом.
+// globals.css → полосы), а проверяет тест: все 130 зон обязаны остаться
+// достижимыми, а комната — заполнять экран без рамки вокруг неё.
 // Чтобы тест проверял ту же раскладку, что видит человек, формула живёт
 // здесь одна: CSS берёт числа из `tokens.css` (те же ключи tokens.json),
 // а тест — отсюда. Разъедутся — упадёт `tests/immersive-layout.test.ts`.
 //
-// РАЗВИЛКА КОНТРАКТА («во весь экран» против пропорции 430:352) разобрана
-// в тикете и в его Comments. Короткая версия: карта зон покрывает кадр
-// целиком (по горизонтали — ровно от края до края телефонной сцены), поэтому
-// любое увеличение кадра сверх ширины экрана выносит зоны за край. Сцена
-// держит пропорцию, а «во весь экран» достаётся раскладкой: сцена больше не
-// стоит в колонке под шапкой, а лежит фоном всего экрана, интерфейс — двумя
-// полосами поверх, по числам `layout.phoneImmersive`/`desktopImmersive`.
+// РАЗВИЛКА КОНТРАКТА («во весь экран» против пропорции 430:352) закрыта
+// тикетом 42 в пользу буквы контракта: комната заполняет экран, а пропорцию
+// держит КРОП, а не поля. До него сцена вписывалась целиком, и на 1920 вокруг
+// неё стояла чёрная рамка в 234 px с каждой стороны — владелец трижды просил
+// комнату во весь экран, и рамка была ровно тем, что он видел.
+//
+// Раскладок теперь две, и обе описаны одним словом `fit` (см. `SceneFit`):
+// телефон вписывает кадр между полосами, десктоп заполняет им окно и режет
+// лишнее. Карта зон при этом не меняется ни на пиксель — меняется показ.
 import tokensJson from "@design/tokens.json";
 import { hitTargetMin, scene, type ZoneRect } from "@/config/design";
-import { round4, zoneScenePercent, type SceneView } from "./camera";
+import { round4, zoneScenePercent, type FrameGap, type SceneView } from "./camera";
 
 type ImmersiveContract = {
   layout: {
@@ -32,6 +34,22 @@ type ImmersiveContract = {
   };
   spacing: { gutter: number };
 };
+
+/**
+ * Как сцена заполняет экран (тикет 42).
+ *
+ * `fit` — телефон: кадр целиком помещается между полосами, по бокам он ровно
+ *   в ширину экрана. Полосы стоят НАД и ПОД кадром, зон под ними нет.
+ * `cover` — десктоп: кадр заполняет окно целиком и лишнее срезается кропом по
+ *   центру композиции. Полос­ы лежат НА кадре — так и рисовал макет (турны
+ *   17a/23c), и так исчезает чёрная рамка вокруг комнаты.
+ *
+ * Кроп — свойство ПОКАЗА: карта координат не меняется ни на пиксель, зона
+ * остаётся на том же месте картинки. Зона, срезанная краем окна, достижима
+ * указателем зон (он строится по данным) и камерой (доводит любую зону в
+ * середину экрана) — те же две дороги, что у телефона с его окном 430 из 630.
+ */
+export type SceneFit = "fit" | "cover";
 
 const tokens = tokensJson as unknown as ImmersiveContract;
 
@@ -57,41 +75,110 @@ export const immersiveLayout = {
     railBottom: tokens.layout.phoneImmersive.railBottom,
     titleTop: tokens.layout.phoneImmersive.titleTop,
     gap: tokens.spacing.gutter,
+    /** Внутренний отступ полосы: на телефоне это `spacing.gutter`. */
+    sidePad: tokens.spacing.gutter,
     /** Пропорция сцены (rooms.json → scene): телефон 430:352. */
     ar: scene.phone.w / scene.phone.h,
+    fit: "fit",
   },
   desktop: {
     railTop: tokens.layout.desktopImmersive.topVeil,
     railBottom: tokens.layout.phoneImmersive.railBottom,
     titleTop: tokens.layout.desktopImmersive.sidePad,
     gap: tokens.spacing.gutter,
+    /** `desktopImmersive.sidePad` — те самые 44 от края. */
+    sidePad: tokens.layout.desktopImmersive.sidePad,
     /** Десктоп 1120:625 — тот же кадр целиком, без телефонного кропа. */
     ar: scene.desktop.w / scene.desktop.h,
+    fit: "cover",
   },
 } as const;
 
 /**
- * Где на экране лежит сцена (`.viewport` из scene.module.css).
+ * Где на экране лежит сцена (`.viewport` из scene.module.css). Правила ровно
+ * те же, что в CSS, — по одному на каждый `fit`.
  *
- * Правило ровно то же, что в CSS:
- *   width  = min(100%, (100dvh − railTop − railBottom − gap) × пропорция)
- *   top    = railTop, по центру по горизонтали.
+ * ТЕЛЕФОН (`fit`), без изменений с тикета 24:
+ *   width = min(100%, (100dvh − railTop − railBottom − gap) × пропорция)
+ *   top   = railTop, по центру по горизонтали.
+ * Сцена берёт всю ширину экрана, пока её высота помещается между полосами;
+ * на низком экране сжимается. Верх прижат к нижнему краю верхней полосы:
+ * пустоты между заголовком и комнатой нет (пункт 2 приёмки).
  *
- * То есть сцена берёт всю ширину экрана, пока её высота помещается между
- * полосами; на низком экране — сжимается по высоте. Верх сцены прижат к
- * нижнему краю верхней полосы: пустоты между заголовком и комнатой нет
- * (пункт 2 приёмки), а весь запас уходит вниз, под нижнюю вуаль.
+ * ДЕСКТОП (`cover`), тикет 42:
+ *   width = max(100vw, 100dvh × пропорция),  height = width ÷ пропорция
+ *   и всё это по центру экрана в обе стороны.
+ * Кадр заполняет окно и вылезает за него с той стороны, где пропорция окна
+ * не совпадает с пропорцией комнаты; лишнее режет `overflow: hidden`. На 16:9
+ * (1920×1080) за краем остаётся по 7.7 px, на 16:10 (1280×800) — по 76.8.
+ *
+ * ПОЧЕМУ КРОП, А НЕ ВПИСЫВАНИЕ. Вписанный кадр держал пропорцию за счёт полей:
+ * на 1920 комната занимала 1452 из 1920, и вокруг неё стояла чёрная рамка
+ * в 234 px с каждой стороны — «маленькая картинка в пустоте», третий отказ
+ * владельца. Кроп убирает рамку, ничего не меняя в карте зон: см. `SceneFit`.
  */
 export function sceneBand(view: SceneView, screen: Screen): Box {
   const l = immersiveLayout[view];
-  const free = Math.max(0, screen.h - l.railTop - l.railBottom - l.gap);
-  const width = Math.min(screen.w, free * l.ar);
+  const width =
+    l.fit === "cover"
+      ? Math.max(screen.w, screen.h * l.ar)
+      : Math.min(screen.w, Math.max(0, screen.h - l.railTop - l.railBottom - l.gap) * l.ar);
+  const height = width / l.ar;
   return {
     left: round4((screen.w - width) / 2),
-    top: l.railTop,
+    top: l.fit === "cover" ? round4((screen.h - height) / 2) : l.railTop,
     width: round4(width),
-    height: round4(width / l.ar),
+    height: round4(height),
   };
+}
+
+/**
+ * Поля вокруг сцены: сколько экрана она НЕ закрывает с каждой стороны.
+ * Ноль со всех четырёх — комната от края до края, рамки нет. Это и есть
+ * требование тикета 42, записанное числом.
+ */
+export function sceneGap(view: SceneView, screen: Screen): FrameGap {
+  const band = sceneBand(view, screen);
+  return {
+    left: round4(Math.max(0, band.left)),
+    right: round4(Math.max(0, screen.w - (band.left + band.width))),
+    top: round4(Math.max(0, band.top)),
+    bottom: round4(Math.max(0, screen.h - (band.top + band.height))),
+  };
+}
+
+/**
+ * Видимая часть сцены: коробка сцены, обрезанная краями экрана. На телефоне
+ * совпадает с самой сценой (она вписана), на десктопе — это ВЕСЬ экран.
+ * Именно по ней равняется интерфейс: полоса лежит на комнате, а не на окне,
+ * и с cover это одно и то же.
+ */
+export function sceneVisible(view: SceneView, screen: Screen): Box {
+  const band = sceneBand(view, screen);
+  const left = Math.max(0, band.left);
+  const top = Math.max(0, band.top);
+  return {
+    left: round4(left),
+    top: round4(top),
+    width: round4(Math.min(screen.w, band.left + band.width) - left),
+    height: round4(Math.min(screen.h, band.top + band.height) - top),
+  };
+}
+
+/**
+ * Коробка полосы интерфейса — то, что задаёт CSS (`.imm-rail`): полоса лежит
+ * во всю ширину окна. Тест сверяет её с `sceneVisible`: полоса обязана лежать
+ * на комнате, иначе интерфейс снова обрамляет окно, а не комнату (тикет 42).
+ */
+export function railBand(_view: SceneView, screen: Screen): { left: number; width: number } {
+  return { left: 0, width: screen.w };
+}
+
+/** Содержимое полосы: та же коробка минус внутренний отступ `sidePad`. */
+export function railContent(view: SceneView, screen: Screen): { left: number; width: number } {
+  const pad = immersiveLayout[view].sidePad;
+  const band = railBand(view, screen);
+  return { left: round4(band.left + pad), width: round4(Math.max(0, band.width - pad * 2)) };
 }
 
 /**
@@ -112,19 +199,24 @@ export function zoneOnScreen(rect: ZoneRect, view: SceneView, screen: Screen): B
 
 /**
  * Настоящая цель нажатия зоны: прямоугольник добит до `hitTargetMin`
- * (`.hotspot::after`, 44 px реальных пикселей экрана) и обрезан краем сцены —
- * `.viewport` режет всё, что вылезло (`overflow: hidden`), и обрезка эта
- * действует и на попадание пальцем.
+ * (`.hotspot::after`, 44 px реальных пикселей экрана) и обрезан ВИДИМОЙ частью
+ * сцены — `.viewport` режет всё, что вылезло за кадр, а `.imm` режет всё, что
+ * вылезло за окно (`overflow: hidden` у обоих), и обе обрезки действуют на
+ * попадание пальцем одинаково.
+ *
+ * До тикета 42 обрезка была одна: вписанная сцена целиком лежала в окне.
+ * С cover край окна режет кадр, и учитывать его обязательно — иначе функция
+ * обещала бы цель нажатия там, где пикселей уже нет.
  */
 export function zoneHitBox(rect: ZoneRect, view: SceneView, screen: Screen): Box {
-  const band = sceneBand(view, screen);
+  const clip = sceneVisible(view, screen);
   const box = zoneOnScreen(rect, view, screen);
   const growX = Math.max(0, hitTargetMin - box.width) / 2;
   const growY = Math.max(0, hitTargetMin - box.height) / 2;
-  const left = Math.max(band.left, box.left - growX);
-  const top = Math.max(band.top, box.top - growY);
-  const right = Math.min(band.left + band.width, box.left + box.width + growX);
-  const bottom = Math.min(band.top + band.height, box.top + box.height + growY);
+  const left = Math.max(clip.left, box.left - growX);
+  const top = Math.max(clip.top, box.top - growY);
+  const right = Math.min(clip.left + clip.width, box.left + box.width + growX);
+  const bottom = Math.min(clip.top + clip.height, box.top + box.height + growY);
   return {
     left: round4(left),
     top: round4(top),
@@ -133,7 +225,15 @@ export function zoneHitBox(rect: ZoneRect, view: SceneView, screen: Screen): Box
   };
 }
 
-/** Полоса экрана, свободная от интерфейса: между верхней и нижней полосами. */
+/**
+ * Полоса экрана, свободная от интерфейса: между верхней и нижней полосами.
+ *
+ * На ТЕЛЕФОНЕ это по-прежнему граница для зон: сцена вписана между полосами,
+ * и зона под полосой была бы видна, но не нажимаема. На ДЕСКТОПЕ полосы лежат
+ * НА комнате (тикет 42, макет 17a/23c), поэтому зона под ними — норма: сама
+ * полоса нажатий не берёт (`.imm-rail { pointer-events: none }`), берут только
+ * её ссылки и кнопки. Функция осталась описанием того, где стоят полосы.
+ */
 export function clearBand(view: SceneView, screen: Screen): { top: number; bottom: number } {
   const l = immersiveLayout[view];
   return { top: l.railTop, bottom: screen.h - l.railBottom };

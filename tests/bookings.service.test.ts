@@ -247,9 +247,106 @@ describe("takenItemIds / takenForRoomSlug — канал «занято» без
     expect(result).not.toBeNull();
     expect([...result!.itemIds].sort()).toEqual([myItem.id, strangersItem.id].sort());
     expect(result!.mine).toEqual([myItem.id]); // чужая бронь «моей» не становится
+    expect(result!.myBookingsCount).toBe(1);
 
     expect(await takenForRoomSlug("no-such-slug", [cancelToken])).toBeNull();
     expect(JSON.stringify(result)).not.toMatch(/guestName|guestEmail|Другой/);
+  });
+
+  it("канал отвечает и по НИКУ комнаты: /r/{nick} — канонический адрес", async () => {
+    // Страница /r/{shareSlug} уводит на /r/{nick} (тикет 13), и клиент
+    // спрашивает канал уже по нику. Резолв здесь тот же, что в guest-room.
+    const room = await createTestRoom();
+    const item = await createWantItem(room.id);
+    await bookItem(bookingInput(item.id));
+    const nick = `nick_${randomUUID().slice(0, 8).replace(/-/g, "")}`;
+    await prisma.room.update({ where: { id: room.id }, data: { nick } });
+
+    const byNick = await takenForRoomSlug(nick, []);
+    expect(byNick?.itemIds).toEqual([item.id]);
+    // Старый короткий код продолжает работать — ссылки живут вечно.
+    expect((await takenForRoomSlug(room.shareSlug, []))?.itemIds).toEqual([item.id]);
+  });
+});
+
+// Тикет 41: главный инвариант ломался в самом дешёвом месте — хозяйка
+// открывала СВОЮ ЖЕ ссылку и видела поимённо, какие её вещи заняты.
+describe("takenForRoomSlug — хозяйке своей комнаты канал отвечает пустотой", () => {
+  it("вошла хозяйка: itemIds/mine пусты, myBookingsCount 0 — как будто не занято ничего", async () => {
+    const room = await createTestRoom();
+    const a = await createWantItem(room.id, { title: "Занятая раз" });
+    const b = await createWantItem(room.id, { title: "Занятая два" });
+    await createWantItem(room.id, { title: "Свободная" });
+    await bookItem(bookingInput(a.id, { name: "Секретная Гостья" }));
+    await bookItem(bookingInput(b.id, { name: "Тайный Даритель" }));
+
+    // Брони в БД есть — проверяем не пустую комнату.
+    expect(await prisma.booking.count({ where: { item: { roomId: room.id } } })).toBe(2);
+
+    const forOwner = await takenForRoomSlug(room.shareSlug, [], {
+      viewerUserId: room.userId,
+    });
+    // toEqual пиноит ответ ЦЕЛИКОМ: ни одного непустого поля.
+    expect(forOwner).toEqual({ itemIds: [], mine: [], myBookingsCount: 0 });
+  });
+
+  it("её собственные брони в ЧУЖИХ комнатах в этот ноль не попадают как факт: чужая комната отвечает ей как гостю", async () => {
+    // Хозяйка — обычный гость в комнате подруги: там канал работает полностью.
+    const mine = await createTestRoom();
+    const friend = await createTestRoom();
+    const friendsItem = await createWantItem(friend.id, { title: "Подарок подруге" });
+    const { cancelToken } = await bookItem(bookingInput(friendsItem.id), {
+      sessionUserId: mine.userId,
+    });
+
+    const inFriendsRoom = await takenForRoomSlug(friend.shareSlug, [cancelToken], {
+      viewerUserId: mine.userId,
+    });
+    expect(inFriendsRoom?.itemIds).toEqual([friendsItem.id]);
+    expect(inFriendsRoom?.mine).toEqual([friendsItem.id]);
+    expect(inFriendsRoom?.myBookingsCount).toBe(1);
+
+    // А в своей — по-прежнему пусто, включая счётчик её же броней.
+    const inOwnRoom = await takenForRoomSlug(mine.shareSlug, [cancelToken], {
+      viewerUserId: mine.userId,
+    });
+    expect(inOwnRoom).toEqual({ itemIds: [], mine: [], myBookingsCount: 0 });
+  });
+
+  it("пустота — только СВОЕЙ хозяйке: соседка и аноним видят занятое как раньше", async () => {
+    const room = await createTestRoom();
+    const neighbor = await createTestRoom();
+    const item = await createWantItem(room.id);
+    await bookItem(bookingInput(item.id));
+
+    // Вошедшая соседка — такой же гость: занятое ей видно (US 26).
+    const asNeighbor = await takenForRoomSlug(room.shareSlug, [], {
+      viewerUserId: neighbor.userId,
+    });
+    expect(asNeighbor?.itemIds).toEqual([item.id]);
+
+    // Аноним и «сессии нет» (null/undefined) — прежнее поведение без изменений.
+    expect((await takenForRoomSlug(room.shareSlug, []))?.itemIds).toEqual([item.id]);
+    expect(
+      (await takenForRoomSlug(room.shareSlug, [], { viewerUserId: null }))?.itemIds,
+    ).toEqual([item.id]);
+
+    // Чужой userId, похожий на мусор, ничего не открывает и не ломает.
+    expect(
+      (await takenForRoomSlug(room.shareSlug, [], { viewerUserId: "no-such-user" }))?.itemIds,
+    ).toEqual([item.id]);
+  });
+
+  it("хозяйка вышла из аккаунта — видит комнату как гость: это ЧЕСТНАЯ граница, а не дыра", async () => {
+    // ADR-0007: инвариант обещает, что продукт ей не показывает, а не что она
+    // не может подсмотреть. Ссылка публична по устройству — иначе гости не
+    // зашли бы. Тест фиксирует границу словами, чтобы её не «чинили» молча.
+    const room = await createTestRoom();
+    const item = await createWantItem(room.id);
+    await bookItem(bookingInput(item.id));
+
+    const loggedOut = await takenForRoomSlug(room.shareSlug, []);
+    expect(loggedOut?.itemIds).toEqual([item.id]);
   });
 });
 

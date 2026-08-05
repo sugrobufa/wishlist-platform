@@ -10,6 +10,7 @@
 import "dotenv/config";
 import { randomUUID } from "node:crypto";
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
+import { NextRequest } from "next/server";
 import type { Prisma } from "@prisma/client";
 
 vi.mock("@/server/auth", () => ({ auth: vi.fn() }));
@@ -23,12 +24,14 @@ import {
   ownerTakenCount,
   releaseBookingForItem,
   takenForRoomSlug,
+  GUEST_BOOKINGS_COOKIE,
 } from "../src/server/services/bookings";
 import { listZoneItems } from "../src/server/services/items";
 import { itemForOwner, type OwnerItemDto } from "../src/server/dto/items";
 import { rooms as roomPresets } from "../src/config/design";
 import { visibleZones } from "../src/components/scene/zones";
 import { GET as takenCountRoute } from "../src/app/api/v1/room/taken-count/route";
+import { GET as takenRoute } from "../src/app/api/v1/rooms/[slug]/taken/route";
 
 const TEST_EMAIL_DOMAIN = "@owner-counter.test";
 
@@ -210,6 +213,12 @@ describe("ИНВАРИАНТ-СЕРИАЛИЗАЦИЯ: страница хозя
     expect(JSON.stringify(guestChannel)).not.toMatch(
       /guestName|guestEmail|Секретная|Тайный|Третья|top-secret/,
     );
+
+    // …и тот же канал по той же ссылке САМОЙ хозяйке не говорит ничего
+    // (тикет 41): «поделиться» больше не превращается в список забранного.
+    expect(
+      await takenForRoomSlug(owner.room.shareSlug, [], { viewerUserId: owner.user.id }),
+    ).toEqual({ itemIds: [], mine: [], myBookingsCount: 0 });
   });
 
   it("даже вещь, загруженная с include: {booking}, сериализуется без следа брони", async () => {
@@ -267,5 +276,111 @@ describe("GET /api/v1/room/taken-count — auth-only, no-store, голое чи�
     const response = await takenCountRoute();
     expect(response.status).toBe(200);
     expect(await response.json()).toEqual({ data: { takenCount: 0 } });
+  });
+});
+
+// Тикет 41. Гостевой канал — единственное место, где занятость вообще
+// покидает сервер, и хозяйка добиралась до него в один клик: кнопка
+// «поделиться» → своя же ссылка → пометки «занято» поимённо.
+describe("GET /api/v1/rooms/{slug}/taken — хозяйке своей комнаты пусто", () => {
+  beforeEach(() => {
+    authMock.mockReset();
+  });
+
+  /** Запрос канала: cookie гостя опциональна, как в проде. */
+  function takenRequest(slug: string, tokens?: string[]) {
+    const headers = new Headers();
+    if (tokens) {
+      headers.set(
+        "cookie",
+        `${GUEST_BOOKINGS_COOKIE}=${encodeURIComponent(JSON.stringify(tokens))}`,
+      );
+    }
+    return new NextRequest(`http://localhost/api/v1/rooms/${slug}/taken`, {
+      method: "GET",
+      headers,
+    });
+  }
+
+  const slugCtx = (slug: string) => ({ params: Promise.resolve({ slug }) });
+
+  async function roomWithOneBooking() {
+    const owner = await createOwnerWithRoom();
+    const taken = await createWantItem(owner.room.id, "jewelry");
+    await createWantItem(owner.room.id, "bags"); // свободная
+    const { cancelToken } = await bookItem({
+      itemId: taken.id,
+      name: "Секретная Гостья",
+      email: "route41-secret@mail.test",
+    });
+    return { owner, taken, cancelToken };
+  }
+
+  it("вошла хозяйка этой комнаты → 200 с пустотой и no-store", async () => {
+    const { owner } = await roomWithOneBooking();
+    authMock.mockResolvedValue({ user: { id: owner.user.id } });
+
+    const response = await takenRoute(
+      takenRequest(owner.room.shareSlug),
+      slugCtx(owner.room.shareSlug),
+    );
+    expect(response.status).toBe(200);
+    expect(response.headers.get("cache-control")).toBe("no-store");
+    // toEqual пиноит ответ ЦЕЛИКОМ: id занятых вещей в нём нет ни одного.
+    expect(await response.json()).toEqual({
+      data: { itemIds: [], mine: [], myBookingsCount: 0 },
+    });
+  });
+
+  it("сессия по почте (id в session.user нет) — хозяйка узнаётся так же", async () => {
+    // Auth.js с database-сессией кладёт в session.user только name/email:
+    // ownership резолвится через getSessionUserId, и защита не должна
+    // зависеть от того, попал ли id в сессию.
+    const { owner } = await roomWithOneBooking();
+    const user = await prisma.user.findUniqueOrThrow({
+      where: { id: owner.user.id },
+      select: { email: true },
+    });
+    authMock.mockResolvedValue({ user: { email: user.email } });
+
+    const response = await takenRoute(
+      takenRequest(owner.room.shareSlug),
+      slugCtx(owner.room.shareSlug),
+    );
+    expect(await response.json()).toEqual({
+      data: { itemIds: [], mine: [], myBookingsCount: 0 },
+    });
+  });
+
+  it("та же ссылка без сессии → гость видит занятое и свою бронь (ЧЕСТНАЯ граница ADR-0007)", async () => {
+    const { owner, taken, cancelToken } = await roomWithOneBooking();
+    authMock.mockResolvedValue(null); // хозяйка вышла — она обычный гость
+
+    const response = await takenRoute(
+      takenRequest(owner.room.shareSlug, [cancelToken]),
+      slugCtx(owner.room.shareSlug),
+    );
+    expect(response.status).toBe(200);
+    const payload = (await response.json()) as {
+      data: { itemIds: string[]; mine: string[]; myBookingsCount: number };
+    };
+    expect(payload.data.itemIds).toEqual([taken.id]);
+    expect(payload.data.mine).toEqual([taken.id]);
+    expect(payload.data.myBookingsCount).toBe(1);
+    // Имён по-прежнему нет ни у кого (инвариант №1 — тикет 08).
+    expect(JSON.stringify(payload)).not.toMatch(/Секретная|route41-secret|cancelToken/);
+  });
+
+  it("вошёл кто-то другой → гостевой ответ: соседке занятое видно (US 26)", async () => {
+    const { owner, taken } = await roomWithOneBooking();
+    const neighbor = await createOwnerWithRoom("Соседка");
+    authMock.mockResolvedValue({ user: { id: neighbor.user.id } });
+
+    const response = await takenRoute(
+      takenRequest(owner.room.shareSlug),
+      slugCtx(owner.room.shareSlug),
+    );
+    const payload = (await response.json()) as { data: { itemIds: string[] } };
+    expect(payload.data.itemIds).toEqual([taken.id]);
   });
 });
