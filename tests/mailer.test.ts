@@ -14,6 +14,7 @@ import {
   reminderGuestMail,
   sendMagicLink,
   sendMail,
+  signInMail,
 } from "../src/server/mailer";
 
 const BASE = "https://rooms.test";
@@ -142,7 +143,7 @@ describe("reminderGuestMail — напоминание гостю за 3 дня"
     const mail = reminderGuestMail(params);
 
     expect(mail.subject).toBe("Праздник уже близко — 14 марта");
-    expect(mail.text).toContain("Здравствуйте, Паша!");
+    expect(mail.text).toContain("Привет, Паша");
     // имя хозяйки — в именительном падеже, displayName не склоняем
     expect(mail.text).toContain("Мила отмечает праздник 14 марта");
     expect(mail.text).toContain("«Серьги-каффы»");
@@ -155,12 +156,23 @@ describe("reminderGuestMail — напоминание гостю за 3 дня"
     expect(mail.html).toContain("14 марта");
   });
 
+  it("зовёт экран и действие словами продукта (тикет 32)", () => {
+    // «Мои подарки» и «освободить вещь» вместо прежних «мои брони» и
+    // «снять бронь»: человек приходит по ссылке и видит ту же надпись.
+    const mail = reminderGuestMail(params);
+
+    expect(mail.text).toContain("Мои подарки — там можно освободить вещь");
+    expect(mail.html).toContain(">Мои подарки</a> — там можно освободить вещь");
+    expect(mail.text).not.toMatch(/мои\s+брон/iu);
+    expect(mail.text).not.toMatch(/снять\s+брон/iu);
+  });
+
   it("без displayName хозяйки письмо связно и без слова null", () => {
     const mail = reminderGuestMail({ ...params, ownerName: null });
 
     expect(mail.subject).toBe("Праздник уже близко — 14 марта");
-    expect(mail.text).toContain("Праздник уже близко: 14 марта.");
-    expect(mail.text).toContain("Вы заняли подарок: «Серьги-каффы»");
+    expect(mail.text).toContain("Праздник уже совсем скоро — 14 марта");
+    expect(mail.text).toContain("Подарок за тобой: «Серьги-каффы»");
     expect(mail.text).not.toContain("null");
     expect(mail.html).not.toContain("null");
   });
@@ -188,16 +200,31 @@ describe("occasionOwnerMail — хозяйке после праздника", (
     });
 
     expect(mail.subject).toContain("что подарили");
-    expect(mail.text).toContain("Мила, привет!");
+    expect(mail.text).toContain("Привет, Мила");
     expect(mail.text).toContain(`${BASE}/room/occasion`);
     expect(mail.html).toContain(`href="${BASE}/room/occasion"`);
   });
 
-  it("без displayName — просто «Привет!», без слова null", () => {
+  it("без displayName — просто «Привет», без слова null", () => {
     const mail = occasionOwnerMail({ ownerName: null, occasionUrl: `${BASE}/room/occasion` });
-    expect(mail.text).toContain("Привет!");
+    expect(mail.text.startsWith("Привет\n")).toBe(true);
     expect(mail.text).not.toContain("null");
     expect(mail.html).not.toContain("null");
+  });
+});
+
+describe("signInMail — письмо входа", () => {
+  it("несёт ссылку как есть и говорит на «ты» (тикет 32)", () => {
+    const url = `${BASE}/signin/confirm?token=abc&email=dev%40x.ru`;
+    const mail = signInMail(url);
+
+    expect(mail.subject).toBe("Вход в твою комнату");
+    expect(mail.text).toContain(url);
+    // ссылку не трогаем: &amp; ушёл бы в адрес и сломал бы вход
+    expect(mail.html).toContain(`href="${BASE}/signin/confirm?token=abc&amp;email=dev%40x.ru"`);
+    // «Вход в вашу комнату» — то, с чего начинался тикет 32
+    expect(`${mail.subject} ${mail.text}`.toLowerCase()).not.toContain("ваш");
+    expect(mail.text).not.toContain("!");
   });
 });
 

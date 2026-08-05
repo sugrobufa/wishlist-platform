@@ -1,17 +1,24 @@
 import { describe, it, expect } from "vitest";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
+import { mailMessages } from "../src/server/mail-messages";
 
-// Тон интерфейса (тикет 25). Памятка — design/package/handoff/tone.md,
-// словарь-источник — design/package/handoff/messages-ru.json.
+// Тон интерфейса (тикет 25) и писем (тикет 32). Памятка —
+// design/package/handoff/tone.md, словарь-источник —
+// design/package/handoff/messages-ru.json.
 //
 // Зачем тест: тон держится не редактурой, а границей. Одна новая строка с
 // «Вы вошли как» или с восклицательным знаком возвращает продукт к тому, за
 // что владелец и написал «айтишниковские тексты». Тест ловит это на месте.
 //
+// Письма проверяются теми же правилами, что и экраны (тикет 32): человек
+// читает письмо и приходит в продукт — на границе между ними тон разъезжался
+// незаметно, потому что тексты писем лежали в коде и тест их не видел.
+//
 // ВАЖНО: списки запрещённых слов живут здесь, а не в словаре. messages/ru.json
 // next-intl сериализует в разметку КАЖДОЙ страницы (тикет 29) — служебному
-// тексту там не место.
+// тексту там не место. По той же причине словарь писем серверный
+// (src/server/mail-messages.ts) и сюда приезжает импортом, а не с диска.
 
 type Raw = Record<string, unknown>;
 
@@ -45,6 +52,7 @@ const packageRaw = readJson("../design/package/handoff/messages-ru.json");
 const ru = flatten(ruRaw);
 const en = flatten(enRaw);
 const handoff = flatten(packageRaw);
+const mail = flatten(mailMessages);
 
 /**
  * Граница слова по-русски: `\b` в JS смотрит на латиницу и кириллицу не видит.
@@ -121,6 +129,80 @@ describe("тон русского словаря", () => {
     // Памятка: «ни одного во всём продукте». Английский переведут позже, но
     // тон переносится, а не изобретается заново.
     expect(violations((value) => value.includes("!"), en)).toEqual([]);
+  });
+});
+
+describe("тон писем", () => {
+  // Те же правила, что и у экранов: письмо — это продукт, просто пришедший
+  // в почту. До тикета 32 письма говорили «Вы заняли подарок» и
+  // «Здравствуйте, {имя}!» — ровно то, что памятка запрещает.
+  for (const [name, pattern] of TONE_RULES) {
+    it(`${name} — ни разу`, () => {
+      expect(violations((value) => pattern.test(value), mail)).toEqual([]);
+    });
+  }
+
+  it("короткая строка не заканчивается точкой", () => {
+    const dotted = violations(
+      (value) => value.length <= SHORT_LINE && value.trimEnd().endsWith("."),
+      mail,
+    );
+    expect(dotted).toEqual([]);
+  });
+
+  it("пустых значений нет", () => {
+    expect(violations((value) => value.trim() === "", mail)).toEqual([]);
+  });
+});
+
+describe("письма и словарь продукта", () => {
+  /**
+   * Экраны и действия письмо зовёт теми же словами, что и продукт: человек
+   * читает письмо, приходит по ссылке и обязан увидеть ту же надпись.
+   * Слева — ключ `messages/ru.json`, справа — ключ словаря писем, который
+   * обязан это слово содержать.
+   */
+  const SHARED_WORDS: ReadonlyArray<readonly [string, string]> = [
+    ["MyBookings.title", "ReminderMail.bookings"], // «Мои подарки»
+    ["MyBookings.cancel", "ReminderMail.bookingsHint"], // «Освободить вещь»
+    ["Occasion.title", "OccasionMail.link"], // «Что подарили»
+  ];
+
+  for (const [productKey, mailKey] of SHARED_WORDS) {
+    it(`${mailKey} говорит словами ${productKey}`, () => {
+      const word = ru.get(productKey);
+      const line = mail.get(mailKey);
+      expect(word, `${productKey} — нет такого ключа в словаре продукта`).toBeDefined();
+      expect(line, `${mailKey} — нет такого ключа в словаре писем`).toBeDefined();
+      expect(String(line).toLowerCase()).toContain(String(word).toLowerCase());
+    });
+  }
+
+  /**
+   * Слова, от которых продукт ушёл в тикете 25, а письма — только сейчас.
+   * Ловим фразой, а не словом: «бронь» сама по себе жива (памятка: «занять,
+   * тихая бронь» — говорим), мертвы именно эти два оборота.
+   */
+  const RETIRED: ReadonlyArray<readonly [string, RegExp]> = [
+    ["«мои брони» — экран зовётся «Мои подарки»", /мои\s+брон/iu],
+    ["«снять бронь» — действие зовётся «Освободить вещь»", /снять\s+брон/iu],
+  ];
+
+  for (const [name, pattern] of RETIRED) {
+    it(`${name} — ни разу`, () => {
+      expect(violations((value) => pattern.test(value), mail)).toEqual([]);
+    });
+  }
+
+  it("словарь писем клиенту не уезжает", () => {
+    // Смысл серверного словаря: next-intl сериализует messages/ru.json в
+    // разметку каждой страницы (тикет 29), а письма в браузере не рисуются
+    // ни разу. Секция писем в продуктовом словаре = килобайт мёртвого текста
+    // у каждого гостя.
+    for (const section of Object.keys(mailMessages)) {
+      expect(ruRaw, `секция ${section} обязана жить только на сервере`).not.toHaveProperty(section);
+      expect(enRaw, `секция ${section} обязана жить только на сервере`).not.toHaveProperty(section);
+    }
   });
 });
 
