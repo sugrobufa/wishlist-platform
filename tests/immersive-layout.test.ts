@@ -200,9 +200,11 @@ describe("цель нажатия зоны (rooms.json → hitTargetMin)", () =>
       "cottage/home",
       "gamer/events",
     ]);
-    // Самая узкая цель на телефоне — 35×45 px: палец попадает.
+    // Самая узкая цель на телефоне — 33 px по ширине: палец попадает.
+    // Было 35 до раунда 3: разводя пересечения прямоугольников в ноль, дизайн
+    // сузил `lux/flowers` с 30 до 22 px, и вместе с ней — самую узкую цель.
     const worst = Math.min(...narrow.map((z) => z.hit.width));
-    expect(worst).toBeCloseTo(35, 2);
+    expect(worst).toBeCloseTo(33, 2);
     for (const { id, hit } of narrow) {
       expect(hit.height, `${id} высота цели`).toBeGreaterThanOrEqual(hitTargetMin - EPS);
     }

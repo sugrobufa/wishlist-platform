@@ -62,7 +62,14 @@
     "zoneAria": "Zone “{label}” — step closer",
     "back": "Step back",
     "noOpenFrame": "the camera steps in — the “open” shot is not filmed yet",
-    "itemsSoon": "This zone's items will appear here in an upcoming update."
+    "itemsSoon": "This zone's items will appear here in an upcoming update.",
+    "indexAria": "Room zones",
+    "summaryCountsGuest": "{total, plural, one {# item} other {# items}}{want, plural, =0 {} other { · # to gift}}",
+    "summaryMore": "{count} more",
+    "summaryPrice": "Price",
+    "summaryBrands": "Brands",
+    "summaryEmpty": "Nothing here yet",
+    "summaryEnter": "Step closer"
   },
   "ZoneGrid": {
     "tabsAria": "Love and want",
@@ -136,6 +143,7 @@
     "yearLabel": "Year",
     "save": "Place in the room",
     "saving": "Placing…",
+    "saveHint": "The button lights up once there is a title",
     "errTooLarge": "The file is over 10 MB — pick a lighter one",
     "errBadType": "A photo is needed: JPG, PNG, WebP or HEIC",
     "errUpload": "The photo did not upload — try again",
@@ -328,4 +336,3 @@
     "errGeneric": "Something went wrong — try again"
   }
 }
-

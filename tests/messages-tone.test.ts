@@ -28,14 +28,17 @@ function readJson(relativePath: string): Raw {
 
 /**
  * Плоская карта «Секция.ключ» → строка.
- * Верхнеуровневые строки (у пакета это `_tone`) пропускаются — они не тексты
- * интерфейса, а пометка дизайна.
+ * Пропускаются верхнеуровневые строки (у пакета это `_tone`) и ключи с
+ * подчёркиванием внутри секций (раунд 4 положил `Scene._removed` — записку о
+ * том, какую строку и почему он убрал). И то и другое — пометки дизайна себе,
+ * а не тексты интерфейса.
  */
 function flatten(raw: Raw): Map<string, string> {
   const flat = new Map<string, string>();
   for (const [section, entries] of Object.entries(raw)) {
     if (typeof entries !== "object" || entries === null) continue;
     for (const [key, value] of Object.entries(entries as Raw)) {
+      if (key.startsWith("_")) continue;
       expect(typeof value, `${section}.${key} — значение словаря обязано быть строкой`).toBe(
         "string",
       );
@@ -228,10 +231,35 @@ describe("словарь и дизайн-пакет", () => {
     // Тикет 19 добавил эти экраны уже после того, как дизайн собрал словарь.
     // Тексты для них написаны руками по формуле ошибок из памятки. Список
     // закреплён, чтобы новая «сирота» не проехала мимо дизайна незамеченной.
+    //
+    // `AddItem.saveHint` — не наша формулировка: подпись под выключенной
+    // кнопкой взята дословно из макета (турн 23a, «Кнопка загорится, когда
+    // появится название»). В messages-ru.json дизайн её не положил.
+    //
+    // `Scene.index*` и `Scene.summary*` — указатель зон и сводка (тикет 34).
+    // Слова взяты из макета (турн 17a: «Цена», «Марки», «ещё») и из ответа
+    // дизайна (handoff/answers-04.md: «Подойти ближе» вместо «войти» —
+    // «войти» занято аккаунтом; «можно подарить» — гостевая половина строки
+    // счётчиков). В messages-ru.json дизайн их пока не положил.
+    //
+    // `Scene.noOpenFrame` — наоборот, сирота по убыли: раунд 4 УБРАЛ строку из
+    // пакета («noOpenFrame убран в раунде 3 (§7 брифа): не сообщаем человеку о
+    // том, чего у нас нет»). В продукте она ещё живёт — её показывает панель
+    // зоны у 91 зоны без кадра. Убрать вместе с самой подписью — тикет сцены,
+    // не приёмка пакета (тикет 33, ADR-0004).
     const own = [...ru.keys()].filter((key) => !handoff.has(key)).sort();
     expect(own).toEqual([
       "AddItem.back",
       "AddItem.backToRoom",
+      "AddItem.saveHint",
+      "Scene.indexAria",
+      "Scene.noOpenFrame",
+      "Scene.summaryBrands",
+      "Scene.summaryCountsGuest",
+      "Scene.summaryEmpty",
+      "Scene.summaryEnter",
+      "Scene.summaryMore",
+      "Scene.summaryPrice",
       "SignIn.confirmBody",
       "SignIn.confirmOverline",
       "SignIn.confirmSubmit",

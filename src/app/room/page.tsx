@@ -9,10 +9,17 @@ import { listZoneItems } from "@/server/services/items";
 import { ownerTakenCount } from "@/server/services/bookings";
 import { occasionBannerVisible } from "@/server/services/occasions";
 import { itemForOwner } from "@/server/dto/items";
+import {
+  ownerSummaryItem,
+  zoneSummaryForOwner,
+  type ZoneSummaryDto,
+} from "@/server/dto/zone-summary";
 import { rooms, type Room, type RoomZone } from "@/config/design";
 import { roomImageUrl } from "@/app/rooms/room-image";
 import { SceneStage } from "@/components/scene/SceneStage";
 import { immersiveLayout } from "@/components/scene/immersive-layout";
+import { ZoneIndexProvider } from "@/components/scene/zone-index-context";
+import { ZoneRail } from "@/components/scene/zone-rail";
 import { visibleZones } from "@/components/scene/zones";
 import { ZoneGrid } from "@/components/zone/ZoneGrid";
 import { zoneDisplayItems } from "@/components/zone/zone-display-items";
@@ -57,7 +64,9 @@ export default async function RoomPage() {
   // он говорит не больше счётчика.
   const showOccasionBanner = await occasionBannerVisible(userId);
 
-  const zoneContent = preset
+  // Сетки вещей для панелей зон и сводки для указателя зон (тикет 34) —
+  // одним проходом по зонам: вещи из БД читаются один раз.
+  const zones = preset
     ? await buildZoneContent(room.id, preset, room.zonesOff, room.demoGhostsOff)
     : undefined;
 
@@ -79,99 +88,121 @@ export default async function RoomPage() {
       <div className="imm-veil imm-veil-top" aria-hidden />
       <div className="imm-veil imm-veil-bottom" aria-hidden />
 
-      {preset && <SceneStage preset={preset} zonesOff={room.zonesOff} zoneContent={zoneContent} />}
+      {/* Провайдер связывает сцену и указатель зон в нижней полосе (тикет 34):
+          они лежат в соседних слоях раскладки, а состояние у них общее —
+          какая зона подсвечена и какая открыта. */}
+      <ZoneIndexProvider>
+        {preset && (
+          <SceneStage preset={preset} zonesOff={room.zonesOff} zoneContent={zones?.content} />
+        )}
 
-      <header className="imm-rail imm-rail-top">
-        <div className="imm-top-grid">
-          <div className="imm-area-titles">
-            <p className="overline text-text-muted">{t("overline")}</p>
-            <h1 className="display imm-title mt-1 text-2xl lg:text-4xl">
-              {preset?.name ?? room.preset}
-            </h1>
-          </div>
+        <header className="imm-rail imm-rail-top">
+          <div className="imm-top-grid">
+            <div className="imm-area-titles">
+              <p className="overline text-text-muted">{t("overline")}</p>
+              <h1 className="display imm-title mt-1 text-2xl lg:text-4xl">
+                {preset?.name ?? room.preset}
+              </h1>
+            </div>
 
-          <div className="imm-area-quiet">
-            {/* Тихий счётчик движения (турн 11d): только число, никаких намёков,
-                какие вещи. Спокойный оверлайн без акцента; при нуле — тишина. */}
-            {takenCount > 0 && (
-              <p className="overline text-text-muted">{t("takenCount", { count: takenCount })}</p>
-            )}
-            {/* Праздник прошёл — тихая строка-ссылка на «что подарили»
-                (тикет 10): без баннерной яркости, тем же тоном, что счётчик. */}
-            {showOccasionBanner && (
+            <div className="imm-area-quiet">
+              {/* Тихий счётчик движения (турн 11d): только число, никаких намёков,
+                  какие вещи. Спокойный оверлайн без акцента; при нуле — тишина.
+                  ЕДИНСТВЕННОЕ место счётчика забранных вещей во всём продукте:
+                  ни в сводке по зоне, ни у гостя его нет (инвариант №1). */}
+              {takenCount > 0 && (
+                <p className="overline text-text-muted">{t("takenCount", { count: takenCount })}</p>
+              )}
+              {/* Праздник прошёл — тихая строка-ссылка на «что подарили»
+                  (тикет 10): без баннерной яркости, тем же тоном, что счётчик. */}
+              {showOccasionBanner && (
+                <Link
+                  href="/room/occasion"
+                  className="pressable text-sm font-semibold"
+                  style={{ color: accent }}
+                >
+                  {t("occasionBanner")} →
+                </Link>
+              )}
+            </div>
+
+            {/* Служебные ссылки (тикеты 10, 11, 13) — тихим тоном, в углу полосы. */}
+            <nav className="imm-area-actions">
               <Link
-                href="/room/occasion"
-                className="pressable text-sm font-semibold"
-                style={{ color: accent }}
+                href="/connections"
+                className="pressable text-xs font-semibold text-text-muted hover:text-text-strong"
               >
-                {t("occasionBanner")} →
+                {t("connectionsLink")}
               </Link>
-            )}
+              <Link
+                href="/room/hall"
+                className="pressable text-xs font-semibold text-text-muted hover:text-text-strong"
+              >
+                {t("hallLink")}
+              </Link>
+              <Link
+                href="/settings"
+                className="pressable text-xs font-semibold text-text-muted hover:text-text-strong"
+              >
+                {t("settingsLink")}
+              </Link>
+            </nav>
           </div>
+        </header>
 
-          {/* Служебные ссылки (тикеты 10, 11, 13) — тихим тоном, в углу полосы. */}
-          <nav className="imm-area-actions">
-            <Link
-              href="/connections"
-              className="pressable text-xs font-semibold text-text-muted hover:text-text-strong"
-            >
-              {t("connectionsLink")}
-            </Link>
-            <Link
-              href="/room/hall"
-              className="pressable text-xs font-semibold text-text-muted hover:text-text-strong"
-            >
-              {t("hallLink")}
-            </Link>
-            <Link
-              href="/settings"
-              className="pressable text-xs font-semibold text-text-muted hover:text-text-strong"
-            >
-              {t("settingsLink")}
-            </Link>
-          </nav>
-        </div>
-      </header>
-
-      <div className="imm-rail imm-rail-bottom">
-        <div className="imm-row">
-          {/* Вход в добавление вещи (полировка 16). «Полоса света» — главная
-              кнопка везде (турн 22), здесь тихого размера. */}
-          <Link
-            href="/room/add"
-            className="pressable border-b-2 px-4 text-sm font-semibold text-text-primary"
-            style={{ borderColor: accent, boxShadow: `0 4px 18px -3px ${accent}6B` }}
+        {/* Нижняя полоса: действия и под ними указатель зон (тикет 34). */}
+        <div className="imm-rail imm-rail-bottom">
+          <ZoneRail
+            zones={preset?.zones ?? []}
+            zonesOff={room.zonesOff}
+            summaries={zones?.summaries}
+            viewer="owner"
+            accent={accent}
           >
-            {t("addItem")} →
-          </Link>
-          {/* Вместо карточки с адресом — один значок (тикет 24). Сам адрес
-              живёт в «Настройках», рядом с ником, которым его и меняют. */}
-          <ShareButton path={sharePath} accent={accent} />
+            {/* Вход в добавление вещи (полировка 16). «Полоса света» — главная
+                кнопка везде (турн 22), здесь тихого размера. */}
+            <Link
+              href="/room/add"
+              className="pressable border-b-2 px-4 text-sm font-semibold text-text-primary"
+              style={{ borderColor: accent, boxShadow: `0 4px 18px -3px ${accent}6B` }}
+            >
+              {t("addItem")} →
+            </Link>
+            {/* Вместо карточки с адресом — один значок (тикет 24). Сам адрес
+                живёт в «Настройках», рядом с ником, которым его и меняют. */}
+            <ShareButton path={sharePath} accent={accent} />
+          </ZoneRail>
         </div>
-      </div>
+      </ZoneIndexProvider>
     </main>
   );
 }
 
 /**
  * Содержимое панелей зон для SceneStage (контракт тикета 02: узлы проходят
- * client-границу пропом zoneContent[zoneKey]). Для каждой видимой зоны —
- * сетка её вещей; зоне без единой своей вещи достаются демо-призраки пула
- * (в БД не пишутся, исчезают с первой своей вещью — гриллинг №4; тумблер
+ * client-границу пропом zoneContent[zoneKey]) И сводка по каждой зоне для
+ * указателя зон (тикет 34) — за один проход по зонам. Для каждой видимой
+ * зоны — сетка её вещей; зоне без единой своей вещи достаются демо-призраки
+ * пула (в БД не пишутся, исчезают с первой своей вещью — гриллинг №4; тумблер
  * «Убрать примеры» гасит их скопом — тикет 13, zoneDisplayItems).
+ *
+ * В сводку призраки НЕ идут: сетка помечает их «пример», а карточка сводки —
+ * нет, и числа по выдуманным вещам читались бы как настоящие.
  */
 async function buildZoneContent(
   roomId: string,
   preset: Room,
   zonesOff: string[],
   demoGhostsOff: boolean,
-): Promise<Record<string, ReactNode>> {
+): Promise<{ content: Record<string, ReactNode>; summaries: Record<string, ZoneSummaryDto> }> {
   const tZone = await getTranslations("ZoneGrid");
   const zones = visibleZones(preset.zones, zonesOff);
 
   const entries = await Promise.all(
     zones.map(async (zone: RoomZone) => {
-      const own = (await listZoneItems(roomId, zone.key)).map(itemForOwner);
+      const rows = await listZoneItems(roomId, zone.key);
+      const own = rows.map(itemForOwner);
+      const summary = zoneSummaryForOwner(zone.key, rows.map(ownerSummaryItem));
       const items = zoneDisplayItems(own, zone.key, zone.pool, demoGhostsOff);
       const node = (
         <div key={zone.key}>
@@ -196,9 +227,12 @@ async function buildZoneContent(
           </div>
         </div>
       );
-      return [zone.key, node] as const;
+      return [zone.key, node, summary] as const;
     }),
   );
 
-  return Object.fromEntries(entries);
+  return {
+    content: Object.fromEntries(entries.map(([key, node]) => [key, node])),
+    summaries: Object.fromEntries(entries.map(([key, , summary]) => [key, summary])),
+  };
 }

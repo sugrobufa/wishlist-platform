@@ -1,0 +1,346 @@
+/* Указатель зон и карточка сводки (тикет 34).
+ *
+ * Числа десктопной полосы — из макета 17a (Main Screen.dc.html): высота 88,
+ * номер Archivo 8.5/.16em, подпись Archivo 9/.06em uppercase, шаг 6, колонки
+ * flex:1. Карточка сводки — тот же турн: 340 px, фон rgba(14,10,7,.93),
+ * миниатюры 64×64 с шагом 7, разделитель, строка «Цена», плашка внизу.
+ * Акцент комнаты приезжает переменной --zi-accent (плюс два его разведённых
+ * оттенка), поэтому цвета кремовой комнаты из макета здесь не захардкожены.
+ *
+ * ТЕЛЕФОННЫХ ЧИСЕЛ В ПАКЕТЕ НЕТ — турн 17a десктопный, а телефонная раскладка
+ * указателя не рисовалась вовсе. Поэтому на телефоне свои: строка листается
+ * вбок, подпись 11 px (девять на телефоне не читаются с руки), рядом с
+ * подписью — счётчик вещей: сводки по наведению там не бывает, а число
+ * ответить на «стоит ли заходить» успевает и без неё.
+ *
+ * Полоса интерфейса не имеет права отбирать нажатие у зон (globals.css →
+ * .imm-rail { pointer-events: none }): включено оно только на самом списке
+ * и на кнопках, а карточка сводки не получает его никогда. */
+
+/* --- Раскладка внутри нижней полосы -------------------------------------- */
+
+/* Нижняя полоса (116 px, tokens.json → phoneImmersive.railBottom) держит
+ * теперь две строки: действия и указатель. Обе по 44 px цели нажатия плюс
+ * волосяная линия и шаг — 101 px, в полосу помещается без её роста. Рост был
+ * бы не косметикой: высота полосы участвует в расчёте раскладки
+ * (immersive-layout.ts), и зоны нижнего края уехали бы под интерфейс. */
+.stack {
+  display: flex;
+  width: 100%;
+  min-width: 0;
+  flex-direction: column;
+  justify-content: center;
+  gap: 6px;
+}
+
+.rail {
+  position: relative;
+  width: 100%;
+  min-width: 0;
+  padding-top: 6px;
+  border-top: 1px solid var(--color-surface-hairline, rgba(255, 255, 255, 0.09));
+}
+
+.scroller {
+  pointer-events: auto;
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
+  scrollbar-width: none;
+  /* Список уезжает под края экрана, а не обрывается по гуттеру полосы. */
+  margin-inline: calc(var(--imm-gutter, 22px) * -1);
+  padding-inline: var(--imm-gutter, 22px);
+}
+
+.scroller::-webkit-scrollbar {
+  display: none;
+}
+
+.list {
+  display: flex;
+  align-items: stretch;
+  gap: 4px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.item {
+  position: relative; /* якорь карточки сводки */
+  flex: none;
+  min-width: 0;
+}
+
+/* Специфичность (0,2,0) намеренно: в globals.css у `.imm-rail button` стоит
+   display/align-items/min-height, и без второго класса они бы победили. */
+.rail .button {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: var(--hit-target-min, 44px);
+  padding: 0 8px;
+  border: 0;
+  background: none;
+  cursor: pointer;
+  white-space: nowrap;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.ordinal {
+  flex: none;
+  font-family: var(--font-display);
+  font-size: 9px;
+  font-weight: 500;
+  letter-spacing: 0.16em;
+  color: rgba(255, 249, 242, 0.4);
+  transition: color var(--zone-label-ms, 240ms) var(--zone-marker-ease, ease);
+}
+
+.label {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-family: var(--font-display);
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 1.2;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: rgba(255, 249, 242, 0.62);
+  transition: color var(--zone-label-ms, 240ms) var(--zone-marker-ease, ease);
+}
+
+/* Счётчик вещей у пункта — телефонная замена сводки по наведению. */
+.count {
+  flex: none;
+  font-family: var(--font-ui);
+  font-size: 11px;
+  font-weight: 600;
+  color: rgba(255, 249, 242, 0.38);
+}
+
+/* Подсветка списка и кадра связаны в обе стороны: этот класс приезжает и от
+   наведения на пункт, и от наведения на саму зону в кадре. */
+.itemLit .ordinal,
+.itemActive .ordinal {
+  color: var(--zi-accent);
+}
+
+.itemLit .label,
+.itemActive .label,
+.itemLit .count,
+.itemActive .count {
+  color: var(--color-text-primary, #fff9f2);
+}
+
+/* Единственное место, где рамка законна (tokens.json → zoneMarker.focus):
+   фокус обязан быть геометрически явным. Те же 1px dashed акцентом и отступ 2,
+   что у метки зоны в кадре, — обход с клавиатуры выглядит одинаково. */
+.rail .button:focus-visible {
+  outline: 1px dashed var(--zi-accent);
+  outline-offset: 2px;
+}
+
+/* --- Карточка сводки (макет 17a) ---------------------------------------- */
+
+/* Живёт только там, где есть настоящее наведение: на телефоне её нет вовсе,
+   а не «есть, но не показывается» — иначе первое касание тратилось бы на
+   сводку, а подход к зоне стал бы двухшаговым (разбор — Comments тикета).
+   Стоит внутри своего пункта: позиция — обычный поток CSS, без замеров.
+   У правой части списка раскрывается влево (.cardFlip), иначе уехала бы
+   за край экрана. */
+.card {
+  position: absolute;
+  bottom: calc(100% + 10px);
+  left: 0;
+  z-index: 3;
+  display: none;
+  width: 340px;
+  max-width: calc(100vw - 24px);
+  background: rgba(14, 10, 7, 0.93);
+  border: 1px solid var(--zi-accent-soft, rgba(231, 201, 169, 0.32));
+  box-shadow: 0 32px 70px -26px rgba(0, 0, 0, 0.9);
+  pointer-events: none;
+}
+
+.cardFlip {
+  left: auto;
+  right: 0;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .card {
+    display: block;
+    animation: zone-summary-in var(--zone-label-ms, 240ms) var(--zone-marker-ease, ease) both;
+  }
+}
+
+.cardHead {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 16px 18px 0;
+}
+
+.cardTitle {
+  font: 600 16px/1 var(--font-ui);
+  color: var(--color-text-primary, #fff9f2);
+}
+
+.cardSub {
+  flex: none;
+  font: 500 11px/1 var(--font-ui);
+  color: rgba(255, 249, 242, 0.5);
+}
+
+.cardEmpty {
+  margin: 13px 18px 0;
+  font: 400 12.5px/1.5 var(--font-ui);
+  color: rgba(255, 249, 242, 0.5);
+}
+
+.thumbs {
+  display: flex;
+  gap: 7px;
+  margin: 15px 18px 0;
+}
+
+/* Плитка миниатюры: серая заливка — «нет фотографии», состояние ею не
+   кодируется (инвариант №3). Пунктир — и только он — означает «хочу». */
+.thumb {
+  width: 64px;
+  height: 64px;
+  flex: none;
+  border: 1px solid var(--color-surface-hairline, rgba(255, 255, 255, 0.09));
+  background-color: rgba(255, 255, 255, 0.05);
+  background-position: center;
+  background-size: cover;
+}
+
+.thumbWant {
+  border: 1px dashed var(--zi-accent);
+  box-shadow: inset 0 -2px 0 0 var(--zi-accent);
+}
+
+.thumbMore {
+  display: flex;
+  flex: 1;
+  align-items: center;
+  justify-content: center;
+  height: 64px;
+  background: rgba(255, 255, 255, 0.06);
+  font: 600 12px/1 var(--font-ui);
+  color: rgba(255, 249, 242, 0.62);
+}
+
+.row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  margin: 15px 18px 0;
+  padding-top: 14px;
+  border-top: 1px solid rgba(255, 255, 255, 0.12);
+}
+
+/* Вторая строка (марки под ценой) идёт без своей линии — в макете разделитель
+   один на обе. Одна она осталась — берёт линию себе. */
+.row + .row {
+  margin-top: 11px;
+  padding-top: 0;
+  border-top: 0;
+}
+
+.rowKey {
+  flex: none;
+  font: 500 11px/1 var(--font-ui);
+  color: rgba(255, 249, 242, 0.5);
+}
+
+.rowValue {
+  text-align: right;
+  font: 600 13.5px/1.2 var(--font-ui);
+  color: var(--color-text-primary, #fff9f2);
+}
+
+.row + .row .rowValue {
+  font: 500 11.5px/1.3 var(--font-ui);
+  color: rgba(255, 249, 242, 0.78);
+}
+
+.cardCta {
+  margin: 16px 18px 18px;
+  padding: 11px 13px;
+  border: 1px solid var(--zi-accent-line, rgba(231, 201, 169, 0.3));
+  background: var(--zi-accent-wash, rgba(231, 201, 169, 0.12));
+  font: 600 11px/1 var(--font-ui);
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  text-align: center;
+  color: var(--zi-accent);
+}
+
+/* --- Десктоп: числа полосы из макета 17a --------------------------------- */
+
+@media (min-width: 1024px) {
+  .scroller {
+    overflow: visible;
+    margin-inline: 0;
+    padding-inline: 0;
+  }
+
+  .list {
+    width: 100%;
+    gap: 0;
+  }
+
+  /* Колонки делят полосу поровну — flex:1 у каждого пункта, как в макете. */
+  .item {
+    flex: 1 1 0;
+  }
+
+  .rail .button {
+    width: 100%;
+    flex-direction: column;
+    align-items: flex-start;
+    justify-content: center;
+    gap: 6px;
+    padding: 0 8px 0 0;
+    white-space: normal;
+  }
+
+  .ordinal {
+    font-size: 8.5px;
+  }
+
+  .label {
+    overflow: visible;
+    font-size: 9px;
+  }
+
+  /* Число вещей на десктопе живёт в карточке — в полосе оно лишний шум. */
+  .count {
+    display: none;
+  }
+}
+
+/* --- prefers-reduced-motion --------------------------------------------- */
+
+@media (prefers-reduced-motion: reduce) {
+  .ordinal,
+  .label,
+  .count {
+    transition-duration: var(--reduced-ms, 120ms);
+  }
+
+  .card {
+    animation-duration: var(--reduced-ms, 120ms);
+  }
+}
+
+@keyframes zone-summary-in {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+}

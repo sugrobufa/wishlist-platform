@@ -2,7 +2,9 @@
 
 // Флоу добавления вещи (тикет 04, турн 8). Шаг 1 — вопрос «Что это для
 // тебя?» ВМЕСТО кнопки «добавить в вишлист» (items.json → whereAsked):
-// два тайла цитируют язык комнаты. Шаг 2 — форма по состоянию: у WANT цена
+// две панели показывают ОДНО место комнаты человека в двух состояниях —
+// кроп базового кадра вокруг зоны, куда вещь встанет (тикет 27, турн 23a).
+// Шаг 2 — форма по состоянию: у WANT цена
 // с валютой и видимостью, размер/цвет/степень желания; у LOVE подпись
 // «уже моё» или даритель+год — цены в форме нет вовсе.
 // Фото грузится напрямую в MinIO/S3 по pre-signed PUT, в createItem уходит
@@ -15,24 +17,30 @@
 // сохранения. Дубликат по canonicalUrl — жёлтое предупреждение, не запрет.
 import {
   useEffect,
+  useId,
+  useRef,
   useState,
   type CSSProperties,
   type ChangeEvent,
   type ClipboardEvent,
   type FormEvent,
 } from "react";
+import { preload } from "react-dom";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
-import { sceneMotion } from "@/config/design";
+import { sceneMotion, type ZoneRect } from "@/config/design";
+import { useMediaQuery } from "@/components/scene/use-media-query";
 import type { ParsedProduct } from "@/server/parser";
 import type { DuplicateItem } from "@/server/services/items";
 import { checkDuplicateAction, createItemAction, presignItemPhotoAction } from "./actions";
+import { stateChoiceMs, stateChoicePanels, type ItemState } from "./state-choice";
 import s from "./add-item.module.css";
 
-export type ZoneOption = { key: string; label: string };
+export type ZoneOption = { key: string; label: string; rect: ZoneRect };
 
-type ItemState = "WANT" | "LOVE";
+const REDUCED_MQ = "(prefers-reduced-motion: reduce)";
+
 type PriceVisibility = "ALL" | "FRIENDS" | "ME" | "NONE";
 type LoveKind = "mine" | "gift";
 
@@ -77,6 +85,8 @@ type AddItemFlowProps = {
   zonePreselected?: boolean;
   /** Куда уводит выход из карточки: зона, из которой пришли, или комната. */
   exitHref: string;
+  /** Базовый кадр комнаты — из него режется кроп выбора состояния (тикет 27). */
+  roomImage: string;
   /** Акцент/ink комнаты из rooms.json. */
   accent: string;
   ink: string;
@@ -87,6 +97,7 @@ export function AddItemFlow({
   initialZone,
   zonePreselected = false,
   exitHref,
+  roomImage,
   accent,
   ink,
 }: AddItemFlowProps) {
@@ -94,6 +105,12 @@ export function AddItemFlow({
   const router = useRouter();
 
   const [state, setState] = useState<ItemState | null>(null);
+  /**
+   * Что выбрано на шаге 1. Живёт отдельно от `state`: «← Назад» возвращает к
+   * вопросу, и панель обязана помнить ответ — иначе состояний «выбрано» и
+   * «не выбрано» на экране не существует вовсе.
+   */
+  const [picked, setPicked] = useState<ItemState | null>(null);
 
   // Общие поля обеих форм.
   const [title, setTitle] = useState("");
@@ -132,6 +149,15 @@ export function AddItemFlow({
   const [errorKey, setErrorKey] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
 
+  const reducedMotion = useMediaQuery(REDUCED_MQ);
+  /** Название — единственное обязательное поле; без него сохранять нечего. */
+  const canSave = title.trim() !== "";
+  const saveHintId = useId();
+
+  // Кадр комнаты живёт CSS-фоном: сканер браузера его не видит, и без preload
+  // загрузка стартовала бы только после гидрации (то же решение, что в сцене).
+  preload(roomImage, { as: "image", fetchPriority: "high" });
+
   // Акцент комнаты и его производные — CSS-переменными в модульные стили.
   const style = {
     "--ai-accent": accent,
@@ -143,6 +169,9 @@ export function AddItemFlow({
     "--ai-glow-80": withAlpha(accent, 0.8),
     "--ai-glow-85": withAlpha(accent, 0.85),
     "--ai-ease": sceneMotion.easingOut,
+    // prefers-reduced-motion: переход не убивается в ноль — 120 мс, смена
+    // состояния остаётся читаемой (motion.json → reducedMotion.transitions).
+    "--ai-reduced-ms": `${sceneMotion.reducedTransitionMs}ms`,
   } as CSSProperties;
 
   // Парсер может вернуть валюту вне малого набора формы (KGS, KZT…) —
@@ -165,9 +194,28 @@ export function AddItemFlow({
     return () => document.removeEventListener("keydown", onKeyDown);
   }, [state, router, exitHref]);
 
+  // Выбор виден ровно столько, сколько длится переход контракта (240 мс, при
+  // выключенном движении 120): панель успевает зажечь полосу света и погасить
+  // соседнюю до того, как экран сменится формой. Дольше — уже задержка.
+  const holdRef = useRef<number | null>(null);
+  useEffect(
+    () => () => {
+      if (holdRef.current !== null) window.clearTimeout(holdRef.current);
+    },
+    [],
+  );
+
   function pickState(next: ItemState) {
-    setState(next);
+    if (holdRef.current !== null) return; // повторный тап по дороге игнорируем
+    setPicked(next);
     setErrorKey(null);
+    holdRef.current = window.setTimeout(
+      () => {
+        holdRef.current = null;
+        setState(next);
+      },
+      reducedMotion ? sceneMotion.reducedTransitionMs : stateChoiceMs,
+    );
   }
 
   function onFileChange(event: ChangeEvent<HTMLInputElement>) {
@@ -316,7 +364,10 @@ export function AddItemFlow({
 
   async function onSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (saving) return;
+    // Сохранять нечего, пока у вещи нет названия. Кнопка при этом остаётся в
+    // обходе с клавиатуры (aria-disabled, а не disabled) — иначе причину
+    // «почему не жмётся» скринридеру никто не расскажет.
+    if (saving || !canSave) return;
     setSaving(true);
     setErrorKey(null);
     try {
@@ -355,9 +406,14 @@ export function AddItemFlow({
   // ---------- Шаг 1: «Что это для тебя?» ----------
 
   if (state === null) {
+    // Кроп берётся из зоны, куда вещь попадёт: выбранной руками на форме, а
+    // пока не выбрана — из `?zone=…` или первой видимой зоны комнаты. Зона
+    // меняется на шаге 2 — вернувшись «Назад», человек видит уже новое место.
+    const cropZone = zones.find((option) => option.key === zone)?.rect ?? null;
+
     return (
       <main className={`${s.root} mx-auto min-h-screen w-full max-w-xl px-6 py-10`} style={style}>
-        {/* Тихий выход в шапке: путь назад виден, но не спорит с двумя тайлами. */}
+        {/* Тихий выход в шапке: путь назад виден, но не спорит с двумя панелями. */}
         <nav className={s.nav}>
           <Link href={exitHref} className={`pressable ${s.navLink}`}>
             ← {t("backToRoom")}
@@ -368,23 +424,58 @@ export function AddItemFlow({
         <h1 className="display mt-3 text-3xl md:text-4xl">{t("question")}</h1>
 
         <div className={s.tileGrid}>
-          <button type="button" className={`pressable ${s.tile}`} onClick={() => pickState("LOVE")}>
-            <span className={s.tileArt} aria-hidden>
-              <span className={s.loveObject} />
-              <span className={s.loveShelf} />
-            </span>
-            <span className={s.tileLabel}>{t("loveLabel")}</span>
-            <span className={s.tileHint}>{t("loveHint")}</span>
-          </button>
-
-          <button type="button" className={`pressable ${s.tile}`} onClick={() => pickState("WANT")}>
-            <span className={s.tileArt} aria-hidden>
-              <span className={s.wantObject} />
-              <span className={s.wantShelf} />
-            </span>
-            <span className={s.tileLabel}>{t("wantLabel")}</span>
-            <span className={s.tileHint}>{t("wantHint")}</span>
-          </button>
+          {stateChoicePanels(cropZone).map((panel) => {
+            const chosen = picked === panel.state;
+            // Пока не выбрано ничего — обе панели в покое: приглушать соседнюю
+            // не за что. Числа приглушения и подсветки — tokens.css.
+            const tone = picked === null ? "" : chosen ? ` ${s.tileOn}` : ` ${s.tileDim}`;
+            const art = panel.ghost ? `${s.tileArt} ${s.tileArtWant}` : s.tileArt;
+            return (
+              <button
+                key={panel.state}
+                type="button"
+                aria-pressed={chosen}
+                className={`pressable ${s.tile}${tone}`}
+                onClick={() => pickState(panel.state)}
+                style={
+                  panel.crop
+                    ? ({
+                        "--sc-image": `url(${roomImage})`,
+                        "--sc-size": panel.crop.size,
+                        "--sc-pos": panel.crop.position,
+                        "--sc-l": `${panel.crop.spot.left}%`,
+                        "--sc-t": `${panel.crop.spot.top}%`,
+                        "--sc-w": `${panel.crop.spot.width}%`,
+                        "--sc-h": `${panel.crop.spot.height}%`,
+                        "--sc-cx": `${panel.crop.spot.left + panel.crop.spot.width / 2}%`,
+                        "--sc-cy": `${panel.crop.spot.top + panel.crop.spot.height / 2}%`,
+                      } as CSSProperties)
+                    : undefined
+                }
+              >
+                {/* Один и тот же кусок интерьера в обеих панелях; у «хочу»
+                    предмет заменён призрачным контуром — это состояние вещи,
+                    а НЕ отсутствие фотографии (инвариант №3). */}
+                <span className={art} aria-hidden>
+                  {panel.crop && <span className={s.tileCrop} />}
+                  <span className={s.tileLight} />
+                  {panel.ghost && (
+                    <>
+                      <span className={s.ghostBox} />
+                      <span className={s.ghostBar} />
+                    </>
+                  )}
+                </span>
+                <span className={s.tileBar} aria-hidden />
+                <span className={s.tileLabel}>
+                  {panel.state === "LOVE" ? t("loveLabel") : t("wantLabel")}
+                </span>
+                <span className={s.tileHint}>
+                  {panel.state === "LOVE" ? t("loveHint") : t("wantHint")}
+                </span>
+              </button>
+            );
+          })}
         </div>
       </main>
     );
@@ -707,10 +798,24 @@ export function AddItemFlow({
 
         {errorKey && <p className={s.error}>{t(errorKey)}</p>}
 
+        {/* Главная кнопка выключена, пока нечего сохранять (турн 23a): серая
+            полоса вместо светящейся, и подпись рядом называет причину. Это
+            другое состояние кнопки, а не та же кнопка потише. */}
         <div className="sticky bottom-0 -mx-6 bg-surface-app-ground px-6 pb-8 pt-4">
-          <button type="submit" disabled={saving} className={`pressable ${s.lightBar}`}>
+          <button
+            type="submit"
+            disabled={saving}
+            aria-disabled={!canSave}
+            aria-describedby={canSave ? undefined : saveHintId}
+            className={canSave ? `pressable ${s.lightBar}` : s.lightBar}
+          >
             {saving ? t("saving") : `${t("save")} →`}
           </button>
+          {!canSave && (
+            <p id={saveHintId} className={s.saveHint}>
+              {t("saveHint")}
+            </p>
+          )}
         </div>
       </form>
     </main>

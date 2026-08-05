@@ -17,6 +17,12 @@ import { visibleZones } from "@/components/scene/zones";
 import { demoGhostsFor } from "@/config/demo-pools";
 import { ghostForGuest, itemForGuest, type GuestItemDto } from "@/server/dto/guest-items";
 import { itemPhotoUrl } from "@/server/dto/items";
+import {
+  emptyZoneSummary,
+  guestSummaryItem,
+  zoneSummaryForGuest,
+  type ZoneSummaryDto,
+} from "@/server/dto/zone-summary";
 import { compareZoneItems } from "@/server/services/items";
 
 // Слаг приходит из URL от кого угодно: мусор режем до похода в БД.
@@ -47,6 +53,12 @@ export type GuestRoomView = {
    * (если хозяйка не выключила примеры: Room.demoGhostsOff).
    */
   itemsByZone: Record<string, GuestItemDto[]>;
+  /**
+   * Сводка по каждой видимой зоне для указателя зон (тикет 34): счётчики,
+   * миниатюры, вилка цен и марки — уже по правилам dto/zone-summary.ts.
+   * Демо-призраки в неё не входят: пустая зона в сводке честно пуста.
+   */
+  summariesByZone: Record<string, ZoneSummaryDto>;
 };
 
 /**
@@ -83,19 +95,23 @@ export async function getGuestRoom(slug: string): Promise<GuestRoomView | null> 
   const preset = roomPresets.find((candidate) => candidate.id === room.preset);
   if (!preset) return null; // пресета нет в rooms.json — гостю такой комнаты нет
 
-  const ownItemsByZone = await readGuestItemsCached(room.id);
+  const cached = await readGuestItemsCached(room.id);
 
   // Выключенные зоны исчезают целиком (инвариант №5) — фильтр по свежему
   // zonesOff поверх кэша, тем же visibleZones, что прячет мебель в сцене.
   // Демо-призраки — по свежему demoGhostsOff (тикет 13): «Убрать примеры»
   // действует немедленно, кэш вещей тут ни при чём.
   const itemsByZone: Record<string, GuestItemDto[]> = {};
+  const summariesByZone: Record<string, ZoneSummaryDto> = {};
   for (const zone of visibleZones(preset.zones, room.zonesOff)) {
-    const own = ownItemsByZone[zone.key] ?? [];
+    const own = cached.itemsByZone[zone.key] ?? [];
     itemsByZone[zone.key] =
       own.length > 0 || room.demoGhostsOff
         ? own
         : demoGhostsFor(zone.key, zone.pool).map(ghostForGuest);
+    // Сводка считается по СВОИМ вещам: призраки в неё не входят, поэтому у
+    // пустой зоны она пуста — числа по выдуманным вещам читались бы как свои.
+    summariesByZone[zone.key] = cached.summariesByZone[zone.key] ?? emptyZoneSummary(zone.key);
   }
 
   return {
@@ -107,34 +123,54 @@ export async function getGuestRoom(slug: string): Promise<GuestRoomView | null> 
     ownerName: room.user.displayName ?? room.user.name ?? null,
     ownerAvatarUrl: itemPhotoUrl(room.user.avatarKey),
     itemsByZone,
+    summariesByZone,
   };
 }
+
+/** Что лежит в кэше комнаты: вещи по зонам и сводка по каждой зоне. */
+type GuestRoomCache = {
+  itemsByZone: Record<string, GuestItemDto[]>;
+  summariesByZone: Record<string, ZoneSummaryDto>;
+};
 
 /**
  * Вещи комнаты глазами гостя, сгруппированные по зонам, — в Next Data Cache
  * с тегом `room-{roomId}`. Мутации хозяйки ревалидируют этот тег (тикет 04 —
  * вещи, тикет 13 — настройки); тот же тег через рендер приклеивается к
  * полностраничному кэшу /r/{slug} (ISR — полировка 16). В кэше лежат только
- * guest-DTO (чистый JSON): спрятанное отфильтровано ещё в запросе и в кэш
- * не попадает. revalidate — страховочное окно для записей, которые до кэша
- * не достают (photoKey из воркера image.ingest — Comments тикета 06).
+ * guest-DTO и сводки (чистый JSON): спрятанное отфильтровано ещё в запросе и
+ * в кэш не попадает. revalidate — страховочное окно для записей, которые до
+ * кэша не достают (photoKey из воркера image.ingest — Comments тикета 06).
+ *
+ * Ключ кэша сменился вместе с формой значения (тикет 34): в старых записях
+ * сводок нет, и читать их этой формой нельзя.
  */
-function readGuestItemsCached(roomId: string): Promise<Record<string, GuestItemDto[]>> {
-  return unstable_cache(() => loadGuestItems(roomId), ["guest-room-items", roomId], {
+function readGuestItemsCached(roomId: string): Promise<GuestRoomCache> {
+  return unstable_cache(() => loadGuestItems(roomId), ["guest-room-view", roomId], {
     tags: [`room-${roomId}`],
     revalidate: 300,
   })();
 }
 
-async function loadGuestItems(roomId: string): Promise<Record<string, GuestItemDto[]>> {
+async function loadGuestItems(roomId: string): Promise<GuestRoomCache> {
   const items = await prisma.item.findMany({ where: { roomId, hidden: false } });
   // Порядок — контракт тикета 03, ТОТ ЖЕ компаратор, что у хозяйки
   // (дубль compareGuestItems объединён в полировке — тикет 16).
   items.sort(compareZoneItems);
 
-  const byZone: Record<string, GuestItemDto[]> = {};
+  const itemsByZone: Record<string, GuestItemDto[]> = {};
+  // Сводка считается по тем же вещам и в том же порядке, но через свою форму:
+  // ей нужен ещё домен магазина (марки), а гостю поштучно он не отдаётся.
+  const sourcesByZone: Record<string, ReturnType<typeof guestSummaryItem>[]> = {};
   for (const item of items) {
-    (byZone[item.zone] ??= []).push(itemForGuest(item));
+    (itemsByZone[item.zone] ??= []).push(itemForGuest(item));
+    (sourcesByZone[item.zone] ??= []).push(guestSummaryItem(item));
   }
-  return byZone;
+
+  const summariesByZone: Record<string, ZoneSummaryDto> = {};
+  for (const [zoneKey, sources] of Object.entries(sourcesByZone)) {
+    summariesByZone[zoneKey] = zoneSummaryForGuest(zoneKey, sources);
+  }
+
+  return { itemsByZone, summariesByZone };
 }

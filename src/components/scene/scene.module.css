@@ -226,6 +226,13 @@
   height: var(--frame-h);
 }
 
+/* Обёртка метки зоны: несёт ключ зоны и метку подсветки от указателя зон
+ * (тикет 34). `display: contents` — коробки не создаёт, поэтому хотспот
+ * по-прежнему позиционируется от слоя хотспотов. */
+.hotspotSlot {
+  display: contents;
+}
+
 .hotspot {
   position: absolute;
   left: var(--hs-l);
@@ -408,6 +415,32 @@
 }
 
 .viewport:has(.hotspot:focus-visible) .dim {
+  opacity: var(--zone-dim-hover);
+}
+
+/* Подсветка от указателя зон (тикет 34): наведение на строку списка зажигает
+ * зону в кадре ровно так же, как наведение мышью на саму зону. Вне ворот
+ * наведения намеренно — метку зажигает и фокус с клавиатуры, и он есть там,
+ * где мыши нет. Подпись зоны при этом видна: список называет зону словами, и
+ * кадр обязан назвать её теми же. */
+[data-lit] .bloom {
+  opacity: calc(var(--zone-bloom-hover) * var(--zone-bloom-weight));
+}
+
+[data-lit] .vignette {
+  opacity: var(--zone-vignette-hover);
+}
+
+[data-lit] .spark {
+  opacity: 0;
+}
+
+[data-lit] .zoneLabel {
+  opacity: 1;
+  transform: none;
+}
+
+.viewport:has([data-lit]) .dim {
   opacity: var(--zone-dim-hover);
 }
 

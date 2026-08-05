@@ -15,6 +15,7 @@ import { useMediaQuery } from "./use-media-query";
 import { focusOutline, markerWeights, vignetteShape } from "./zone-marker";
 import { ZoneHotspot } from "./zone-hotspot";
 import { ZonePanel } from "./zone-panel";
+import { useSceneZoneIndex } from "./zone-index-context";
 import s from "./scene.module.css";
 
 /** Десктопная сцена начинается с 1024px (spec Phase 1); это брейкпоинт, не координата. */
@@ -170,7 +171,9 @@ export function SceneStage({ preset, zonesOff, zoneContent, className }: SceneSt
   const closeZone = useCallback(() => {
     if (phase !== "open") return;
     // Партитура closeZone: сетка гаснет (220 мс) → камера отъезжает.
-    const gridMs = reducedMotion ? sceneMotion.reducedTransitionMs : sceneMotion.closeGrid.durationMs;
+    const gridMs = reducedMotion
+      ? sceneMotion.reducedTransitionMs
+      : sceneMotion.closeGrid.durationMs;
     setPhase("closing");
     clearTimer();
     timerRef.current = window.setTimeout(() => {
@@ -209,6 +212,21 @@ export function SceneStage({ preset, zonesOff, zoneContent, className }: SceneSt
     [zones, activeKey],
   );
   const zoomedIn = phase !== "idle" && activeZone !== null;
+
+  // Указатель зон в нижней полосе (тикет 34) живёт в соседнем поддереве
+  // страницы, поэтому связь с ним — через контекст: сцена отдаёт вход в зону
+  // и открытую зону, забирает подсвеченную. Наведение и фокус всплывают, и
+  // обработчики стоят на слое хотспотов целиком — метка зоны (zone-hotspot.tsx)
+  // ничего об указателе не знает. Указателя на странице может и не быть —
+  // тогда мост молчит, а сцена работает по-прежнему.
+  const openZoneByKey = useCallback(
+    (key: string) => {
+      const zone = zones.find((candidate) => candidate.key === key);
+      if (zone) openZone(zone);
+    },
+    [zones, openZone],
+  );
+  const { lit, zoneEvents } = useSceneZoneIndex(openZoneByKey, zoomedIn ? activeKey : null);
 
   // Наезд считается формулой для актуального вида и раскладывается по двум
   // слоям: внешний везёт сдвиг, внутренний — масштаб. В покое инлайновых
@@ -295,20 +313,30 @@ export function SceneStage({ preset, zonesOff, zoneContent, className }: SceneSt
         <div
           className={zoomedIn ? `${s.hotspots} ${s.hotspotsHidden}` : s.hotspots}
           inert={zoomedIn}
+          {...zoneEvents}
         >
           {zones.map((zone, index) => (
-            <ZoneHotspot
+            // Обёртка без собственной коробки (display: contents): она несёт
+            // ключ зоны для всплывающих событий и метку подсветки от указателя,
+            // не меняя ни геометрии хотспота, ни его позиционирования.
+            <span
               key={zone.key}
-              zone={zone}
-              index={index}
-              label={zoneLabel(zone)}
-              ariaLabel={t("zoneAria", { label: zoneLabel(zone) })}
-              onOpen={openZone}
-              buttonRef={(el) => {
-                if (el) hotspotRefs.current.set(zone.key, el);
-                else hotspotRefs.current.delete(zone.key);
-              }}
-            />
+              className={s.hotspotSlot}
+              data-zone={zone.key}
+              data-lit={lit === zone.key ? "" : undefined}
+            >
+              <ZoneHotspot
+                zone={zone}
+                index={index}
+                label={zoneLabel(zone)}
+                ariaLabel={t("zoneAria", { label: zoneLabel(zone) })}
+                onOpen={openZone}
+                buttonRef={(el) => {
+                  if (el) hotspotRefs.current.set(zone.key, el);
+                  else hotspotRefs.current.delete(zone.key);
+                }}
+              />
+            </span>
           ))}
         </div>
 

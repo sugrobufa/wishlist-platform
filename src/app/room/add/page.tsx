@@ -4,6 +4,7 @@ import { redirect } from "next/navigation";
 import { auth } from "@/server/auth";
 import { getRoomForUser, getSessionUserId } from "@/server/services/rooms";
 import { rooms, zoneInfo } from "@/config/design";
+import { roomImageUrl } from "@/app/rooms/room-image";
 import { visibleZones } from "@/components/scene/zones";
 import { AddItemFlow, type ZoneOption } from "./add-item-flow";
 
@@ -36,9 +37,12 @@ export default async function AddItemPage({ searchParams }: SearchParams) {
   const preset = rooms.find((candidate) => candidate.id === room.preset);
   if (!preset) redirect("/room");
 
+  // Прямоугольник зоны едет во флоу вместе с подписью: из него режется кроп
+  // комнаты для выбора «люблю / хочу» (тикет 27).
   const zones: ZoneOption[] = visibleZones(preset.zones, room.zonesOff).map((zone) => ({
     key: zone.key,
     label: zoneInfo(zone.key)?.label ?? zone.label,
+    rect: zone.rect,
   }));
   const preselected = zones.find((zone) => zone.key === zoneParam)?.key;
   const initialZone = preselected ?? zones[0]?.key ?? "";
@@ -52,6 +56,7 @@ export default async function AddItemPage({ searchParams }: SearchParams) {
       // Выход из карточки ведёт туда, откуда пришли: со страницы зоны (?zone=…)
       // обратно в неё, иначе в комнату (приёмка п.1).
       exitHref={preselected ? `/room/zone/${preselected}` : "/room"}
+      roomImage={roomImageUrl(preset.base)}
       accent={preset.accent}
       ink={preset.ink}
     />

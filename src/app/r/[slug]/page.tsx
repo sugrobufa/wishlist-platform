@@ -9,6 +9,8 @@ import { rooms } from "@/config/design";
 import { roomImageUrl } from "@/app/rooms/room-image";
 import { SceneStage } from "@/components/scene/SceneStage";
 import { immersiveLayout } from "@/components/scene/immersive-layout";
+import { ZoneIndexProvider } from "@/components/scene/zone-index-context";
+import { ZoneRail } from "@/components/scene/zone-rail";
 import { GuestBookingProvider } from "./booking/booking-context";
 import { GuestZoneGrid } from "./booking/guest-zone-grid";
 import { MyBookingsLink } from "./booking/my-bookings-link";
@@ -142,49 +144,61 @@ export default async function GuestRoomPage({ params }: Params) {
       <div className="imm-veil imm-veil-bottom" aria-hidden />
 
       <GuestBookingProvider slug={slug}>
-        <SceneStage preset={preset} zonesOff={room.zonesOff} zoneContent={zoneContent} />
+        {/* Указатель зон в нижней полосе (тикет 34) делит со сценой состояние
+            «какая зона подсвечена и какая открыта» — отсюда провайдер. */}
+        <ZoneIndexProvider>
+          <SceneStage preset={preset} zonesOff={room.zonesOff} zoneContent={zoneContent} />
 
-        <header className="imm-rail imm-rail-top">
-          <div className="imm-row">
-            <div className="imm-titles">
-              <p className="overline text-text-muted">{t("overline")}</p>
-              {/* Имя хозяйки + маленький аватар, если загружен (тикет 13).
+          <header className="imm-rail imm-rail-top">
+            <div className="imm-row">
+              <div className="imm-titles">
+                <p className="overline text-text-muted">{t("overline")}</p>
+                {/* Имя хозяйки + маленький аватар, если загружен (тикет 13).
                   Фон-div, как у плиток вещей: раздача /media, alt не нужен. */}
-              <div className="mt-1 flex items-center gap-3">
-                {room.ownerAvatarUrl && (
-                  <div
-                    aria-hidden
-                    className="h-9 w-9 flex-none rounded-full border border-surface-hairline bg-surface-fill lg:h-11 lg:w-11"
-                    style={{
-                      backgroundImage: `url(${room.ownerAvatarUrl})`,
-                      backgroundSize: "cover",
-                      backgroundPosition: "center",
-                    }}
-                  />
-                )}
-                <h1 className="display imm-title text-2xl lg:text-4xl">{ownerName}</h1>
+                <div className="mt-1 flex items-center gap-3">
+                  {room.ownerAvatarUrl && (
+                    <div
+                      aria-hidden
+                      className="h-9 w-9 flex-none rounded-full border border-surface-hairline bg-surface-fill lg:h-11 lg:w-11"
+                      style={{
+                        backgroundImage: `url(${room.ownerAvatarUrl})`,
+                        backgroundSize: "cover",
+                        backgroundPosition: "center",
+                      }}
+                    />
+                  )}
+                  <h1 className="display imm-title text-2xl lg:text-4xl">{ownerName}</h1>
+                </div>
               </div>
             </div>
-          </div>
-        </header>
+          </header>
 
-        {/* Мягкий призыв внизу: гость пришёл смотреть, не регистрироваться. */}
-        <footer className="imm-rail imm-rail-bottom">
-          <div className="imm-row">
-            <p className="min-w-0 text-xs text-text-muted">{t("ctaHint")}</p>
-            <div className="imm-actions">
-              {/* «Мои брони · N» — появляется после клиентского fetch, если cookie непуст. */}
-              <MyBookingsLink />
-              <Link
-                href="/"
-                className="pressable text-sm font-semibold"
-                style={{ color: preset.accent }}
-              >
-                {t("cta")} →
-              </Link>
-            </div>
-          </div>
-        </footer>
+          {/* Мягкий призыв внизу и под ним указатель зон (тикет 34): гость
+              пришёл смотреть, и список — его единственный способ узнать, как
+              зоны называются, с телефона. */}
+          <footer className="imm-rail imm-rail-bottom">
+            <ZoneRail
+              zones={preset.zones}
+              zonesOff={room.zonesOff}
+              summaries={room.summariesByZone}
+              viewer="guest"
+              accent={preset.accent}
+            >
+              <p className="min-w-0 text-xs text-text-muted">{t("ctaHint")}</p>
+              <div className="imm-actions">
+                {/* «Мои брони · N» — появляется после клиентского fetch, если cookie непуст. */}
+                <MyBookingsLink />
+                <Link
+                  href="/"
+                  className="pressable text-sm font-semibold"
+                  style={{ color: preset.accent }}
+                >
+                  {t("cta")} →
+                </Link>
+              </div>
+            </ZoneRail>
+          </footer>
+        </ZoneIndexProvider>
       </GuestBookingProvider>
     </main>
   );
