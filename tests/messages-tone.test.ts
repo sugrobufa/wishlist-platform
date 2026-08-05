@@ -259,11 +259,45 @@ describe("словарь и дизайн-пакет", () => {
     // том, чего у нас нет»). В продукте она ещё живёт — её показывает панель
     // зоны у 91 зоны без кадра. Убрать вместе с самой подписью — тикет сцены,
     // не приёмка пакета (тикет 33, ADR-0005).
+    //
+    // `Onboarding.next` и `Onboarding.occasion*` — третий шаг онбординга,
+    // дата праздника (тикет 43). Доска просит три вопроса (турн 11d), но
+    // словами про дату дизайн-пакет не занимался: в messages-ru.json есть
+    // только два первых шага. Тексты написаны по памятке — «Пока не знаю»
+    // вместо молчаливого пропуска, «Кнопка загорится, когда появится дата»
+    // теми же словами, что и подпись у выключенной кнопки добавления вещи.
+    //
+    // `Hall.*` (цена, значок «кто видит», сумма зала) и `Settings.hall*` —
+    // стоимость в зале славы (тикет 35). Слова взяты с доски дословно
+    // (турн 12d: «Всем, у кого есть ссылка», «Только друзьям», «Только мне»,
+    // «Никому — цен нет вообще», «Сумма всего зала», «Кто подарил»,
+    // «Округлять цены», «около 60 000» вместо 62 000, и подпись значка
+    // «видят друзья»). Экрана настроек зала в messages-ru.json дизайн не
+    // положил — словарь пакета собирали до турна 12.
     const own = [...ru.keys()].filter((key) => !handoff.has(key)).sort();
     expect(own).toEqual([
       "AddItem.back",
       "AddItem.backToRoom",
       "AddItem.saveHint",
+      "Hall.priceAbout",
+      "Hall.priceHide",
+      "Hall.priceSeenAria",
+      "Hall.priceShow",
+      "Hall.seenALL",
+      "Hall.seenFRIENDS",
+      "Hall.seenITEM",
+      "Hall.seenME",
+      "Hall.seenNONE",
+      "Hall.total",
+      "Hall.totalRounded",
+      "Onboarding.next",
+      "Onboarding.occasionButtonHint",
+      "Onboarding.occasionLabel",
+      "Onboarding.occasionSkip",
+      "Onboarding.occasionSkipHint",
+      "Onboarding.occasionStep",
+      "Onboarding.occasionSubtitle",
+      "Onboarding.occasionTitle",
       "Scene.indexAria",
       "Scene.noOpenFrame",
       "Scene.summaryBrands",
@@ -272,6 +306,20 @@ describe("словарь и дизайн-пакет", () => {
       "Scene.summaryEnter",
       "Scene.summaryMore",
       "Scene.summaryPrice",
+      "Settings.hallFriendsHint",
+      "Settings.hallGiverHint",
+      "Settings.hallGiverLabel",
+      "Settings.hallItemHint",
+      "Settings.hallOverline",
+      "Settings.hallPriceLabel",
+      "Settings.hallRoundHint",
+      "Settings.hallRoundLabel",
+      "Settings.hallTotalHint",
+      "Settings.hallTotalLabel",
+      "Settings.hallVisALL",
+      "Settings.hallVisFRIENDS",
+      "Settings.hallVisME",
+      "Settings.hallVisNONE",
       "Settings.itemEdit",
       "Settings.itemGiverRow",
       "Settings.itemPriceHidden",

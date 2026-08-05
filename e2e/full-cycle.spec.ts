@@ -217,10 +217,15 @@ test("полный цикл дарения: хозяйка → гость → с
     await hostessPage.waitForURL(/\/onboarding/);
   });
 
-  await test.step("онбординг: набор «Все 10» → комната «Дерзкая»", async () => {
+  await test.step("онбординг: набор «Все 10» → комната «Дерзкая» → дата «пока не знаю»", async () => {
     await hostessPage.getByRole("button", { name: /Всё вместе/ }).click();
     await hostessPage.getByRole("button", { name: /Дерзкая/ }).click();
-    await hostessPage.getByRole("button", { name: /Обставить комнату/ }).click();
+    await hostessPage.getByRole("button", { name: /Дальше/ }).click();
+    // Третий шаг — дата праздника (тикет 43). Дальше по сценарию праздник
+    // закрывается ВРУЧНУЮ, поэтому здесь осознанный пропуск: комната
+    // заводится без даты, как и до появления шага.
+    await expect(hostessPage.getByRole("heading", { name: "Когда праздник?" })).toBeVisible();
+    await hostessPage.getByRole("button", { name: /Пока не знаю/ }).click();
     await hostessPage.waitForURL(/\/room$/);
     await expect(hostessPage.getByRole("heading", { name: "Дерзкая" })).toBeVisible();
   });

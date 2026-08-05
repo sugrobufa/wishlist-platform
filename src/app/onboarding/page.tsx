@@ -29,5 +29,10 @@ export default async function OnboardingPage() {
     imageUrl: roomImageUrl(room.base),
   }));
 
-  return <OnboardingFlow presets={presets} />;
+  // Шов для тикета 38: сюда подставляется дата, уже известная о человеке
+  // (турн 12c — гость назвал свой день рождения при бронировании), в виде
+  // `YYYY-MM-DD`. Пока такого источника нет — шаг открывается пустым.
+  const prefilledOccasionDate: string | null = null;
+
+  return <OnboardingFlow presets={presets} initialOccasionDate={prefilledOccasionDate} />;
 }
