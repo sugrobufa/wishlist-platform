@@ -549,6 +549,36 @@ export async function toggleHall(userId: string, itemId: string, on: boolean): P
 }
 
 /**
+ * Скрыть/показать цену ОТДЕЛЬНОЙ вещи в зале славы (тикет 35, доска 12d:
+ * «у любой вещи можно скрыть цену отдельно — даже если весь зал её
+ * показывает»).
+ *
+ * Отдельной колонки под это нет: `Item.priceVisibility` уже отвечает на
+ * вопрос «кто видит цену этой вещи», переживает переход «хочу → люблю» и
+ * читается залом теми же четырьмя значениями, что и комнатой. Скрыть =
+ * NONE, показать = ALL; шире, чем открыт сам зал, вещь всё равно не станет
+ * (dto/hall.guestSeesHallItemPrice). Хозяйке цена видна всегда.
+ */
+export async function setHallPriceHidden(
+  userId: string,
+  itemId: string,
+  hidden: boolean,
+): Promise<Item> {
+  const wantHidden = z.boolean().parse(hidden);
+  const item = await requireOwnItem(userId, itemId);
+  if (item.state !== "LOVE") {
+    throw new ItemMutationError("NOT_LOVE", "в зал славы попадают только вещи «люблю»");
+  }
+
+  const updated = await prisma.item.update({
+    where: { id: item.id },
+    data: { priceVisibility: wantHidden ? "NONE" : "ALL" },
+  });
+  revalidateRoom(item.roomId);
+  return updated;
+}
+
+/**
  * Витрина зала славы: вещи LOVE с inHall и БЕЗ hiddenFromHall — ровно два
  * фильтра (тест tests/hall.test.ts). hidden (спрятанная от гостей) хозяйку
  * не ограничивает — /room/hall её страница; гостевой зал — не Phase 1.

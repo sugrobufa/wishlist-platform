@@ -12,12 +12,14 @@ import {
   getSessionUserId,
   newAvatarKey,
   setDemoGhostsOff,
+  setHallSettings,
   setOccasionDate,
   setOwnerAvatar,
   setRoomNick,
   setZoneOff,
   setZoneSet,
   updateDisplayName,
+  type HallSettingsInput,
 } from "@/server/services/rooms";
 import { presignPut } from "@/server/s3";
 
@@ -147,6 +149,17 @@ export async function setOccasionDateAction(date: string | null): Promise<Settin
 
 export async function setDemoGhostsAction(off: boolean): Promise<SettingsResult> {
   return runForOwner((userId) => setDemoGhostsOff(userId, Boolean(off)));
+}
+
+// ---------- Зал славы: стоимость подарков (тикет 35) ----------
+
+/**
+ * Сохранить раздел «Зал славы»: видимость цены (четыре положения), сумма
+ * всего зала, имя дарителя, округление. Раздел сохраняется целиком — как
+ * нарисовано на доске (турн 12d, кнопка «Сохранить» внизу экрана).
+ */
+export async function setHallSettingsAction(input: HallSettingsInput): Promise<SettingsResult> {
+  return runForOwner((userId) => setHallSettings(userId, input));
 }
 
 // ---------- Выход ----------

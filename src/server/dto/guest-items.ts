@@ -8,8 +8,10 @@
 //   не отдаются ни значением, ни самим фактом существования ключа;
 // - у WANT ключи price/currency присутствуют ТОЛЬКО при видимой гостю цене
 //   (priceVisibility ALL | FRIENDS); ME/NONE не отдают даже ключа (№8);
-// - у LOVE ключей price/currency не существует в принципе — даже если в БД
-//   цена осталась от прежнего «хочу» (инвариант №8);
+// - у LOVE ключей price/currency нет, пока хозяйка не открыла цену подарков
+//   настройкой зала славы (тикет 35, ADR-0004): дефолт «только друзьям», и
+//   в Phase 1 он читается закрыто. Без контекста зала форма ведёт себя как
+//   до тикета 35 — цены нет вовсе, даже если она осталась от «хочу»;
 // - полей брони нет и не будет: «занято» приедет отдельным лёгким каналом
 //   (тикет 08) мимо кэшируемого guest-DTO (инвариант №1 — тихая бронь).
 //
@@ -29,6 +31,7 @@
 //   он не показывается ни адресом, ни доменом (инвариант №6).
 import type { Item } from "@prisma/client";
 import { itemPhotoUrl, type PriceVisibilityDto } from "@/server/dto/items";
+import { guestSeesHallItemPrice } from "@/server/dto/hall";
 import type { DemoGhostDto } from "@/config/demo-pools";
 
 /** Общие поля обеих форм вещи глазами гостя. */
@@ -76,9 +79,13 @@ export type GuestWantItemDto = GuestItemBaseDto & {
 };
 
 /**
- * «Люблю» для гостя: история подарка без цены — ключей price/currency нет,
- * и ключа shop нет тоже. Эта вещь не для покупки, она рассказывает о хозяйке
- * (турн 8c: «у люблю магазинов нет»), а её ссылка косвенно назвала бы цену.
+ * «Люблю» для гостя: история подарка. Ключа shop нет никогда — эта вещь не
+ * для покупки, она рассказывает о хозяйке (турн 8c: «у люблю магазинов нет»).
+ *
+ * Цена (тикет 35, ADR-0004): ключей price/currency НЕТ, пока хозяйка не
+ * открыла их настройкой зала славы. Дверь открывается только настройкой и
+ * только для вещи, у которой цена не скрыта отдельно, — без контекста зала
+ * форма ведёт себя как раньше: цены нет вовсе.
  */
 export type GuestLoveItemDto = GuestItemBaseDto & {
   state: "LOVE";
@@ -86,6 +93,19 @@ export type GuestLoveItemDto = GuestItemBaseDto & {
   /** ISO-строка — дата «Дошло» или ручного «уже моё». */
   receivedAt: string | null;
   inHall: boolean;
+  /** Decimal строкой. Ключ есть только при открытой настройке зала. */
+  price?: string | null;
+  /** ISO 4217. Ключ есть только при открытой настройке зала. */
+  currency?: string | null;
+};
+
+/**
+ * Что гостю известно о зале славы этой комнаты (тикет 35). Отсутствие
+ * контекста = закрыто: вызвать `itemForGuest(item)` без него безопасно.
+ */
+export type GuestHallContext = {
+  /** Room.hallPriceVisibility — четыре положения, дефолт FRIENDS. */
+  priceVisibility: PriceVisibilityDto;
 };
 
 export type GuestItemDto = GuestWantItemDto | GuestLoveItemDto;
@@ -128,8 +148,11 @@ export function guestShop(canonicalUrl: string | null): GuestShopDto | null {
  * Сериализация вещи из БД для гостя. Фильтр спрятанных вещей и выключенных
  * зон живёт в сервисе (guest-room.ts) — сюда спрятанное приходить не должно,
  * но и придя, флага hidden наружу не унесёт: ключа в форме нет.
+ *
+ * `hall` — настройка зала славы комнаты (тикет 35). Не передали — цена
+ * «люблю» наружу не идёт, как и до тикета 35.
  */
-export function itemForGuest(item: Item): GuestItemDto {
+export function itemForGuest(item: Item, hall?: GuestHallContext): GuestItemDto {
   const base: GuestItemBaseDto = {
     id: item.id,
     zone: item.zone,
@@ -159,13 +182,20 @@ export function itemForGuest(item: Item): GuestItemDto {
     return want;
   }
 
-  return {
+  const love: GuestLoveItemDto = {
     ...base,
     state: "LOVE",
     giverName: item.giverName,
     receivedAt: item.receivedAt === null ? null : item.receivedAt.toISOString(),
     inHall: item.inHall,
   };
+  // Цена подарка — только по настройке зала славы и только у вещи, которой
+  // цену не скрыли отдельно (ADR-0004). Ключей нет вовсе, когда нельзя.
+  if (hall !== undefined && guestSeesHallItemPrice(hall.priceVisibility, item.priceVisibility)) {
+    love.price = item.price === null ? null : item.price.toString();
+    love.currency = item.currency;
+  }
+  return love;
 }
 
 /**

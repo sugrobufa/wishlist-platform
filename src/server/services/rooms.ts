@@ -364,6 +364,50 @@ export async function setDemoGhostsOff(userId: string, off: boolean): Promise<Ro
   return updated;
 }
 
+// ---------- Зал славы: стоимость подарков (тикет 35, ADR-0004) ----------
+
+/**
+ * Вход раздела «Зал славы» в настройках. Четыре положения видимости — не
+ * тумблер: «стоимость это чувствительно» (доска, турн 12d). Поля
+ * необязательные: раздел сохраняется целиком, но частичная правка возможна.
+ */
+export const hallSettingsSchema = z
+  .object({
+    priceVisibility: z.enum(["ALL", "FRIENDS", "ME", "NONE"]).optional(),
+    totalShown: z.boolean().optional(),
+    giverShown: z.boolean().optional(),
+    roundPrices: z.boolean().optional(),
+  })
+  .strict();
+
+export type HallSettingsInput = z.infer<typeof hallSettingsSchema>;
+
+/**
+ * Сохранить настройки зала славы. Ревалидирует комнату тем же тегом, что и
+ * остальные настройки: от видимости цены зависит СОСТАВ guest-DTO подарков
+ * (services/guest-room → dto/guest-items), и кэш обязан пересобраться.
+ */
+export async function setHallSettings(
+  userId: string,
+  input: HallSettingsInput,
+): Promise<Room> {
+  const parsed = hallSettingsSchema.parse(input);
+  const room = await requireRoom(userId);
+  const updated = await prisma.room.update({
+    where: { id: room.id },
+    data: {
+      ...(parsed.priceVisibility === undefined
+        ? {}
+        : { hallPriceVisibility: parsed.priceVisibility }),
+      ...(parsed.totalShown === undefined ? {} : { hallTotalShown: parsed.totalShown }),
+      ...(parsed.giverShown === undefined ? {} : { hallGiverShown: parsed.giverShown }),
+      ...(parsed.roundPrices === undefined ? {} : { hallRoundPrices: parsed.roundPrices }),
+    },
+  });
+  revalidateRoom(room.id);
+  return updated;
+}
+
 // ---------- Профиль: имя и аватар ----------
 
 export type OwnerProfile = {

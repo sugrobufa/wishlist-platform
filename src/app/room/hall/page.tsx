@@ -1,14 +1,16 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { getTranslations } from "next-intl/server";
+import { getLocale, getTranslations } from "next-intl/server";
 import { redirect } from "next/navigation";
 import { auth } from "@/server/auth";
 import { getRoomForUser, getSessionUserId } from "@/server/services/rooms";
 import { listHallItems } from "@/server/services/items";
 import { itemPhotoUrl } from "@/server/dto/items";
+import { hallItemForOwner, hallSettingsOf, hallTotals } from "@/server/dto/hall";
 import { roomImageUrl } from "@/app/rooms/room-image";
 import { rooms } from "@/config/design";
-import { HallShowcase, type HallItemView } from "./hall-showcase";
+import { HallShowcase } from "./hall-showcase";
+import { formatHallMoney } from "./money";
 import s from "./hall.module.css";
 
 export const dynamic = "force-dynamic";
@@ -22,7 +24,11 @@ export async function generateMetadata(): Promise<Metadata> {
  * Зал славы хозяйки (тикет 10, турн 11b): витрина вещей «люблю» с историей
  * дарения — inHall и не спрятанных из витрины. Фото + CSS-вращение по
  * партитуре макета (hall.module.css), three.js не раньше Phase 3.
- * Цен здесь нет ни у одной вещи (инвариант №8 — «люблю» без цены вообще).
+ *
+ * Стоимость (тикет 35, турн 12d, ADR-0004): хозяйке цены видны ВСЕГДА, рядом
+ * с каждой — значок «кто видит цену», в шапке — сумма всего зала по тумблеру.
+ * Кому цена достаётся кроме неё, решает настройка зала из четырёх положений;
+ * сумма считается по ТОЧНЫМ значениям, округляется только на показе.
  */
 export default async function HallPage() {
   const session = await auth();
@@ -38,15 +44,28 @@ export default async function HallPage() {
   const preset = rooms.find((candidate) => candidate.id === room.preset);
   const accent = preset?.accent ?? "#E7C9A9";
 
-  // Allowlist-вид витрины: id/название/фото/даритель/год — и ничего больше.
-  const items: HallItemView[] = (await listHallItems(room.id)).map((item) => ({
-    id: item.id,
-    title: item.title,
-    photoUrl: itemPhotoUrl(item.photoKey),
-    giverName: item.giverName,
-    // Год строкой — ICU не расставит разряды («2 024»), как в ItemTile.
-    receivedYear: item.receivedAt ? String(item.receivedAt.getUTCFullYear()) : null,
-  }));
+  const settings = hallSettingsOf(room);
+  const rows = await listHallItems(room.id);
+
+  // Allowlist-вид витрины — сборка в DTO-слое (dto/hall.ts).
+  const items = rows.map((item) =>
+    hallItemForOwner(item, settings, itemPhotoUrl(item.photoKey)),
+  );
+
+  // Сумма зала — по ТОЧНЫМ ценам из БД, а не по округлённым строкам витрины;
+  // округление (если включено) применяется уже к готовой сумме.
+  const totals = settings.totalShown ? hallTotals(rows, { round: settings.roundPrices }) : [];
+  const locale = await getLocale();
+  const totalLine =
+    totals.length === 0
+      ? null
+      : totals
+          .map((total) =>
+            t(settings.roundPrices ? "totalRounded" : "total", {
+              sum: formatHallMoney(total.amount, total.currency, locale),
+            }),
+          )
+          .join(" · ");
 
   return (
     <main className="min-h-screen bg-surface-hall-ground pb-16">
@@ -66,6 +85,7 @@ export default async function HallPage() {
           {items.length > 0 && (
             <p className="overline mt-2.5 text-text-muted">
               {t("count", { count: items.length })}
+              {totalLine !== null && ` · ${totalLine}`}
             </p>
           )}
         </div>

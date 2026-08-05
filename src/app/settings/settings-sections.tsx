@@ -12,6 +12,7 @@ import {
   presignAvatarAction,
   saveAvatarAction,
   setDemoGhostsAction,
+  setHallSettingsAction,
   setNickAction,
   setOccasionDateAction,
   setZoneSetAction,
@@ -616,6 +617,159 @@ export function OccasionSection({
           </button>
         )}
       </div>
+      {error && <p className="text-sm text-text-muted">{t(errorKey(error))}</p>}
+    </Section>
+  );
+}
+
+// ---------- Зал славы: стоимость подарков (тикет 35, турн 12d) ----------
+
+/** Четыре положения видимости цены в зале — порядок доски, сверху вниз. */
+const HALL_VISIBILITIES = ["ALL", "FRIENDS", "ME", "NONE"] as const;
+export type HallVisibility = (typeof HALL_VISIBILITIES)[number];
+
+export type HallSettingsView = {
+  priceVisibility: HallVisibility;
+  totalShown: boolean;
+  giverShown: boolean;
+  roundPrices: boolean;
+};
+
+/** Тумблер доски: подпись, пояснение и переключатель справа. */
+function Toggle({
+  label,
+  hint,
+  on,
+  accent,
+  onToggle,
+}: {
+  label: string;
+  hint: string;
+  on: boolean;
+  accent: string;
+  onToggle: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      role="switch"
+      aria-checked={on}
+      onClick={onToggle}
+      className="pressable flex w-full items-center gap-3 border-t border-surface-hairline py-4 text-left first:border-t-0"
+    >
+      <span className="flex-1">
+        <span className="block text-sm font-medium text-text-primary">{label}</span>
+        <span className="mt-1.5 block text-xs text-text-faint">{hint}</span>
+      </span>
+      <span
+        aria-hidden
+        className="relative h-[22px] w-[38px] flex-none rounded-full"
+        style={{ background: on ? accent : "rgba(255,255,255,.12)" }}
+      >
+        <span
+          className="absolute top-[2px] h-[18px] w-[18px] rounded-full"
+          style={
+            on
+              ? { right: 2, background: "#241A0E" }
+              : { left: 2, background: "rgba(255,249,242,.4)" }
+          }
+        />
+      </span>
+    </button>
+  );
+}
+
+/**
+ * Раздел «Зал славы»: кто видит стоимость подарков (четыре положения, а не
+ * тумблер — «стоимость это чувствительно»), сумма всего зала отдельным
+ * тумблером, имя дарителя и округление. Сохраняется целиком, как на доске.
+ *
+ * Тумблер «Кто подарил» управляет ПОКАЗОМ имени в зале, а не повторным
+ * раскрытием: имена раскрываются ровно один раз (инвариант №2).
+ */
+export function HallSection({
+  settings,
+  accent,
+}: {
+  settings: HallSettingsView;
+  accent: string;
+}) {
+  const t = useTranslations("Settings");
+  const { busy, error, saved, run } = useSettingsAction();
+  const [draft, setDraft] = useState<HallSettingsView>(settings);
+
+  return (
+    <Section overline={t("hallOverline")}>
+      <p className="text-sm text-text-muted">{t("hallPriceLabel")}</p>
+      <div role="radiogroup" aria-label={t("hallPriceLabel")} className="flex flex-col">
+        {HALL_VISIBILITIES.map((option) => {
+          const active = draft.priceVisibility === option;
+          return (
+            <button
+              key={option}
+              type="button"
+              role="radio"
+              aria-checked={active}
+              onClick={() => setDraft((current) => ({ ...current, priceVisibility: option }))}
+              className="pressable flex items-center gap-3 border-t border-surface-hairline py-3.5 text-left first:border-t-0"
+            >
+              <span
+                aria-hidden
+                className="h-[17px] w-[17px] flex-none rounded-full border"
+                style={
+                  active
+                    ? { borderColor: accent, borderWidth: 5 }
+                    : { borderColor: "rgba(255,249,242,.28)", borderWidth: 1.5 }
+                }
+              />
+              <span
+                className={
+                  active
+                    ? "text-sm font-medium text-text-primary"
+                    : "text-sm font-medium text-text-muted"
+                }
+              >
+                {t(`hallVis${option}`)}
+              </span>
+            </button>
+          );
+        })}
+      </div>
+      {draft.priceVisibility === "FRIENDS" && (
+        <p className="text-xs text-text-faint">{t("hallFriendsHint")}</p>
+      )}
+
+      <div className="mt-1 flex flex-col border-t border-surface-hairline pt-1">
+        <Toggle
+          label={t("hallTotalLabel")}
+          hint={t("hallTotalHint")}
+          on={draft.totalShown}
+          accent={accent}
+          onToggle={() => setDraft((current) => ({ ...current, totalShown: !current.totalShown }))}
+        />
+        <Toggle
+          label={t("hallGiverLabel")}
+          hint={t("hallGiverHint")}
+          on={draft.giverShown}
+          accent={accent}
+          onToggle={() => setDraft((current) => ({ ...current, giverShown: !current.giverShown }))}
+        />
+        <Toggle
+          label={t("hallRoundLabel")}
+          hint={t("hallRoundHint")}
+          on={draft.roundPrices}
+          accent={accent}
+          onToggle={() =>
+            setDraft((current) => ({ ...current, roundPrices: !current.roundPrices }))
+          }
+        />
+      </div>
+
+      <p className="text-xs leading-relaxed text-text-faint">{t("hallItemHint")}</p>
+
+      <LightButton accent={accent} busy={busy} onClick={() => run(() => setHallSettingsAction(draft))}>
+        {busy ? t("saving") : saved ? t("saved") : t("save")}
+      </LightButton>
       {error && <p className="text-sm text-text-muted">{t(errorKey(error))}</p>}
     </Section>
   );

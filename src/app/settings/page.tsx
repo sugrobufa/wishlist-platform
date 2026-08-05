@@ -12,14 +12,17 @@ import { rooms, zoneInfo } from "@/config/design";
 import { roomImageUrl } from "@/app/rooms/room-image";
 import { signOutAction } from "./actions";
 import { DELETE_ACCOUNT_PHRASE } from "@/server/services/account";
+import { hallSettingsOf } from "@/server/dto/hall";
 import {
   DataSection,
   DemoGhostsSection,
+  HallSection,
   NickSection,
   OccasionSection,
   PresetSection,
   ProfileSection,
   ZonesSection,
+  type HallSettingsView,
   type PresetCard,
 } from "./settings-sections";
 
@@ -29,8 +32,9 @@ export const metadata: Metadata = { robots: { index: false, follow: false } };
 /**
  * Настройки хозяйки (тикет 13): профиль (имя, аватар), красивый ник,
  * смена пресета без потери вещей, набор зон и вкл/выкл отдельных зон,
- * дата праздника, демо-призраки, выход. Скрытие/удаление вещей живёт на
- * плитках зоны (/room/zone/[zone]) — здесь только настройки комнаты.
+ * дата праздника, зал славы (тикет 35), демо-призраки, выход. Скрытие и
+ * удаление вещей живёт на плитках зоны (/room/zone/[zone]), скрытие цены
+ * отдельной вещи — на её карточке в зале; здесь только настройки комнаты.
  */
 export default async function SettingsPage() {
   const session = await auth();
@@ -67,6 +71,8 @@ export default async function SettingsPage() {
 
   const zoneSet = room.zoneSet === "F" || room.zoneSet === "M" ? room.zoneSet : "ALL";
   const occasionDate = room.occasionDate ? room.occasionDate.toISOString().slice(0, 10) : null;
+  // Настройки зала славы (тикет 35) — форма клиента совпадает с DTO зала.
+  const hallSettings: HallSettingsView = hallSettingsOf(room);
 
   return (
     <main className="min-h-screen pb-16">
@@ -92,6 +98,7 @@ export default async function SettingsPage() {
         />
         <ZonesSection zones={zones} zonesOff={room.zonesOff} accent={accent} />
         <OccasionSection occasionDate={occasionDate} accent={accent} />
+        <HallSection settings={hallSettings} accent={accent} />
         <DemoGhostsSection off={room.demoGhostsOff} accent={accent} />
 
         {/* Выход — тихий, в самом низу; signOut из @/server/auth (тикет 01). */}

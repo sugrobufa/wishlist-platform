@@ -15,7 +15,12 @@ import { prisma } from "@/server/db";
 import { rooms as roomPresets } from "@/config/design";
 import { visibleZones } from "@/components/scene/zones";
 import { demoGhostsFor } from "@/config/demo-pools";
-import { ghostForGuest, itemForGuest, type GuestItemDto } from "@/server/dto/guest-items";
+import {
+  ghostForGuest,
+  itemForGuest,
+  type GuestHallContext,
+  type GuestItemDto,
+} from "@/server/dto/guest-items";
 import { itemPhotoUrl } from "@/server/dto/items";
 import {
   emptyZoneSummary,
@@ -153,6 +158,18 @@ function readGuestItemsCached(roomId: string): Promise<GuestRoomCache> {
 }
 
 async function loadGuestItems(roomId: string): Promise<GuestRoomCache> {
+  // Настройка зала славы (тикет 35) читается ВНУТРИ кэша: от неё зависит сам
+  // состав guest-DTO — при закрытой настройке цены подарка в кэше нет вовсе,
+  // как и у спрятанных вещей. Смена настройки ревалидирует тот же тег
+  // room-{id} (services/rooms.setHallSettings), поэтому кэш не отстанет.
+  const hallRoom = await prisma.room.findUnique({
+    where: { id: roomId },
+    select: { hallPriceVisibility: true },
+  });
+  const hall: GuestHallContext = {
+    priceVisibility: hallRoom?.hallPriceVisibility ?? "NONE",
+  };
+
   const items = await prisma.item.findMany({ where: { roomId, hidden: false } });
   // Порядок — контракт тикета 03, ТОТ ЖЕ компаратор, что у хозяйки
   // (дубль compareGuestItems объединён в полировке — тикет 16).
@@ -163,7 +180,7 @@ async function loadGuestItems(roomId: string): Promise<GuestRoomCache> {
   // ей нужен ещё домен магазина (марки), а гостю поштучно он не отдаётся.
   const sourcesByZone: Record<string, ReturnType<typeof guestSummaryItem>[]> = {};
   for (const item of items) {
-    (itemsByZone[item.zone] ??= []).push(itemForGuest(item));
+    (itemsByZone[item.zone] ??= []).push(itemForGuest(item, hall));
     (sourcesByZone[item.zone] ??= []).push(guestSummaryItem(item));
   }
 
