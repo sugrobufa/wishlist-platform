@@ -53,7 +53,10 @@
   --zone-label-size: 13px;
   --zone-label-color: #FFF9F2;
   --zone-label-shadow: 0 1px 8px rgba(0,0,0,.9);
+  --zone-label-ms: 240ms;
+  --zone-label-rise: 4px;
   --zone-focus-offset: 2px;
+  --zone-bloom-press-ms: 90ms;
   --zone-marker-ms: 260ms;
   --zone-marker-ease: cubic-bezier(.23,1,.32,1);
   --room-lightness: 0.5;

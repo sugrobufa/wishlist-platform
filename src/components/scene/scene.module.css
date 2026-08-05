@@ -157,6 +157,20 @@
   cursor: pointer;
 }
 
+/* Четвёртый слой метки зоны: остальной кадр темнеет при наведении — это и
+ * создаёт «предмет подсвечен изнутри». Тот же слой, что при наезде, только на
+ * 15% вместо 55% (tokens.json → zoneMarker.dim). Лежит ПОД слоем хотспотов,
+ * поэтому сама метка не темнеет; включается на уровне сцены, потому что
+ * темнеет весь кадр, а не одна зона. */
+.dim {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: #0b0806; /* та же краска, что у вуали и фона сцены, макет 15a */
+  opacity: 0;
+  transition: opacity var(--zone-dim-ms) var(--zone-marker-ease);
+}
+
 /* --- Хотспоты ------------------------------------------------------------ */
 
 /* Слой хотспотов повторяет геометрию слоя кадра (.frame) — тогда координата
@@ -201,34 +215,123 @@
   pointer-events: none;
 }
 
-.contour {
+/* --- Метка зоны: свет вместо рамки (tokens.json → zoneMarker) ------------ */
+
+/* Прямоугольник зоны из rooms.json остался, но стал НЕВИДИМОЙ областью
+ * нажатия: рамки в покое нет вообще, видно только пятно света и точку-искру.
+ * Три слоя живут ВНУТРИ прямоугольника — поэтому эффект достаётся всем 120
+ * зонам даром, силуэтных масок не нужно; четвёртый слой метки (затемнение
+ * остального кадра) живёт выше, на уровне сцены (.dim).
+ *
+ * Веса света и тени считает светлота комнаты — одно число вместо 120 масок
+ * (zone-marker.ts → markerWeights): на кремовой метку держит тень, на неоновой
+ * свет, а ветка кода одна. Анимируется только opacity: box-shadow и filter не
+ * на композиторе и сажают телефон. */
+
+.bloom,
+.vignette,
+.spark,
+.zoneLabel {
   position: absolute;
-  inset: 0;
+  /* Наведение на подпись не должно держать саму подпись: она торчит за
+     пределы кнопки, а :hover ловится и с потомков. */
   pointer-events: none;
-  box-shadow: inset 0 0 0 1px rgba(255, 240, 220, 0.95);
-  opacity: 0.34; /* покойный контур макета 15a */
 }
 
-.contourPulse {
+/* Тёплое пятно. Центр смещён к верху зоны — свет в комнате падает сверху;
+ * края растворяются на 72% радиуса, поэтому границ пятна не видно и оно
+ * читается как освещение. Вытянутость и поворот — из данных зоны. */
+.bloom {
+  inset: 0;
+  background: var(--zone-bloom-bg);
+  mix-blend-mode: var(--zone-bloom-blend);
+  transform: rotate(var(--zone-bloom-rot, 0deg));
+  opacity: calc(var(--zone-bloom-rest) * var(--zone-bloom-weight));
+  transition: opacity var(--zone-marker-ms) var(--zone-marker-ease);
+}
+
+/* Мягкая тень по краям: предмет остаётся освещённым, кадр вокруг притемняется.
+ * Вес тени подставлен в альфу цвета (так написан контракт), слою остаётся
+ * его собственная альфа состояния. */
+.vignette {
+  inset: 0;
+  background: var(--zone-vignette-bg);
+  opacity: var(--zone-vignette-rest);
+  transition: opacity var(--zone-marker-ms) var(--zone-marker-ease);
+}
+
+/* Искра — единственная деталь, которую видно в покое с расстояния.
+ * ДВА ЭЛЕМЕНТА НЕ СЛУЧАЙНО: пульс висит на внутреннем, состояние — на внешнем.
+ * Анимация и переход спорят за одно свойство, и анимация всегда выигрывает:
+ * повесь пульс сюда же — и искра перестанет гаснуть при наведении. Так же
+ * устроено в макете (Main Screen.dc.html). */
+.spark {
+  top: 50%;
+  left: 50%;
+  width: var(--zone-spark-size);
+  height: var(--zone-spark-size);
+  margin: calc(var(--zone-spark-size) / -2) 0 0 calc(var(--zone-spark-size) / -2);
+  opacity: var(--zone-spark-rest);
+  transition: opacity var(--zone-marker-ms) var(--zone-marker-ease);
+}
+
+.sparkCore {
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  background: var(--accent);
+  /* Статический размыв, как в макете: анимируется только opacity выше. */
+  filter: blur(var(--zone-spark-blur));
   animation: pulse var(--pulse-ms) ease-in-out var(--pulse-delay, 0ms) infinite;
 }
 
-/* Свечение — отдельный слой: анимируем opacity, не box-shadow (motion.json → hover.glow). */
-.glow {
-  position: absolute;
-  inset: 0;
-  pointer-events: none;
-  box-shadow:
-    inset 0 0 0 1px rgba(255, 240, 220, 0.95),
-    0 0 40px 8px rgba(255, 220, 180, 0.32);
+/* Подпись зоны: только при наведении и фокусе, в покое сцена чистая. Тень
+ * обязательна — подпись ложится на фотографию. Под нижней границей зоны,
+ * слева; у зон в нижней части кадра — над верхней (zone-marker.ts). */
+.zoneLabel {
+  top: 100%;
+  left: 0;
+  white-space: nowrap;
+  font-family: var(--font-ui);
+  font-size: var(--zone-label-size);
+  font-weight: var(--zone-label-weight);
+  color: var(--zone-label-color);
+  text-shadow: var(--zone-label-shadow);
   opacity: 0;
-  transition: opacity var(--glow-ms) var(--ease-out);
+  transform: translateY(var(--zone-label-rise));
+  transition:
+    opacity var(--zone-label-ms) var(--ease-out),
+    transform var(--zone-label-ms) var(--ease-out);
 }
 
-/* Hover строго за воротами — тач даёт ложное наведение (motion.json → todo). */
+.zoneLabelAbove {
+  top: auto;
+  bottom: 100%;
+}
+
+/* Hover строго за воротами — тач даёт ложное наведение (motion.json → todo).
+ * Поэтому на телефоне метка живёт покоем: искра и слабое пятно, подписи нет. */
 @media (hover: hover) and (pointer: fine) {
-  .hotspot:hover .glow {
+  .hotspot:hover .bloom {
+    opacity: calc(var(--zone-bloom-hover) * var(--zone-bloom-weight));
+  }
+
+  .hotspot:hover .vignette {
+    opacity: var(--zone-vignette-hover);
+  }
+
+  /* Искра уходит в 0 — её место занимает подпись. */
+  .hotspot:hover .spark {
+    opacity: 0;
+  }
+
+  .hotspot:hover .zoneLabel {
     opacity: 1;
+    transform: none;
+  }
+
+  .viewport:has(.hotspot:hover) .dim {
+    opacity: var(--zone-dim-hover);
   }
 
   .backButton:hover {
@@ -236,12 +339,42 @@
   }
 }
 
+/* Фокус — как наведение плюс пунктирная рамка акцентом. Единственное место,
+ * где рамка законна: фокус обязан быть геометрически явным, свет для обхода с
+ * клавиатуры не годится. Вне ворот наведения намеренно — клавиатура есть и
+ * там, где нет мыши. */
 .hotspot:focus-visible {
-  outline: none;
+  outline: var(--zone-focus-outline);
+  outline-offset: var(--zone-focus-offset);
 }
 
-.hotspot:focus-visible .glow {
+.hotspot:focus-visible .bloom {
+  opacity: calc(var(--zone-bloom-hover) * var(--zone-bloom-weight));
+}
+
+.hotspot:focus-visible .vignette {
+  opacity: var(--zone-vignette-hover);
+}
+
+.hotspot:focus-visible .spark {
+  opacity: 0;
+}
+
+.hotspot:focus-visible .zoneLabel {
   opacity: 1;
+  transform: none;
+}
+
+.viewport:has(.hotspot:focus-visible) .dim {
+  opacity: var(--zone-dim-hover);
+}
+
+/* Нажатие: свет добавляется быстрее обычного перехода метки — палец получает
+ * ответ раньше, чем стартует наезд. Не за воротами наведения: на телефоне это
+ * единственный отклик метки на касание. */
+.hotspot:active .bloom {
+  opacity: calc(var(--zone-bloom-press) * var(--zone-bloom-weight));
+  transition-duration: var(--zone-bloom-press-ms);
 }
 
 /* --- Подпись открытой зоны и подсказка ---------------------------------- */
@@ -427,8 +560,9 @@
  * ровно target, как и в полной партитуре. */
 
 @media (prefers-reduced-motion: reduce) {
+  /* Пульс искры выключен: искра остаётся видимой на своей альфе покоя. */
   .drift,
-  .contourPulse {
+  .sparkCore {
     animation: none;
   }
 
@@ -439,8 +573,12 @@
   .zoom,
   .openFrame,
   .veil,
+  .dim,
   .hotspot,
-  .glow,
+  .bloom,
+  .vignette,
+  .spark,
+  .zoneLabel,
   .hint,
   .captionOut,
   .panelBodyOut {
@@ -498,7 +636,9 @@
   }
 }
 
-/* omPulse из макета: контур хотспота дышит в покое. */
+/* omPulse из макета: искра зоны дышит в покое. Кадры множатся на альфу покоя
+ * внешнего элемента (.spark) — ровно как в макете, где внешний слой везёт
+ * состояние, а внутренний дышит. */
 @keyframes pulse {
   0%,
   100% {

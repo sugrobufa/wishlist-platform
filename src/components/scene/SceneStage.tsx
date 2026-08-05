@@ -12,6 +12,7 @@ import { roomImageUrl } from "@/app/rooms/room-image";
 import { computeZoneCamera, frameRect, rectToPercent, walkScore, type SceneView } from "./camera";
 import { visibleZones, zoneLabel, zoneVerb } from "./zones";
 import { useMediaQuery } from "./use-media-query";
+import { focusOutline, markerWeights, vignetteShape } from "./zone-marker";
 import { ZoneHotspot } from "./zone-hotspot";
 import { ZonePanel } from "./zone-panel";
 import s from "./scene.module.css";
@@ -104,6 +105,9 @@ const BASE_VARS = {
   "--frame-t-d": `${FRAME_DESKTOP.top}%`,
   "--frame-w-d": `${FRAME_DESKTOP.width}%`,
   "--frame-h-d": `${FRAME_DESKTOP.height}%`,
+  // Рамка фокуса метки зоны: акцент берётся из --accent, поэтому строка одна
+  // на все комнаты (tokens.json → zoneMarker.focus).
+  "--zone-focus-outline": focusOutline(),
 } satisfies Record<string, string>;
 
 export function SceneStage({ preset, zonesOff, zoneContent, className }: SceneStageProps) {
@@ -213,10 +217,21 @@ export function SceneStage({ preset, zonesOff, zoneContent, className }: SceneSt
   // наезд (масштаб у телефона и десктопа разный — формула, не число).
   const camera = zoomedIn ? computeZoneCamera(activeZone.rect, view) : null;
 
-  const styleVars = useMemo(
-    () => ({ ...BASE_VARS, "--accent": preset.accent }) as React.CSSProperties,
-    [preset.accent],
-  );
+  // Метка зоны: одно число комнаты решает, чем она обозначена — светом
+  // (тёмный интерьер) или тенью вокруг предмета (светлый). Веса считаются
+  // здесь и приезжают числом: `calc()` из tokens.css объявлен в `:root` и
+  // переопределить его сменой --room-lightness ниже по дереву нельзя
+  // (разбор — zone-marker.ts → markerWeights).
+  const styleVars = useMemo(() => {
+    const weights = markerWeights(preset.roomLightness);
+    return {
+      ...BASE_VARS,
+      "--accent": preset.accent,
+      "--room-lightness": `${preset.roomLightness}`,
+      "--zone-bloom-weight": `${weights.bloom}`,
+      "--zone-vignette-bg": vignetteShape(weights),
+    } as React.CSSProperties;
+  }, [preset.accent, preset.roomLightness]);
 
   const captionSub = (() => {
     if (!activeZone) return "";
@@ -272,6 +287,10 @@ export function SceneStage({ preset, zonesOff, zoneContent, className }: SceneSt
           onClick={closeZone}
           aria-hidden
         />
+        {/* Метка зоны, слой на уровне сцены: при наведении на зону остальной
+            кадр темнеет на 15% — так предмет читается подсвеченным изнутри.
+            Включается из CSS по наведению/фокусу любого хотспота. */}
+        <div className={s.dim} aria-hidden />
 
         <div
           className={zoomedIn ? `${s.hotspots} ${s.hotspotsHidden}` : s.hotspots}
@@ -282,6 +301,7 @@ export function SceneStage({ preset, zonesOff, zoneContent, className }: SceneSt
               key={zone.key}
               zone={zone}
               index={index}
+              label={zoneLabel(zone)}
               ariaLabel={t("zoneAria", { label: zoneLabel(zone) })}
               onOpen={openZone}
               buttonRef={(el) => {

@@ -271,7 +271,7 @@ test("полный цикл дарения: хозяйка → гость → с
     await guestPage.goto(`/r/${roomSlug}`);
     await expect(guestPage.getByRole("heading", { name: "Хозяйка комнаты" })).toBeVisible();
 
-    await guestPage.getByRole("button", { name: "Зона «Музыка» — подойти ближе" }).click();
+    await guestPage.getByRole("button", { name: "Музыка — подойти ближе" }).click();
     await guestPage.getByRole("tab", { name: /Хочу · 1/ }).click();
     const wantTile = guestPage.locator("li", { hasText: WANT_TITLE });
     await expect(wantTile).toBeVisible();
@@ -310,7 +310,7 @@ test("полный цикл дарения: хозяйка → гость → с
   });
 
   await test.step("гость тихо бронирует: «занято тобой» и «Мои брони · 1»", async () => {
-    await guestPage.getByRole("button", { name: "Зона «Музыка» — подойти ближе" }).click();
+    await guestPage.getByRole("button", { name: "Музыка — подойти ближе" }).click();
     await guestPage.getByRole("tab", { name: /Хочу · 1/ }).click();
     await guestPage.getByRole("button", { name: /Подарить$/ }).click();
 

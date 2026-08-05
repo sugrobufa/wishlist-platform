@@ -99,7 +99,19 @@ lines.push(`  --zone-label-color: ${zm.label.color};`);
 lines.push(
   `  --zone-label-shadow: ${pick(zm.label.shadow, /^([^—]+?)\s*(?:—|$)/u, "zoneMarker.label.shadow")[1]};`,
 );
+// "opacity 0→1 + translateY(4px→0), 240ms out" — вход подписи зоны.
+lines.push(
+  `  --zone-label-ms: ${num(zm.label.enter, /([\d.]+)\s*ms/u, "zoneMarker.label.enter")}ms;`,
+);
+lines.push(
+  `  --zone-label-rise: ${num(zm.label.enter, /translateY\(\s*([\d.]+)px/u, "zoneMarker.label.enter")}px;`,
+);
 lines.push(`  --zone-focus-offset: ${zm.focus.offset}px;`);
+// "bloom .42 за 90ms, затем стартует наезд" — нажатие отвечает светом быстрее,
+// чем идёт обычный переход метки (260 мс), иначе палец не получает ответа.
+lines.push(
+  `  --zone-bloom-press-ms: ${num(zm.states.press, /([\d.]+)\s*ms/u, "zoneMarker.states.press")}ms;`,
+);
 // "opacity 260ms cubic-bezier(.23,1,.32,1) на каждом слое…"
 lines.push(`  --zone-marker-ms: ${num(zm.transition, /([\d.]+)ms/u, "zoneMarker.transition")}ms;`);
 lines.push(
