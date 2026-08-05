@@ -1,5 +1,5 @@
 {
-  "note": "Прямоугольники зон заданы ОДИН раз, в координатах телефонной сцены 430×352. Десктопные = (x+12)*1.7778, y*1.7778, w*1.7778, h*1.7778. Трансформ наезда считается из центра прямоугольника, вручную не задаётся. Правка 2026-08-05: у комнаты появилось roomLightness (вес света против тени в метке зоны), у зоны — bloomAR/bloomRot (форма светового пятна, выведена из w/h). Правка 2026-08-05 (вторая): достроены отсутствовавшие зоны — было 84, стало 125. Зоны с placedBy:\"composition\" размещены по формуле композиции кадра и требуют одной сверки с картинкой. Правка 2026-08-05 (раунд 3): все пересечения прямоугольников разведены с нулевым допуском — в раунде 2 проверка шла с допуском 8 px и пропускала кромки. Правка 2026-08-05 (раунд 3): у комнаты warm полный комплект — 13 кадров «открыто» на 13 зон, базовый кадр в 2400 px. Метод — правка существующего кадра, а не новая генерация: геометрия сохраняется, прямоугольники остаются действительными. Правка 2026-08-05 (раунд 3, финал): кадры «открыто» сняты методом правки существующего кадра для всех десяти комнат. Базовые кадры заменены на детализированные, геометрия сохранена — прямоугольники не пересчитывались. ФИНАЛ раунда 3: все 130 зон имеют кадр «открыто», все 10 комнат — базовый кадр в высоком разрешении. Прямоугольники не пересчитывались: метод правки сохраняет геометрию.",
+  "note": "Прямоугольники зон заданы ОДИН раз, в координатах телефонной сцены 430×352. Десктопные = (x+12)*1.7778, y*1.7778, w*1.7778, h*1.7778. Трансформ наезда считается из центра прямоугольника, вручную не задаётся. Правка 2026-08-05: у комнаты появилось roomLightness (вес света против тени в метке зоны), у зоны — bloomAR/bloomRot (форма светового пятна, выведена из w/h). Правка 2026-08-05 (вторая): достроены отсутствовавшие зоны — было 84, стало 125. Зоны с placedBy:\"composition\" размещены по формуле композиции кадра и требуют одной сверки с картинкой. Правка 2026-08-05 (раунд 3): все пересечения прямоугольников разведены с нулевым допуском — в раунде 2 проверка шла с допуском 8 px и пропускала кромки. Правка 2026-08-05 (раунд 3): у комнаты warm полный комплект — 13 кадров «открыто» на 13 зон, базовый кадр в 2400 px. Метод — правка существующего кадра, а не новая генерация: геометрия сохраняется, прямоугольники остаются действительными. Правка 2026-08-05 (раунд 3, финал): кадры «открыто» сняты методом правки существующего кадра для всех десяти комнат. Базовые кадры заменены на детализированные, геометрия сохранена — прямоугольники не пересчитывались. ФИНАЛ раунда 3: все 130 зон имеют кадр «открыто», все 10 комнат — базовый кадр в высоком разрешении. Прямоугольники не пересчитывались: метод правки сохраняет геометрию. Раунд 5: осмотрены глазами все 130 зон. 17 прямоугольников исправлены, 5 зон помечены objectAbsent (предмета в интерьере нет). eyeChecked=true на всех.",
   "scene": {
     "phone": {
       "w": 430,
@@ -10,7 +10,7 @@
         "x": -12,
         "y": 0
       },
-      "note": "ОШИБКА, найдена в раунде 4: прямоугольники заданы в координатах ОКНА 430 px, а кадр шириной 630 px. Правая треть кадра в окно не попадает, и зоны, которые физически там, были обрезаны по x=430 — теперь они показывают не тот предмет. Правильное пространство — координаты КАДРА 630×351. Миграция в handoff/coords-fix.md."
+      "note": "Прямоугольники заданы в координатах КАДРА 630×351. Десктопные = x*1.7778 (без слагаемого). Окно телефона 430 px — видовое окно, которое ездит по кадру, а не граница разметки. 38 зон переразмечены в раунде 4 по кадрам base-frames-630."
     },
     "desktop": {
       "w": 1120,
@@ -54,7 +54,8 @@
           "bloomAR": 30,
           "bloomRot": 0,
           "accepted": true,
-          "verified": true
+          "notClamped": true,
+          "eyeChecked": true
         },
         {
           "key": "beauty",
@@ -71,7 +72,8 @@
           "bloomAR": 97,
           "bloomRot": 0,
           "reshoot": true,
-          "verified": true
+          "notClamped": true,
+          "eyeChecked": true
         },
         {
           "key": "jewelry",
@@ -88,7 +90,8 @@
           "bloomAR": 86,
           "bloomRot": 0,
           "accepted": true,
-          "verified": true
+          "notClamped": true,
+          "eyeChecked": true
         },
         {
           "key": "perfume",
@@ -105,7 +108,8 @@
           "bloomAR": 113,
           "bloomRot": 0,
           "reshoot": true,
-          "verified": true
+          "notClamped": true,
+          "eyeChecked": true
         },
         {
           "key": "bags",
@@ -122,7 +126,8 @@
           "bloomAR": 120,
           "bloomRot": 0,
           "accepted": true,
-          "verified": true
+          "notClamped": true,
+          "eyeChecked": true
         },
         {
           "key": "travel",
@@ -139,7 +144,8 @@
           "bloomAR": 89,
           "bloomRot": 0,
           "accepted": true,
-          "verified": true
+          "notClamped": true,
+          "eyeChecked": true
         },
         {
           "key": "anything",
@@ -156,95 +162,139 @@
           "bloomAR": 103,
           "bloomRot": 0,
           "accepted": true,
-          "verified": true
+          "notClamped": true,
+          "eyeChecked": true
         },
         {
           "key": "events",
           "label": "Впечатления",
           "pool": "events",
           "rect": {
-            "x": 300,
-            "y": 84,
-            "w": 86,
-            "h": 26
+            "x": 568,
+            "y": 148,
+            "w": 57,
+            "h": 30
           },
           "openFrame": null,
           "openVerb": null,
           "bloomAR": 120,
           "bloomRot": 0,
-          "verified": true,
-          "reshoot": true
+          "reshoot": true,
+          "notClamped": true,
+          "eyeChecked": true,
+          "rectOld": {
+            "x": 300,
+            "y": 84,
+            "w": 86,
+            "h": 26
+          },
+          "remappedRound": 5,
+          "wrongTarget": false,
+          "reshootReason": "прямоугольник исправлен в раунде 5 — прежний показывал не тот предмет"
         },
         {
           "key": "books",
           "label": "Книги",
           "pool": "books",
           "rect": {
+            "x": 475,
+            "y": 175,
+            "w": 33,
+            "h": 25
+          },
+          "openFrame": null,
+          "openVerb": null,
+          "bloomAR": 120,
+          "bloomRot": 0,
+          "accepted": true,
+          "notClamped": true,
+          "eyeChecked": true,
+          "rectOld": {
             "x": 296,
             "y": 182,
             "w": 44,
             "h": 20
           },
-          "openFrame": "refs-2x/cream/o-cream-books.jpg",
-          "openVerb": "книга выдвигается",
-          "bloomAR": 120,
-          "bloomRot": 0,
-          "verified": true,
-          "accepted": true
+          "remappedRound": 5,
+          "wrongTarget": false,
+          "reshootReason": "прямоугольник исправлен в раунде 5 — прежний показывал не тот предмет"
         },
         {
           "key": "music",
           "label": "Музыка",
           "pool": "music",
           "rect": {
-            "x": 374,
-            "y": 150,
+            "x": 507,
+            "y": 185,
             "w": 40,
-            "h": 26
+            "h": 28
           },
           "openFrame": null,
           "openVerb": null,
           "bloomAR": 89,
           "bloomRot": 0,
-          "verified": false,
           "reshoot": true,
-          "clamped": true
+          "notClamped": true,
+          "eyeChecked": true,
+          "rectOld": {
+            "x": 374,
+            "y": 150,
+            "w": 40,
+            "h": 26
+          },
+          "remappedRound": 4
         },
         {
           "key": "flowers",
           "label": "Цветы",
           "pool": "flowers",
           "rect": {
-            "x": 398,
-            "y": 108,
-            "w": 32,
-            "h": 40
+            "x": 568,
+            "y": 148,
+            "w": 42,
+            "h": 55
           },
           "openFrame": null,
           "openVerb": null,
           "bloomAR": 46,
           "bloomRot": 0,
-          "verified": false,
           "reshoot": true,
-          "clamped": true
+          "notClamped": true,
+          "eyeChecked": true,
+          "rectOld": {
+            "x": 398,
+            "y": 108,
+            "w": 32,
+            "h": 40
+          },
+          "remappedRound": 4
         },
         {
           "key": "home",
           "label": "Для дома",
           "pool": "home",
           "rect": {
+            "x": 413,
+            "y": 188,
+            "w": 62,
+            "h": 32
+          },
+          "openFrame": null,
+          "openVerb": null,
+          "bloomAR": 67,
+          "bloomRot": 0,
+          "accepted": false,
+          "notClamped": true,
+          "eyeChecked": true,
+          "rectOld": {
             "x": 338,
             "y": 214,
             "w": 92,
             "h": 80
           },
-          "openFrame": "refs-2x/cream/o-cream-home.jpg",
-          "openVerb": "свечи разгораются",
-          "bloomAR": 67,
-          "bloomRot": 0,
-          "verified": false,
-          "accepted": true,
-          "clamped": true
+          "remappedRound": 4,
+          "reshoot": true,
+          "reshootReason": "Прямоугольник переразмечен — прежний кадр проверялся против другого участка, порог надо прогнать заново"
         },
         {
           "key": "money",
@@ -260,14 +310,17 @@
           "openVerb": null,
           "bloomAR": 66,
           "bloomRot": 0,
-          "verified": true,
-          "reshoot": true
+          "reshoot": true,
+          "notClamped": true,
+          "eyeChecked": true,
+          "sharedObjectWith": "anything"
         }
       ],
       "roomLightness": 0.82,
       "baseLegacy": "refs/v4-cream.jpg",
       "kitComplete": false,
-      "acceptedCount": 7
+      "acceptedCount": 7,
+      "needsRemap": 0
     },
     {
       "id": "warm",
@@ -297,7 +350,8 @@
           "bloomAR": 41,
           "bloomRot": 0,
           "reshoot": true,
-          "verified": true
+          "notClamped": true,
+          "eyeChecked": true
         },
         {
           "key": "jewelry",
@@ -314,7 +368,8 @@
           "bloomAR": 62,
           "bloomRot": 0,
           "accepted": true,
-          "verified": true
+          "notClamped": true,
+          "eyeChecked": true
         },
         {
           "key": "anything",
@@ -331,7 +386,8 @@
           "bloomAR": 39,
           "bloomRot": 0,
           "reshoot": true,
-          "verified": true
+          "notClamped": true,
+          "eyeChecked": true
         },
         {
           "key": "beauty",
@@ -348,7 +404,9 @@
           "bloomAR": 37,
           "bloomRot": 0,
           "reshoot": true,
-          "verified": true
+          "notClamped": true,
+          "eyeChecked": true,
+          "sharedObjectWith": "perfume"
         },
         {
           "key": "perfume",
@@ -365,7 +423,8 @@
           "bloomAR": 107,
           "bloomRot": 0,
           "reshoot": true,
-          "verified": true
+          "notClamped": true,
+          "eyeChecked": true
         },
         {
           "key": "bags",
@@ -382,34 +441,42 @@
           "bloomAR": 115,
           "bloomRot": 0,
           "reshoot": true,
-          "verified": true
+          "notClamped": true,
+          "eyeChecked": true
         },
         {
           "key": "home",
           "label": "Для дома",
           "pool": "home",
           "rect": {
-            "x": 386,
-            "y": 232,
-            "w": 44,
-            "h": 110
+            "x": 538,
+            "y": 198,
+            "w": 92,
+            "h": 112
           },
           "openFrame": null,
           "openVerb": null,
           "bloomAR": 30,
           "bloomRot": 0,
-          "verified": false,
           "reshoot": true,
-          "clamped": true
+          "notClamped": true,
+          "eyeChecked": true,
+          "rectOld": {
+            "x": 386,
+            "y": 232,
+            "w": 44,
+            "h": 110
+          },
+          "remappedRound": 4
         },
         {
           "key": "events",
           "label": "Впечатления",
           "pool": "events",
           "rect": {
-            "x": 315,
-            "y": 82,
-            "w": 92,
+            "x": 318,
+            "y": 93,
+            "w": 98,
             "h": 48
           },
           "openFrame": null,
@@ -417,8 +484,15 @@
           "bloomAR": 111,
           "bloomRot": 0,
           "reshoot": true,
-          "verified": false,
-          "clamped": true
+          "notClamped": true,
+          "eyeChecked": true,
+          "rectOld": {
+            "x": 315,
+            "y": 82,
+            "w": 92,
+            "h": 48
+          },
+          "remappedRound": 4
         },
         {
           "key": "travel",
@@ -435,25 +509,33 @@
           "bloomAR": 84,
           "bloomRot": 0,
           "accepted": true,
-          "verified": true
+          "notClamped": true,
+          "eyeChecked": true
         },
         {
           "key": "books",
           "label": "Книги",
           "pool": "books",
           "rect": {
-            "x": 350,
-            "y": 18,
-            "w": 56,
-            "h": 58
+            "x": 524,
+            "y": 48,
+            "w": 68,
+            "h": 82
           },
           "openFrame": null,
           "openVerb": null,
           "bloomAR": 56,
           "bloomRot": 0,
-          "verified": false,
           "reshoot": true,
-          "clamped": true
+          "notClamped": true,
+          "eyeChecked": true,
+          "rectOld": {
+            "x": 350,
+            "y": 18,
+            "w": 56,
+            "h": 58
+          },
+          "remappedRound": 4
         },
         {
           "key": "music",
@@ -469,25 +551,38 @@
           "openVerb": null,
           "bloomAR": 105,
           "bloomRot": 0,
-          "verified": true,
-          "reshoot": true
+          "reshoot": false,
+          "notClamped": true,
+          "eyeChecked": true,
+          "wrongTarget": true,
+          "wrongNote": "Проверено глазами (Claude Code, раунд 4): прямоугольник стоит на пустой панели, настоящий предмет правее. Обрезка тут ни при чём — прямоугольник просто неверный.",
+          "objectAbsent": true,
+          "absentNote": "Вертушки в кадре нет. Есть шкаф с книгами и ваза с розами, вертушки нет ни слева, ни справа от черты."
         },
         {
           "key": "flowers",
           "label": "Цветы",
           "pool": "flowers",
           "rect": {
-            "x": 148,
-            "y": 108,
-            "w": 28,
-            "h": 48
+            "x": 538,
+            "y": 98,
+            "w": 92,
+            "h": 128
           },
           "openFrame": null,
           "openVerb": null,
           "bloomAR": 34,
           "bloomRot": 0,
-          "verified": true,
-          "reshoot": true
+          "reshoot": true,
+          "notClamped": true,
+          "eyeChecked": true,
+          "rectOld": {
+            "x": 148,
+            "y": 108,
+            "w": 28,
+            "h": 48
+          },
+          "remappedRound": 4
         },
         {
           "key": "money",
@@ -504,14 +599,16 @@
           "bloomAR": 92,
           "bloomRot": 0,
           "accepted": true,
-          "verified": true
+          "notClamped": true,
+          "eyeChecked": true
         }
       ],
       "roomLightness": 0.46,
       "baseLegacy": "refs-2x/warm/v4-warm.jpg",
       "kitComplete": false,
       "kitNote": "Комплект целиком. Базовый кадр — детализирующая правка прежнего refs/v4-warm.jpg, геометрия совпадает, прямоугольники этой комнаты действительны без пересъёмки. Все 13 кадров «открыто» — правки того же исходника: полный кадр, та же камера, тот же свет, изменён один предмет.",
-      "acceptedCount": 3
+      "acceptedCount": 3,
+      "needsRemap": 1
     },
     {
       "id": "lux",
@@ -541,7 +638,8 @@
           "bloomAR": 116,
           "bloomRot": 0,
           "reshoot": true,
-          "verified": true
+          "notClamped": true,
+          "eyeChecked": true
         },
         {
           "key": "bags",
@@ -558,7 +656,8 @@
           "bloomAR": 89,
           "bloomRot": 0,
           "reshoot": true,
-          "verified": true
+          "notClamped": true,
+          "eyeChecked": true
         },
         {
           "key": "anything",
@@ -575,7 +674,8 @@
           "bloomAR": 36,
           "bloomRot": 0,
           "accepted": true,
-          "verified": true
+          "notClamped": true,
+          "eyeChecked": true
         },
         {
           "key": "beauty",
@@ -592,7 +692,9 @@
           "bloomAR": 51,
           "bloomRot": 0,
           "reshoot": true,
-          "verified": true
+          "notClamped": true,
+          "eyeChecked": true,
+          "sharedObjectWith": "perfume"
         },
         {
           "key": "jewelry",
@@ -609,7 +711,8 @@
           "bloomAR": 120,
           "bloomRot": 0,
           "reshoot": true,
-          "verified": true
+          "notClamped": true,
+          "eyeChecked": true
         },
         {
           "key": "perfume",
@@ -626,25 +729,35 @@
           "bloomAR": 111,
           "bloomRot": 0,
           "reshoot": true,
-          "verified": true
+          "notClamped": true,
+          "eyeChecked": true
         },
         {
           "key": "events",
           "label": "Впечатления",
           "pool": "events",
           "rect": {
+            "x": 326,
+            "y": 74,
+            "w": 64,
+            "h": 92
+          },
+          "openFrame": null,
+          "openVerb": null,
+          "bloomAR": 35,
+          "bloomRot": 0,
+          "accepted": false,
+          "notClamped": true,
+          "eyeChecked": true,
+          "rectOld": {
             "x": 356,
             "y": 107,
             "w": 51,
             "h": 84
           },
-          "openFrame": "refs-2x/lux/o-lux-events.jpg",
-          "openVerb": "билеты выходят из рамки",
-          "bloomAR": 35,
-          "bloomRot": 0,
-          "accepted": true,
-          "verified": false,
-          "clamped": true
+          "remappedRound": 4,
+          "reshoot": true,
+          "reshootReason": "Прямоугольник переразмечен — прежний кадр проверялся против другого участка, порог надо прогнать заново"
         },
         {
           "key": "travel",
@@ -661,25 +774,33 @@
           "bloomAR": 58,
           "bloomRot": 0,
           "reshoot": true,
-          "verified": true
+          "notClamped": true,
+          "eyeChecked": true
         },
         {
           "key": "books",
           "label": "Книги",
           "pool": "books",
           "rect": {
-            "x": 352,
-            "y": 26,
-            "w": 56,
-            "h": 62
+            "x": 538,
+            "y": 88,
+            "w": 52,
+            "h": 42
           },
           "openFrame": null,
           "openVerb": null,
           "bloomAR": 52,
           "bloomRot": 0,
-          "verified": false,
           "reshoot": true,
-          "clamped": true
+          "notClamped": true,
+          "eyeChecked": true,
+          "rectOld": {
+            "x": 352,
+            "y": 26,
+            "w": 56,
+            "h": 62
+          },
+          "remappedRound": 4
         },
         {
           "key": "music",
@@ -695,45 +816,63 @@
           "openVerb": null,
           "bloomAR": 116,
           "bloomRot": 0,
-          "verified": false,
-          "reshoot": true,
-          "clamped": true
+          "reshoot": false,
+          "clamped": true,
+          "notClamped": false,
+          "eyeChecked": true,
+          "objectAbsent": true,
+          "wrongTarget": true,
+          "absentNote": "Вертушки в кадре нет. В правой части мраморные полки с книгами и орхидеи; проигрывателя не видно."
         },
         {
           "key": "flowers",
           "label": "Цветы",
           "pool": "flowers",
           "rect": {
-            "x": 408,
-            "y": 120,
-            "w": 22,
-            "h": 72
+            "x": 568,
+            "y": 64,
+            "w": 62,
+            "h": 102
           },
           "openFrame": null,
           "openVerb": null,
           "bloomAR": 30,
           "bloomRot": 0,
-          "verified": false,
           "reshoot": true,
-          "clamped": true
+          "notClamped": true,
+          "eyeChecked": true,
+          "rectOld": {
+            "x": 408,
+            "y": 120,
+            "w": 22,
+            "h": 72
+          },
+          "remappedRound": 4
         },
         {
           "key": "home",
           "label": "Для дома",
           "pool": "home",
           "rect": {
-            "x": 389,
-            "y": 236,
-            "w": 22,
-            "h": 96
+            "x": 588,
+            "y": 222,
+            "w": 38,
+            "h": 38
           },
           "openFrame": null,
           "openVerb": null,
           "bloomAR": 30,
           "bloomRot": 0,
-          "verified": false,
           "reshoot": true,
-          "clamped": true
+          "notClamped": true,
+          "eyeChecked": true,
+          "rectOld": {
+            "x": 389,
+            "y": 236,
+            "w": 22,
+            "h": 96
+          },
+          "remappedRound": 4
         },
         {
           "key": "money",
@@ -750,13 +889,15 @@
           "bloomAR": 64,
           "bloomRot": 0,
           "accepted": true,
-          "verified": true
+          "notClamped": true,
+          "eyeChecked": true
         }
       ],
       "roomLightness": 0.52,
       "baseLegacy": "refs/v4-lux.jpg",
       "kitComplete": false,
-      "acceptedCount": 3
+      "acceptedCount": 3,
+      "needsRemap": 1
     },
     {
       "id": "emerald",
@@ -786,7 +927,8 @@
           "bloomAR": 30,
           "bloomRot": 0,
           "reshoot": true,
-          "verified": true
+          "notClamped": true,
+          "eyeChecked": true
         },
         {
           "key": "jewelry",
@@ -803,7 +945,8 @@
           "bloomAR": 74,
           "bloomRot": 0,
           "accepted": true,
-          "verified": true
+          "notClamped": true,
+          "eyeChecked": true
         },
         {
           "key": "anything",
@@ -820,7 +963,8 @@
           "bloomAR": 36,
           "bloomRot": 0,
           "reshoot": true,
-          "verified": true
+          "notClamped": true,
+          "eyeChecked": true
         },
         {
           "key": "beauty",
@@ -837,7 +981,10 @@
           "bloomAR": 45,
           "bloomRot": 0,
           "reshoot": true,
-          "verified": true
+          "notClamped": true,
+          "eyeChecked": true,
+          "objectAbsent": true,
+          "absentNote": "предмета этой категории в интерьере нет"
         },
         {
           "key": "perfume",
@@ -854,7 +1001,8 @@
           "bloomAR": 120,
           "bloomRot": 0,
           "reshoot": true,
-          "verified": true
+          "notClamped": true,
+          "eyeChecked": true
         },
         {
           "key": "bags",
@@ -871,34 +1019,44 @@
           "bloomAR": 61,
           "bloomRot": 0,
           "accepted": true,
-          "verified": true
+          "notClamped": true,
+          "eyeChecked": true
         },
         {
           "key": "home",
           "label": "Для дома",
           "pool": "home",
           "rect": {
+            "x": 418,
+            "y": 198,
+            "w": 52,
+            "h": 28
+          },
+          "openFrame": null,
+          "openVerb": null,
+          "bloomAR": 30,
+          "bloomRot": 0,
+          "accepted": false,
+          "notClamped": true,
+          "eyeChecked": true,
+          "rectOld": {
             "x": 363,
             "y": 215,
             "w": 67,
             "h": 136
           },
-          "openFrame": "refs-2x/emerald/o-emerald-home.jpg",
-          "openVerb": "свечи разгораются",
-          "bloomAR": 30,
-          "bloomRot": 0,
-          "accepted": true,
-          "verified": false,
-          "clamped": true
+          "remappedRound": 4,
+          "reshoot": true,
+          "reshootReason": "Прямоугольник переразмечен — прежний кадр проверялся против другого участка, порог надо прогнать заново"
         },
         {
           "key": "events",
           "label": "Впечатления",
           "pool": "events",
           "rect": {
-            "x": 356,
-            "y": 73,
-            "w": 74,
+            "x": 368,
+            "y": 64,
+            "w": 108,
             "h": 102
           },
           "openFrame": null,
@@ -906,8 +1064,15 @@
           "bloomAR": 42,
           "bloomRot": 0,
           "reshoot": true,
-          "verified": false,
-          "clamped": true
+          "notClamped": true,
+          "eyeChecked": true,
+          "rectOld": {
+            "x": 356,
+            "y": 73,
+            "w": 74,
+            "h": 102
+          },
+          "remappedRound": 4
         },
         {
           "key": "travel",
@@ -924,17 +1089,18 @@
           "bloomAR": 83,
           "bloomRot": 0,
           "reshoot": true,
-          "verified": true
+          "notClamped": true,
+          "eyeChecked": true
         },
         {
           "key": "books",
           "label": "Книги",
           "pool": "books",
           "rect": {
-            "x": 352,
-            "y": 10,
-            "w": 52,
-            "h": 62
+            "x": 518,
+            "y": 18,
+            "w": 112,
+            "h": 232
           },
           "openFrame": null,
           "openVerb": null,
@@ -942,37 +1108,53 @@
           "bloomRot": 0,
           "placedBy": "composition",
           "reshoot": true,
-          "verified": false,
-          "clamped": true
+          "notClamped": true,
+          "eyeChecked": true,
+          "rectOld": {
+            "x": 352,
+            "y": 10,
+            "w": 52,
+            "h": 62
+          },
+          "remappedRound": 4
         },
         {
           "key": "music",
           "label": "Музыка",
           "pool": "music",
           "rect": {
+            "x": 524,
+            "y": 148,
+            "w": 78,
+            "h": 32
+          },
+          "openFrame": null,
+          "openVerb": null,
+          "bloomAR": 120,
+          "bloomRot": 0,
+          "placedBy": "composition",
+          "accepted": false,
+          "notClamped": true,
+          "eyeChecked": true,
+          "rectOld": {
             "x": 350,
             "y": 180,
             "w": 52,
             "h": 20
           },
-          "openFrame": "refs-2x/emerald/o-emerald-music.jpg",
-          "openVerb": "ящики винила выезжают",
-          "bloomAR": 120,
-          "bloomRot": 0,
-          "placedBy": "composition",
-          "accepted": true,
-          "verified": false,
-          "clamped": true
+          "remappedRound": 4,
+          "reshoot": true,
+          "reshootReason": "Прямоугольник переразмечен — прежний кадр проверялся против другого участка, порог надо прогнать заново"
         },
         {
           "key": "flowers",
           "label": "Цветы",
           "pool": "flowers",
           "rect": {
-            "x": 405,
-            "y": 10,
-            "w": 25,
-            "h": 56
+            "x": 568,
+            "y": 48,
+            "w": 62,
+            "h": 92
           },
           "openFrame": null,
           "openVerb": null,
@@ -980,8 +1162,15 @@
           "bloomRot": 0,
           "placedBy": "composition",
           "reshoot": true,
-          "verified": false,
-          "clamped": true
+          "notClamped": true,
+          "eyeChecked": true,
+          "rectOld": {
+            "x": 405,
+            "y": 10,
+            "w": 25,
+            "h": 56
+          },
+          "remappedRound": 4
         },
         {
           "key": "money",
@@ -998,13 +1187,15 @@
           "bloomAR": 80,
           "bloomRot": 0,
           "reshoot": true,
-          "verified": true
+          "notClamped": true,
+          "eyeChecked": true
         }
       ],
       "roomLightness": 0.24,
       "baseLegacy": "refs/v4-emerald.jpg",
       "kitComplete": false,
-      "acceptedCount": 4
+      "acceptedCount": 4,
+      "needsRemap": 0
     },
     {
       "id": "bold",
@@ -1034,7 +1225,8 @@
           "bloomAR": 56,
           "bloomRot": 0,
           "reshoot": true,
-          "verified": true
+          "notClamped": true,
+          "eyeChecked": true
         },
         {
           "key": "beauty",
@@ -1051,7 +1243,8 @@
           "bloomAR": 79,
           "bloomRot": 0,
           "reshoot": true,
-          "verified": true
+          "notClamped": true,
+          "eyeChecked": true
         },
         {
           "key": "anything",
@@ -1068,7 +1261,8 @@
           "bloomAR": 120,
           "bloomRot": 0,
           "reshoot": true,
-          "verified": true
+          "notClamped": true,
+          "eyeChecked": true
         },
         {
           "key": "jewelry",
@@ -1085,7 +1279,8 @@
           "bloomAR": 70,
           "bloomRot": 0,
           "accepted": true,
-          "verified": true
+          "notClamped": true,
+          "eyeChecked": true
         },
         {
           "key": "perfume",
@@ -1102,7 +1297,8 @@
           "bloomAR": 45,
           "bloomRot": 0,
           "accepted": true,
-          "verified": true
+          "notClamped": true,
+          "eyeChecked": true
         },
         {
           "key": "bags",
@@ -1119,43 +1315,60 @@
           "bloomAR": 120,
           "bloomRot": 0,
           "accepted": true,
-          "verified": true
+          "notClamped": true,
+          "eyeChecked": true
         },
         {
           "key": "events",
           "label": "Впечатления",
           "pool": "events",
           "rect": {
+            "x": 374,
+            "y": 58,
+            "w": 122,
+            "h": 92
+          },
+          "openFrame": null,
+          "openVerb": null,
+          "bloomAR": 68,
+          "bloomRot": 0,
+          "accepted": false,
+          "notClamped": true,
+          "eyeChecked": true,
+          "rectOld": {
             "x": 364,
             "y": 70,
             "w": 66,
             "h": 56
           },
-          "openFrame": "refs-2x/bold/o-bold-events.jpg",
-          "openVerb": "билеты выходят из рамки",
-          "bloomAR": 68,
-          "bloomRot": 0,
-          "accepted": true,
-          "verified": false,
-          "clamped": true
+          "remappedRound": 4,
+          "reshoot": true,
+          "reshootReason": "Прямоугольник переразмечен — прежний кадр проверялся против другого участка, порог надо прогнать заново"
         },
         {
           "key": "music",
           "label": "Музыка",
           "pool": "music",
           "rect": {
-            "x": 404,
-            "y": 163,
-            "w": 26,
-            "h": 45
+            "x": 426,
+            "y": 164,
+            "w": 76,
+            "h": 46
           },
           "openFrame": null,
           "openVerb": null,
           "bloomAR": 34,
           "bloomRot": 0,
           "reshoot": true,
-          "verified": false,
-          "clamped": true
+          "notClamped": true,
+          "eyeChecked": true,
+          "rectOld": {
+            "x": 404,
+            "y": 163,
+            "w": 26,
+            "h": 45
+          },
+          "remappedRound": 4
         },
         {
           "key": "travel",
@@ -1172,17 +1385,18 @@
           "bloomAR": 76,
           "bloomRot": 0,
           "reshoot": true,
-          "verified": true
+          "notClamped": true,
+          "eyeChecked": true
         },
         {
           "key": "books",
           "label": "Книги",
           "pool": "books",
           "rect": {
-            "x": 356,
-            "y": 22,
-            "w": 50,
-            "h": 43
+            "x": 504,
+            "y": 28,
+            "w": 122,
+            "h": 168
           },
           "openFrame": null,
           "openVerb": null,
@@ -1190,18 +1404,25 @@
           "bloomRot": 0,
           "placedBy": "composition",
           "reshoot": true,
-          "verified": false,
-          "clamped": true
+          "notClamped": true,
+          "eyeChecked": true,
+          "rectOld": {
+            "x": 356,
+            "y": 22,
+            "w": 50,
+            "h": 43
+          },
+          "remappedRound": 4
         },
         {
           "key": "flowers",
           "label": "Цветы",
           "pool": "flowers",
           "rect": {
-            "x": 382,
-            "y": 148,
-            "w": 22,
-            "h": 58
+            "x": 546,
+            "y": 158,
+            "w": 84,
+            "h": 122
           },
           "openFrame": null,
           "openVerb": null,
@@ -1209,27 +1430,43 @@
           "bloomRot": 0,
           "placedBy": "composition",
           "reshoot": true,
-          "verified": false,
-          "clamped": true
+          "notClamped": true,
+          "eyeChecked": true,
+          "rectOld": {
+            "x": 382,
+            "y": 148,
+            "w": 22,
+            "h": 58
+          },
+          "remappedRound": 4
         },
         {
           "key": "home",
           "label": "Для дома",
           "pool": "home",
           "rect": {
+            "x": 424,
+            "y": 234,
+            "w": 152,
+            "h": 116
+          },
+          "openFrame": null,
+          "openVerb": null,
+          "bloomAR": 30,
+          "bloomRot": 0,
+          "placedBy": "composition",
+          "accepted": false,
+          "notClamped": true,
+          "eyeChecked": true,
+          "rectOld": {
             "x": 395,
             "y": 230,
             "w": 22,
             "h": 100
           },
-          "openFrame": "refs-2x/bold/o-bold-home.jpg",
-          "openVerb": "свечи разгораются",
-          "bloomAR": 30,
-          "bloomRot": 0,
-          "placedBy": "composition",
-          "accepted": true,
-          "verified": false,
-          "clamped": true
+          "remappedRound": 4,
+          "reshoot": true,
+          "reshootReason": "Прямоугольник переразмечен — прежний кадр проверялся против другого участка, порог надо прогнать заново"
         },
         {
           "key": "money",
@@ -1246,13 +1483,15 @@
           "bloomAR": 43,
           "bloomRot": 0,
           "accepted": true,
-          "verified": true
+          "notClamped": true,
+          "eyeChecked": true
         }
       ],
       "roomLightness": 0.15,
       "baseLegacy": "refs/v5-bold-a.jpg",
       "kitComplete": false,
-      "acceptedCount": 6
+      "acceptedCount": 6,
+      "needsRemap": 0
     },
     {
       "id": "cottage",
@@ -1282,7 +1521,8 @@
           "bloomAR": 40,
           "bloomRot": 0,
           "reshoot": true,
-          "verified": true
+          "notClamped": true,
+          "eyeChecked": true
         },
         {
           "key": "jewelry",
@@ -1299,7 +1539,8 @@
           "bloomAR": 99,
           "bloomRot": 0,
           "accepted": true,
-          "verified": true
+          "notClamped": true,
+          "eyeChecked": true
         },
         {
           "key": "anything",
@@ -1316,7 +1557,8 @@
           "bloomAR": 63,
           "bloomRot": 0,
           "reshoot": true,
-          "verified": true
+          "notClamped": true,
+          "eyeChecked": true
         },
         {
           "key": "beauty",
@@ -1333,7 +1575,8 @@
           "bloomAR": 40,
           "bloomRot": 0,
           "reshoot": true,
-          "verified": true
+          "notClamped": true,
+          "eyeChecked": true
         },
         {
           "key": "perfume",
@@ -1350,7 +1593,8 @@
           "bloomAR": 120,
           "bloomRot": 0,
           "accepted": true,
-          "verified": true
+          "notClamped": true,
+          "eyeChecked": true
         },
         {
           "key": "bags",
@@ -1367,43 +1611,58 @@
           "bloomAR": 120,
           "bloomRot": 0,
           "reshoot": true,
-          "verified": true
+          "notClamped": true,
+          "eyeChecked": true
         },
         {
           "key": "events",
           "label": "Впечатления",
           "pool": "events",
           "rect": {
-            "x": 315,
+            "x": 294,
             "y": 84,
-            "w": 115,
-            "h": 52
+            "w": 156,
+            "h": 46
           },
           "openFrame": null,
           "openVerb": null,
           "bloomAR": 120,
           "bloomRot": 0,
           "reshoot": true,
-          "verified": false,
-          "clamped": true
+          "notClamped": true,
+          "eyeChecked": true,
+          "rectOld": {
+            "x": 315,
+            "y": 84,
+            "w": 115,
+            "h": 52
+          },
+          "remappedRound": 4
         },
         {
           "key": "music",
           "label": "Музыка",
           "pool": "music",
           "rect": {
-            "x": 399,
-            "y": 217,
-            "w": 31,
-            "h": 18
+            "x": 404,
+            "y": 238,
+            "w": 68,
+            "h": 28
           },
           "openFrame": null,
           "openVerb": null,
           "bloomAR": 100,
           "bloomRot": 0,
           "reshoot": true,
-          "verified": false,
-          "clamped": true
+          "notClamped": true,
+          "eyeChecked": true,
+          "rectOld": {
+            "x": 399,
+            "y": 217,
+            "w": 31,
+            "h": 18
+          },
+          "remappedRound": 4
         },
         {
           "key": "travel",
@@ -1420,17 +1679,18 @@
           "bloomAR": 84,
           "bloomRot": 0,
           "accepted": true,
-          "verified": true
+          "notClamped": true,
+          "eyeChecked": true
         },
         {
           "key": "books",
           "label": "Книги",
           "pool": "books",
           "rect": {
-            "x": 350,
-            "y": 28,
-            "w": 54,
-            "h": 55
+            "x": 504,
+            "y": 118,
+            "w": 72,
+            "h": 52
           },
           "openFrame": null,
           "openVerb": null,
@@ -1438,18 +1698,25 @@
           "bloomRot": 0,
           "placedBy": "composition",
           "reshoot": true,
-          "verified": false,
-          "clamped": true
+          "notClamped": true,
+          "eyeChecked": true,
+          "rectOld": {
+            "x": 350,
+            "y": 28,
+            "w": 54,
+            "h": 55
+          },
+          "remappedRound": 4
         },
         {
           "key": "flowers",
           "label": "Цветы",
           "pool": "flowers",
           "rect": {
-            "x": 400,
-            "y": 150,
-            "w": 30,
-            "h": 66
+            "x": 558,
+            "y": 214,
+            "w": 72,
+            "h": 68
           },
           "openFrame": null,
           "openVerb": null,
@@ -1457,18 +1724,25 @@
           "bloomRot": 0,
           "placedBy": "composition",
           "reshoot": true,
-          "verified": false,
-          "clamped": true
+          "notClamped": true,
+          "eyeChecked": true,
+          "rectOld": {
+            "x": 400,
+            "y": 150,
+            "w": 30,
+            "h": 66
+          },
+          "remappedRound": 4
         },
         {
           "key": "home",
           "label": "Для дома",
           "pool": "home",
           "rect": {
-            "x": 401,
-            "y": 236,
-            "w": 22,
-            "h": 96
+            "x": 308,
+            "y": 248,
+            "w": 102,
+            "h": 78
           },
           "openFrame": null,
           "openVerb": null,
@@ -1476,8 +1750,15 @@
           "bloomRot": 0,
           "placedBy": "composition",
           "reshoot": true,
-          "verified": false,
-          "clamped": true
+          "notClamped": true,
+          "eyeChecked": true,
+          "rectOld": {
+            "x": 401,
+            "y": 236,
+            "w": 22,
+            "h": 96
+          },
+          "remappedRound": 4
         },
         {
           "key": "money",
@@ -1494,13 +1775,15 @@
           "bloomAR": 70,
           "bloomRot": 0,
           "accepted": true,
-          "verified": true
+          "notClamped": true,
+          "eyeChecked": true
         }
       ],
       "roomLightness": 0.58,
       "baseLegacy": "refs/v4-cottage.jpg",
       "kitComplete": false,
-      "acceptedCount": 4
+      "acceptedCount": 4,
+      "needsRemap": 0
     },
     {
       "id": "gamer",
@@ -1530,7 +1813,8 @@
           "bloomAR": 120,
           "bloomRot": 0,
           "accepted": true,
-          "verified": true
+          "notClamped": true,
+          "eyeChecked": true
         },
         {
           "key": "tech",
@@ -1547,7 +1831,8 @@
           "bloomAR": 120,
           "bloomRot": 0,
           "reshoot": true,
-          "verified": true
+          "notClamped": true,
+          "eyeChecked": true
         },
         {
           "key": "anything",
@@ -1564,7 +1849,8 @@
           "bloomAR": 70,
           "bloomRot": 0,
           "reshoot": true,
-          "verified": true
+          "notClamped": true,
+          "eyeChecked": true
         },
         {
           "key": "gaming",
@@ -1581,25 +1867,35 @@
           "bloomAR": 120,
           "bloomRot": 0,
           "accepted": true,
-          "verified": true
+          "notClamped": true,
+          "eyeChecked": true
         },
         {
           "key": "sport",
           "label": "Спорт",
           "pool": "sport",
           "rect": {
+            "x": 370,
+            "y": 164,
+            "w": 80,
+            "h": 56
+          },
+          "openFrame": null,
+          "openVerb": null,
+          "bloomAR": 44,
+          "bloomRot": 0,
+          "accepted": false,
+          "notClamped": true,
+          "eyeChecked": true,
+          "rectOld": {
             "x": 375,
             "y": 214,
             "w": 55,
             "h": 72
           },
-          "openFrame": "refs-2x/gamer/o-gamer-sport.jpg",
-          "openVerb": "стойка раскрывается",
-          "bloomAR": 44,
-          "bloomRot": 0,
-          "accepted": true,
-          "verified": false,
-          "clamped": true
+          "remappedRound": 4,
+          "reshoot": true,
+          "reshootReason": "Прямоугольник переразмечен — прежний кадр проверялся против другого участка, порог надо прогнать заново"
         },
         {
           "key": "grooming",
@@ -1616,7 +1912,8 @@
           "bloomAR": 76,
           "bloomRot": 0,
           "reshoot": true,
-          "verified": true
+          "notClamped": true,
+          "eyeChecked": true
         },
         {
           "key": "fashion",
@@ -1633,25 +1930,33 @@
           "bloomAR": 74,
           "bloomRot": 0,
           "accepted": true,
-          "verified": true
+          "notClamped": true,
+          "eyeChecked": true
         },
         {
           "key": "events",
           "label": "Впечатления",
           "pool": "events",
           "rect": {
-            "x": 391,
-            "y": 79,
-            "w": 39,
-            "h": 89
+            "x": 396,
+            "y": 64,
+            "w": 54,
+            "h": 62
           },
           "openFrame": null,
           "openVerb": null,
           "bloomAR": 30,
           "bloomRot": 0,
           "reshoot": true,
-          "verified": false,
-          "clamped": true
+          "notClamped": true,
+          "eyeChecked": true,
+          "rectOld": {
+            "x": 391,
+            "y": 79,
+            "w": 39,
+            "h": 89
+          },
+          "remappedRound": 4
         },
         {
           "key": "travel",
@@ -1668,17 +1973,18 @@
           "bloomAR": 58,
           "bloomRot": 0,
           "accepted": true,
-          "verified": true
+          "notClamped": true,
+          "eyeChecked": true
         },
         {
           "key": "watches",
           "label": "Часы",
           "pool": "watches",
           "rect": {
-            "x": 356,
-            "y": 148,
-            "w": 30,
-            "h": 26
+            "x": 517,
+            "y": 272,
+            "w": 43,
+            "h": 18
           },
           "openFrame": null,
           "openVerb": null,
@@ -1686,17 +1992,27 @@
           "bloomRot": 0,
           "placedBy": "composition",
           "reshoot": true,
-          "verified": true
+          "notClamped": true,
+          "eyeChecked": true,
+          "rectOld": {
+            "x": 356,
+            "y": 148,
+            "w": 30,
+            "h": 26
+          },
+          "remappedRound": 5,
+          "wrongTarget": false,
+          "reshootReason": "прямоугольник исправлен в раунде 5 — прежний показывал не тот предмет"
         },
         {
           "key": "music",
           "label": "Музыка",
           "pool": "music",
           "rect": {
-            "x": 350,
-            "y": 24,
-            "w": 52,
-            "h": 54
+            "x": 498,
+            "y": 28,
+            "w": 98,
+            "h": 82
           },
           "openFrame": null,
           "openVerb": null,
@@ -1704,50 +2020,78 @@
           "bloomRot": 0,
           "placedBy": "composition",
           "reshoot": true,
-          "verified": false,
-          "clamped": true
+          "notClamped": true,
+          "eyeChecked": true,
+          "rectOld": {
+            "x": 350,
+            "y": 24,
+            "w": 52,
+            "h": 54
+          },
+          "remappedRound": 4
         },
         {
           "key": "books",
           "label": "Книги",
           "pool": "books",
           "rect": {
+            "x": 505,
+            "y": 215,
+            "w": 65,
+            "h": 65
+          },
+          "openFrame": null,
+          "openVerb": null,
+          "bloomAR": 41,
+          "bloomRot": 0,
+          "placedBy": "composition",
+          "accepted": true,
+          "notClamped": true,
+          "eyeChecked": true,
+          "rectOld": {
             "x": 352,
             "y": 92,
             "w": 34,
             "h": 48
           },
-          "openFrame": "refs-2x/gamer/o-gamer-books.jpg",
-          "openVerb": "книга выдвигается",
-          "bloomAR": 41,
-          "bloomRot": 0,
-          "placedBy": "composition",
-          "accepted": true,
-          "verified": true
+          "remappedRound": 5,
+          "wrongTarget": false,
+          "reshootReason": "прямоугольник исправлен в раунде 5 — прежний показывал не тот предмет"
         },
         {
           "key": "money",
           "label": "Просто деньги",
           "pool": "money",
           "rect": {
+            "x": 590,
+            "y": 270,
+            "w": 18,
+            "h": 20
+          },
+          "openFrame": null,
+          "openVerb": null,
+          "bloomAR": 32,
+          "bloomRot": 0,
+          "placedBy": "composition",
+          "accepted": true,
+          "notClamped": true,
+          "eyeChecked": true,
+          "rectOld": {
             "x": 269,
             "y": 268,
             "w": 22,
             "h": 40
           },
-          "openFrame": "refs-2x/gamer/o-gamer-money.jpg",
-          "openVerb": "конверт светится",
-          "bloomAR": 32,
-          "bloomRot": 0,
-          "placedBy": "composition",
-          "accepted": true,
-          "verified": true
+          "remappedRound": 5,
+          "wrongTarget": false,
+          "reshootReason": "прямоугольник исправлен в раунде 5 — прежний показывал не тот предмет"
         }
       ],
       "roomLightness": 0.17,
       "baseLegacy": "refs/m-gamer.jpg",
       "kitComplete": false,
-      "acceptedCount": 7
+      "acceptedCount": 7,
+      "needsRemap": 0
     },
     {
       "id": "sport",
@@ -1777,7 +2121,8 @@
           "bloomAR": 41,
           "bloomRot": 0,
           "accepted": true,
-          "verified": true
+          "notClamped": true,
+          "eyeChecked": true
         },
         {
           "key": "watches",
@@ -1793,9 +2138,13 @@
           "openVerb": null,
           "bloomAR": 102,
           "bloomRot": 0,
-          "reshoot": true,
-          "verified": false,
-          "clamped": true
+          "reshoot": false,
+          "clamped": true,
+          "notClamped": false,
+          "eyeChecked": true,
+          "objectAbsent": true,
+          "wrongTarget": true,
+          "absentNote": "Часовницы в кадре нет. На столе поднос с уходом, часов на нём нет; в правой части велосипед и полки с книгами."
         },
         {
           "key": "anything",
@@ -1812,7 +2161,8 @@
           "bloomAR": 72,
           "bloomRot": 0,
           "accepted": true,
-          "verified": true
+          "notClamped": true,
+          "eyeChecked": true
         },
         {
           "key": "sneakers",
@@ -1829,7 +2179,8 @@
           "bloomAR": 120,
           "bloomRot": 0,
           "accepted": true,
-          "verified": true
+          "notClamped": true,
+          "eyeChecked": true
         },
         {
           "key": "grooming",
@@ -1846,60 +2197,87 @@
           "bloomAR": 102,
           "bloomRot": 0,
           "reshoot": true,
-          "verified": true
+          "notClamped": true,
+          "eyeChecked": true
         },
         {
           "key": "books",
           "label": "Книги",
           "pool": "books",
           "rect": {
+            "x": 504,
+            "y": 84,
+            "w": 66,
+            "h": 46
+          },
+          "openFrame": null,
+          "openVerb": null,
+          "bloomAR": 68,
+          "bloomRot": 0,
+          "accepted": false,
+          "notClamped": true,
+          "eyeChecked": true,
+          "rectOld": {
             "x": 360,
             "y": 90,
             "w": 70,
             "h": 60
           },
-          "openFrame": "refs-2x/sport/o-sport-books.jpg",
-          "openVerb": "книга выдвигается",
-          "bloomAR": 68,
-          "bloomRot": 0,
-          "accepted": true,
-          "verified": false,
-          "clamped": true
+          "remappedRound": 4,
+          "reshoot": true,
+          "reshootReason": "Прямоугольник переразмечен — прежний кадр проверялся против другого участка, порог надо прогнать заново"
         },
         {
           "key": "music",
           "label": "Музыка",
           "pool": "music",
           "rect": {
-            "x": 355,
-            "y": 200,
-            "w": 60,
-            "h": 34
+            "x": 538,
+            "y": 144,
+            "w": 62,
+            "h": 26
           },
           "openFrame": null,
           "openVerb": null,
           "bloomAR": 102,
           "bloomRot": 0,
           "reshoot": true,
-          "verified": false,
-          "clamped": true
+          "notClamped": true,
+          "eyeChecked": true,
+          "rectOld": {
+            "x": 355,
+            "y": 200,
+            "w": 60,
+            "h": 34
+          },
+          "remappedRound": 4
         },
         {
           "key": "sport",
           "label": "Спорт",
           "pool": "sport",
           "rect": {
-            "x": 250,
-            "y": 250,
-            "w": 110,
-            "h": 90
+            "x": 520,
+            "y": 240,
+            "w": 105,
+            "h": 75
           },
           "openFrame": null,
           "openVerb": null,
           "bloomAR": 71,
           "bloomRot": 0,
           "reshoot": true,
-          "verified": true
+          "notClamped": true,
+          "eyeChecked": true,
+          "rectOld": {
+            "x": 250,
+            "y": 250,
+            "w": 110,
+            "h": 90
+          },
+          "remappedRound": 5,
+          "wrongTarget": false,
+          "reshootReason": "прямоугольник исправлен в раунде 5 — прежний показывал не тот предмет"
         },
         {
           "key": "tech",
@@ -1917,7 +2295,8 @@
           "bloomRot": 0,
           "placedBy": "composition",
           "reshoot": true,
-          "verified": true
+          "notClamped": true,
+          "eyeChecked": true
         },
         {
           "key": "gaming",
@@ -1935,17 +2314,20 @@
           "bloomRot": 0,
           "placedBy": "composition",
           "reshoot": true,
-          "verified": true
+          "notClamped": true,
+          "eyeChecked": true,
+          "objectAbsent": true,
+          "absentNote": "предмета этой категории в интерьере нет"
         },
         {
           "key": "events",
           "label": "Впечатления",
           "pool": "events",
           "rect": {
-            "x": 300,
-            "y": 80,
-            "w": 55,
-            "h": 30
+            "x": 415,
+            "y": 142,
+            "w": 38,
+            "h": 53
           },
           "openFrame": null,
           "openVerb": null,
@@ -1953,7 +2335,17 @@
           "bloomRot": 0,
           "placedBy": "composition",
           "reshoot": true,
-          "verified": true
+          "notClamped": true,
+          "eyeChecked": true,
+          "rectOld": {
+            "x": 300,
+            "y": 80,
+            "w": 55,
+            "h": 30
+          },
+          "remappedRound": 5,
+          "wrongTarget": false,
+          "reshootReason": "прямоугольник исправлен в раунде 5 — прежний показывал не тот предмет"
         },
         {
           "key": "travel",
@@ -1971,31 +2363,43 @@
           "bloomRot": 0,
           "placedBy": "composition",
           "accepted": true,
-          "verified": true
+          "notClamped": true,
+          "eyeChecked": true
         },
         {
           "key": "money",
           "label": "Просто деньги",
           "pool": "money",
           "rect": {
+            "x": 590,
+            "y": 272,
+            "w": 18,
+            "h": 25
+          },
+          "openFrame": null,
+          "openVerb": null,
+          "bloomAR": 30,
+          "bloomRot": 0,
+          "placedBy": "composition",
+          "accepted": true,
+          "notClamped": true,
+          "eyeChecked": true,
+          "rectOld": {
             "x": 365,
             "y": 268,
             "w": 22,
             "h": 42
           },
-          "openFrame": "refs-2x/sport/o-sport-money.jpg",
-          "openVerb": "конверт светится",
-          "bloomAR": 30,
-          "bloomRot": 0,
-          "placedBy": "composition",
-          "accepted": true,
-          "verified": true
+          "remappedRound": 5,
+          "wrongTarget": false,
+          "reshootReason": "прямоугольник исправлен в раунде 5 — прежний показывал не тот предмет"
         }
       ],
       "roomLightness": 0.55,
       "baseLegacy": "refs/m-sport.jpg",
       "kitComplete": false,
-      "acceptedCount": 6
+      "acceptedCount": 6,
+      "needsRemap": 1
     },
     {
       "id": "study",
@@ -2025,24 +2429,35 @@
           "bloomAR": 50,
           "bloomRot": 0,
           "accepted": true,
-          "verified": true
+          "notClamped": true,
+          "eyeChecked": true
         },
         {
           "key": "watches",
           "label": "Часы",
           "pool": "watches",
           "rect": {
+            "x": 577,
+            "y": 200,
+            "w": 48,
+            "h": 20
+          },
+          "openFrame": null,
+          "openVerb": null,
+          "bloomAR": 120,
+          "bloomRot": 0,
+          "accepted": true,
+          "notClamped": true,
+          "eyeChecked": true,
+          "rectOld": {
             "x": 230,
             "y": 169,
             "w": 95,
             "h": 45
           },
-          "openFrame": "refs-2x/study/o-study-watches.jpg",
-          "openVerb": "крышка поднимается",
-          "bloomAR": 120,
-          "bloomRot": 0,
-          "accepted": true,
-          "verified": true
+          "remappedRound": 5,
+          "wrongTarget": false,
+          "reshootReason": "прямоугольник исправлен в раунде 5 — прежний показывал не тот предмет"
         },
         {
           "key": "anything",
@@ -2059,7 +2474,8 @@
           "bloomAR": 92,
           "bloomRot": 0,
           "accepted": true,
-          "verified": true
+          "notClamped": true,
+          "eyeChecked": true
         },
         {
           "key": "sneakers",
@@ -2076,7 +2492,8 @@
           "bloomAR": 120,
           "bloomRot": 0,
           "accepted": true,
-          "verified": true
+          "notClamped": true,
+          "eyeChecked": true
         },
         {
           "key": "grooming",
@@ -2093,60 +2510,87 @@
           "bloomAR": 100,
           "bloomRot": 0,
           "accepted": true,
-          "verified": true
+          "notClamped": true,
+          "eyeChecked": true
         },
         {
           "key": "books",
           "label": "Книги",
           "pool": "books",
           "rect": {
+            "x": 558,
+            "y": 28,
+            "w": 72,
+            "h": 122
+          },
+          "openFrame": null,
+          "openVerb": null,
+          "bloomAR": 45,
+          "bloomRot": 0,
+          "accepted": false,
+          "notClamped": true,
+          "eyeChecked": true,
+          "rectOld": {
             "x": 345,
             "y": 60,
             "w": 85,
             "h": 110
           },
-          "openFrame": "refs-2x/study/o-study-books.jpg",
-          "openVerb": "книга выдвигается",
-          "bloomAR": 45,
-          "bloomRot": 0,
-          "accepted": true,
-          "verified": false,
-          "clamped": true
+          "remappedRound": 4,
+          "reshoot": true,
+          "reshootReason": "Прямоугольник переразмечен — прежний кадр проверялся против другого участка, порог надо прогнать заново"
         },
         {
           "key": "music",
           "label": "Музыка",
           "pool": "music",
           "rect": {
-            "x": 350,
-            "y": 190,
-            "w": 80,
-            "h": 40
+            "x": 538,
+            "y": 144,
+            "w": 62,
+            "h": 32
           },
           "openFrame": null,
           "openVerb": null,
           "bloomAR": 116,
           "bloomRot": 0,
           "reshoot": true,
-          "verified": false,
-          "clamped": true
+          "notClamped": true,
+          "eyeChecked": true,
+          "rectOld": {
+            "x": 350,
+            "y": 190,
+            "w": 80,
+            "h": 40
+          },
+          "remappedRound": 4
         },
         {
           "key": "events",
           "label": "Впечатления",
           "pool": "events",
           "rect": {
-            "x": 300,
-            "y": 80,
+            "x": 417,
+            "y": 72,
             "w": 45,
-            "h": 60
+            "h": 35
           },
           "openFrame": null,
           "openVerb": null,
           "bloomAR": 44,
           "bloomRot": 0,
           "reshoot": true,
-          "verified": true
+          "notClamped": true,
+          "eyeChecked": true,
+          "rectOld": {
+            "x": 300,
+            "y": 80,
+            "w": 45,
+            "h": 60
+          },
+          "remappedRound": 5,
+          "wrongTarget": false,
+          "reshootReason": "прямоугольник исправлен в раунде 5 — прежний показывал не тот предмет"
         },
         {
           "key": "tech",
@@ -2164,7 +2608,10 @@
           "bloomRot": 0,
           "placedBy": "composition",
           "reshoot": true,
-          "verified": true
+          "notClamped": true,
+          "eyeChecked": true,
+          "objectAbsent": true,
+          "absentNote": "предмета этой категории в интерьере нет"
         },
         {
           "key": "gaming",
@@ -2182,7 +2629,10 @@
           "bloomRot": 0,
           "placedBy": "composition",
           "reshoot": true,
-          "verified": true
+          "notClamped": true,
+          "eyeChecked": true,
+          "objectAbsent": true,
+          "absentNote": "предмета этой категории в интерьере нет"
         },
         {
           "key": "sport",
@@ -2200,7 +2650,8 @@
           "bloomRot": 0,
           "placedBy": "composition",
           "accepted": true,
-          "verified": true
+          "notClamped": true,
+          "eyeChecked": true
         },
         {
           "key": "travel",
@@ -2218,17 +2669,18 @@
           "bloomRot": 0,
           "placedBy": "composition",
           "reshoot": true,
-          "verified": true
+          "notClamped": true,
+          "eyeChecked": true
         },
         {
           "key": "money",
           "label": "Просто деньги",
           "pool": "money",
           "rect": {
-            "x": 262,
-            "y": 268,
-            "w": 34,
-            "h": 42
+            "x": 545,
+            "y": 310,
+            "w": 30,
+            "h": 20
           },
           "openFrame": null,
           "openVerb": null,
@@ -2236,13 +2688,24 @@
           "bloomRot": 0,
           "placedBy": "composition",
           "reshoot": true,
-          "verified": true
+          "notClamped": true,
+          "eyeChecked": true,
+          "rectOld": {
+            "x": 262,
+            "y": 268,
+            "w": 34,
+            "h": 42
+          },
+          "remappedRound": 5,
+          "wrongTarget": false,
+          "reshootReason": "прямоугольник исправлен в раунде 5 — прежний показывал не тот предмет"
         }
       ],
       "roomLightness": 0.28,
       "baseLegacy": "refs/m-study.jpg",
       "kitComplete": false,
-      "acceptedCount": 7
+      "acceptedCount": 7,
+      "needsRemap": 0
     },
     {
       "id": "loft",
@@ -2272,7 +2735,8 @@
           "bloomAR": 48,
           "bloomRot": 0,
           "reshoot": true,
-          "verified": true
+          "notClamped": true,
+          "eyeChecked": true
         },
         {
           "key": "music",
@@ -2289,7 +2753,8 @@
           "bloomAR": 120,
           "bloomRot": 0,
           "reshoot": true,
-          "verified": true
+          "notClamped": true,
+          "eyeChecked": true
         },
         {
           "key": "anything",
@@ -2306,7 +2771,8 @@
           "bloomAR": 104,
           "bloomRot": 0,
           "reshoot": true,
-          "verified": true
+          "notClamped": true,
+          "eyeChecked": true
         },
         {
           "key": "sneakers",
@@ -2323,7 +2789,8 @@
           "bloomAR": 120,
           "bloomRot": 0,
           "reshoot": true,
-          "verified": true
+          "notClamped": true,
+          "eyeChecked": true
         },
         {
           "key": "tech",
@@ -2340,60 +2807,87 @@
           "bloomAR": 67,
           "bloomRot": 0,
           "reshoot": true,
-          "verified": true
+          "notClamped": true,
+          "eyeChecked": true
         },
         {
           "key": "books",
           "label": "Книги",
           "pool": "books",
           "rect": {
-            "x": 364,
-            "y": 70,
-            "w": 66,
-            "h": 100
+            "x": 444,
+            "y": 88,
+            "w": 62,
+            "h": 62
           },
           "openFrame": null,
           "openVerb": null,
           "bloomAR": 38,
           "bloomRot": 0,
           "reshoot": true,
-          "verified": false,
-          "clamped": true
+          "notClamped": true,
+          "eyeChecked": true,
+          "rectOld": {
+            "x": 364,
+            "y": 70,
+            "w": 66,
+            "h": 100
+          },
+          "remappedRound": 4
         },
         {
           "key": "sport",
           "label": "Спорт",
           "pool": "sport",
           "rect": {
+            "x": 544,
+            "y": 164,
+            "w": 86,
+            "h": 96
+          },
+          "openFrame": null,
+          "openVerb": null,
+          "bloomAR": 75,
+          "bloomRot": 0,
+          "accepted": false,
+          "notClamped": true,
+          "eyeChecked": true,
+          "rectOld": {
             "x": 340,
             "y": 215,
             "w": 90,
             "h": 70
           },
-          "openFrame": "refs-2x/loft/o-loft-sport.jpg",
-          "openVerb": "стойка раскрывается",
-          "bloomAR": 75,
-          "bloomRot": 0,
-          "accepted": true,
-          "verified": false,
-          "clamped": true
+          "remappedRound": 4,
+          "reshoot": true,
+          "reshootReason": "Прямоугольник переразмечен — прежний кадр проверялся против другого участка, порог надо прогнать заново"
         },
         {
           "key": "events",
           "label": "Впечатления",
           "pool": "events",
           "rect": {
-            "x": 300,
-            "y": 75,
-            "w": 45,
-            "h": 55
+            "x": 400,
+            "y": 165,
+            "w": 35,
+            "h": 60
           },
           "openFrame": null,
           "openVerb": null,
           "bloomAR": 47,
           "bloomRot": 0,
           "reshoot": true,
-          "verified": true
+          "notClamped": true,
+          "eyeChecked": true,
+          "rectOld": {
+            "x": 300,
+            "y": 75,
+            "w": 45,
+            "h": 55
+          },
+          "remappedRound": 5,
+          "wrongTarget": false,
+          "reshootReason": "прямоугольник исправлен в раунде 5 — прежний показывал не тот предмет"
         },
         {
           "key": "gaming",
@@ -2411,17 +2905,20 @@
           "bloomRot": 0,
           "placedBy": "composition",
           "reshoot": true,
-          "verified": true
+          "notClamped": true,
+          "eyeChecked": true,
+          "objectAbsent": true,
+          "absentNote": "предмета этой категории в интерьере нет"
         },
         {
           "key": "watches",
           "label": "Часы",
           "pool": "watches",
           "rect": {
-            "x": 300,
-            "y": 131,
-            "w": 48,
-            "h": 26
+            "x": 515,
+            "y": 207,
+            "w": 40,
+            "h": 15
           },
           "openFrame": null,
           "openVerb": null,
@@ -2429,7 +2926,17 @@
           "bloomRot": 0,
           "placedBy": "composition",
           "reshoot": true,
-          "verified": true
+          "notClamped": true,
+          "eyeChecked": true,
+          "rectOld": {
+            "x": 300,
+            "y": 131,
+            "w": 48,
+            "h": 26
+          },
+          "remappedRound": 5,
+          "wrongTarget": false,
+          "reshootReason": "прямоугольник исправлен в раунде 5 — прежний показывал не тот предмет"
         },
         {
           "key": "grooming",
@@ -2447,7 +2954,8 @@
           "bloomRot": 0,
           "placedBy": "composition",
           "reshoot": true,
-          "verified": true
+          "notClamped": true,
+          "eyeChecked": true
         },
         {
           "key": "travel",
@@ -2465,31 +2973,55 @@
           "bloomRot": 0,
           "placedBy": "composition",
           "reshoot": true,
-          "verified": true
+          "notClamped": true,
+          "eyeChecked": true
         },
         {
           "key": "money",
           "label": "Просто деньги",
           "pool": "money",
           "rect": {
+            "x": 577,
+            "y": 272,
+            "w": 20,
+            "h": 23
+          },
+          "openFrame": null,
+          "openVerb": null,
+          "bloomAR": 47,
+          "bloomRot": 0,
+          "placedBy": "composition",
+          "accepted": true,
+          "notClamped": true,
+          "eyeChecked": true,
+          "rectOld": {
             "x": 288,
             "y": 268,
             "w": 34,
             "h": 42
           },
-          "openFrame": "refs-2x/loft/o-loft-money.jpg",
-          "openVerb": "конверт светится",
-          "bloomAR": 47,
-          "bloomRot": 0,
-          "placedBy": "composition",
-          "accepted": true,
-          "verified": true
+          "remappedRound": 5,
+          "wrongTarget": false,
+          "reshootReason": "прямоугольник исправлен в раунде 5 — прежний показывал не тот предмет"
         }
       ],
       "roomLightness": 0.22,
       "baseLegacy": "refs/m-loft.jpg",
       "kitComplete": false,
-      "acceptedCount": 2
+      "acceptedCount": 2,
+      "needsRemap": 0
     }
-  ]
+  ],
+  "flags": {
+    "note": "ВАЖНО: notClamped — машинная проверка, она НЕ означает, что прямоугольник верный. См. eyeChecked.",
+    "notClamped": "x + w < 400. Означает только «не попало под обрезку окна 430». Ничего не говорит о том, тот ли предмет в прямоугольнике.",
+    "eyeChecked": "Человек посмотрел на кадр и подтвердил, что в прямоугольнике нужный предмет. Сейчас false везде.",
+    "wrongTarget": "Человек посмотрел и увидел, что предмет НЕ тот. Переразметить обязательно.",
+    "clamped": "Обратное notClamped. Оставлено для совместимости.",
+    "accepted": "Кадр «открыто» прошёл порог раунда 3 и подключён.",
+    "reshoot": "Кадр снят, ждёт пересъёмки.",
+    "objectAbsent": "Предмета нет в кадре. Зону раскрытием не обеспечить — либо доснять предмет в интерьер, либо убрать зону из этой комнаты. См. absentNote.",
+    "remappedRound": "В каком раунде прямоугольник переразмечен.",
+    "rectOld": "Прежний прямоугольник до переразметки — для сверки."
+  }
 }

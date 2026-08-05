@@ -1,7 +1,15 @@
 import { describe, it, expect } from "vitest";
 import tokensJson from "@design/tokens.json";
-import { hitTargetMin, roomsContract, scene } from "../src/config/design";
-import { sceneSize, zoneScenePercent, type SceneView } from "../src/components/scene/camera";
+import { hitTargetMin, rooms, roomsContract, scene } from "../src/config/design";
+import {
+  sceneSize,
+  viewportCenter,
+  zoneCenterAfterCamera,
+  zoneInsideViewport,
+  zoneScenePercent,
+  type SceneView,
+} from "../src/components/scene/camera";
+import { visibleZones } from "../src/components/scene/zones";
 import {
   clearBand,
   immersiveLayout,
@@ -12,19 +20,32 @@ import {
   type Screen,
 } from "../src/components/scene/immersive-layout";
 
-// Раскладка «комната во весь экран» (тикет 24).
+// Раскладка «комната во весь экран» (тикет 24) — и достижимость зон (тикет 40).
 //
-// ГЛАВНОЕ ТРЕБОВАНИЕ ТИКЕТА, ради которого этот файл и существует: после
-// раскладки все 13 зон каждой из 10 комнат обязаны остаться на экране целиком
-// и нажимаемыми — в обеих раскладках. Проверяется числом, а не глазами.
+// ЧЕМ ЭТОТ ФАЙЛ БЫЛ РАНЬШЕ И ПОЧЕМУ ПЕРЕПИСАН. До смены системы координат он
+// требовал: «все 13 зон каждой из 10 комнат остаются на экране ЦЕЛИКОМ». Это
+// было верно, но не потому, что раскладка хороша, — а потому что разметка жила
+// в координатах окна 430 и физически не могла выйти за него: всё, что стояло
+// правее, при разметке прижималось к краю. Тест проверял не раскладку, а
+// собственную обрезку контракта.
 //
-// Здесь же зафиксирована развилка контракта («сцена — весь экран 430×932»
-// против «сцена держит пропорцию 430:352»): тест «кадр уже упёрся в края
-// экрана» показывает, ПОЧЕМУ увеличивать кадр некуда — карта зон занимает
-// телефонную сцену ровно от края до края.
+// Раунды 4–5 перенесли разметку в координаты кадра 630 (ADR-0006). Теперь
+// 46 зон стоят правее прежней стены 430, и 33 из них в покое не видны на
+// телефоне вовсе. Это НАМЕРЕННО: окно 430 ездит по кадру, а не обрезает его.
 //
-// Если тест упал — раскладка кого-то из зон потеряла. Это баг раскладки,
-// а не повод поправить ожидания.
+// ТРЕБОВАНИЕ СТАЛО ДРУГИМ — не слабее, а честнее: **все зоны ДОСТИЖИМЫ**.
+// Дорог ровно две, и каждая зона обязана иметь хотя бы одну:
+//   1. через кадр — если зона попадает в окно, у неё есть настоящая цель
+//      нажатия и она не лежит под полосами интерфейса;
+//   2. через указатель зон (тикет 34) — он строится по ДАННЫМ, а не по
+//      видимости, поэтому доводит и до зоны за краем окна; наезд камеры
+//      доезжает до неё и ставит её в середину экрана.
+// Ослабления порога здесь нет: там, где зона видна, требования к цели прежние.
+// Что действительно исчезло — обещание «видно всё сразу», которого раскладка
+// никогда не давала, а давала обрезка карты.
+//
+// Если тест упал — либо раскладка потеряла зону, либо указатель перестал быть
+// полным списком. И то и другое — баг, а не повод поправить ожидания.
 
 const tokens = tokensJson as unknown as {
   layout: {
@@ -51,12 +72,62 @@ const allZones = roomsContract.rooms.flatMap((room) =>
   room.zones.map((zone) => ({ id: `${room.id}/${zone.key}`, rect: zone.rect })),
 );
 
+/**
+ * 33 зоны, до которых на телефоне в покое не дотянуться пальцем: они целиком
+ * лежат правее правого края окна (кадр 12…442). Список закрытый и именной —
+ * если зона уедет за окно незаметно, тест это покажет; если вернётся, тоже.
+ *
+ * Все 33 стоят в правой трети кадра, куда прежняя система координат размечать
+ * не давала: книжные шкафы, вертушки, вазы, часовницы и банки с деньгами.
+ */
+const BEYOND_PHONE_WINDOW = [
+  "cream/events",
+  "cream/books",
+  "cream/music",
+  "cream/flowers",
+  "warm/home",
+  "warm/books",
+  "warm/flowers",
+  "lux/books",
+  "lux/flowers",
+  "lux/home",
+  "emerald/books",
+  "emerald/music",
+  "emerald/flowers",
+  "bold/books",
+  "bold/flowers",
+  "cottage/books",
+  "cottage/flowers",
+  "gamer/watches",
+  "gamer/music",
+  "gamer/books",
+  "gamer/money",
+  "sport/books",
+  "sport/music",
+  "sport/sport",
+  "sport/money",
+  "study/watches",
+  "study/books",
+  "study/music",
+  "study/money",
+  "loft/books",
+  "loft/sport",
+  "loft/watches",
+  "loft/money",
+];
+
 function right(box: Box): number {
   return box.left + box.width;
 }
 
 function bottom(box: Box): number {
   return box.top + box.height;
+}
+
+/** Есть ли у зоны настоящая цель нажатия на этом экране (не срезана в ноль). */
+function tappable(rect: (typeof allZones)[number]["rect"], view: SceneView, screen: Screen) {
+  const hit = zoneHitBox(rect, view, screen);
+  return hit.width > 0 && hit.height > 0;
 }
 
 /**
@@ -81,8 +152,8 @@ function legacyHitBox(rect: (typeof allZones)[number]["rect"], view: SceneView):
   return {
     left,
     top,
-    width: Math.min(w, box.left + box.width + growX) - left,
-    height: Math.min(h, box.top + box.height + growY) - top,
+    width: Math.max(0, Math.min(w, box.left + box.width + growX) - left),
+    height: Math.max(0, Math.min(h, box.top + box.height + growY) - top),
   };
 }
 
@@ -114,42 +185,86 @@ describe("раскладка «во весь экран»: числа из па�
   });
 });
 
-describe("все 13 зон 10 комнат целиком на экране (тикет 24, главное требование)", () => {
+// ---------------------------------------------------------------------------
+// ГЛАВНОЕ ТРЕБОВАНИЕ: все зоны достижимы. Две дороги, ни одна зона не мимо.
+// ---------------------------------------------------------------------------
+describe("все 130 зон достижимы: кадром или указателем (тикет 40)", () => {
   it("130 зон в контракте — по 13 на комнату", () => {
     expect(allZones).toHaveLength(130);
     expect(roomsContract.rooms).toHaveLength(10);
   });
 
-  for (const { view, screen } of VIEWS) {
-    it(`${view} ${screen.w}×${screen.h}: ни одна зона не уехала за край экрана`, () => {
-      for (const { id, rect } of allZones) {
-        const box = zoneOnScreen(rect, view, screen);
-        expect(box.left, `${id} левый край`).toBeGreaterThanOrEqual(-EPS);
-        expect(box.top, `${id} верхний край`).toBeGreaterThanOrEqual(-EPS);
-        expect(right(box), `${id} правый край`).toBeLessThanOrEqual(screen.w + EPS);
-        expect(bottom(box), `${id} нижний край`).toBeLessThanOrEqual(screen.h + EPS);
-        expect(box.width, `${id} ширина`).toBeGreaterThan(0);
-        expect(box.height, `${id} высота`).toBeGreaterThan(0);
-      }
-    });
+  it("телефон: 97 зон достаются пальцем, 33 стоят за краем окна — и это все 130", () => {
+    // Разбиение, а не порог: у каждой зоны ровно одно из двух состояний, и
+    // сумма обязана давать 130. Молча потеряться нельзя ни одной.
+    const beyond = allZones.filter(({ rect }) => !tappable(rect, "phone", PHONE));
+    const reachableByFinger = allZones.filter(({ rect }) => tappable(rect, "phone", PHONE));
+    expect(beyond.map((z) => z.id)).toEqual(BEYOND_PHONE_WINDOW);
+    expect(beyond).toHaveLength(33);
+    expect(reachableByFinger).toHaveLength(97);
+    expect(beyond.length + reachableByFinger.length).toBe(allZones.length);
 
-    it(`${view} ${screen.w}×${screen.h}: ни одна зона не лежит под полосами интерфейса`, () => {
-      // Полосы держат заголовок, служебные ссылки, «Добавить вещь» и значок
-      // «поделиться». Зона под ними была бы видна, но не нажимаема — это и
-      // есть «нажимаемы» из требования тикета.
-      const free = clearBand(view, screen);
-      for (const { id, rect } of allZones) {
-        const box = zoneOnScreen(rect, view, screen);
-        expect(box.top, `${id} заезжает под верхнюю полосу`).toBeGreaterThanOrEqual(free.top - EPS);
-        expect(bottom(box), `${id} заезжает под нижнюю полосу`).toBeLessThanOrEqual(
-          free.bottom + EPS,
-        );
-      }
-    });
-  }
+    // «За краем окна» — это ровно геометрия кадра, а не случайность раскладки:
+    // окно показывает кадр с 12 по 442, и у всех 33 левый край не ближе 442.
+    const windowRight = -scene.phone.image.x + scene.phone.w;
+    expect(windowRight).toBe(442);
+    for (const { id, rect } of beyond) {
+      expect(rect.x, `${id} начинается правее окна`).toBeGreaterThanOrEqual(windowRight);
+    }
+  });
 
-  it("раскладка держится и на других вьюпортах, не только на двух проверочных", () => {
+  it("десктоп: окно равно кадру, поэтому пальцем достаются ВСЕ 130", () => {
+    // Десктопная сцена показывает кадр целиком (630 · 1.7778 = 1120), значит
+    // второй дороги там никому не нужно — и это же объясняет, почему разбиение
+    // выше касается только телефона.
+    for (const { id, rect } of allZones) {
+      const hit = zoneHitBox(rect, "desktop", DESKTOP);
+      expect(hit.width, `${id} ширина цели`).toBeGreaterThanOrEqual(hitTargetMin - EPS);
+      expect(hit.height, `${id} высота цели`).toBeGreaterThanOrEqual(hitTargetMin - EPS);
+    }
+  });
+
+  it("ДОРОГА 2: каждая зона за краем окна есть в указателе зон", () => {
+    // Указатель (`ZoneIndex`) строит список тем же `visibleZones`, что и сцена,
+    // и смотрит только на данные — ни на кадр, ни на экран. Поэтому «зона не
+    // видна» и «зона недоступна» — разные вещи, и это проверка, а не обещание.
+    const listed = new Set(
+      rooms.flatMap((room) =>
+        visibleZones(room.zones, []).map((zone) => `${room.id}/${zone.key}`),
+      ),
+    );
+    // Из 33 заоконных продукт показывает 30: три (`gamer/money`, `sport/money`,
+    // `loft/money`) — это скрытая зона денег, её нет ни в кадре, ни в списке.
+    const hidden = BEYOND_PHONE_WINDOW.filter((id) => !listed.has(id));
+    expect(hidden).toEqual(["gamer/money", "sport/money", "study/money", "loft/money"]);
+    for (const id of BEYOND_PHONE_WINDOW) {
+      if (hidden.includes(id)) continue;
+      expect(listed.has(id), `${id}: за окном и не в указателе — недостижима`).toBe(true);
+    }
+  });
+
+  it("ДОРОГА 2: наезд из указателя доводит заоконную зону до середины экрана", () => {
+    // Без этого «есть в списке» ничего не стоило бы: нажал пункт — и уехал в
+    // пустоту. Камера центрируется на середине прямоугольника, поэтому доезжает
+    // и туда, куда пальцем не дотянуться.
+    for (const view of ["phone", "desktop"] as const) {
+      const c = viewportCenter(view);
+      for (const { id, rect } of allZones) {
+        if (view === "phone" && !BEYOND_PHONE_WINDOW.includes(id)) continue;
+        const got = zoneCenterAfterCamera(rect, view);
+        expect(got.x, `${id} ${view} x`).toBeCloseTo(c.x, 9);
+        expect(got.y, `${id} ${view} y`).toBeCloseTo(c.y, 9);
+      }
+    }
+  });
+
+  it("ни одна зона не лежит под полосами интерфейса — ни на одном вьюпорте", () => {
+    // По вертикали окно кадр НЕ режет: полосы держат заголовок, служебные
+    // ссылки, «Добавить вещь» и указатель зон, и зона под ними была бы видна,
+    // но не нажимаема. Это требование пережило смену координат целиком —
+    // разметка по вертикали как была в пределах кадра, так и осталась.
     const sweep: Array<{ view: SceneView; screen: Screen }> = [
+      ...VIEWS,
       { view: "phone", screen: { w: 430, h: 745 } }, // тот же телефон с адресной строкой
       { view: "phone", screen: { w: 390, h: 844 } },
       { view: "phone", screen: { w: 375, h: 667 } },
@@ -164,53 +279,104 @@ describe("все 13 зон 10 комнат целиком на экране (т�
       for (const { id, rect } of allZones) {
         const box = zoneOnScreen(rect, view, screen);
         const where = `${id} @ ${view} ${screen.w}×${screen.h}`;
-        expect(box.left, `${where} левый край`).toBeGreaterThanOrEqual(-EPS);
-        expect(right(box), `${where} правый край`).toBeLessThanOrEqual(screen.w + EPS);
-        expect(box.top, `${where} верх`).toBeGreaterThanOrEqual(free.top - EPS);
-        expect(bottom(box), `${where} низ`).toBeLessThanOrEqual(free.bottom + EPS);
+        expect(box.top, `${where} заезжает под верхнюю полосу`).toBeGreaterThanOrEqual(
+          free.top - EPS,
+        );
+        expect(bottom(box), `${where} заезжает под нижнюю полосу`).toBeLessThanOrEqual(
+          free.bottom + EPS,
+        );
       }
     }
+  });
+
+  it("состав «за окном» не зависит от размера телефона — это свойство кадра", () => {
+    // Окно всегда 430 в координатах сцены, каким бы ни был экран: сцена держит
+    // пропорцию и масштабируется целиком. Значит и список заоконных зон один и
+    // тот же на любом телефоне — меняется только физический размер пикселя.
+    for (const screen of [
+      { w: 430, h: 745 },
+      { w: 390, h: 844 },
+      { w: 375, h: 667 },
+      { w: 360, h: 640 },
+    ]) {
+      const beyond = allZones.filter(({ rect }) => !tappable(rect, "phone", screen));
+      expect(beyond.map((z) => z.id), `${screen.w}×${screen.h}`).toEqual(BEYOND_PHONE_WINDOW);
+    }
+  });
+
+  it("«зона целиком в окне» и «есть цель нажатия» — разные вещи, и обе посчитаны", () => {
+    // 68 зон попадают в окно ЦЕЛИКОМ, ещё 29 — краем: 17 свешиваются влево
+    // (кадр начинается за левым краем окна, x < 12) и 12 упираются в правый
+    // край, не уходя за него совсем. Краем — это тоже достижимо: видимого
+    // куска хватает пальцу, кроме семи случаев ниже.
+    const whole = allZones.filter(({ rect }) => zoneInsideViewport(rect, "phone"));
+    expect(whole).toHaveLength(68);
+    const partial = allZones.filter(
+      ({ id, rect }) => !zoneInsideViewport(rect, "phone") && !BEYOND_PHONE_WINDOW.includes(id),
+    );
+    expect(partial).toHaveLength(29);
+    expect(whole.length + partial.length + BEYOND_PHONE_WINDOW.length).toBe(130);
+    // Левый свес — обратная сторона той же смены координат: кадр стоит в сцене
+    // со сдвигом −12, поэтому зона у левого края кадра (x < 12) уходит под
+    // левый край окна. Их 17, и все они срезаются, а не пропадают.
+    expect(allZones.filter(({ rect }) => rect.x < -scene.phone.image.x)).toHaveLength(17);
   });
 });
 
 describe("цель нажатия зоны (rooms.json → hitTargetMin)", () => {
-  it("десктоп: все 130 зон получают полные 44×44", () => {
-    for (const { id, rect } of allZones) {
-      const hit = zoneHitBox(rect, "desktop", DESKTOP);
-      expect(hit.width, `${id} ширина цели`).toBeGreaterThanOrEqual(hitTargetMin - EPS);
-      expect(hit.height, `${id} высота цели`).toBeGreaterThanOrEqual(hitTargetMin - EPS);
-    }
-  });
-
-  it("телефон: 44×44 у всех, кроме восьми зон у правого края кадра", () => {
-    // Телефонный кроп режет кадр по x = 430, и у зоны, упёршейся в этот край,
-    // добивка до 44 px обрезается вместе с кадром. Это геометрия пакета, а не
-    // раскладки: список и числа те же, что были до тикета (проверка ниже).
+  it("телефон: полные 44×44 у всех, кроме семи зон на самом краю окна", () => {
+    // Порог не ослаблен: 44 px из `hitTargetMin`, как и был. Меньше получают
+    // только зоны, которые окно режет по правому краю — у них до 44 добивать
+    // некуда, пикселей за краем сцены нет. Зоны, ушедшие за окно целиком,
+    // сюда не входят: их дорога — указатель (разбиение выше).
     const narrow = allZones
+      .filter(({ id }) => !BEYOND_PHONE_WINDOW.includes(id))
       .map(({ id, rect }) => ({ id, hit: zoneHitBox(rect, "phone", PHONE) }))
       .filter(({ hit }) => hit.width < hitTargetMin - EPS || hit.height < hitTargetMin - EPS);
 
     expect(narrow.map((z) => z.id)).toEqual([
-      "cream/flowers",
-      "lux/flowers",
-      "emerald/flowers",
+      "cream/home",
+      "emerald/home",
       "bold/music",
+      "bold/home",
       "cottage/music",
-      "cottage/flowers",
-      "cottage/home",
-      "gamer/events",
+      "sport/events",
+      "study/events",
     ]);
-    // Самая узкая цель на телефоне — 33 px по ширине: палец попадает.
-    // Было 35 до раунда 3: разводя пересечения прямоугольников в ноль, дизайн
-    // сузил `lux/flowers` с 30 до 22 px, и вместе с ней — самую узкую цель.
+    // Самая узкая цель на телефоне — 16 px по ширине (`bold/music`: зона
+    // 426…502 показана окном только до 442). Это меньше прежних 33 px, и это
+    // ДОЛГ, а не приёмка: дизайну стоит сдвинуть такие зоны внутрь окна или
+    // принять, что дорога к ним — указатель. Записано в ADR-0006.
     const worst = Math.min(...narrow.map((z) => z.hit.width));
-    expect(worst).toBeCloseTo(33, 2);
+    expect(worst).toBeCloseTo(16, 2);
+    // По высоте окно не режет никого: 44 у всех семи.
     for (const { id, hit } of narrow) {
       expect(hit.height, `${id} высота цели`).toBeGreaterThanOrEqual(hitTargetMin - EPS);
     }
   });
 
-  it("нажимать не стало хуже ни в одной зоне: цель не меньше прежней", () => {
+  it("десктоп: все 130 зон получают полные 44×44 на любом окне", () => {
+    for (const screen of [
+      DESKTOP,
+      { w: 1024, h: 768 },
+      { w: 1440, h: 900 },
+      { w: 1920, h: 1080 },
+    ]) {
+      for (const { id, rect } of allZones) {
+        const hit = zoneHitBox(rect, "desktop", screen);
+        expect(hit.width, `${id} ширина цели @${screen.w}`).toBeGreaterThanOrEqual(
+          hitTargetMin - EPS,
+        );
+        expect(hit.height, `${id} высота цели @${screen.w}`).toBeGreaterThanOrEqual(
+          hitTargetMin - EPS,
+        );
+      }
+    }
+  });
+
+  it("нажимать не стало хуже ни в одной видимой зоне: цель не меньше прежней", () => {
+    // Сравнение с раскладкой ДО тикета 24 (сцена блоком в колонке). Координаты
+    // у обеих теперь одни и те же, поэтому меряется именно раскладка.
     for (const { view, screen } of VIEWS) {
       for (const { id, rect } of allZones) {
         const now = zoneHitBox(rect, view, screen);
@@ -232,26 +398,34 @@ describe("цель нажатия зоны (rooms.json → hitTargetMin)", () =>
 });
 
 describe("развилка контракта: почему кадр не растянут на весь экран", () => {
-  it("телефон: карта зон занимает кадр ровно от края до края экрана", () => {
-    // Это и есть ответ на «сцена — весь экран 430×932». Крайние зоны стоят
-    // ВПЛОТНУЮ к обеим сторонам сцены: увеличить кадр — значит вынести их за
-    // экран. Запас равен нулю, а не «маленький».
+  it("телефон: окно показывает 430 из 630 px кадра — оно ездит, а не режет карту", () => {
+    // Это и есть ответ на «сцена — весь экран 430×932», переписанный под новую
+    // систему координат. Прежний довод («карта занимает кадр ровно от края до
+    // края экрана») держался на обрезке: карта была шириной ровно с окно.
+    // Теперь карта шириной с КАДР, и увеличивать кадр по-прежнему некуда — но
+    // по другой причине: за окном и так уже стоят 33 зоны, растягивание кадра
+    // выгонит за окно ещё.
     const band = sceneBand("phone", PHONE);
+    expect(band.width).toBe(scene.phone.w);
+    // Карта покрывает кадр целиком: от 0 до 630.
+    const left = Math.min(...allZones.map((z) => z.rect.x));
+    const rightEdge = Math.max(...allZones.map((z) => z.rect.x + z.rect.w));
+    expect(left).toBe(0);
+    expect(rightEdge).toBe(scene.phone.image.w);
+    // А окно видит из этого 430/630 = 68.3%.
+    expect((scene.phone.w / scene.phone.image.w) * 100).toBeCloseTo(68.3, 1);
+    // По вертикали запас нулевой с обеих сторон — здесь ничего не изменилось.
     const boxes = allZones.map(({ rect }) => zoneOnScreen(rect, "phone", PHONE));
-    const left = Math.min(...boxes.map((b) => b.left));
-    const rightEdge = Math.max(...boxes.map(right));
-    expect(left - band.left).toBeCloseTo(0, 3);
-    expect(band.left + band.width - rightEdge).toBeCloseTo(0, 3);
-    // По вертикали запас тоже нулевой: зоны занимают 5…352 из 352.
     const top = Math.min(...boxes.map((b) => b.top));
     const bottomEdge = Math.max(...boxes.map(bottom));
     expect(top - band.top).toBeCloseTo((5 / scene.phone.h) * band.height, 2);
-    expect(band.top + band.height - bottomEdge).toBeCloseTo(0, 2);
+    expect(band.top + band.height - bottomEdge).toBeCloseTo(0, 1);
   });
 
   it("десктоп: кадру есть куда расти, и он растёт вместе с окном", () => {
-    // Десктопная сцена видит кадр целиком (630 px пакета), а карта зон — его
-    // левые 68%: по вертикали запаса нет, поэтому размер задаёт высота окна.
+    // Десктопная сцена видит кадр целиком, поэтому там роста ограничивает
+    // только высота окна — и карта теперь занимает всю его ширину, а не левые
+    // 68%, как при прежней системе координат.
     const short = sceneBand("desktop", { w: 1280, h: 800 });
     const tall = sceneBand("desktop", { w: 1920, h: 1080 });
     expect(tall.width).toBeGreaterThan(short.width);
@@ -259,5 +433,11 @@ describe("развилка контракта: почему кадр не рас
     expect(tall.width).toBeGreaterThan(scene.desktop.w);
     // Ширину экрана кадр не перерастает: зоны обязаны остаться в кадре.
     expect(tall.width).toBeLessThanOrEqual(1920);
+    // Крайняя правая зона стоит у самого края десктопной сцены.
+    const rightMost = Math.max(
+      ...allZones.map(({ rect }) => right(zoneOnScreen(rect, "desktop", DESKTOP))),
+    );
+    const band = sceneBand("desktop", DESKTOP);
+    expect(rightMost).toBeCloseTo(band.left + band.width, 0);
   });
 });

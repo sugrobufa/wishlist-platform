@@ -3,6 +3,7 @@ import {
   cameraScale,
   rooms,
   roomsContract,
+  scene,
   sceneMotion,
   toDesktopRect,
   zoneCameraScale,
@@ -18,6 +19,7 @@ import {
   walkScaleAt,
   walkScore,
   zoneFramePercent,
+  zoneRectFor,
   zoneScenePercent,
   type SceneView,
 } from "../src/components/scene/camera";
@@ -58,7 +60,12 @@ describe("наезд камеры (формула motion.json → openZone)", ()
     const { w: sw, h: sh } = roomsContract.scene.phone;
     // Масштаб зоны — формула, а не одно число на все зоны (ADR-0003 §2).
     const scale = zoneCameraScale(fashion.rect, "phone");
-    const r = fashion.rect;
+    // Прямоугольник переводится из координат КАДРА в координаты сцены: кадр
+    // стоит в телефонной сцене со сдвигом −12, значит x_сцены = x_кадра − 12
+    // (тикет 40, ADR-0006). Раньше карта задавалась прямо в координатах окна и
+    // здесь стоял `fashion.rect` как есть.
+    const img = roomsContract.scene.phone.image;
+    const r = { ...fashion.rect, x: fashion.rect.x + img.x, y: fashion.rect.y + img.y };
     // «Доехать до центра» без всяких масштабов: сколько процентов слоя пройти.
     const dxPure = ((sw / 2 - (r.x + r.w / 2)) / sw) * 100;
     const dyPure = ((sh / 2 - (r.y + r.h / 2)) / sh) * 100;
@@ -70,7 +77,7 @@ describe("наезд камеры (формула motion.json → openZone)", ()
     const dxContract = dxPure / scale;
     expect(dxContract * scale * scale).toBeCloseTo(dx, 10);
 
-    const cam = computeZoneCamera(r, "phone");
+    const cam = computeZoneCamera(fashion.rect, "phone");
     expect(cam.scale).toBe(scale);
     expect(cam.dx).toBeCloseTo(dx, 10);
     expect(cam.dy).toBeCloseTo(dy, 10);
@@ -83,10 +90,14 @@ describe("наезд камеры (формула motion.json → openZone)", ()
     const { w: sw, h: sh } = roomsContract.scene.desktop;
     // Ширина зоны в формуле масштаба — телефонная на обоих видах (sceneW: 430).
     const scale = zoneCameraScale(fashion.rect, "desktop");
-    const imageShift = Math.abs(roomsContract.scene.phone.image.x); // 12
 
+    // Тикет 40: слагаемого больше НЕТ. Прямоугольник задан в координатах кадра
+    // 630, десктоп показывает кадр целиком от нуля (630 · 1.7778 = 1120), и
+    // весь перевод — один множитель. Прежде здесь стояло `(r.x + 12) * f`:
+    // это переводило координаты окна в координаты кадра, а теперь сдвинуло бы
+    // каждую зону на 21 px вправо (ADR-0006).
     const r = fashion.rect;
-    const x = (r.x + imageShift) * f;
+    const x = r.x * f;
     const y = r.y * f;
     const w = r.w * f;
     const h = r.h * f;
@@ -100,20 +111,32 @@ describe("наезд камеры (формула motion.json → openZone)", ()
     expect(cam.pan).toBe(`translate(${round4(dx)}%, ${round4(dy)}%)`);
   });
 
-  it("сдвиг без масштаба не превышает полслоя (обе платформы, все 120 зон)", () => {
-    // Проценты translate считаются от слоя сдвига (он равен вьюпорту), а центр
-    // зоны всегда внутри сцены — значит «чистый» путь до центра ≤ 50% слоя.
-    // Сам dx теперь больше: он домножен на scale, и это ровно тот множитель,
-    // который гасит разбегание от масштаба (раньше его давал браузер).
-    for (const room of rooms) {
-      for (const zone of room.zones) {
-        for (const view of ["phone", "desktop"] as const) {
+  it("сдвиг без масштаба не выходит за пределы КАДРА (обе платформы, 112 зон)", () => {
+    // Проценты translate считаются от слоя сдвига (он равен вьюпорту). Прежде
+    // здесь стоял предел «≤ 50% слоя»: центр зоны лежал внутри сцены, потому
+    // что карта была в координатах окна и дальше него не заходила.
+    //
+    // После смены системы координат (тикет 40) центр зоны лежит внутри КАДРА, а
+    // кадр шире окна и торчит из него с обеих сторон. Значит и предел другой —
+    // он выводится из геометрии пакета, а не назначается числом: путь до центра
+    // не больше расстояния от середины сцены до дальнего края кадра.
+    // На телефоне это 403 px из 430 (93.7%), на десктопе ровно 50%.
+    for (const view of ["phone", "desktop"] as const) {
+      const { w, h } = sceneSize(view);
+      const f = frameRect(view);
+      const limitX = (Math.max(w / 2 - f.x, f.x + f.w - w / 2) / w) * 100;
+      const limitY = (Math.max(h / 2 - f.y, f.y + f.h - h / 2) / h) * 100;
+      for (const room of rooms) {
+        for (const zone of room.zones) {
           const cam = computeZoneCamera(zone.rect, view);
           const id = `${room.id}/${zone.key} ${view}`;
-          expect(Math.abs(cam.dx / cam.scale), `${id} dx`).toBeLessThanOrEqual(50);
-          expect(Math.abs(cam.dy / cam.scale), `${id} dy`).toBeLessThanOrEqual(50);
+          expect(Math.abs(cam.dx / cam.scale), `${id} dx`).toBeLessThanOrEqual(limitX);
+          expect(Math.abs(cam.dy / cam.scale), `${id} dy`).toBeLessThanOrEqual(limitY);
         }
       }
+      // И сам предел — тот, что диктует кадр, а не круглое число из головы.
+      if (view === "phone") expect(limitX).toBeCloseTo(93.7, 1);
+      if (view === "desktop") expect(limitX).toBeCloseTo(50.0, 1);
     }
   });
 
@@ -140,24 +163,46 @@ describe("наезд камеры (формула motion.json → openZone)", ()
         widths.add(zone.rect.w);
       }
     }
-    // Зоны шириной от 22 до 269 px — ровно то, из-за чего одно число дизайн
+    // Зоны шириной от 25 до 269 px — ровно то, из-за чего одно число дизайн
     // назвал ошибкой: узкой зоне нужно другое приближение, чем широкой.
-    expect(Math.min(...widths)).toBe(22);
+    // (В контракте есть и 18 px — `gamer/money` и `sport/money`, но зона денег
+    // не рендерится; здесь считаются только показываемые.)
+    expect(Math.min(...widths)).toBe(25);
     expect(Math.max(...widths)).toBe(269);
-    const narrow = zoneCameraScale({ x: 0, y: 0, w: 22, h: 22 }, "phone");
+    const narrow = zoneCameraScale({ x: 0, y: 0, w: 25, h: 22 }, "phone");
     const wide = zoneCameraScale({ x: 0, y: 0, w: 269, h: 40 }, "phone");
     expect(narrow).toBeGreaterThan(cameraScale.phone);
     expect(wide).toBeLessThan(cameraScale.phone);
   });
 
-  it("телефон: правый край кадра не обнажается ни у одной из 120 зон", () => {
-    // Кадр 630 против сцены 430 — справа запас 200 px, его хватает любой зоне.
-    // Слева и снизу запаса нет: там пустоту даёт сама геометрия пакета (ADR-0002).
-    for (const room of rooms) {
-      for (const zone of room.zones) {
-        expect(frameGapAfterZoom(zone.rect, "phone").right, `${room.id}/${zone.key}`).toBe(0);
-      }
+  it("телефон: правый край кадра теперь тоже обнажается — у 15 зон правой трети", () => {
+    // ЭТО ПЕРЕМЕНА, А НЕ ОСЛАБЛЕНИЕ. Прежде здесь стояло «правый край не
+    // обнажается ни у одной зоны», и держалось это на том, что справа лежал
+    // нетронутый запас 200 px: кадр 630 против окна 430, а разметка дальше 430
+    // не заходила физически. После смены системы координат (тикет 40) в правой
+    // трети кадра стоят настоящие предметы и настоящие зоны — и наезд на них
+    // обнажает правый край ровно так же, как левый обнажался всегда.
+    //
+    // Зажим по границам кадра по-прежнему НЕ добавлен (ADR-0002): он сдвигает
+    // центр зоны ровно на ту величину, которую прячет, то есть возвращает баг
+    // «подошли, а предмета не видно». Смягчает пустоту вуаль (55%) и то, что
+    // сверху ложится кадр «открыто».
+    const exposed = rooms.flatMap((room) =>
+      room.zones
+        .filter((zone) => frameGapAfterZoom(zone.rect, "phone").right > 0)
+        .map((zone) => ({ id: `${room.id}/${zone.key}`, rect: zone.rect })),
+    );
+    expect(exposed).toHaveLength(15);
+    // И все пятнадцать стоят правее прежней стены 430 — то есть там, куда
+    // разметка раньше не дотягивалась.
+    for (const { id, rect } of exposed) {
+      expect(rect.x + rect.w, `${id}`).toBeGreaterThan(430);
     }
+    // Левый край обнажается по-прежнему и по той же причине — запаса там нет.
+    const left = rooms.flatMap((room) =>
+      room.zones.filter((zone) => frameGapAfterZoom(zone.rect, "phone").left > 0),
+    );
+    expect(left.length).toBeGreaterThan(0);
   });
 
   it("зона в центральной полосе кадра: после наезда пустоты нет вовсе", () => {
@@ -267,9 +312,10 @@ describe("походка: разложение openZone по слоям", () => 
 });
 
 // Позиция хотспота (баг приёмки 18): зона обязана лежать на одном и том же
-// участке КАДРА при любой ширине экрана. Карта задана в координатах телефонной
-// сцены (430×352), кадр 630×351 стоит в ней со сдвигом x = −12; на телефоне
-// видна часть кадра, на десктопе — весь кадр (630 · 1.7778 = 1120).
+// участке КАДРА при любой ширине экрана. Карта задана в координатах САМОГО
+// кадра 630×351 (тикет 40); кадр стоит в телефонной сцене 430×352 со сдвигом
+// x = −12, поэтому на телефоне видна его часть, а на десктопе весь кадр
+// (630 · 1.7778 = 1120).
 describe("позиция хотспота (доля кадра, rooms.json)", () => {
   const img = roomsContract.scene.phone.image;
   const allZones = rooms.flatMap((room) =>
@@ -288,14 +334,19 @@ describe("позиция хотспота (доля кадра, rooms.json)", ()
     };
   }
 
-  it("120 зон: доля кадра совпадает с картой ((x+12)/630, y/351)", () => {
-    // Раунд 2: в контракте 130 зон, в рендере 120 — `money` спрятана до записи
-    // в zones.json (ADR-0003). Прямоугольники всех 130 проверяет design-contract.
-    expect(allZones).toHaveLength(120);
+  it("112 зон: доля кадра совпадает с картой (x/630, y/351) — без слагаемого", () => {
+    // В контракте 130 зон, в рендере 112: `money` скрыта решением владельца
+    // (ADR-0004), ещё восемь — потому что предмета нет в интерьере (ADR-0006).
+    // Прямоугольники всех 130 проверяет design-contract.
+    //
+    // Слагаемого `+12` здесь больше нет: карта УЖЕ в координатах кадра, и доля
+    // кадра — это просто деление. Раньше стояло `(rect.x − img.x)`, потому что
+    // карта жила в координатах окна.
+    expect(allZones).toHaveLength(112);
     for (const { id, rect } of allZones) {
       const box = zoneFramePercent(rect);
-      expect(box.left, `${id} left`).toBeCloseTo(((rect.x - img.x) / img.w) * 100, 3);
-      expect(box.top, `${id} top`).toBeCloseTo(((rect.y - img.y) / img.h) * 100, 3);
+      expect(box.left, `${id} left`).toBeCloseTo((rect.x / img.w) * 100, 3);
+      expect(box.top, `${id} top`).toBeCloseTo((rect.y / img.h) * 100, 3);
       expect(box.width, `${id} width`).toBeCloseTo((rect.w / img.w) * 100, 3);
       expect(box.height, `${id} height`).toBeCloseTo((rect.h / img.h) * 100, 3);
     }
@@ -315,15 +366,52 @@ describe("позиция хотспота (доля кадра, rooms.json)", ()
     }
   });
 
-  it("телефон: поведение прежнее — проценты сцены равны карте как есть", () => {
-    // Регресс-щит мобильного вида: до починки телефон считался
-    // rectToPercent(rect, "phone") и выглядел верно — эти числа не изменились.
+  it("ЗНАК: телефонное окно ездит по кадру — x_окна = x_кадра − 12, ровно и всегда", () => {
+    // САМЫЙ ВАЖНЫЙ ТЕСТ СМЕНЫ КООРДИНАТ. Ошибка в знаке здесь стоит 24 px
+    // кадра, и поймать её больше нечем: центровка от знака не зависит вовсе —
+    // зона приедет в середину экрана одинаково аккуратно и не на тот предмет.
+    //
+    // Прежде тут стоял регресс-щит с обратным смыслом: «проценты сцены равны
+    // карте как есть», потому что карта и была в координатах окна. Теперь она
+    // в координатах кадра, и щит проверяет ровно СДВИГ: минус 12, не плюс.
+    const shiftPx = 12;
+    expect(img.x).toBe(-shiftPx);
     for (const { id, rect } of allZones) {
       const now = zoneScenePercent(rect, "phone");
+      const expectedLeftPx = rect.x - shiftPx;
+      expect((now.left / 100) * scene.phone.w, `${id} left px`).toBeCloseTo(expectedLeftPx, 2);
+      // По вертикали кадр не сдвинут (image.y = 0), там перевод тождественный.
+      expect((now.top / 100) * scene.phone.h, `${id} top px`).toBeCloseTo(rect.y, 2);
+      // Размер зоны от переноса не меняется — двигается начало, не масштаб.
       const before = rectToPercent(rect, "phone");
-      for (const side of ["left", "top", "width", "height"] as const) {
-        expect(now[side], `${id} ${side}`).toBeCloseTo(before[side], 3);
-      }
+      expect(now.width, `${id} width`).toBeCloseTo(before.width, 3);
+      expect(now.height, `${id} height`).toBeCloseTo(before.height, 3);
+      // И сдвиг именно ВЛЕВО: зона стоит левее, чем её координата в кадре.
+      expect(now.left, `${id} сдвиг влево`).toBeLessThan(before.left);
+    }
+    // То же самое через `zoneRectFor` — тот путь, которым ходит камера.
+    for (const { id, rect } of allZones) {
+      expect(zoneRectFor(rect, "phone").x, `${id}`).toBe(rect.x - shiftPx);
+      expect(zoneRectFor(rect, "phone").y, `${id}`).toBe(rect.y);
+    }
+  });
+
+  it("ЗНАК: десктоп — чистый множитель, слагаемого нет", () => {
+    // Обратная сторона того же: на десктопе кадр показан целиком и от нуля,
+    // поэтому зона в координатах кадра переводится ОДНИМ множителем. Если
+    // `+12` вернётся, каждая зона уедет вправо на 21 px, и это тоже пройдёт
+    // мимо центровки.
+    const f = roomsContract.scene.desktop.factorFromPhone;
+    for (const { id, rect } of allZones) {
+      expect(toDesktopRect(rect).x, `${id} x`).toBeCloseTo(rect.x * f, 9);
+      expect(toDesktopRect(rect).y, `${id} y`).toBeCloseTo(rect.y * f, 9);
+      expect(zoneRectFor(rect, "desktop").x, `${id}`).toBeCloseTo(rect.x * f, 9);
+    }
+    // Зона у левого края кадра садится ровно в ноль десктопной сцены.
+    const atLeft = allZones.filter(({ rect }) => rect.x === 0);
+    expect(atLeft.length).toBeGreaterThan(0);
+    for (const { id, rect } of atLeft) {
+      expect(toDesktopRect(rect).x, `${id}`).toBe(0);
     }
   });
 
@@ -353,8 +441,7 @@ describe("позиция хотспота (доля кадра, rooms.json)", ()
     const fixedLeftPx = (zoneScenePercent(music.rect, "desktop").left / 100) * sw;
     expect(buggyLeftPx).toBeCloseTo(music.rect.x, 3); // старое поведение = телефонные px
     expect(fixedLeftPx).toBeCloseTo(
-      (music.rect.x - roomsContract.scene.phone.image.x) *
-        roomsContract.scene.desktop.factorFromPhone,
+      music.rect.x * roomsContract.scene.desktop.factorFromPhone,
       3,
     );
     expect(fixedLeftPx - buggyLeftPx).toBeGreaterThan(300); // проигрыватель уехал вправо

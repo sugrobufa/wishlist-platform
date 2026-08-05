@@ -43,12 +43,22 @@ const l1 = (a, b) => {
   return s / a.length;
 };
 
+/**
+ * Прямоугольник зоны → пиксели рабочего кадра CMP_W×CMP_H.
+ *
+ * Раунд 4 перенёс разметку в координаты САМОГО КАДРА 630×351, поэтому перевод —
+ * один множитель `CMP_W / img.w`. Прежде прямоугольники задавались в
+ * координатах окна 430, и здесь стояло `(rect.x − img.x)`, то есть `+12`: это
+ * переводило окно в кадр. Слагаемое убрано вместе со сменой системы координат —
+ * если вернуть его сейчас, порог будет замеряться на участке в 12 px правее
+ * предмета. Разбор — docs/adr/0006-zone-coordinates-frame-space.md.
+ */
 function regionDiff(a, b, rect, img) {
   const S = CMP_W / img.w;
-  const x0 = Math.max(0, Math.round((rect.x - img.x) * S));
-  const y0 = Math.max(0, Math.round((rect.y - img.y) * S));
-  const x1 = Math.min(CMP_W, Math.round((rect.x - img.x + rect.w) * S));
-  const y1 = Math.min(CMP_H, Math.round((rect.y - img.y + rect.h) * S));
+  const x0 = Math.max(0, Math.round(rect.x * S));
+  const y0 = Math.max(0, Math.round(rect.y * S));
+  const x1 = Math.min(CMP_W, Math.round((rect.x + rect.w) * S));
+  const y1 = Math.min(CMP_H, Math.round((rect.y + rect.h) * S));
   if (x1 <= x0 || y1 <= y0) return null;
   let s = 0, n = 0;
   for (let y = y0; y < y1; y++)

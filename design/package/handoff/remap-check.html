@@ -1,0 +1,51 @@
+<!DOCTYPE html><html lang="ru"><head><meta charset="utf-8">
+<title>Переразметка раунда 4 — сверка</title>
+<style>
+body{margin:0;background:#0B0806;color:#FFF9F2;font:14px/1.5 system-ui,sans-serif;padding:28px}
+h1{font:700 22px/1.3 system-ui;margin:0 0 6px}
+.sub{color:rgba(255,249,242,.6);margin:0 0 26px;max-width:780px}
+.room{margin-bottom:34px}
+.rh{display:flex;align-items:baseline;gap:12px;margin-bottom:10px}
+.rn{font:700 16px/1 system-ui}
+.rc{font:12px/1 ui-monospace,Menlo,monospace;color:rgba(255,249,242,.5)}
+.wrap{position:relative;width:1260px;height:702px;background:#000}
+.wrap img{position:absolute;inset:0;width:1260px;height:702px;display:block}
+.z{position:absolute;box-sizing:border-box;border:2px solid #57E6A5;background:rgba(87,230,165,.10)}
+.z b{position:absolute;left:0;top:-19px;background:#57E6A5;color:#04261A;font:700 11px/1 system-ui;padding:4px 6px;white-space:nowrap}
+.o{position:absolute;box-sizing:border-box;border:1px dashed rgba(255,90,90,.75)}
+.o i{position:absolute;left:0;bottom:-17px;background:rgba(255,90,90,.85);color:#2A0404;font:600 10px/1 system-ui;padding:3px 5px;font-style:normal;white-space:nowrap}
+.win{position:absolute;top:0;bottom:0;left:860px;width:2px;background:repeating-linear-gradient(180deg,#FFD24A 0 8px,transparent 8px 16px)}
+.win span{position:absolute;top:6px;left:6px;background:#FFD24A;color:#2A1F04;font:700 10px/1 system-ui;padding:4px 6px;white-space:nowrap}
+.abs{margin-top:10px;padding:11px 14px;background:rgba(255,180,90,.1);border:1px solid rgba(255,180,90,.35);font:13px/1.5 system-ui;color:rgba(255,240,220,.9)}
+.legend{display:flex;gap:22px;flex-wrap:wrap;margin:0 0 26px;font:12px/1 system-ui}
+.legend i{display:inline-block;width:22px;height:10px;margin-right:7px;vertical-align:middle}
+</style></head><body>
+<h1>Переразметка раунда 4 — сверка</h1>
+<p class="sub">Зелёным — новые прямоугольники в координатах кадра 630×351 (на странице показаны ×2, как в присланных файлах). Красным пунктиром — где они стояли раньше. Жёлтая черта — правый край окна телефона 430: раньше правее неё разметить было нельзя, теперь можно, камера доезжает.</p>
+<div class="legend">
+  <span><i style="background:#57E6A5"></i>новый прямоугольник</span>
+  <span><i style="border:1px dashed #FF5A5A"></i>прежний</span>
+  <span><i style="background:#FFD24A"></i>край окна 430</span>
+</div>
+<div id="root"></div>
+<script>
+fetch('rooms.json').then(r=>r.json()).then(data=>{
+  const root=document.getElementById('root');
+  for(const room of data.rooms){
+    const zs=room.zones.filter(z=>z.remappedRound===4||z.objectAbsent);
+    if(!zs.length) continue;
+    const d=document.createElement('div'); d.className='room';
+    let h='<div class="rh"><span class="rn">'+room.name+'</span><span class="rc">'+room.id+' · переразмечено '+zs.filter(z=>z.remappedRound===4).length+'</span></div>';
+    h+='<div class="wrap"><img src="../refs-630/'+room.id+'.jpg" alt="">';
+    for(const z of zs){
+      if(z.objectAbsent) continue;
+      const o=z.rectOld;
+      if(o) h+='<div class="o" style="left:'+o.x*2+'px;top:'+o.y*2+'px;width:'+o.w*2+'px;height:'+o.h*2+'px"><i>'+z.label+' — было</i></div>';
+      h+='<div class="z" style="left:'+z.rect.x*2+'px;top:'+z.rect.y*2+'px;width:'+z.rect.w*2+'px;height:'+z.rect.h*2+'px"><b>'+z.label+'</b></div>';
+    }
+    h+='<div class="win"><span>край окна 430</span></div></div>';
+    for(const z of zs) if(z.objectAbsent) h+='<div class="abs"><b>'+z.label+'</b> — предмета в кадре нет. '+z.absentNote+'</div>';
+    d.innerHTML=h; root.appendChild(d);
+  }
+});
+</script></body></html>
