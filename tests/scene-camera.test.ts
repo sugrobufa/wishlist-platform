@@ -1,5 +1,12 @@
 import { describe, it, expect } from "vitest";
-import { cameraScale, rooms, roomsContract, sceneMotion, toDesktopRect } from "../src/config/design";
+import {
+  cameraScale,
+  rooms,
+  roomsContract,
+  sceneMotion,
+  toDesktopRect,
+  zoneCameraScale,
+} from "../src/config/design";
 import {
   computeZoneCamera,
   frameCoversViewport,
@@ -8,13 +15,15 @@ import {
   rectToPercent,
   round4,
   sceneSize,
+  walkScaleAt,
+  walkScore,
   zoneFramePercent,
   zoneScenePercent,
   type SceneView,
 } from "../src/components/scene/camera";
 import { visibleZones } from "../src/components/scene/zones";
 
-// Сцена (тикет 02): наезд камеры считается формулой motion.json → openZone[0]
+// Сцена (тикет 02): наезд камеры считается формулой motion.json → openZone
 // из прямоугольников rooms.json — руками не задаётся. Если тест упал, кто-то
 // тронул формулу или контракт; это баг процесса, а не повод поправить числа.
 
@@ -32,37 +41,48 @@ const fashion = must(
   "зона cream/fashion",
 );
 
-describe("наезд камеры (формула motion.json → openZone[0])", () => {
+describe("наезд камеры (формула motion.json → openZone)", () => {
   // Пять тестов этого блока переписаны тикетом 20. Прежний эталон повторял
   // формулу контракта буква в букву, включая деление на scale — а браузер
   // умножает translate на scale сам (scale стоит в списке функций снаружи).
   // Эталон был неверен: он «доказывал» ровно тот недоезд, на который пожаловался
   // владелец. Расхождение с контрактом зафиксировано в
   // docs/adr/0002-camera-centering.md, формула motion.json не тронута.
+  //
+  // Тикет 22 поправил в них ДВЕ вещи и ни одного вывода: масштаб теперь
+  // считается формулой motion.json (числа rooms.json 1.72/1.45 вне игры), а
+  // сдвиг переехал на внешний слой — браузер его масштабом больше не
+  // домножает, поэтому множитель scale стоит в расчёте.
 
   it("cream/fashion, телефон: контрактная формула, домноженная на scale", () => {
     const { w: sw, h: sh } = roomsContract.scene.phone;
-    const scale = cameraScale.phone;
+    // Масштаб зоны — формула, а не одно число на все зоны (ADR-0003 §2).
+    const scale = zoneCameraScale(fashion.rect, "phone");
     const r = fashion.rect;
-    // Буква контракта: dx = ((sceneW/2 − (x + w/2)) / sceneW) * 100 / scale
-    const dxContract = (((sw / 2 - (r.x + r.w / 2)) / sw) * 100) / scale;
-    const dyContract = (((sh / 2 - (r.y + r.h / 2)) / sh) * 100) / scale;
-    // Код: то же самое, но без деления — иначе браузерное умножение на scale
-    // укорачивает сдвиг ровно в scale раз (ADR-0002).
-    const dx = dxContract * scale;
-    const dy = dyContract * scale;
+    // «Доехать до центра» без всяких масштабов: сколько процентов слоя пройти.
+    const dxPure = ((sw / 2 - (r.x + r.w / 2)) / sw) * 100;
+    const dyPure = ((sh / 2 - (r.y + r.h / 2)) / sh) * 100;
+    // Слой сдвига лежит СНАРУЖИ слоя масштаба — экранный сдвиг равен самому
+    // translate, поэтому путь домножается на scale руками (тикет 22).
+    const dx = dxPure * scale;
+    const dy = dyPure * scale;
+    // Связь с буквой контракта: там ещё и деление на scale (ADR-0002).
+    const dxContract = dxPure / scale;
+    expect(dxContract * scale * scale).toBeCloseTo(dx, 10);
 
     const cam = computeZoneCamera(r, "phone");
     expect(cam.scale).toBe(scale);
     expect(cam.dx).toBeCloseTo(dx, 10);
     expect(cam.dy).toBeCloseTo(dy, 10);
-    expect(cam.transform).toBe(`scale(${scale}) translate(${round4(dx)}%, ${round4(dy)}%)`);
+    expect(cam.pan).toBe(`translate(${round4(dx)}%, ${round4(dy)}%)`);
+    expect(cam.zoom).toBe(`scale(${round4(scale)})`);
   });
 
   it("десктоп: тот же расчёт через фактор 1.7778, без отдельной карты", () => {
     const f = roomsContract.scene.desktop.factorFromPhone;
     const { w: sw, h: sh } = roomsContract.scene.desktop;
-    const scale = cameraScale.desktop;
+    // Ширина зоны в формуле масштаба — телефонная на обоих видах (sceneW: 430).
+    const scale = zoneCameraScale(fashion.rect, "desktop");
     const imageShift = Math.abs(roomsContract.scene.phone.image.x); // 12
 
     const r = fashion.rect;
@@ -70,29 +90,57 @@ describe("наезд камеры (формула motion.json → openZone[0])",
     const y = r.y * f;
     const w = r.w * f;
     const h = r.h * f;
-    const dx = ((sw / 2 - (x + w / 2)) / sw) * 100;
-    const dy = ((sh / 2 - (y + h / 2)) / sh) * 100;
+    const dx = ((sw / 2 - (x + w / 2)) / sw) * 100 * scale;
+    const dy = ((sh / 2 - (y + h / 2)) / sh) * 100 * scale;
 
     const cam = computeZoneCamera(r, "desktop");
     expect(cam.scale).toBe(scale);
     expect(cam.dx).toBeCloseTo(dx, 10);
     expect(cam.dy).toBeCloseTo(dy, 10);
-    expect(cam.transform).toBe(`scale(${scale}) translate(${round4(dx)}%, ${round4(dy)}%)`);
+    expect(cam.pan).toBe(`translate(${round4(dx)}%, ${round4(dy)}%)`);
   });
 
-  it("translate никогда не превышает полслоя (обе платформы, все 120 зон)", () => {
-    // Проценты translate считаются от слоя камеры (он равен вьюпорту), а центр
-    // зоны всегда внутри сцены — значит |dx| ≤ 50%. Экранный сдвиг равен
-    // dx·scale и может быть больше 50%: он ровно гасит разбегание от scale.
+  it("сдвиг без масштаба не превышает полслоя (обе платформы, все 120 зон)", () => {
+    // Проценты translate считаются от слоя сдвига (он равен вьюпорту), а центр
+    // зоны всегда внутри сцены — значит «чистый» путь до центра ≤ 50% слоя.
+    // Сам dx теперь больше: он домножен на scale, и это ровно тот множитель,
+    // который гасит разбегание от масштаба (раньше его давал браузер).
     for (const room of rooms) {
       for (const zone of room.zones) {
         for (const view of ["phone", "desktop"] as const) {
           const cam = computeZoneCamera(zone.rect, view);
-          expect(Math.abs(cam.dx), `${room.id}/${zone.key} ${view} dx`).toBeLessThanOrEqual(50);
-          expect(Math.abs(cam.dy), `${room.id}/${zone.key} ${view} dy`).toBeLessThanOrEqual(50);
+          const id = `${room.id}/${zone.key} ${view}`;
+          expect(Math.abs(cam.dx / cam.scale), `${id} dx`).toBeLessThanOrEqual(50);
+          expect(Math.abs(cam.dy / cam.scale), `${id} dy`).toBeLessThanOrEqual(50);
         }
       }
     }
+  });
+
+  it("масштаб наезда — формула motion.json, числа rooms.json в сцене не участвуют", () => {
+    // Критерий тикета 22: cameraScale из rooms.json (1.72/1.45) перестал
+    // действовать. В контракте он остаётся — дизайну предложено его убрать.
+    expect(roomsContract.cameraScale).toEqual({ phone: 1.72, desktop: 1.45 });
+    const widths = new Set<number>();
+    for (const room of rooms) {
+      for (const zone of room.zones) {
+        for (const view of ["phone", "desktop"] as const) {
+          const cam = computeZoneCamera(zone.rect, view);
+          expect(cam.scale, `${room.id}/${zone.key} ${view}`).toBe(
+            zoneCameraScale(zone.rect, view),
+          );
+        }
+        widths.add(zone.rect.w);
+      }
+    }
+    // Зоны шириной от 22 до 269 px — ровно то, из-за чего одно число дизайн
+    // назвал ошибкой: узкой зоне нужно другое приближение, чем широкой.
+    expect(Math.min(...widths)).toBe(22);
+    expect(Math.max(...widths)).toBe(269);
+    const narrow = zoneCameraScale({ x: 0, y: 0, w: 22, h: 22 }, "phone");
+    const wide = zoneCameraScale({ x: 0, y: 0, w: 269, h: 40 }, "phone");
+    expect(narrow).toBeGreaterThan(cameraScale.phone);
+    expect(wide).toBeLessThan(cameraScale.phone);
   });
 
   it("телефон: правый край кадра не обнажается ни у одной из 120 зон", () => {
@@ -132,6 +180,82 @@ describe("наезд камеры (формула motion.json → openZone[0])",
     expect(sceneMotion.drift.scaleTo).toBeCloseTo(1.13, 10);
     expect(sceneMotion.camera.restTransform).toBe("scale(1.02)");
     expect(sceneMotion.reducedTransitionMs).toBe(120);
+  });
+});
+
+// «Походка» (тикет 22): семь фаз партитуры разложены по вложенным слоям, у
+// каждого своё время. Тесты держат две вещи: слои дают ровно те абсолютные
+// значения, что написаны в openZone, и рассинхрон масштаба со сдвигом — тот
+// самый, из-за которого путь выгибается.
+describe("походка: разложение openZone по слоям", () => {
+  it("масштаб и сдвиг едут РАЗНОЕ время — 620/720 телефон, 700/810 десктоп", () => {
+    const phone = walkScore("phone");
+    const desktop = walkScore("desktop");
+    expect(phone.zoom.durationMs).toBe(620);
+    expect(phone.pan.durationMs).toBe(720);
+    expect(desktop.zoom.durationMs).toBe(700);
+    expect(desktop.pan.durationMs).toBe(810);
+    // Разница и есть «голова доворачивается к предмету»: 100 мс на телефоне,
+    // 110 на десктопе — ровного числа в контракте нет.
+    expect(phone.pan.durationMs - phone.zoom.durationMs).toBe(100);
+    expect(desktop.pan.durationMs - desktop.zoom.durationMs).toBe(110);
+    // Стартуют одновременно, после переноса веса.
+    expect(phone.pan.atMs).toBe(phone.zoom.atMs);
+    expect(phone.zoom.atMs).toBe(phone.lead.durationMs);
+  });
+
+  it("фаза «вес переносится назад»: 150 мс, scale(1.02) → scale(1.008)", () => {
+    const phone = walkScore("phone");
+    expect(phone.lead.atMs).toBe(0);
+    expect(phone.lead.durationMs).toBe(150);
+    expect(phone.lead.rest).toBe("scale(1.02)");
+    expect(phone.lead.on).toBe("scale(1.008)");
+    // Одинаково на обоих видах — в контракте у фазы одно число.
+    expect(walkScore("desktop").lead).toEqual(phone.lead);
+  });
+
+  it("перелёт и оседание: 3% вверх кривой walk, возврат кривой settle", () => {
+    const phone = walkScore("phone");
+    const desktop = walkScore("desktop");
+    expect(sceneMotion.walk.scale.overshoot).toBe(1.03);
+    expect(phone.settle.atMs).toBe(770);
+    expect(desktop.settle.atMs).toBe(850);
+    expect(phone.settle.durationMs).toBe(420);
+    // Оседание начинается ровно там, где заканчивается шаг масштабом.
+    expect(phone.settle.atMs).toBe(phone.zoom.atMs + phone.zoom.durationMs);
+    expect(desktop.settle.atMs).toBe(desktop.zoom.atMs + desktop.zoom.durationMs);
+    // Кривые — по именам из контракта, не по вкусу.
+    expect(phone.lead.easing).toBe(sceneMotion.easingOut);
+    expect(phone.zoom.easing).toBe(sceneMotion.easingWalk);
+    expect(phone.pan.easing).toBe(sceneMotion.easingWalk);
+    expect(phone.settle.easing).toBe(sceneMotion.easingSettle);
+    // Вся походка укладывается в 1190 / 1270 мс.
+    expect(phone.totalMs).toBe(1190);
+    expect(desktop.totalMs).toBe(1270);
+  });
+
+  it("произведение слоёв = абсолютные значения контракта во всех узлах", () => {
+    // Контракт пишет масштаб камеры одним числом на фазу: 1.02 → 1.008 →
+    // target·1.03 → target. Слоёв три, они перемножаются — тест держит именно
+    // равенство произведения букве openZone, а не сами множители.
+    for (const view of ["phone", "desktop"] as const) {
+      for (const room of rooms) {
+        for (const zone of room.zones) {
+          const target = zoneCameraScale(zone.rect, view);
+          const id = `${room.id}/${zone.key} ${view}`;
+          expect(walkScaleAt(target, "rest", view), `${id} покой`).toBeCloseTo(1.02, 9);
+          expect(walkScaleAt(target, "lead", view), `${id} вес`).toBeCloseTo(1.008, 9);
+          expect(walkScaleAt(target, "peak", view), `${id} перелёт`).toBeCloseTo(target * 1.03, 6);
+          expect(walkScaleAt(target, "settled", view), `${id} оседание`).toBeCloseTo(target, 6);
+        }
+      }
+    }
+  });
+
+  it("вуаль стартует со сдвигом, дыхание вблизи срезано до 45%", () => {
+    expect(sceneMotion.veil.delayMs).toBe(90);
+    expect(sceneMotion.veil.durationMs).toBe(560);
+    expect(sceneMotion.drift.zoomedFactor).toBe(0.45);
   });
 });
 

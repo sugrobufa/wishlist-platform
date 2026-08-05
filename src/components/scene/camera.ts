@@ -1,27 +1,32 @@
 // Чистая математика наезда камеры. Координаты приходят ТОЛЬКО из rooms.json
 // (через src/config/design), партитура — motion.json → openZone: масштаб,
-// длительности, кривая. Ничего не задаётся руками; десктоп — тот же
+// длительности, кривые. Ничего не задаётся руками; десктоп — тот же
 // расчёт через factorFromPhone (1.7778).
-// Раунд 2 пакета переписал openZone на «походку» из семи фаз и убрал поле
-// origin; здесь пока однослойный наезд с origin «50% 50%» — как было
-// (ADR-0003). Разложение на вложенные слои и cameraScale формулой — тикет 22.
-// Одно осознанное отступление от буквы контракта — множитель scale в смещении
-// камеры: вывод и обоснование в docs/adr/0002-camera-centering.md.
-import { cameraScale, scene, sceneMotion, toDesktopRect, type ZoneRect } from "@/config/design";
+//
+// Тикет 22 («походка»): наезд разложен на вложенные слои — у масштаба и сдвига
+// разные длительности, в один transform это не собирается. Порядок слоёв и
+// вытекающий из него множитель scale в смещении — в `computeZoneCamera` ниже;
+// масштаб считается формулой motion.json (`zoneCameraScale`), числа
+// `rooms.json → cameraScale` в сцене больше не участвуют (ADR-0002, ADR-0003).
+import { scene, sceneMotion, toDesktopRect, zoneCameraScale, type ZoneRect } from "@/config/design";
 
 export type SceneView = "phone" | "desktop";
 
 export type CameraTransform = {
+  /** Масштаб наезда этой зоны — формула motion.json, а не число rooms.json. */
   scale: number;
   /**
    * Значения translate как они уходят в CSS: проценты ШИРИНЫ/ВЫСОТЫ слоя
-   * камеры (он равен вьюпорту сцены). Браузер умножит их на scale, потому что
-   * scale стоит в списке функций СНАРУЖИ — экранный сдвиг равен dx·scale.
+   * сдвига (он равен вьюпорту сцены). Слой сдвига лежит СНАРУЖИ слоя масштаба,
+   * поэтому браузер их ни на что не домножает — множитель scale уже внутри
+   * (см. вывод в `computeZoneCamera`).
    */
   dx: number;
   dy: number;
-  /** Готовая строка `scale(S) translate(dx%, dy%)` для style.transform. */
-  transform: string;
+  /** transform слоя `.pan` — «Шаг: сдвиг к зоне». */
+  pan: string;
+  /** transform слоя `.zoom` — «Шаг: масштаб» (цель без перелёта). */
+  zoom: string;
 };
 
 /** Габариты сцены вида: телефон 430×352, десктоп 1120×625 (rooms.json → scene). */
@@ -57,50 +62,64 @@ export function cameraOrigin(view: SceneView): { x: number; y: number } {
 /**
  * Наезд камеры: центр зоны обязан оказаться в центре вьюпорта.
  *
- * ВЫВОД (почему тут нет деления на scale, которое стоит в motion.json —
- * см. docs/adr/0002-camera-centering.md).
+ * ПОРЯДОК СЛОЁВ (тикет 22). Масштаб и сдвиг едут с разными длительностями
+ * (620/720 телефон, 700/810 десктоп) — у одного свойства одна длительность на
+ * всё, поэтому они разнесены по вложенным слоям, как требует контракт
+ * (motion.json → todoForProduction): СНАРУЖИ сдвиг `.pan`, ВНУТРИ масштаб
+ * `.zoom`. Ещё дальше наружу — три слоя «жеста» (вес, перелёт, оседание),
+ * см. `walkScore`.
  *
- * Трансформ висит на слое `.camera`: он `inset: 0`, то есть РОВНО вьюпорт
- * сцены (430×352 телефон / 1120×625 десктоп). Проценты внутри translate
- * считаются от размера этого слоя ДО масштабирования, а список функций
- * `scale(S) translate(t)` браузер перемножает слева направо — scale снаружи,
- * значит экранный сдвиг равен S·t, а не t.
+ * ВЫВОД. Слои `inset: 0`, то есть РОВНО вьюпорт сцены (430×352 телефон /
+ * 1120×625 десктоп); проценты translate считаются от размера слоя. Внешний
+ * слой применяется последним, поэтому точка p уезжает в
+ *   p' = T + o + S·(p − o),   T — сдвиг внешнего слоя в px, o — origin.
+ * Экранный сдвиг равен T, браузер его масштабом уже НЕ домножает (раньше, в
+ * однослойном `scale(S) translate(t)`, домножал). Центровка:
+ *   c = T + o + S·(zc − o)   ⟹   T = (c − o) − S·(zc − o)
+ *   при контрактном origin «50% 50%» (o = c)  ⟹  T = S·(c − zc).
+ * То есть множитель S, который в однослойной записи давал браузер, теперь
+ * стоит в расчёте руками. Прежний вывод ADR-0002 при этом не меняется: и там,
+ * и тут экранный сдвиг равен S·(c − zc), а деления на scale из формулы
+ * контракта нет — оно и было тем недоездом, который чинил тикет 20.
  *
- * Точка p слоя уезжает в  p' = o + S·(p − o) + S·t,  где o — transform-origin.
- * Нужно, чтобы центр зоны zc попал в центр вьюпорта c:
- *   c = o + S·(zc − o) + S·t   ⟹   t = (c − o)/S + (o − zc).
- * При контрактном origin «50% 50%» (o = c) это просто t = c − zc, то есть
- * translate в процентах слоя = ((sceneW/2 − (x + w/2)) / sceneW) · 100.
+ * ПОЧЕМУ ЦЕНТРОВКА ДЕРЖИТСЯ ПРИ ПЕРЕМЕННОМ ВО ВРЕМЕНИ МАСШТАБЕ. В T входит
+ * ФИНАЛЬНЫЙ масштаб зоны. Перелёт (+3%) и оседание живут на слоях СНАРУЖИ
+ * `.pan`: множитель k такого слоя даёт p' = o + k·(T + S·(p − o)), и в условии
+ * центровки k сокращается целиком — зона на перелёте становится крупнее, но
+ * с середины экрана не съезжает. Если бы перелёт стоял внутри сдвига, зону
+ * уводило бы на (k−1)·S·|zc − c| — до 4.4% ширины на телефоне, вдвое больше
+ * допуска приёмки в 2%.
  *
- * Контракт делит это ещё и на scale — сдвиг выходит в S раз короче нужного,
- * и зона застревает на (S−1)·(расстояние от центра). Формулу motion.json не
- * трогаем (она в переработке у дизайна), расхождение зафиксировано в ADR-0002.
- *
- * Масштаб — cameraScale из rooms.json (1.72 телефон / 1.45 десктоп).
+ * МАСШТАБ — формула motion.json (`zoneCameraScale`): clamp(sceneW/(w·2.4)).
+ * Ширина зоны берётся в координатах ТЕЛЕФОННОЙ сцены на обоих видах — так
+ * написано в контракте (`sceneW: 430` и у десктопа).
  */
 export function computeZoneCamera(rect: ZoneRect, view: SceneView): CameraTransform {
-  const scale = cameraScale[view];
+  const scale = zoneCameraScale(rect, view);
   const { w, h } = sceneSize(view);
   const r = zoneRectFor(rect, view);
   const o = cameraOrigin(view);
   const c = viewportCenter(view);
-  const tx = (c.x - o.x) / scale + (o.x - (r.x + r.w / 2));
-  const ty = (c.y - o.y) / scale + (o.y - (r.y + r.h / 2));
+  const tx = c.x - o.x - scale * (r.x + r.w / 2 - o.x);
+  const ty = c.y - o.y - scale * (r.y + r.h / 2 - o.y);
   const dx = (tx / w) * 100;
   const dy = (ty / h) * 100;
   return {
     scale,
     dx,
     dy,
-    transform: `scale(${scale}) translate(${round4(dx)}%, ${round4(dy)}%)`,
+    pan: `translate(${round4(dx)}%, ${round4(dy)}%)`,
+    zoom: `scale(${round4(scale)})`,
   };
 }
 
 /**
  * Где окажется центр зоны после наезда — в px координат сцены. Это модель того,
- * что делает браузер (p' = o + S·(p − o) + S·t), а не пересказ формулы: тест
- * гоняет её по всем 120 зонам обеих раскладок и требует попадания в центр
- * вьюпорта. Дрейф кадра сюда не входит намеренно: слой хотспотов живёт вне
+ * что делает браузер (p' = T + o + S·(p − o) при внешнем слое сдвига), а не
+ * пересказ формулы: тест гоняет её по всем 120 зонам обеих раскладок и требует
+ * попадания в центр вьюпорта. Слои «жеста» сюда не входят: их произведение к
+ * концу походки равно единице (см. `walkScore`), а по дороге они сокращаются в
+ * условии центровки. Дрейф кадра не входит намеренно: слой хотспотов живёт вне
  * камеры и вне дрейфа, поэтому «центр зоны» — это то место, куда человек ткнул.
  */
 export function zoneCenterAfterCamera(rect: ZoneRect, view: SceneView): { x: number; y: number } {
@@ -109,9 +128,150 @@ export function zoneCenterAfterCamera(rect: ZoneRect, view: SceneView): { x: num
   const { scale, dx, dy } = computeZoneCamera(rect, view);
   const o = cameraOrigin(view);
   return {
-    x: o.x + scale * (r.x + r.w / 2 - o.x) + scale * (dx / 100) * w,
-    y: o.y + scale * (r.y + r.h / 2 - o.y) + scale * (dy / 100) * h,
+    x: (dx / 100) * w + o.x + scale * (r.x + r.w / 2 - o.x),
+    y: (dy / 100) * h + o.y + scale * (r.y + r.h / 2 - o.y),
   };
+}
+
+// ---------- Партитура «походки»: какой слой когда едет ----------------------
+
+/** Кривая по имени из партитуры: «out» / «walk» / «settle» (motion.json → easing). */
+const CURVES: Record<string, string> = {
+  out: sceneMotion.easingOut,
+  walk: sceneMotion.easingWalk,
+  settle: sceneMotion.easingSettle,
+};
+
+function curve(name: string): string {
+  const found = CURVES[name];
+  if (!found) throw new Error(`motion.json: у фазы неизвестная кривая «${name}»`);
+  return found;
+}
+
+/**
+ * Число из строки вида «scale(1.008)». Партитура задаёт фазы веса абсолютными
+ * значениями трансформа, а слои перемножаются — чтобы собрать множители, нужно
+ * само число. Контракт при этом не парсится заново: строка приходит из уже
+ * распакованного `sceneMotion.walk.lead` (тикет 21).
+ */
+function scaleValue(transform: string, what: string): number {
+  const match = transform.match(/scale\(\s*([\d.]+)\s*\)/u);
+  if (!match) throw new Error(`motion.json: не удалось прочитать масштаб ${what}: "${transform}"`);
+  return Number(match[1]);
+}
+
+const LEAD_TO = scaleValue(sceneMotion.walk.lead.to, "фазы «Вес переносится назад»");
+const OVERSHOOT = sceneMotion.walk.scale.overshoot;
+
+export type WalkLayerTiming = {
+  /** Задержка от нажатия (`at` фазы), мс. */
+  atMs: number;
+  durationMs: number;
+  /** Готовая cubic-bezier. */
+  easing: string;
+};
+
+export type WalkScore = {
+  /** «Вес переносится назад» — слой `.camera`, абсолютные значения контракта. */
+  lead: WalkLayerTiming & { rest: string; on: string };
+  /** Перелёт +3% — слой `.over`, множитель поверх веса. */
+  over: WalkLayerTiming & { on: string };
+  /** «Оседание» — слой `.settle`, возврат перелёта. */
+  settle: WalkLayerTiming & { on: string };
+  /** «Шаг: сдвиг к зоне» — слой `.pan`, значение даёт computeZoneCamera. */
+  pan: WalkLayerTiming;
+  /** «Шаг: масштаб» — слой `.zoom`, значение даёт computeZoneCamera. */
+  zoom: WalkLayerTiming;
+  /** Вся походка от нажатия до конца оседания, мс. */
+  totalMs: number;
+};
+
+/**
+ * Партитура наезда, разложенная по слоям (тикет 22).
+ *
+ * Снаружи внутрь: `.camera` (вес) → `.over` (перелёт) → `.settle` (оседание)
+ * → `.pan` (сдвиг) → `.zoom` (масштаб) → `.drift` (дыхание) → `.frame`.
+ * У каждого слоя ОДНА смена значения, поэтому каждому хватает обычного
+ * transition с задержкой — ни ключевых кадров, ни таймеров в JS, и прерванный
+ * на полпути наезд разворачивается сам, откуда его застали.
+ *
+ * ТРИ СЛОЯ ЖЕСТА ВМЕСТО ОДНОГО. Контракт задаёт масштаб камеры абсолютными
+ * значениями подряд: 1.02 (покой) → 1.008 (вес назад) → target·1.03 (перелёт)
+ * → target (оседание). Это четыре значения одного свойства, а у свойства одна
+ * длительность и одна кривая на переход. Разложение в произведение:
+ *
+ *   вес     1.02 → 1.008                (150 мс, out)
+ *   перелёт 1    → 1.03/1.008           (620/700 мс, walk, с 150 мс)
+ *   оседание 1   → 1/1.03               (420 мс, settle, с 770/850 мс)
+ *   масштаб 1    → target               (620/700 мс, walk, с 150 мс)
+ *
+ * даёт ровно контрактные значения во всех четырёх узловых точках (проверено
+ * тестом), а произведение трёх слоёв жеста к концу равно 1 — итоговый масштаб
+ * камеры равен target, как и написано в «Оседании».
+ *
+ * ВСЕ ТРИ ЖЕСТА ЛЕЖАТ СНАРУЖИ СДВИГА — тогда они сокращаются в условии
+ * центровки и перелёт не уводит зону с середины экрана (вывод —
+ * в `computeZoneCamera`).
+ */
+export function walkScore(view: SceneView): WalkScore {
+  const { lead, scale, translate, settle } = sceneMotion.walk;
+  return {
+    lead: {
+      // Первая фаза партитуры, `at: 0` — задержки нет.
+      atMs: 0,
+      durationMs: lead.durationMs,
+      easing: curve(lead.easing),
+      rest: lead.from,
+      on: lead.to,
+    },
+    // Множители перелёта и оседания НЕ округляются: их произведение с весом
+    // обязано быть ровно единицей, иначе итоговый масштаб камеры разойдётся
+    // с `target` из «Оседания» и центровка поедет на эту же долю.
+    over: {
+      atMs: scale.atMs,
+      durationMs: scale.durationMs[view],
+      easing: curve(scale.easing),
+      on: `scale(${OVERSHOOT / LEAD_TO})`,
+    },
+    settle: {
+      atMs: settle.atMs[view],
+      durationMs: settle.durationMs,
+      easing: curve(settle.easing),
+      on: `scale(${1 / OVERSHOOT})`,
+    },
+    pan: {
+      atMs: translate.atMs,
+      durationMs: translate.durationMs[view],
+      easing: curve(translate.easing),
+    },
+    zoom: {
+      atMs: scale.atMs,
+      durationMs: scale.durationMs[view],
+      easing: curve(scale.easing),
+    },
+    totalMs: settle.atMs[view] + settle.durationMs,
+  };
+}
+
+/**
+ * Абсолютный масштаб камеры (произведение ВСЕХ слоёв) в узловой точке
+ * партитуры — то, что контракт пишет одним числом. Нужен тестам: они сверяют
+ * разложение по слоям с буквой `openZone`.
+ */
+export function walkScaleAt(
+  scale: number,
+  at: "rest" | "lead" | "peak" | "settled",
+  view: SceneView = "phone",
+): number {
+  const score = walkScore(view);
+  const lead = scaleValue(score.lead.rest, "покоя");
+  const on = scaleValue(score.lead.on, "фазы веса");
+  const over = scaleValue(score.over.on, "перелёта");
+  const back = scaleValue(score.settle.on, "оседания");
+  if (at === "rest") return lead;
+  if (at === "lead") return on;
+  if (at === "peak") return on * over * scale;
+  return on * over * back * scale;
 }
 
 /**
@@ -200,8 +360,13 @@ const DEFAULT_DRIFT: AmbientDrift = {
  * поэтому число — худший кадр дыхания, а не средний.
  *
  * Зажима по этим границам НЕТ намеренно: он вернул бы промах центра на
- * 48 из 120 зон телефона и 65 из 120 зон десктопа (до 33% ширины), то есть
+ * 40 из 120 зон телефона и 51 из 120 зон десктопа (до 30% размера), то есть
  * ровно тот баг, который чинится. Обоснование и цифры — ADR-0002.
+ *
+ * Дыхание здесь считается в полный размах (scaleMin 1.10, ±1.1%), хотя вблизи
+ * оно срезано до 45% (`drift.zoomedFactor`): срез уменьшает ход, но не базовый
+ * scale 1.10, а именно он и есть весь запас кадра — число остаётся худшим
+ * случаем, а не средним.
  */
 export function frameGapAfterZoom(
   rect: ZoneRect,
@@ -213,11 +378,12 @@ export function frameGapAfterZoom(
   const { scale, dx, dy } = computeZoneCamera(rect, view);
   const cx = sw / 2;
   const cy = sh / 2;
-  // Дрейф (scale m вокруг центра) под камерой (scale s вокруг центра + сдвиг):
-  // точка p → c + s·m·(p − c) + s·t, где t = translate камеры в px.
+  // Дрейф (scale m вокруг центра) под камерой (scale s вокруг центра + сдвиг
+  // внешним слоем): точка p → c + s·m·(p − c) + T, где T = сдвиг в px. Сдвиг
+  // масштабом уже не домножается — множитель s сидит внутри dx (тикет 22).
   const k = scale * ambient.scaleMin;
-  const shiftX = (dx / 100) * sw * scale;
-  const shiftY = (dy / 100) * sh * scale;
+  const shiftX = (dx / 100) * sw;
+  const shiftY = (dy / 100) * sh;
   // Худший вклад собственного translate дрейфа (±translatePct% сцены).
   const driftX = (ambient.translatePct / 100) * sw * ambient.scaleMin * scale;
   const driftY = (ambient.translatePct / 100) * sh * ambient.scaleMin * scale;

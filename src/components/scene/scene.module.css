@@ -20,14 +20,71 @@
   isolation: isolate;
 }
 
-/* --- Камера и дыхание -------------------------------------------------- */
+/* --- Камера: слой на фазу партитуры ------------------------------------- */
 
-.camera {
+/* «Походка» (motion.json → openZone, тикет 22). Масштаб и сдвиг едут с разными
+ * длительностями, а перелёт и оседание — два состояния одного свойства подряд:
+ * в один transform это не собирается, поэтому каждой фазе свой слой со своим
+ * transition. Снаружи внутрь:
+ *
+ *   .camera  вес переносится назад   1.02 → 1.008        150 мс, out
+ *   .over    перелёт                 1 → 1.03/1.008      620/700 мс, walk, +150
+ *   .settle  оседание                1 → 1/1.03          420 мс, settle, +770/850
+ *   .pan     шаг: сдвиг к зоне       translate(dx, dy)   720/810 мс, walk, +150
+ *   .zoom    шаг: масштаб            scale(target)       620/700 мс, walk, +150
+ *   .drift   дыхание
+ *
+ * Три слоя жеста стоят СНАРУЖИ сдвига намеренно: их множители сокращаются в
+ * условии центровки, поэтому перелёт делает кадр крупнее, но не уводит зону
+ * с середины экрана (вывод — camera.ts → computeZoneCamera).
+ * Значения .pan и .zoom приходят инлайном из SceneStage — они зависят от зоны;
+ * при выходе инлайн снимается, слои возвращаются к transform из этих правил,
+ * и обратный переход берёт длительность отсюда же (выход по closeZone). */
+
+.camera,
+.over,
+.settle,
+.pan,
+.zoom {
   position: absolute;
   inset: 0;
   transform-origin: var(--cam-origin);
   transition: transform var(--cam-ms) var(--ease-out);
+}
+
+.camera {
+  transform: var(--lead-rest);
   will-change: transform;
+}
+
+.over,
+.settle,
+.pan,
+.zoom {
+  transform: none;
+}
+
+.zoomed .camera {
+  transform: var(--lead-on);
+  transition: transform var(--lead-ms) var(--ease-out);
+}
+
+.zoomed .over {
+  transform: var(--over-on);
+  transition: transform var(--step-ms) var(--ease-walk) var(--step-at);
+}
+
+.zoomed .settle {
+  transform: var(--settle-on);
+  transition: transform var(--settle-ms) var(--ease-settle) var(--settle-at);
+}
+
+.zoomed .pan {
+  transition: transform var(--pan-ms) var(--ease-walk) var(--pan-at);
+}
+
+.zoomed .zoom {
+  transition: transform var(--step-ms) var(--ease-walk) var(--step-at);
 }
 
 /* Отдельный слой ПОД камерой — дыхание не сбивается при наезде (motion.json). */
@@ -35,6 +92,14 @@
   position: absolute;
   inset: 0;
   animation: drift var(--drift-ms) ease-in-out infinite;
+}
+
+/* Вблизи размах дыхания срезается (amplitudeZoomed): тот же угловой ход на
+ * увеличенном кадре читается как качка. Срезается именно РАЗМАХ, базовый
+ * scale 1.10 остаётся — он и есть весь запас кадра на панорамирование
+ * (ADR-0002). */
+.zoomed .drift {
+  --drift-k: var(--drift-k-zoom);
 }
 
 .frame {
@@ -83,8 +148,11 @@
   pointer-events: none;
 }
 
+/* «Периферия темнеет» стартует со сдвигом: темнота идёт следом за шагом,
+ * а не предупреждает о нём (openZone → at: 90). На выходе задержки нет. */
 .veilOn {
   opacity: 1;
+  transition-delay: var(--veil-at);
   pointer-events: auto;
   cursor: pointer;
 }
@@ -295,8 +363,25 @@
     aspect-ratio: var(--scene-ar-d);
   }
 
-  .camera {
+  .camera,
+  .over,
+  .settle,
+  .pan,
+  .zoom {
     transition-duration: var(--cam-ms-d);
+  }
+
+  .zoomed .over,
+  .zoomed .zoom {
+    transition-duration: var(--step-ms-d);
+  }
+
+  .zoomed .pan {
+    transition-duration: var(--pan-ms-d);
+  }
+
+  .zoomed .settle {
+    transition-delay: var(--settle-at-d);
   }
 
   .drift {
@@ -333,7 +418,13 @@
 
 /* --- prefers-reduced-motion: по контракту motion.json -------------------- */
 /* Дрейф/пульс выключены; переходы НЕ убиваются в 0.01ms — 120 мс, смена
- * состояния остаётся читаемой. */
+ * состояния остаётся читаемой.
+ *
+ * Походка схлопывается целиком (motion.json → reducedMotion.cameraPhases):
+ * фазы «вес переносится» и «оседание» пропускаются, перелёта нет, остаётся
+ * один переход 120 мс к целевому масштабу и сдвигу — синхронно. Три слоя
+ * жеста при этом становятся единицей, поэтому итоговый масштаб камеры равен
+ * ровно target, как и в полной партитуре. */
 
 @media (prefers-reduced-motion: reduce) {
   .drift,
@@ -342,6 +433,10 @@
   }
 
   .camera,
+  .over,
+  .settle,
+  .pan,
+  .zoom,
   .openFrame,
   .veil,
   .hotspot,
@@ -350,9 +445,26 @@
   .captionOut,
   .panelBodyOut {
     transition-duration: var(--reduced-ms);
+    transition-delay: 0ms;
   }
 
-  .openFrameOn {
+  .zoomed .camera,
+  .zoomed .over,
+  .zoomed .settle,
+  .zoomed .pan,
+  .zoomed .zoom {
+    transition-duration: var(--reduced-ms);
+    transition-delay: 0ms;
+  }
+
+  .zoomed .camera,
+  .zoomed .over,
+  .zoomed .settle {
+    transform: none;
+  }
+
+  .openFrameOn,
+  .veilOn {
     transition-delay: 0ms;
   }
 
@@ -370,15 +482,19 @@
 
 /* omDrift из макета: маятник ease-in-out, амплитуда из motion.json
  * (translate ±1.1%, scale 1.10→1.13 через переменные); y-ход 0.3%→−0.7% —
- * авторские значения omDrift. Симметричные кадры = loop «yoyo». */
+ * авторские значения omDrift. Симметричные кадры = loop «yoyo».
+ * --drift-k срезает РАЗМАХ (1 в покое, 0.45 вблизи): базовая точка маятника —
+ * scale 1.10 и нулевой сдвиг — остаётся на месте при любом k. */
 @keyframes drift {
   0%,
   100% {
-    transform: scale(var(--drift-s0)) translate(calc(var(--drift-t) * -1), 0.3%);
+    transform: scale(var(--drift-s0))
+      translate(calc(var(--drift-t) * -1 * var(--drift-k)), calc(0.3% * var(--drift-k)));
   }
 
   50% {
-    transform: scale(var(--drift-s1)) translate(var(--drift-t), -0.7%);
+    transform: scale(calc(var(--drift-s0) + (var(--drift-s1) - var(--drift-s0)) * var(--drift-k)))
+      translate(calc(var(--drift-t) * var(--drift-k)), calc(-0.7% * var(--drift-k)));
   }
 }
 

@@ -1,40 +1,71 @@
-// Быстрый вход для ТЕСТОВОГО СТЕНДА (тикет 29). Временный обход письма, пока
-// на VPS нет SMTP: штатный вход (почта → письмо → /signin/confirm → сессия,
-// тикет 19) остаётся основным и не меняется ни на строку.
+// Быстрый вход для ТЕСТОВОГО СТЕНДА (тикет 29, послаблен тикетом 31).
+// Временный обход письма, пока на VPS нет SMTP: штатный вход (почта → письмо →
+// /signin/confirm → сессия, тикет 19) остаётся основным и не меняется ни на
+// строку.
 //
-// ЗАЧЕМ: на удалённой машине magic link печатается в лог сервера — читать его
-// оттуда владельцу неудобно. Здесь он открывает `/dev-login?key=…` и попадает
-// в свою комнату одним действием.
+// ЗАЧЕМ: владелец гоняет приёмку и упирается в трение — сначала ссылка из лога
+// сервера, потом ключ в адресе. Теперь при включённом флаге голый `/dev-login`
+// пускает внутрь сразу: одна закладка, один клик.
 //
-// КАК ВЫДАЁТСЯ СЕССИЯ. Своих cookie и своих сессий тут НЕТ. Модуль выпускает
-// обычный одноразовый VerificationToken на заранее заданную почту и отдаёт
-// адрес НАСТОЯЩЕГО callback провайдера — дальше всё делает Auth.js: сверяет
-// токен и срок, гасит строку через adapter.useVerificationToken, заводит
-// пользователя, если его ещё нет, выдаёт сессию через PrismaAdapter и ставит
-// свою cookie. То есть вход отличается от штатного ровно одним: кто выпустил
-// токен. Вся проверка и вся работа с сессией остались внутри пакета —
-// разъехаться с настоящим флоу тут нечему (обоснование — .scratch/deploy/29).
+// КАК ВЫДАЁТСЯ СЕССИЯ. Своих cookie и своих сессий тут НЕТ (устройство тикета
+// 29 сохранено целиком). Модуль выпускает обычный одноразовый
+// VerificationToken на заранее заданную почту и отдаёт адрес НАСТОЯЩЕГО
+// callback провайдера — дальше всё делает Auth.js: сверяет токен и срок, гасит
+// строку через adapter.useVerificationToken, заводит пользователя, если его
+// ещё нет, выдаёт сессию через PrismaAdapter и ставит свою cookie. То есть
+// вход отличается от штатного ровно одним: кто выпустил токен.
 //
-// ПОЧЕМУ ЭТО НЕ ДЫРА (подробно — в тикет-файле):
-//   • выключен по умолчанию: без QUICK_LOGIN_ENABLED=true маршрут — 404;
-//   • ключ 24+ символа, сверка timing-safe; при коротком ключе механизм НЕ
-//     включается и в лог уходит громкое предупреждение;
-//   • почта — только QUICK_LOGIN_EMAIL; параметры запроса на неё не влияют;
-//   • попытки по IP ограничены корзиной (src/server/rate-limit.ts);
-//   • любой отказ — 404: наружу не подтверждаем, что механизм вообще есть.
+// ЧТО ОСТАЛОСЬ ЗАЩИТОЙ (тикет 31 §3), а что снято:
+//   • ФЛАГ QUICK_LOGIN_ENABLED — единственный рубильник. Не «true» — маршрута
+//     нет вовсе: 404, и механизма как будто не существует;
+//   • ПОЧТА только из QUICK_LOGIN_EMAIL. Параметры запроса на неё не влияют —
+//     чужой аккаунт этим входом не открыть и чужие данные не стереть;
+//   • КЛЮЧ QUICK_LOGIN_SECRET стал НЕОБЯЗАТЕЛЬНЫМ (тикет 31 §1). Не задан —
+//     вход открыт. Задан (24+ символа) — старая ссылка `?key=…` продолжает
+//     работать, а неверный ключ в адресе по-прежнему 404 (чтобы переменная
+//     значила ровно то, что написано на ней). Без ключа пускает в обоих
+//     случаях: владелец просил «убери всю безопасность», сюда никто, кроме
+//     него, не ходит, а рубильник на месте;
+//   • БЮДЖЕТ ПОПЫТОК ПО IP СНЯТ (тикет 31 §3). Подбирать больше нечего — дверь
+//     открыта и без ключа, — а корзина на 5 запросов в минуту била бы только
+//     по владельцу: двойной клик, префетч браузера или пара перезаходов
+//     подряд выдавали бы ему 404 на ровном месте. Это ровно то трение, ради
+//     снятия которого написан тикет. src/server/rate-limit.ts не тронут:
+//     им пользуются другие маршруты;
+//   • ЛЮБОЙ ОТКАЗ — 404 (правило тикета 29 сохранено): выключенный флаг,
+//     кривая настройка и неверный ключ снаружи неразличимы.
+//
+// ?fresh=1 — сброс аккаунта в состояние «первый раз» (тикет 31 §2): комната
+// владельца удаляется со всем содержимым, и человек уезжает в /onboarding.
+// Что именно удаляется — src/server/services/stand-reset.ts.
 
 import { createHash, randomBytes, timingSafeEqual } from "node:crypto";
 import { prisma } from "./db";
 import { magicLinkVerifyAction } from "./auth-links";
-import { RateLimiter } from "./rate-limit";
+import { resetStandRoom, type StandResetResult, type StandResetStorage } from "./services/stand-reset";
 
 /** Адрес служебного экрана. Нигде в интерфейсе не упоминается. */
 export const QUICK_LOGIN_PATH = "/dev-login";
 
-/** Имя параметра с ключом — одно на ссылку и на поле формы. */
+/** Имя параметра с ключом — необязательного (тикет 31). */
 export const QUICK_LOGIN_KEY_PARAM = "key";
 
-/** Короче — механизм не включается: 24 случайных символа не подбирают. */
+/** Имя параметра «онбординг заново»: /dev-login?fresh=1. */
+export const QUICK_LOGIN_FRESH_PARAM = "fresh";
+
+/**
+ * Куда уводить после сброса. /room и сам увёл бы в /onboarding (комнаты уже
+ * нет), но лишний прыжок владельцу не нужен: ведём прямо на нужный экран.
+ */
+export const QUICK_LOGIN_FRESH_PATH = "/onboarding";
+
+/**
+ * Ключ короче — не ключ. Задан обрубок вместо секрета (опечатка, обрезанная
+ * вставка) — механизм НЕ запирается наглухо, как раньше: он просто не считает
+ * такую строку ключом и громко предупреждает. Запирать нельзя: при
+ * включённом флаге дверь и так открыта без ключа, и 404 в ответ на опечатку
+ * в env оставил бы владельца снаружи без единой подсказки.
+ */
 export const QUICK_LOGIN_MIN_SECRET_LENGTH = 24;
 
 /**
@@ -43,12 +74,6 @@ export const QUICK_LOGIN_MIN_SECRET_LENGTH = 24;
  * (и одноразов, как любой токен Auth.js).
  */
 export const QUICK_LOGIN_TOKEN_TTL_MS = 60_000;
-
-/** Бюджет попыток на один IP: 5 в минуту (подбор ключа — не про этот темп). */
-export const QUICK_LOGIN_ATTEMPTS_PER_MINUTE = 5;
-
-/** Пространство ключей корзины — своё, чужие бюджеты не трогаем. */
-export const QUICK_LOGIN_RATE_PREFIX = "rl:v1:quick-login";
 
 /**
  * Переменные окружения, от которых зависит механизм. Индексная сигнатура —
@@ -64,8 +89,11 @@ export interface QuickLoginEnv {
 }
 
 export interface QuickLoginConfig {
-  /** Ключ из QUICK_LOGIN_SECRET (уже проверен на длину). */
-  secret: string;
+  /**
+   * Ключ из QUICK_LOGIN_SECRET или null — «ключа нет, вход открыт».
+   * null — это и «переменная пуста», и «в переменной короче 24 символов».
+   */
+  secret: string | null;
   /** Единственная почта, которой разрешён быстрый вход (нормализована). */
   email: string;
   /** AUTH_SECRET: им Auth.js солит токен в БД. */
@@ -77,42 +105,26 @@ export interface QuickLoginConfig {
  * нужен тестам и логам, в ответ он не попадает.
  */
 export type QuickLoginResult =
-  | { ok: true; redirectTo: string }
-  | { ok: false; reason: "disabled" | "rate-limited" | "bad-key" };
+  | { ok: true; redirectTo: string; reset: StandResetResult | null }
+  | { ok: false; reason: "disabled" | "bad-key" };
 
 // ---------------------------------------------------------------------------
 // Состояние процесса (переживает HMR — паттерн src/server/db.ts)
 // ---------------------------------------------------------------------------
 
 const globalForQuickLogin = globalThis as unknown as {
-  __wishlistQuickLoginLimiter?: RateLimiter;
   __wishlistQuickLoginWarned?: Set<string>;
 };
-
-/**
- * Корзина попыток — в памяти процесса, без Redis: механизм живёт на одном
- * тестовом стенде в одном процессе, а память ещё и не зависит от того, поднят
- * ли Redis. Класс и семантика — общие (src/server/rate-limit.ts), префикс свой.
- */
-function attemptLimiter(): RateLimiter {
-  globalForQuickLogin.__wishlistQuickLoginLimiter ??= new RateLimiter({
-    redis: null,
-    prefix: QUICK_LOGIN_RATE_PREFIX,
-    capacity: QUICK_LOGIN_ATTEMPTS_PER_MINUTE,
-    refillPerMinute: QUICK_LOGIN_ATTEMPTS_PER_MINUTE,
-  });
-  return globalForQuickLogin.__wishlistQuickLoginLimiter;
-}
 
 /**
  * Громкое предупреждение о неверной настройке — один раз на текст, чтобы не
  * залить лог на каждом запросе.
  */
-function warnOnce(message: string): void {
+function warnOnce(message: string, consequence: string): void {
   const warned = (globalForQuickLogin.__wishlistQuickLoginWarned ??= new Set<string>());
   if (warned.has(message)) return;
   warned.add(message);
-  console.warn(`\n⚠  [быстрый вход] ${message}\n   Механизм НЕ включён, /dev-login отвечает 404.\n`);
+  console.warn(`\n⚠  [быстрый вход] ${message}\n   ${consequence}\n`);
 }
 
 /** Забыть, о чём уже предупреждали. Нужно тестам и dev-HMR. */
@@ -141,34 +153,53 @@ function normalizeEmail(raw: string): string | null {
  * Конфиг быстрого входа или null — «механизма не существует».
  *
  * null возвращается молча только если флаг выключен: это норма. Если флаг
- * включён, а настройка кривая (короткий ключ, нет почты, нет AUTH_SECRET) —
- * механизм всё равно не включается, но в лог уходит предупреждение.
+ * включён, а настройки не хватает (нет почты, нет AUTH_SECRET) — механизм не
+ * включается, и в лог уходит предупреждение. Пустой QUICK_LOGIN_SECRET —
+ * НЕ ошибка и не повод молчать в лог: это штатный открытый режим тикета 31.
  */
 export function readQuickLoginConfig(env: QuickLoginEnv = process.env): QuickLoginConfig | null {
   if (env.QUICK_LOGIN_ENABLED !== "true") return null;
 
-  const secret = env.QUICK_LOGIN_SECRET ?? "";
-  if (secret.length < QUICK_LOGIN_MIN_SECRET_LENGTH) {
-    warnOnce(
-      `QUICK_LOGIN_ENABLED=true, но QUICK_LOGIN_SECRET ${secret ? "короче" : "пуст (нужно"} ` +
-        `${QUICK_LOGIN_MIN_SECRET_LENGTH} символов${secret ? "" : ")"}.`,
-    );
-    return null;
-  }
-
   const email = normalizeEmail(env.QUICK_LOGIN_EMAIL ?? "");
   if (!email) {
-    warnOnce("QUICK_LOGIN_ENABLED=true, но QUICK_LOGIN_EMAIL пуст или не похож на почту.");
+    warnOnce(
+      "QUICK_LOGIN_ENABLED=true, но QUICK_LOGIN_EMAIL пуст или не похож на почту.",
+      "Механизм НЕ включён, /dev-login отвечает 404.",
+    );
     return null;
   }
 
   const authSecret = env.AUTH_SECRET ?? "";
   if (!authSecret) {
-    warnOnce("QUICK_LOGIN_ENABLED=true, но AUTH_SECRET пуст — выпускать токен нечем.");
+    warnOnce(
+      "QUICK_LOGIN_ENABLED=true, но AUTH_SECRET пуст — выпускать токен нечем.",
+      "Механизм НЕ включён, /dev-login отвечает 404.",
+    );
     return null;
   }
 
+  const raw = env.QUICK_LOGIN_SECRET ?? "";
+  const secret = raw.length >= QUICK_LOGIN_MIN_SECRET_LENGTH ? raw : null;
+  if (raw.length > 0 && secret === null) {
+    warnOnce(
+      `QUICK_LOGIN_SECRET короче ${QUICK_LOGIN_MIN_SECRET_LENGTH} символов — за ключ он не считается.`,
+      "Вход открыт БЕЗ ключа (как при пустой переменной). Выключается флагом QUICK_LOGIN_ENABLED.",
+    );
+  }
+
   return { secret, email, authSecret };
+}
+
+/**
+ * Просили ли онбординг заново. Считаем просьбой любое присутствие параметра —
+ * `?fresh`, `?fresh=1`, `?fresh=yes`, — кроме явного отказа `0`/`false`:
+ * адрес набирают руками, и спорить с владельцем из-за формы значения глупо.
+ */
+export function isFreshRequested(raw: string | string[] | undefined): boolean {
+  const value = Array.isArray(raw) ? raw[0] : raw;
+  if (value === undefined) return false;
+  const normalized = value.trim().toLowerCase();
+  return normalized !== "0" && normalized !== "false" && normalized !== "no";
 }
 
 // ---------------------------------------------------------------------------
@@ -204,36 +235,57 @@ async function issueVerificationToken(config: QuickLoginConfig): Promise<string>
   return rawToken;
 }
 
+/**
+ * Подменить `callbackUrl` в готовом адресе callback. Адрес целиком собирает
+ * общий magicLinkVerifyAction (src/server/auth-links.ts) — модуль штатного
+ * входа, и трогать его ради стенда мы не будем: правим только свой параметр
+ * и только у себя.
+ */
+function withCallbackUrl(action: string, callbackUrl: string): string {
+  const [path = action, query = ""] = action.split("?");
+  const params = new URLSearchParams(query);
+  params.set("callbackUrl", callbackUrl);
+  return `${path}?${params.toString()}`;
+}
+
 export interface QuickLoginAttempt {
-  /** Ключ из ссылки или из поля формы. */
-  key: string;
-  /** IP запроса (src/server/rate-limit.ts → clientIp). */
-  ip: string;
+  /** Ключ из ссылки. undefined — «пришли без ключа», это норма (тикет 31). */
+  key?: string;
+  /** Просили ли онбординг заново (?fresh=1). */
+  fresh?: boolean;
   /** Подмена окружения — тестам; в приложении не передаётся. */
   env?: QuickLoginEnv;
-  /** Своя корзина — тестам; в приложении общая на процесс. */
-  limiter?: RateLimiter;
+  /** Шов хранилища для сброса — тестам; в приложении настоящий S3. */
+  storage?: StandResetStorage;
 }
 
 /**
  * Пустить или не пустить. При успехе возвращает адрес callback Auth.js —
  * вызывающему остаётся сделать редирект; всё остальное (сессия, cookie,
- * заведение пользователя, уход в /room) делает сам Auth.js.
+ * заведение пользователя, уход в /room или /onboarding) делает сам Auth.js.
  *
- * Порядок проверок намеренный: сначала «механизма нет», потом бюджет попыток,
- * и только потом ключ — подбор упирается в корзину, а не в сравнение.
+ * Порядок намеренный: сначала «механизма нет», потом ключ (если он вообще
+ * задан в окружении и передан в адресе), потом сброс — и только последним
+ * выпуск токена, чтобы неудавшийся сброс не оставил в БД живой токен.
  */
 export async function attemptQuickLogin(attempt: QuickLoginAttempt): Promise<QuickLoginResult> {
   const config = readQuickLoginConfig(attempt.env);
   if (!config) return { ok: false, reason: "disabled" };
 
-  const limiter = attempt.limiter ?? attemptLimiter();
-  if (!(await limiter.allow(attempt.ip))) return { ok: false, reason: "rate-limited" };
+  // Ключ спрашиваем, только если он задан в окружении И принесён в адресе:
+  // старая закладка `?key=…` продолжает работать, а её отсутствие — не отказ.
+  if (config.secret !== null && attempt.key !== undefined) {
+    if (!secretMatches(attempt.key, config.secret)) return { ok: false, reason: "bad-key" };
+  }
 
-  if (!secretMatches(attempt.key, config.secret)) return { ok: false, reason: "bad-key" };
+  // Сброс — ТОЛЬКО комната владельца стенда: почта берётся из конфига, то
+  // есть из окружения. Ни один параметр запроса на неё не влияет.
+  const reset = attempt.fresh ? await resetStandRoom(config.email, attempt.storage) : null;
 
   const rawToken = await issueVerificationToken(config);
-  // Тот же адрес, куда шлёт форма подтверждения штатного входа (тикет 19):
-  // почта берётся ТОЛЬКО из конфига — что бы ни лежало в параметрах запроса.
-  return { ok: true, redirectTo: magicLinkVerifyAction(rawToken, config.email) };
+  // Тот же адрес, куда шлёт форма подтверждения штатного входа (тикет 19);
+  // после сброса — сразу на онбординг, без прыжка через пустую /room.
+  const action = magicLinkVerifyAction(rawToken, config.email);
+  const redirectTo = attempt.fresh ? withCallbackUrl(action, QUICK_LOGIN_FRESH_PATH) : action;
+  return { ok: true, redirectTo, reset };
 }

@@ -9,7 +9,7 @@ import { preload } from "react-dom";
 import { useTranslations } from "next-intl";
 import { hitTargetMin, scene, sceneMotion, type Room, type RoomZone } from "@/config/design";
 import { roomImageUrl } from "@/app/rooms/room-image";
-import { computeZoneCamera, frameRect, rectToPercent, type SceneView } from "./camera";
+import { computeZoneCamera, frameRect, rectToPercent, walkScore, type SceneView } from "./camera";
 import { visibleZones, zoneLabel, zoneVerb } from "./zones";
 import { useMediaQuery } from "./use-media-query";
 import { ZoneHotspot } from "./zone-hotspot";
@@ -40,11 +40,38 @@ type Phase = "idle" | "open" | "closing";
 const FRAME_PHONE = rectToPercent(frameRect("phone"), "phone");
 const FRAME_DESKTOP = rectToPercent(frameRect("desktop"), "desktop");
 
+// «Походка»: пять слоёв, у каждого своя задержка, длительность и кривая
+// (camera.ts → walkScore). Телефон и десктоп отличаются только числами.
+const WALK_PHONE = walkScore("phone");
+const WALK_DESKTOP = walkScore("desktop");
+
 const BASE_VARS = {
   "--ease-out": sceneMotion.easingOut,
+  "--ease-walk": sceneMotion.easingWalk,
+  "--ease-settle": sceneMotion.easingSettle,
   "--cam-origin": sceneMotion.camera.origin,
   "--cam-ms": `${sceneMotion.camera.durationMs.phone}ms`,
   "--cam-ms-d": `${sceneMotion.camera.durationMs.desktop}ms`,
+  // Фаза 1 «Вес переносится назад» — одинакова на обоих видах.
+  "--lead-ms": `${WALK_PHONE.lead.durationMs}ms`,
+  "--lead-rest": WALK_PHONE.lead.rest,
+  "--lead-on": WALK_PHONE.lead.on,
+  // Фаза 2 «Шаг: масштаб» — цель на слое .zoom, перелёт на слое .over.
+  "--step-at": `${WALK_PHONE.zoom.atMs}ms`,
+  "--step-ms": `${WALK_PHONE.zoom.durationMs}ms`,
+  "--step-ms-d": `${WALK_DESKTOP.zoom.durationMs}ms`,
+  "--over-on": WALK_PHONE.over.on,
+  // Фаза 3 «Шаг: сдвиг к зоне» — длиннее масштаба (100 мс телефон, 110 десктоп),
+  // в этом расхождении и живёт вся походка.
+  "--pan-at": `${WALK_PHONE.pan.atMs}ms`,
+  "--pan-ms": `${WALK_PHONE.pan.durationMs}ms`,
+  "--pan-ms-d": `${WALK_DESKTOP.pan.durationMs}ms`,
+  // Фаза 4 «Оседание» — возврат перелёта.
+  "--settle-at": `${WALK_PHONE.settle.atMs}ms`,
+  "--settle-at-d": `${WALK_DESKTOP.settle.atMs}ms`,
+  "--settle-ms": `${WALK_PHONE.settle.durationMs}ms`,
+  "--settle-on": WALK_PHONE.settle.on,
+  "--veil-at": `${sceneMotion.veil.delayMs}ms`,
   "--veil-ms": `${sceneMotion.veil.durationMs}ms`,
   "--frame-ms": `${sceneMotion.openFrame.durationMs}ms`,
   "--frame-delay": `${sceneMotion.openFrame.delayMs.phone}ms`,
@@ -60,6 +87,9 @@ const BASE_VARS = {
   "--drift-t": `${sceneMotion.drift.translatePct}%`,
   "--drift-s0": `${sceneMotion.drift.scaleFrom}`,
   "--drift-s1": `${sceneMotion.drift.scaleTo}`,
+  // Размах дыхания: 1 в покое, вблизи срезан (motion.json → amplitudeZoomed).
+  "--drift-k": "1",
+  "--drift-k-zoom": `${sceneMotion.drift.zoomedFactor}`,
   "--pulse-ms": `${sceneMotion.pulse.durationMs}ms`,
   "--glow-ms": `${sceneMotion.hoverGlow.durationMs}ms`,
   "--reduced-ms": `${sceneMotion.reducedTransitionMs}ms`,
@@ -176,11 +206,12 @@ export function SceneStage({ preset, zonesOff, zoneContent, className }: SceneSt
   );
   const zoomedIn = phase !== "idle" && activeZone !== null;
 
-  // Наезд считается формулой для актуального вида; в покое — transform из
-  // партитуры (scale 1.02). Смена вида при открытой зоне пересчитает наезд.
-  const cameraTransform = zoomedIn
-    ? computeZoneCamera(activeZone.rect, view).transform
-    : sceneMotion.camera.restTransform;
+  // Наезд считается формулой для актуального вида и раскладывается по двум
+  // слоям: внешний везёт сдвиг, внутренний — масштаб. В покое инлайновых
+  // значений нет вовсе — слои возвращаются к своим `transform` из CSS, и это
+  // же запускает обратный переход. Смена вида при открытой зоне пересчитает
+  // наезд (масштаб у телефона и десктопа разный — формула, не число).
+  const camera = zoomedIn ? computeZoneCamera(activeZone.rect, view) : null;
 
   const styleVars = useMemo(
     () => ({ ...BASE_VARS, "--accent": preset.accent }) as React.CSSProperties,
@@ -197,13 +228,26 @@ export function SceneStage({ preset, zonesOff, zoneContent, className }: SceneSt
 
   return (
     <section className={className ? `${s.stage} ${className}` : s.stage} style={styleVars}>
-      <div className={s.viewport}>
-        <div className={s.camera} style={{ transform: cameraTransform }}>
-          <div className={s.drift} aria-hidden>
-            <div
-              className={s.frame}
-              style={{ backgroundImage: `url(${roomImageUrl(preset.base)})` }}
-            />
+      <div className={zoomedIn ? `${s.viewport} ${s.zoomed}` : s.viewport}>
+        {/* Наезд — стопка слоёв, по слою на фазу партитуры (motion.json →
+            openZone). Снаружи внутрь: вес назад · перелёт · оседание · сдвиг ·
+            масштаб · дыхание · кадр. У каждого свой transition — только так
+            сдвиг может длиться дольше масштаба; три слоя жеста стоят СНАРУЖИ
+            сдвига, поэтому перелёт не уводит зону из центра (camera.ts). */}
+        <div className={s.camera} aria-hidden>
+          <div className={s.over}>
+            <div className={s.settle}>
+              <div className={s.pan} style={{ transform: camera?.pan }}>
+                <div className={s.zoom} style={{ transform: camera?.zoom }}>
+                  <div className={s.drift}>
+                    <div
+                      className={s.frame}
+                      style={{ backgroundImage: `url(${roomImageUrl(preset.base)})` }}
+                    />
+                  </div>
+                </div>
+              </div>
+            </div>
           </div>
         </div>
 

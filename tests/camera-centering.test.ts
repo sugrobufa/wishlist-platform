@@ -7,14 +7,15 @@ import {
   frameRect,
   sceneSize,
   viewportCenter,
+  walkScore,
   zoneCenterAfterCamera,
   zoneRectFor,
   type SceneView,
 } from "../src/components/scene/camera";
 
 // Баг приёмки 20: после клика зона обязана оказаться в центре видимой области.
-// Контракт motion.json → openZone[0] делит смещение на scale, а браузер тем же
-// scale его домножает (scale стоит в списке функций снаружи translate) — зона
+// Контракт motion.json → openZone делит смещение на scale, а браузер тем же
+// scale его домножал (scale стоял в списке функций снаружи translate) — зона
 // недоезжала на (scale − 1) · расстояние_до_центра. Разбор — docs/adr/0002.
 //
 // Здесь три уровня проверки:
@@ -23,8 +24,14 @@ import {
 //   3. все зоны обеих раскладок приезжают в центр вьюпорта.
 //
 // Раунд 2 пакета (тикет 21) достроил карту с 84 зон до 130; продукт рендерит
-// 120 — зона `money` спрятана до записи в zones.json (ADR-0003). Числа полос и
-// пустоты пересчитаны на этот набор, выводы ADR-0002 не изменились.
+// 120 — зона `money` спрятана до записи в zones.json (ADR-0003).
+//
+// Тикет 22 разложил наезд на ПЯТЬ вложенных слоёв и перевёл масштаб на формулу.
+// Модель браузера ниже переписана под настоящую стопку слоёв (иначе она
+// проверяла бы не тот DOM, что живёт в сцене), сами требования к центровке —
+// те же и с теми же допусками. Числа полос и пустоты пересчитаны под новый
+// масштаб: они всегда были следствием scale, а не отдельным решением.
+// Выводы ADR-0002 не изменились.
 
 const VIEWS = ["phone", "desktop"] as const;
 
@@ -59,20 +66,43 @@ const apply = (m: Matrix, p: { x: number; y: number }) => ({
   y: m[1] * p.x + m[3] * p.y + m[5],
 });
 
+/** Слой `inset: 0` с `transform-origin: o`: M = T(o) · X · T(−o). */
+function layer(x: Matrix, o: { x: number; y: number }): Matrix {
+  return [translate(o.x, o.y), x, translate(-o.x, -o.y)].reduce(mul, IDENTITY);
+}
+
 /**
- * Точка слоя `.camera` после `transform-origin: o; transform: scale(S) translate(t%)`.
- * Браузер собирает M = T(o) · S · T(t) · T(−o); проценты translate берутся от
- * размера самого слоя (он `inset: 0`, то есть равен вьюпорту сцены).
+ * Точка кадра после ВСЕЙ стопки слоёв наезда — так, как её собирает браузер.
+ *
+ * Разметка (SceneStage): .camera(вес) → .over(перелёт) → .settle(оседание) →
+ * .pan(сдвиг) → .zoom(масштаб). Внешний слой применяется последним, поэтому
+ * матрицы перемножаются в том же порядке, слева направо. Все слои `inset: 0`,
+ * то есть равны вьюпорту сцены, и проценты translate берутся от него.
+ *
+ * `moment` — узел партитуры: «settled» это конец походки (жест сложился в
+ * единицу), «peak» — верхняя точка перелёта, когда масштаб на 3% больше.
  */
-function throughCss(p: { x: number; y: number }, rect: typeof allZones[number]["rect"], view: SceneView) {
+function throughCss(
+  p: { x: number; y: number },
+  rect: (typeof allZones)[number]["rect"],
+  view: SceneView,
+  moment: "settled" | "peak" = "settled",
+) {
   const { w, h } = sceneSize(view);
   const o = cameraOrigin(view);
   const { scale, dx, dy } = computeZoneCamera(rect, view);
+  const score = walkScore(view);
+  const num = (transform: string) => Number(transform.replace(/[^\d.]/gu, ""));
+  const gesture = [
+    num(score.lead.on),
+    num(score.over.on),
+    // На пике перелёта слой оседания ещё в единице.
+    moment === "peak" ? 1 : num(score.settle.on),
+  ];
   const m = [
-    translate(o.x, o.y),
-    scaleM(scale),
+    ...gesture.map((k) => layer(scaleM(k), o)),
     translate((dx / 100) * w, (dy / 100) * h),
-    translate(-o.x, -o.y),
+    layer(scaleM(scale), o),
   ].reduce(mul, IDENTITY);
   return apply(m, p);
 }
@@ -173,6 +203,44 @@ describe("наезд доводит зону до центра (тикет 20)",
     }
   });
 
+  it("перелёт на 3% делает кадр крупнее, но не сдвигает зону с центра", () => {
+    // Ловушка тикета 22: слои жеста (вес, перелёт, оседание) стоят СНАРУЖИ
+    // слоя сдвига, поэтому их множитель сокращается в условии центровки.
+    // Если бы перелёт лежал внутри сдвига, зону уводило бы на (k−1)·S·|zc − c| —
+    // до 4.4% ширины на телефоне, вдвое больше допуска приёмки в 2%.
+    for (const view of VIEWS) {
+      const c = viewportCenter(view);
+      const { w, h } = sceneSize(view);
+      let worstInside = 0;
+      for (const { id, rect } of allZones) {
+        const r = zoneRectFor(rect, view);
+        const centre = { x: r.x + r.w / 2, y: r.y + r.h / 2 };
+        const peak = throughCss(centre, rect, view, "peak");
+        expect(peak.x, `${id} ${view} x на перелёте`).toBeCloseTo(c.x, 9);
+        expect(peak.y, `${id} ${view} y на перелёте`).toBeCloseTo(c.y, 9);
+
+        // Тот же перелёт, но повешенный ВНУТРИ сдвига — для сравнения.
+        const { scale } = computeZoneCamera(rect, view);
+        const k = sceneMotion.walk.scale.overshoot;
+        worstInside = Math.max(
+          worstInside,
+          Math.abs((k - 1) * scale * (centre.x - c.x)) / w,
+          Math.abs((k - 1) * scale * (centre.y - c.y)) / h,
+        );
+      }
+      // Кадр на перелёте ровно на 3% крупнее — это и есть весь эффект.
+      const rect = must(allZones[0], "первая зона").rect;
+      const r = zoneRectFor(rect, view);
+      const tl = throughCss({ x: r.x, y: r.y }, rect, view, "peak");
+      const br = throughCss({ x: r.x + r.w, y: r.y + r.h }, rect, view, "peak");
+      const { scale } = computeZoneCamera(rect, view);
+      expect(br.x - tl.x).toBeCloseTo(r.w * scale * 1.03, 6);
+      expect(worstInside, `${view}: снос, если перелёт положить внутрь сдвига`).toBeGreaterThan(
+        0.02,
+      );
+    }
+  });
+
   it("origin наезда берётся из контракта, а не из головы", () => {
     expect(sceneMotion.camera.origin).toBe("50% 50%");
     expect(sceneMotion.camera.originPct).toEqual({ x: 50, y: 50 });
@@ -185,18 +253,25 @@ describe("наезд доводит зону до центра (тикет 20)",
 // ---------- краевые зоны: пустота, зажим и почему его нет -------------------
 
 describe("краевые зоны: сколько пустоты открывает кадр (решение ADR-0002)", () => {
+  // Числа этого блока пересчитаны тикетом 22: масштаб наезда стал формулой, а
+  // пустота у краёв всегда была его следствием. Направление — в плюс: узкие
+  // зоны приближаются сильнее, кадр под ними крупнее и закрывает больше, так
+  // что зон без пустоты стало БОЛЬШЕ (72 → 80 телефон, 55 → 69 десктоп), а
+  // худшая пустота сверху упала с 24.9% до 12.1%. Решение ADR-0002 (зажима
+  // нет) не пересматривается — пересчитаны только его цифры.
+
   /**
    * Независимый вывод: пустоты не будет ровно тогда, когда центр зоны лежит не
    * ближе некоторого расстояния к краю кадра. Порог считается из «сдвиг ≤ запас»,
    * а не из той же модели прямоугольников, что в коде, — это перекрёстная сверка.
+   * Масштаб теперь у каждой зоны свой, поэтому и полоса у каждой своя.
    */
-  function band(view: SceneView, axis: "x" | "y") {
+  function band(view: SceneView, axis: "x" | "y", scale: number) {
     const { w, h } = sceneSize(view);
     const f = frameRect(view);
     const size = axis === "x" ? w : h;
     const a = axis === "x" ? f.x : f.y;
     const len = axis === "x" ? f.w : f.h;
-    const scale = cameraScale[view];
     const m = sceneMotion.drift.scaleFrom;
     const k = scale * m;
     const c = size / 2;
@@ -210,37 +285,56 @@ describe("краевые зоны: сколько пустоты открыва�
   it("пустота появляется ровно у зон вне полосы центрируемости (120 × 2 × 2)", () => {
     for (const view of VIEWS) {
       for (const axis of ["x", "y"] as const) {
-        const { lo, hi } = band(view, axis);
         for (const { id, rect } of allZones) {
+          const { lo, hi } = band(view, axis, computeZoneCamera(rect, view).scale);
           const r = zoneRectFor(rect, view);
           const centre = axis === "x" ? r.x + r.w / 2 : r.y + r.h / 2;
           const gap = frameGapAfterZoom(rect, view);
-          const exposed = axis === "x" ? gap.left > 0 || gap.right > 0 : gap.top > 0 || gap.bottom > 0;
-          expect(exposed, `${id} ${view} ${axis}`).toBe(!(centre >= lo - 1e-6 && centre <= hi + 1e-6));
+          const exposed =
+            axis === "x" ? gap.left > 0 || gap.right > 0 : gap.top > 0 || gap.bottom > 0;
+          expect(exposed, `${id} ${view} ${axis}`).toBe(
+            !(centre >= lo - 1e-6 && centre <= hi + 1e-6),
+          );
         }
       }
     }
   });
 
-  it("полоса центрируемости: телефон 17..86% / 25..75%, десктоп 31..69% кадра", () => {
+  it("полоса центрируемости расширяется вместе с масштабом зоны", () => {
     // Числа для дизайн-сессии: только зоны, чей центр внутри полосы, можно
     // довести до середины экрана, ничего не обнажив. Всё остальное — вопрос к
-    // партитуре (запас кадра), а не к коду.
-    const pct = (view: SceneView, axis: "x" | "y") => {
+    // партитуре (запас кадра), а не к коду. Одной полосы больше нет: чем уже
+    // зона, тем сильнее наезд, тем крупнее кадр — и тем шире полоса. На упоре
+    // min формулы полоса уже прежней (масштаб меньше 1.72), на упоре max —
+    // заметно шире; это и есть выигрыш от перехода на формулу.
+    const pct = (view: SceneView, axis: "x" | "y", scale: number) => {
       const f = frameRect(view);
       const a = axis === "x" ? f.x : f.y;
       const len = axis === "x" ? f.w : f.h;
-      const { lo, hi } = band(view, axis);
+      const { lo, hi } = band(view, axis, scale);
       return { lo: ((lo - a) / len) * 100, hi: ((hi - a) / len) * 100 };
     };
-    expect(pct("phone", "x").lo).toBeCloseTo(17.1, 1);
-    expect(pct("phone", "x").hi).toBeCloseTo(85.7, 1);
-    expect(pct("phone", "y").lo).toBeCloseTo(25.4, 1);
-    expect(pct("phone", "y").hi).toBeCloseTo(74.6, 1);
-    expect(pct("desktop", "x").lo).toBeCloseTo(30.7, 1);
-    expect(pct("desktop", "x").hi).toBeCloseTo(69.3, 1);
-    expect(pct("desktop", "y").lo).toBeCloseTo(30.7, 1);
-    expect(pct("desktop", "y").hi).toBeCloseTo(69.2, 1);
+    const limits = {
+      phone: sceneMotion.cameraScaleFormula.phone,
+      desktop: sceneMotion.cameraScaleFormula.desktop,
+    };
+    expect(limits.phone).toEqual({ min: 1.45, max: 2.6, sceneW: 430 });
+    expect(limits.desktop).toEqual({ min: 1.3, max: 2.05, sceneW: 430 });
+
+    expect(pct("phone", "x", limits.phone.min).lo).toBeCloseTo(20.8, 1);
+    expect(pct("phone", "x", limits.phone.min).hi).toBeCloseTo(82.0, 1);
+    expect(pct("phone", "x", limits.phone.max).lo).toBeCloseTo(10.3, 1);
+    expect(pct("phone", "x", limits.phone.max).hi).toBeCloseTo(92.4, 1);
+    expect(pct("phone", "y", limits.phone.min).lo).toBeCloseTo(30.8, 1);
+    expect(pct("phone", "y", limits.phone.min).hi).toBeCloseTo(69.2, 1);
+    expect(pct("phone", "y", limits.phone.max).lo).toBeCloseTo(15.5, 1);
+    expect(pct("phone", "y", limits.phone.max).hi).toBeCloseTo(84.5, 1);
+    expect(pct("desktop", "x", limits.desktop.min).lo).toBeCloseTo(34.7, 1);
+    expect(pct("desktop", "x", limits.desktop.min).hi).toBeCloseTo(65.3, 1);
+    expect(pct("desktop", "x", limits.desktop.max).lo).toBeCloseTo(20.6, 1);
+    expect(pct("desktop", "x", limits.desktop.max).hi).toBeCloseTo(79.4, 1);
+    expect(pct("desktop", "y", limits.desktop.max).lo).toBeCloseTo(20.6, 1);
+    expect(pct("desktop", "y", limits.desktop.max).hi).toBeCloseTo(79.4, 1);
   });
 
   it("зажима смещения нет: худшая пустота — та, что даёт сам масштаб", () => {
@@ -263,35 +357,47 @@ describe("краевые зоны: сколько пустоты открыва�
       }
       return { left, top, bottom, clean };
     };
-    // Числа пересчитаны на карту раунда 2 (120 зон в рендере вместо 84).
-    // Верх подрос с 4.4% до 24.9%: достроенные зоны (книги, музыка, цветы)
-    // стоят выше прежних, и наезд на них обнажает кадр сверху.
+    // Числа пересчитаны тикетом 22 под масштаб-формулу (было при фиксированных
+    // 1.72/1.45: чистых 72/55, худшие 23.2/24.9/28.9 и 33.1/28.8/32.2).
+    // Переход на формулу пустоту УМЕНЬШИЛ: узкие зоны приближаются сильнее, и
+    // кадр под ними закрывает вьюпорт с запасом.
     const phone = worst("phone");
-    expect(phone.clean).toBe(72);
-    expect(phone.left).toBeCloseTo(23.2, 1);
-    expect(phone.top).toBeCloseTo(24.9, 1);
-    expect(phone.bottom).toBeCloseTo(28.9, 1);
+    expect(phone.clean).toBe(80);
+    expect(phone.left).toBeCloseTo(19.0, 1);
+    expect(phone.top).toBeCloseTo(12.1, 1);
+    expect(phone.bottom).toBeCloseTo(27.5, 1);
 
     const desktop = worst("desktop");
-    expect(desktop.clean).toBe(55);
-    expect(desktop.left).toBeCloseTo(33.1, 1);
-    expect(desktop.top).toBeCloseTo(28.8, 1);
-    expect(desktop.bottom).toBeCloseTo(32.2, 1);
+    expect(desktop.clean).toBe(69);
+    expect(desktop.left).toBeCloseTo(27.9, 1);
+    expect(desktop.top).toBeCloseTo(20.1, 1);
+    expect(desktop.bottom).toBeCloseTo(29.7, 1);
   });
 
-  it("зона остаётся на экране целиком — кроме той, что шире экрана сама по себе", () => {
+  it("зона целиком на экране — кроме высоких шкафов, где формула считает по ширине", () => {
     // После верного наезда зона стоит по центру, поэтому «влезает» = её размер
-    // после масштаба не больше вьюпорта. Единственное исключение — bold/anything
-    // (269 px в сцене 430): она не влезает ни при каком центре, это разметка.
+    // после масштаба не больше вьюпорта.
+    //
+    // Прежний список был из одной bold/anything (269 px в сцене 430) — теперь
+    // она получает нижний упор формулы 1.45 и влезает. Взамен вылезают три
+    // ВЫСОКИЕ узкие зоны: формула масштаба смотрит только на ширину зоны
+    // (`sceneW / (zone.w · 2.4)`), поэтому гардероб 83×191 получает ×2.16 и не
+    // помещается по высоте. Это свойство контракта, а не расчёта: вопрос
+    // дизайну — учитывать в формуле высоту (записано в ADR-0003 §2).
     const tooBig: string[] = [];
     for (const view of VIEWS) {
       const { w, h } = sceneSize(view);
-      const scale = cameraScale[view];
       for (const { id, rect } of allZones) {
         const r = zoneRectFor(rect, view);
+        const { scale } = computeZoneCamera(rect, view);
         if (r.w * scale > w + 1 || r.h * scale > h + 1) tooBig.push(`${id} ${view}`);
       }
     }
-    expect(tooBig).toEqual(["bold/anything phone"]);
+    expect(tooBig).toEqual([
+      "cream/fashion phone",
+      "emerald/fashion phone",
+      "emerald/home phone",
+      "cream/fashion desktop",
+    ]);
   });
 });

@@ -1,48 +1,43 @@
-// Тикет 29: быстрый вход на тестовом стенде — обход письма, пока нет SMTP.
+// Тикет 29 (быстрый вход на стенде) + тикет 31 (вход без ключа и онбординг
+// заново). Сьюта переписана под новое поведение, а не заведена рядом.
 //
-// Под замком главное: механизм выключен по умолчанию, включается только полным
-// набором переменных, пускает только заранее заданную почту, а любой отказ
-// выглядит снаружи как 404 — по ответу нельзя понять, есть ли он вообще.
+// Под замком главное:
+//   • ФЛАГ — единственный рубильник: без QUICK_LOGIN_ENABLED=true любой адрес
+//     механизма отвечает 404, ничего не выпускается и ничего не удаляется;
+//   • голый /dev-login при включённом флаге ПУСКАЕТ — без ключа и без формы;
+//   • ключ стал необязательным: задан — старая ссылка `?key=…` работает,
+//     неверный ключ по-прежнему 404; не задан — параметр просто игнорируется;
+//   • бюджета попыток больше нет: владелец не может запереть сам себя;
+//   • ?fresh=1 стирает комнату ВЛАДЕЛЬЦА (и только её) и ведёт в /onboarding;
+//   • почта — только из окружения: чужой аккаунт этим входом не открыть и
+//     чужие данные не стереть.
 //
 // Стенд как в tests/auth.magic-link.test.ts: настоящая dev-БД и НАСТОЯЩИЙ
 // обработчик Auth.js (handlers.GET) — сессию проверяем ту, что выдал пакет, а
-// не свою выдумку. Мокаются ровно три вещи: headers() (IP запроса), next-intl
-// (тексты берём из messages/ru.json) и ничего больше.
+// не свою выдумку. Моков нет вовсе: экрана у страницы больше не осталось,
+// поэтому ни next/headers, ни next-intl ей не нужны.
 import "dotenv/config";
+import { randomBytes, randomUUID } from "node:crypto";
 import { afterAll, afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { NextRequest } from "next/server";
 
-// IP запроса — страница берёт его из headers(); тест двигает сам.
-let currentIp = "203.0.113.1";
-vi.mock("next/headers", () => ({
-  headers: async () => new Headers({ "x-forwarded-for": currentIp }),
-}));
-
-// Язык — вне request-scope его взять неоткуда; всё остальное в next-intl
-// настоящее: страница сама зовёт createTranslator по своему словарю.
-vi.mock("next-intl/server", () => ({ getLocale: async () => "ru" }));
-
-import { renderToStaticMarkup } from "react-dom/server";
 import { handlers } from "@/server/auth";
 import { AFTER_SIGNIN_PATH, AUTH_BASE_PATH, MAGIC_PROVIDER_ID } from "@/server/auth-links";
 import {
   attemptQuickLogin,
+  isFreshRequested,
   readQuickLoginConfig,
   resetQuickLoginWarnings,
-  QUICK_LOGIN_ATTEMPTS_PER_MINUTE,
-  QUICK_LOGIN_KEY_PARAM,
+  QUICK_LOGIN_FRESH_PATH,
   QUICK_LOGIN_MIN_SECRET_LENGTH,
-  QUICK_LOGIN_PATH,
   QUICK_LOGIN_TOKEN_TTL_MS,
   type QuickLoginEnv,
 } from "@/server/quick-login";
-import { RateLimiter } from "@/server/rate-limit";
+import { resetStandRoom, type StandResetStorage } from "@/server/services/stand-reset";
 import DevLoginPage, { metadata } from "../src/app/dev-login/page";
 import { prisma } from "../src/server/db";
 import ruMessages from "../messages/ru.json";
 import enMessages from "../messages/en.json";
-import devLoginRu from "../messages/dev-login.ru.json";
-import devLoginEn from "../messages/dev-login.en.json";
 
 const ORIGIN = "http://localhost:3000";
 const TEST_EMAIL_DOMAIN = "@quick-login.test";
@@ -50,25 +45,29 @@ const OWNER_EMAIL = `owner${TEST_EMAIL_DOMAIN}`;
 const SECRET = "s3cret-длиной-строго-больше-24-символов-0123456789";
 const NOT_FOUND_DIGEST = "NEXT_HTTP_ERROR_FALLBACK;404";
 
-/** Рабочее окружение: всё включено и настроено верно. */
+/** Рабочее окружение: флаг включён, почта задана, ключа НЕТ (режим тикета 31). */
 function goodEnv(overrides: QuickLoginEnv = {}): QuickLoginEnv {
   return {
     QUICK_LOGIN_ENABLED: "true",
-    QUICK_LOGIN_SECRET: SECRET,
+    QUICK_LOGIN_SECRET: "",
     QUICK_LOGIN_EMAIL: OWNER_EMAIL,
     AUTH_SECRET: process.env.AUTH_SECRET,
     ...overrides,
   };
 }
 
-/** Свежая корзина попыток на тест: бюджеты тестов не пересекаются. */
-function freshLimiter(): RateLimiter {
-  return new RateLimiter({
-    redis: null,
-    prefix: "rl:test:quick-login",
-    capacity: QUICK_LOGIN_ATTEMPTS_PER_MINUTE,
-    refillPerMinute: QUICK_LOGIN_ATTEMPTS_PER_MINUTE,
-  });
+/** То же окружение, но со «строгим» ключом — проверка обратной совместимости. */
+function envWithSecret(overrides: QuickLoginEnv = {}): QuickLoginEnv {
+  return goodEnv({ QUICK_LOGIN_SECRET: SECRET, ...overrides });
+}
+
+function hex(bytes: number): string {
+  return randomBytes(bytes).toString("hex");
+}
+
+/** Шов хранилища-заглушки: БД-тесты не должны зависеть от MinIO. */
+function blindStorage(): StandResetStorage {
+  return { listKeysByPrefix: async () => [], deleteObjects: async () => undefined };
 }
 
 // ---------------------------------------------------------------- окружение
@@ -96,18 +95,9 @@ function restoreProcessEnv(): void {
 
 // ------------------------------------------------------------- помощники
 
-/** Каждому тесту свой IP: общая корзина страницы не течёт между тестами. */
-let ipCounter = 0;
-function nextIp(): string {
-  ipCounter += 1;
-  currentIp = `198.51.100.${ipCounter % 250}`;
-  return currentIp;
-}
-
-/** Отрисовать страницу (GET) и вернуть HTML. */
-async function renderPage(params: { key?: string | string[] } = {}): Promise<string> {
-  const element = await DevLoginPage({ searchParams: Promise.resolve(params) });
-  return renderToStaticMarkup(element);
+/** Открыть страницу (GET). Она НИЧЕГО не рисует: всегда редирект или 404. */
+async function openPage(params: { key?: string | string[]; fresh?: string | string[] } = {}) {
+  return DevLoginPage({ searchParams: Promise.resolve(params) });
 }
 
 /** Ждём 404: notFound() бросает ошибку с этим digest. */
@@ -138,20 +128,86 @@ async function followRedirect(redirectTo: string): Promise<Response> {
   return handlers.GET(new NextRequest(`${ORIGIN}${redirectTo}`, { method: "GET" }));
 }
 
+/** `callbackUrl` из адреса, который вернул быстрый вход. */
+function callbackUrlOf(redirectTo: string): string {
+  return new URL(redirectTo, ORIGIN).searchParams.get("callbackUrl") ?? "";
+}
+
 function tokensFor(email: string): Promise<number> {
   return prisma.verificationToken.count({ where: { identifier: email } });
 }
 
+// ------------------------------------------------------------- фикстуры
+
+async function createUserWithRoom(email: string) {
+  const user = await prisma.user.create({ data: { email, displayName: "Мила" } });
+  const room = await prisma.room.create({
+    data: {
+      userId: user.id,
+      preset: "cream",
+      zoneSet: "F",
+      shareSlug: `ql${randomUUID().replace(/-/g, "").slice(0, 10)}`,
+    },
+  });
+  return { user, room };
+}
+
+/**
+ * Комната «поживee»: вещь с фото, бронь со взносом в складчину, снимок цены,
+ * сводка праздника, связи в обе стороны, задания парсера и распознавания —
+ * по одной строке в каждую модель, которую обязан снести сброс.
+ */
+async function fillRoom(userId: string, roomId: string) {
+  const photoKey = `items/${roomId}/${hex(8)}.jpg`;
+  const item = await prisma.item.create({
+    data: { roomId, zone: "jewelry", state: "WANT", title: "Серьги", photoKey },
+  });
+  const booking = await prisma.booking.create({
+    data: {
+      itemId: item.id,
+      mode: "POOL",
+      guestName: "Складчица",
+      cancelToken: hex(24),
+      pool: { create: { name: "Складчица", amount: "1000" } },
+    },
+  });
+  const snapshot = await prisma.priceSnapshot.create({
+    data: { itemId: item.id, price: "4900", currency: "RUB" },
+  });
+  // Дата в БУДУЩЕМ: processOccasionClose() из соседнего форка выбирает все
+  // комнаты с occasionDate < now и заводит им сводки — прошедшая дата дала бы
+  // гонку на (roomId, date). Само значение ни на один ассерт не влияет.
+  const summary = await prisma.occasionSummary.create({
+    data: { roomId, date: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000) },
+  });
+  const parseJob = await prisma.parseJob.create({
+    data: { url: "https://shop.example/x", userId, status: "DONE" },
+  });
+  const recognitionJob = await prisma.recognitionJob.create({
+    data: { userId, imageKey: `private/${hex(8)}.jpg`, status: "PENDING" },
+  });
+  return { item, booking, snapshot, summary, parseJob, recognitionJob, photoKey };
+}
+
 async function cleanup(): Promise<void> {
+  const users = await prisma.user.findMany({
+    where: { email: { endsWith: TEST_EMAIL_DOMAIN } },
+    select: { id: true, room: { select: { id: true } } },
+  });
+  const userIds = users.map((entry) => entry.id);
+  const roomIds = users.flatMap((entry) => (entry.room ? [entry.room.id] : []));
+  // Модели без FK-связи с User каскад не заденет — чистим руками (как сервис).
+  await prisma.occasionSummary.deleteMany({ where: { roomId: { in: roomIds } } });
+  await prisma.parseJob.deleteMany({ where: { userId: { in: userIds } } });
+  await prisma.recognitionJob.deleteMany({ where: { userId: { in: userIds } } });
   await prisma.verificationToken.deleteMany({
     where: { identifier: { endsWith: TEST_EMAIL_DOMAIN } },
   });
-  await prisma.user.deleteMany({ where: { email: { endsWith: TEST_EMAIL_DOMAIN } } });
+  await prisma.user.deleteMany({ where: { id: { in: userIds } } });
 }
 
 beforeEach(async () => {
   resetQuickLoginWarnings();
-  nextIp();
   await cleanup();
 });
 
@@ -180,20 +236,29 @@ describe("выключен по умолчанию", () => {
     expect(warn).not.toHaveBeenCalled();
   });
 
-  it("страница при выключенном флаге — 404, а не форма и не редирект", async () => {
+  it("страница при выключенном флаге — 404 на все три адреса, без токенов", async () => {
     setProcessEnv({});
 
-    await expectNotFound(renderPage());
-    await expectNotFound(renderPage({ key: SECRET }));
-    // Верный ключ при выключенном флаге не выпускает даже токена.
+    await expectNotFound(openPage());
+    await expectNotFound(openPage({ key: SECRET }));
+    await expectNotFound(openPage({ fresh: "1" }));
     expect(await tokensFor(OWNER_EMAIL)).toBe(0);
+  });
+
+  it("выключенный флаг НИЧЕГО не стирает: ?fresh=1 — просто 404", async () => {
+    const owner = await createUserWithRoom(OWNER_EMAIL);
+    await fillRoom(owner.user.id, owner.room.id);
+    setProcessEnv({});
+
+    await expectNotFound(openPage({ fresh: "1" }));
+
+    expect(await prisma.room.count({ where: { id: owner.room.id } })).toBe(1);
+    expect(await prisma.item.count({ where: { roomId: owner.room.id } })).toBe(1);
   });
 });
 
 describe("включён, но настроен криво — не включается и громко предупреждает", () => {
   it.each([
-    ["секрет пуст", goodEnv({ QUICK_LOGIN_SECRET: "" })],
-    ["секрет короче 24", goodEnv({ QUICK_LOGIN_SECRET: "x".repeat(QUICK_LOGIN_MIN_SECRET_LENGTH - 1) })],
     ["почты нет", goodEnv({ QUICK_LOGIN_EMAIL: "" })],
     ["почта не похожа на почту", goodEnv({ QUICK_LOGIN_EMAIL: "не-почта" })],
     ["нет AUTH_SECRET", goodEnv({ AUTH_SECRET: "" })],
@@ -207,18 +272,9 @@ describe("включён, но настроен криво — не включа
     expect(String(warn.mock.calls[0]?.[0])).toContain("быстрый вход");
   });
 
-  it("ровно 24 символа уже годятся, 23 — нет", () => {
-    vi.spyOn(console, "warn").mockImplementation(() => undefined);
-    const short = "k".repeat(QUICK_LOGIN_MIN_SECRET_LENGTH - 1);
-    const enough = "k".repeat(QUICK_LOGIN_MIN_SECRET_LENGTH);
-
-    expect(readQuickLoginConfig(goodEnv({ QUICK_LOGIN_SECRET: short }))).toBeNull();
-    expect(readQuickLoginConfig(goodEnv({ QUICK_LOGIN_SECRET: enough }))?.secret).toBe(enough);
-  });
-
   it("предупреждение не заливает лог: один текст — один раз", () => {
     const warn = vi.spyOn(console, "warn").mockImplementation(() => undefined);
-    const env = goodEnv({ QUICK_LOGIN_SECRET: "коротко" });
+    const env = goodEnv({ QUICK_LOGIN_EMAIL: "" });
 
     readQuickLoginConfig(env);
     readQuickLoginConfig(env);
@@ -227,12 +283,12 @@ describe("включён, но настроен криво — не включа
     expect(warn).toHaveBeenCalledTimes(1);
   });
 
-  it("страница с коротким секретом — 404, ключ не спасает", async () => {
+  it("страница без почты в env — 404, ключ не спасает", async () => {
     vi.spyOn(console, "warn").mockImplementation(() => undefined);
-    setProcessEnv(goodEnv({ QUICK_LOGIN_SECRET: "коротко" }));
+    setProcessEnv(envWithSecret({ QUICK_LOGIN_EMAIL: "" }));
 
-    await expectNotFound(renderPage({ key: "коротко" }));
-    await expectNotFound(renderPage());
+    await expectNotFound(openPage({ key: SECRET }));
+    await expectNotFound(openPage());
     expect(await tokensFor(OWNER_EMAIL)).toBe(0);
   });
 
@@ -242,21 +298,56 @@ describe("включён, но настроен криво — не включа
   });
 });
 
-// -------------------------------------------------------------- ключ
+// ------------------------------------------------- ключ стал необязательным
 
-describe("ключ", () => {
-  it("неверный ключ — отказ и ни одного выпущенного токена", async () => {
-    const attempt = { ip: nextIp(), env: goodEnv(), limiter: freshLimiter() };
+describe("ключ необязателен (тикет 31)", () => {
+  it("пустой QUICK_LOGIN_SECRET — это норма: конфиг есть, ключа нет, лог молчит", () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => undefined);
 
-    expect(await attemptQuickLogin({ ...attempt, key: "" })).toEqual({
+    const config = readQuickLoginConfig(goodEnv());
+
+    expect(config).not.toBeNull();
+    expect(config?.secret).toBeNull();
+    expect(warn).not.toHaveBeenCalled();
+  });
+
+  it("обрубок короче 24 символов ключом не считается, но и дверь не запирает", () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => undefined);
+    const short = "k".repeat(QUICK_LOGIN_MIN_SECRET_LENGTH - 1);
+
+    const config = readQuickLoginConfig(goodEnv({ QUICK_LOGIN_SECRET: short }));
+
+    // Раньше это было 404 на всё; теперь — предупреждение и открытый вход.
+    expect(config?.secret).toBeNull();
+    expect(warn).toHaveBeenCalledTimes(1);
+    expect(String(warn.mock.calls[0]?.[0])).toContain("короче");
+  });
+
+  it("ровно 24 символа уже годятся за ключ", () => {
+    const enough = "k".repeat(QUICK_LOGIN_MIN_SECRET_LENGTH);
+    expect(readQuickLoginConfig(goodEnv({ QUICK_LOGIN_SECRET: enough }))?.secret).toBe(enough);
+  });
+
+  it("голый вход пускает и при заданном ключе — ключ спрашивают, только если он принесён", async () => {
+    const result = await attemptQuickLogin({ env: envWithSecret(), storage: blindStorage() });
+    expect(result.ok).toBe(true);
+  });
+
+  it("старая ссылка с верным ключом продолжает работать", async () => {
+    const result = await attemptQuickLogin({ key: SECRET, env: envWithSecret() });
+    expect(result.ok).toBe(true);
+    expect(await tokensFor(OWNER_EMAIL)).toBe(1);
+  });
+
+  it("неверный ключ при заданном секрете — отказ и ни одного токена", async () => {
+    const env = envWithSecret();
+
+    expect(await attemptQuickLogin({ key: "", env })).toEqual({ ok: false, reason: "bad-key" });
+    expect(await attemptQuickLogin({ key: `${SECRET}x`, env })).toEqual({
       ok: false,
       reason: "bad-key",
     });
-    expect(await attemptQuickLogin({ ...attempt, key: `${SECRET}x` })).toEqual({
-      ok: false,
-      reason: "bad-key",
-    });
-    expect(await attemptQuickLogin({ ...attempt, key: SECRET.slice(0, -1) })).toEqual({
+    expect(await attemptQuickLogin({ key: SECRET.slice(0, -1), env })).toEqual({
       ok: false,
       reason: "bad-key",
     });
@@ -264,79 +355,43 @@ describe("ключ", () => {
   });
 
   it("сверка не падает на ключах другой длины (timing-safe через хеши)", async () => {
-    const attempt = { ip: nextIp(), env: goodEnv(), limiter: freshLimiter() };
     // timingSafeEqual бросает на разной длине буферов — здесь сравниваются
     // sha256 фиксированной длины, поэтому и очень длинный ключ просто «не тот».
-    const result = await attemptQuickLogin({ ...attempt, key: "y".repeat(5000) });
+    const result = await attemptQuickLogin({ key: "y".repeat(5000), env: envWithSecret() });
     expect(result).toEqual({ ok: false, reason: "bad-key" });
   });
 
-  it("страница с неверным ключом — 404 (а не 403 и не форма)", async () => {
-    setProcessEnv(goodEnv());
+  it("ключ в адресе при пустом секрете просто игнорируется (закладка со старым ключом жива)", async () => {
+    const result = await attemptQuickLogin({ key: "давно протухший ключ", env: goodEnv() });
+    expect(result.ok).toBe(true);
+  });
 
-    await expectNotFound(renderPage({ key: "не тот ключ" }));
+  it("страница с неверным ключом — 404 (а не форма и не 403)", async () => {
+    setProcessEnv(envWithSecret());
+
+    await expectNotFound(openPage({ key: "не тот ключ" }));
     expect(await tokensFor(OWNER_EMAIL)).toBe(0);
   });
 });
 
-// ---------------------------------------------------- бюджет попыток по IP
+// ------------------------------------------------- бюджет попыток снят
 
-describe("частота попыток по IP", () => {
-  it(`после ${QUICK_LOGIN_ATTEMPTS_PER_MINUTE} попыток IP уходит в отказ — даже с верным ключом`, async () => {
-    const limiter = freshLimiter();
-    const ip = nextIp();
-
-    for (let i = 0; i < QUICK_LOGIN_ATTEMPTS_PER_MINUTE; i += 1) {
-      const result = await attemptQuickLogin({ key: "мимо", ip, env: goodEnv(), limiter });
-      expect(result).toEqual({ ok: false, reason: "bad-key" });
+describe("бюджета попыток больше нет (тикет 31 §3)", () => {
+  it("двенадцать заходов подряд — все двенадцать пускают", async () => {
+    for (let i = 0; i < 12; i += 1) {
+      const result = await attemptQuickLogin({ env: goodEnv() });
+      expect(result.ok, `заход №${i + 1}`).toBe(true);
     }
-
-    // Бюджет исчерпан: даже настоящий ключ уже не пускают.
-    expect(await attemptQuickLogin({ key: SECRET, ip, env: goodEnv(), limiter })).toEqual({
-      ok: false,
-      reason: "rate-limited",
-    });
-    expect(await tokensFor(OWNER_EMAIL)).toBe(0);
-  });
-
-  it("сосед по другому IP свой бюджет не потерял", async () => {
-    const limiter = freshLimiter();
-    for (let i = 0; i < QUICK_LOGIN_ATTEMPTS_PER_MINUTE + 3; i += 1) {
-      await attemptQuickLogin({ key: "мимо", ip: "10.0.0.1", env: goodEnv(), limiter });
-    }
-
-    const other = await attemptQuickLogin({
-      key: SECRET,
-      ip: "10.0.0.2",
-      env: goodEnv(),
-      limiter,
-    });
-    expect(other.ok).toBe(true);
-  });
-
-  it("страница режет перебор по одному IP и отвечает 404", async () => {
-    setProcessEnv(goodEnv());
-    nextIp(); // общая корзина процесса, но ключ IP у теста свой
-
-    for (let i = 0; i < QUICK_LOGIN_ATTEMPTS_PER_MINUTE; i += 1) {
-      await expectNotFound(renderPage({ key: "мимо" }));
-    }
-    // Бюджет кончился — верный ключ отсюда уже не пускают, и это тоже 404.
-    await expectNotFound(renderPage({ key: SECRET }));
-    expect(await tokensFor(OWNER_EMAIL)).toBe(0);
+    // Владелец не может запереть сам себя двойным кликом или префетчем.
+    expect(await tokensFor(OWNER_EMAIL)).toBe(12);
   });
 });
 
-// ------------------------------------------------- верный ключ: сессия
+// ------------------------------------------------- вход выдаёт сессию
 
-describe("верный ключ выдаёт настоящую сессию Auth.js", () => {
+describe("вход выдаёт настоящую сессию Auth.js", () => {
   it("уводит на callback провайдера с почтой из env и живым токеном", async () => {
-    const result = await attemptQuickLogin({
-      key: SECRET,
-      ip: nextIp(),
-      env: goodEnv(),
-      limiter: freshLimiter(),
-    });
+    const result = await attemptQuickLogin({ env: goodEnv() });
 
     expect(result.ok).toBe(true);
     if (!result.ok) return;
@@ -346,8 +401,7 @@ describe("верный ключ выдаёт настоящую сессию Aut
     expect(target.searchParams.get("email")).toBe(OWNER_EMAIL);
     expect(target.searchParams.get("callbackUrl")).toBe(AFTER_SIGNIN_PATH);
     expect(target.searchParams.get("token")).toBeTruthy();
-    // Ключа в выданном адресе нет — он не расползается дальше.
-    expect(result.redirectTo).not.toContain(SECRET);
+    expect(result.reset).toBeNull();
 
     // Выпущен обычный одноразовый VerificationToken, живёт минуту.
     const row = await prisma.verificationToken.findFirst({ where: { identifier: OWNER_EMAIL } });
@@ -358,12 +412,7 @@ describe("верный ключ выдаёт настоящую сессию Aut
   });
 
   it("сессия заводится и принадлежит именно QUICK_LOGIN_EMAIL", async () => {
-    const result = await attemptQuickLogin({
-      key: SECRET,
-      ip: nextIp(),
-      env: goodEnv(),
-      limiter: freshLimiter(),
-    });
+    const result = await attemptQuickLogin({ env: goodEnv() });
     if (!result.ok) throw new Error("быстрый вход не сработал");
 
     const response = await followRedirect(result.redirectTo);
@@ -391,15 +440,12 @@ describe("верный ключ выдаёт настоящую сессию Aut
   });
 
   it("повторный вход работает — в отличие от одноразовой ссылки из письма", async () => {
-    const attempt = { key: SECRET, ip: nextIp(), env: goodEnv(), limiter: freshLimiter() };
-
-    const first = await attemptQuickLogin(attempt);
+    const first = await attemptQuickLogin({ env: goodEnv() });
     if (!first.ok) throw new Error("первый вход не сработал");
     const firstResponse = await followRedirect(first.redirectTo);
     expect(firstResponse.headers.get("location")).toBe(`${ORIGIN}${AFTER_SIGNIN_PATH}`);
 
-    // Тот же ключ снова: выпускается свежий токен, вход проходит второй раз.
-    const second = await attemptQuickLogin(attempt);
+    const second = await attemptQuickLogin({ env: goodEnv() });
     if (!second.ok) throw new Error("повторный вход не сработал");
     expect(second.redirectTo).not.toBe(first.redirectTo);
     const secondResponse = await followRedirect(second.redirectTo);
@@ -416,13 +462,14 @@ describe("верный ключ выдаёт настоящую сессию Aut
     expect(users[0]?.sessions).toHaveLength(2);
   });
 
-  it("страница с верным ключом редиректит на тот же callback", async () => {
+  it("голая страница /dev-login редиректит на тот же callback — без ключа и без формы", async () => {
     setProcessEnv(goodEnv());
 
-    const target = await redirectTarget(renderPage({ key: SECRET }));
+    const target = await redirectTarget(openPage());
 
     expect(target).toContain(`${AUTH_BASE_PATH}/callback/${MAGIC_PROVIDER_ID}`);
     expect(target).toContain(encodeURIComponent(OWNER_EMAIL));
+    expect(callbackUrlOf(target)).toBe(AFTER_SIGNIN_PATH);
     expect(await tokensFor(OWNER_EMAIL)).toBe(1);
   });
 });
@@ -435,8 +482,8 @@ describe("чужим адресом не войти", () => {
     const stranger = `stranger${TEST_EMAIL_DOMAIN}`;
 
     const target = await redirectTarget(
-      // Страница читает только `key`; всё прочее в адресе — шум.
-      renderPage({ key: SECRET, email: stranger, identifier: stranger } as {
+      // Страница читает только `key` и `fresh`; всё прочее в адресе — шум.
+      openPage({ key: SECRET, email: stranger, identifier: stranger } as {
         key?: string | string[];
       }),
     );
@@ -447,12 +494,7 @@ describe("чужим адресом не войти", () => {
   });
 
   it("подмена почты в самом callback не проходит: токен выпущен не на неё", async () => {
-    const result = await attemptQuickLogin({
-      key: SECRET,
-      ip: nextIp(),
-      env: goodEnv(),
-      limiter: freshLimiter(),
-    });
+    const result = await attemptQuickLogin({ env: goodEnv() });
     if (!result.ok) throw new Error("быстрый вход не сработал");
 
     const stranger = `stranger${TEST_EMAIL_DOMAIN}`;
@@ -468,48 +510,245 @@ describe("чужим адресом не войти", () => {
   });
 });
 
+// ------------------------------------------------ ?fresh=1: онбординг заново
+
+describe("?fresh=1 — распознавание параметра", () => {
+  it.each([
+    ["1", true],
+    ["", true],
+    ["true", true],
+    ["yes", true],
+    ["0", false],
+    ["false", false],
+    ["no", false],
+  ])("fresh=%s → %s", (value, expected) => {
+    expect(isFreshRequested(value)).toBe(expected);
+  });
+
+  it("без параметра — не сброс; массив значений — берём первое", () => {
+    expect(isFreshRequested(undefined)).toBe(false);
+    expect(isFreshRequested(["1", "0"])).toBe(true);
+    expect(isFreshRequested(["0", "1"])).toBe(false);
+  });
+});
+
+describe("?fresh=1 — комната владельца стирается, аккаунт остаётся", () => {
+  it("сносит комнату со всем содержимым, а пользователя и сессии не трогает", async () => {
+    vi.spyOn(console, "info").mockImplementation(() => undefined);
+    const owner = await createUserWithRoom(OWNER_EMAIL);
+    const filled = await fillRoom(owner.user.id, owner.room.id);
+    const session = await prisma.session.create({
+      data: {
+        userId: owner.user.id,
+        sessionToken: `sess-${randomUUID()}`,
+        expires: new Date(Date.now() + 86_400_000),
+      },
+    });
+    const stranger = await createUserWithRoom(`stranger${TEST_EMAIL_DOMAIN}`);
+    await prisma.connection.create({
+      data: { aUserId: owner.user.id, bUserId: stranger.user.id, kind: "VIEWED", origin: "visit" },
+    });
+    await prisma.connection.create({
+      data: { aUserId: stranger.user.id, bUserId: owner.user.id, kind: "FOLLOW", origin: "visit" },
+    });
+
+    const result = await attemptQuickLogin({
+      fresh: true,
+      env: goodEnv(),
+      storage: blindStorage(),
+    });
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.reset).toMatchObject({
+      userFound: true,
+      roomDeleted: true,
+      s3Cleaned: true,
+      removed: { items: 1, occasionSummaries: 1, connections: 2, parseJobs: 1, recognitionJobs: 1 },
+    });
+
+    // Комната и всё, что за ней тянется каскадом схемы.
+    expect(await prisma.room.count({ where: { id: owner.room.id } })).toBe(0);
+    expect(await prisma.item.count({ where: { id: filled.item.id } })).toBe(0);
+    expect(await prisma.booking.count({ where: { id: filled.booking.id } })).toBe(0);
+    expect(await prisma.poolContribution.count({ where: { bookingId: filled.booking.id } })).toBe(0);
+    expect(await prisma.priceSnapshot.count({ where: { id: filled.snapshot.id } })).toBe(0);
+    // Модели без FK — снесены явно.
+    expect(await prisma.occasionSummary.count({ where: { roomId: owner.room.id } })).toBe(0);
+    expect(await prisma.parseJob.count({ where: { userId: owner.user.id } })).toBe(0);
+    expect(await prisma.recognitionJob.count({ where: { userId: owner.user.id } })).toBe(0);
+    expect(
+      await prisma.connection.count({
+        where: { OR: [{ aUserId: owner.user.id }, { bUserId: owner.user.id }] },
+      }),
+    ).toBe(0);
+
+    // Сам аккаунт цел — иначе сброс разлогинил бы владельца по дороге.
+    const user = await prisma.user.findUnique({ where: { id: owner.user.id } });
+    expect(user?.email).toBe(OWNER_EMAIL);
+    expect(user?.displayName).toBe("Мила");
+    expect(await prisma.session.count({ where: { id: session.id } })).toBe(1);
+  });
+
+  it("чужая комната этим маршрутом не сносится", async () => {
+    vi.spyOn(console, "info").mockImplementation(() => undefined);
+    const owner = await createUserWithRoom(OWNER_EMAIL);
+    await fillRoom(owner.user.id, owner.room.id);
+    const stranger = await createUserWithRoom(`stranger${TEST_EMAIL_DOMAIN}`);
+    const strangerStuff = await fillRoom(stranger.user.id, stranger.room.id);
+    const third = await createUserWithRoom(`third${TEST_EMAIL_DOMAIN}`);
+    const foreignConnection = await prisma.connection.create({
+      data: { aUserId: stranger.user.id, bUserId: third.user.id, kind: "MUTUAL", origin: "visit" },
+    });
+
+    // Почта соседа В ПАРАМЕТРАХ запроса — на сброс она не влияет никак.
+    setProcessEnv(goodEnv());
+    await redirectTarget(
+      openPage({ fresh: "1", email: stranger.user.email } as { fresh?: string | string[] }),
+    );
+
+    // Владелец сброшен...
+    expect(await prisma.room.count({ where: { id: owner.room.id } })).toBe(0);
+    // ...сосед цел целиком: комната, вещь, бронь, сводка, задания, связь с третьим.
+    expect(await prisma.room.count({ where: { id: stranger.room.id } })).toBe(1);
+    expect(await prisma.item.count({ where: { id: strangerStuff.item.id } })).toBe(1);
+    expect(await prisma.booking.count({ where: { id: strangerStuff.booking.id } })).toBe(1);
+    expect(await prisma.priceSnapshot.count({ where: { id: strangerStuff.snapshot.id } })).toBe(1);
+    expect(await prisma.occasionSummary.count({ where: { roomId: stranger.room.id } })).toBe(1);
+    expect(await prisma.parseJob.count({ where: { userId: stranger.user.id } })).toBe(1);
+    expect(await prisma.recognitionJob.count({ where: { userId: stranger.user.id } })).toBe(1);
+    expect(await prisma.connection.count({ where: { id: foreignConnection.id } })).toBe(1);
+    expect(await prisma.user.count({ where: { id: stranger.user.id } })).toBe(1);
+  });
+
+  it("ведёт в /onboarding, а обычный вход — в /room", async () => {
+    setProcessEnv(goodEnv());
+    vi.spyOn(console, "info").mockImplementation(() => undefined);
+
+    const fresh = await redirectTarget(openPage({ fresh: "1" }));
+    expect(callbackUrlOf(fresh)).toBe(QUICK_LOGIN_FRESH_PATH);
+    expect(new URL(fresh, ORIGIN).searchParams.get("email")).toBe(OWNER_EMAIL);
+
+    const plain = await redirectTarget(openPage());
+    expect(callbackUrlOf(plain)).toBe(AFTER_SIGNIN_PATH);
+  });
+
+  it("после сброса онбординг действительно открывается: сессия жива, комнаты нет", async () => {
+    setProcessEnv(goodEnv());
+    vi.spyOn(console, "info").mockImplementation(() => undefined);
+    // Сначала обычный вход — заводим пользователя и комнату, как после онбординга.
+    const first = await redirectTarget(openPage());
+    await followRedirect(first);
+    const user = await prisma.user.findUniqueOrThrow({ where: { email: OWNER_EMAIL } });
+    const room = await prisma.room.create({
+      data: {
+        userId: user.id,
+        preset: "cream",
+        zoneSet: "F",
+        shareSlug: `ql${randomUUID().replace(/-/g, "").slice(0, 10)}`,
+      },
+    });
+
+    const target = await redirectTarget(openPage({ fresh: "1" }));
+    const response = await followRedirect(target);
+
+    // Auth.js увёл ровно на онбординг и выдал сессию.
+    expect(response.headers.get("location")).toBe(`${ORIGIN}${QUICK_LOGIN_FRESH_PATH}`);
+    expect(String(response.headers.get("set-cookie"))).toContain("authjs.session-token");
+    // Комнаты нет → страница онбординга больше не редиректит в /room.
+    expect(await prisma.room.count({ where: { id: room.id } })).toBe(0);
+    expect(await prisma.session.count({ where: { userId: user.id } })).toBeGreaterThan(0);
+  });
+
+  it("обычный вход комнату НЕ трогает", async () => {
+    const owner = await createUserWithRoom(OWNER_EMAIL);
+    const filled = await fillRoom(owner.user.id, owner.room.id);
+    setProcessEnv(goodEnv());
+
+    await redirectTarget(openPage());
+
+    expect(await prisma.room.count({ where: { id: owner.room.id } })).toBe(1);
+    expect(await prisma.item.count({ where: { id: filled.item.id } })).toBe(1);
+  });
+
+  it("первый вход с ?fresh=1, когда пользователя ещё нет — не отказ, а обычный вход", async () => {
+    vi.spyOn(console, "info").mockImplementation(() => undefined);
+
+    const result = await attemptQuickLogin({ fresh: true, env: goodEnv(), storage: blindStorage() });
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.reset).toMatchObject({ userFound: false, roomDeleted: false });
+    expect(callbackUrlOf(result.redirectTo)).toBe(QUICK_LOGIN_FRESH_PATH);
+  });
+});
+
+describe("сброс и хранилище", () => {
+  it("фото вещей уходят в deleteObjects вместе с сиротами префикса", async () => {
+    vi.spyOn(console, "info").mockImplementation(() => undefined);
+    const owner = await createUserWithRoom(OWNER_EMAIL);
+    const filled = await fillRoom(owner.user.id, owner.room.id);
+    const orphan = `items/${owner.room.id}/${hex(8)}.jpg`;
+
+    const deleted = vi.fn(async (keys: string[]) => {
+      void keys;
+    });
+    const result = await resetStandRoom(OWNER_EMAIL, {
+      listKeysByPrefix: async (prefix) => (prefix === `items/${owner.room.id}/` ? [orphan] : []),
+      deleteObjects: deleted,
+    });
+
+    expect(result.s3Cleaned).toBe(true);
+    const keys = deleted.mock.calls[0]?.[0] ?? [];
+    expect(keys).toContain(filled.photoKey);
+    expect(keys).toContain(orphan);
+    // Аватар владельца — часть User, а User мы не трогаем: префикс avatars/ не листается.
+    expect(keys.every((key) => key.startsWith(`items/${owner.room.id}/`))).toBe(true);
+  });
+
+  it("отказ S3 не валит сброс: комнаты уже нет, s3Cleaned=false, в лог написано", async () => {
+    vi.spyOn(console, "info").mockImplementation(() => undefined);
+    const consoleError = vi.spyOn(console, "error").mockImplementation(() => undefined);
+    const owner = await createUserWithRoom(OWNER_EMAIL);
+    await fillRoom(owner.user.id, owner.room.id);
+
+    const result = await resetStandRoom(OWNER_EMAIL, {
+      listKeysByPrefix: async () => {
+        throw new Error("S3 недоступен");
+      },
+      deleteObjects: async () => undefined,
+    });
+
+    expect(result).toMatchObject({ userFound: true, roomDeleted: true, s3Cleaned: false });
+    expect(consoleError).toHaveBeenCalledTimes(1);
+    expect(await prisma.room.count({ where: { id: owner.room.id } })).toBe(0);
+  });
+});
+
 // ------------------------------------------------------------- экран
 
 describe("служебный экран", () => {
-  it("без ключа — форма method=get на этот же адрес, без JS и без секретов", async () => {
+  it("экрана больше нет: страница либо уводит, либо отвечает 404 — но не рисует", async () => {
     setProcessEnv(goodEnv());
+    await redirectTarget(openPage());
 
-    const html = await renderPage();
-
-    expect(html).toContain('method="get"');
-    expect(html).toContain(`action="${QUICK_LOGIN_PATH}"`);
-    expect(html).toContain(`name="${QUICK_LOGIN_KEY_PARAM}"`);
-    expect(html).toContain(devLoginRu.DevLogin.title);
-    expect(html).toContain(devLoginRu.DevLogin.submit);
-    // Ни ключа, ни почты владельца на экране нет.
-    expect(html).not.toContain(SECRET);
-    expect(html).not.toContain(OWNER_EMAIL);
-    // Никаких серверных действий: форма — чистый браузерный GET.
-    expect(html).not.toContain('method="post"');
+    setProcessEnv({});
+    await expectNotFound(openPage());
   });
 
   it("страница noindex", () => {
     expect(metadata.robots).toEqual({ index: false, follow: false });
   });
 
-  it("оба языка знают тексты экрана", () => {
-    const keys = ["overline", "title", "body", "keyLabel", "submit"] as const;
-    for (const key of keys) {
-      expect(devLoginRu.DevLogin[key], `ru.DevLogin.${key}`).toBeTruthy();
-      expect(devLoginEn.DevLogin[key], `en.DevLogin.${key}`).toBeTruthy();
-      // Тон продукта: без восклицательных знаков (design/package/handoff/tone.md).
-      expect(devLoginRu.DevLogin[key]).not.toContain("!");
-      expect(devLoginEn.DevLogin[key]).not.toContain("!");
-    }
-  });
-
   it("служебных слов НЕТ в общем словаре — иначе их видно на каждом экране", () => {
     // src/app/layout.tsx сериализует весь общий словарь в разметку любой
     // страницы. Пространство «DevLogin» там означало бы, что обход входа
-    // объявлен всему интернету ещё до всяких попыток его найти.
+    // объявлен всему интернету ещё до всяких попыток его найти. С тикетом 31
+    // у механизма не осталось вообще ни одного слова: экран исчез, отдельный
+    // словарь messages/dev-login.* удалён за ненадобностью.
     expect(ruMessages).not.toHaveProperty("DevLogin");
     expect(enMessages).not.toHaveProperty("DevLogin");
-    expect(JSON.stringify(ruMessages)).not.toContain(devLoginRu.DevLogin.title);
-    expect(JSON.stringify(enMessages)).not.toContain(devLoginEn.DevLogin.title);
+    expect(JSON.stringify(ruMessages)).not.toContain("dev-login");
+    expect(JSON.stringify(enMessages)).not.toContain("dev-login");
   });
 });
