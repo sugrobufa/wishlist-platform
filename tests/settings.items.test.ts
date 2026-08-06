@@ -248,6 +248,11 @@ describe("demoGhostsOff — призраки гаснут и у хозяйки, 
     const { user, room } = await createOwnerWithRoom();
 
     const before = await getGuestRoom(room.shareSlug);
+    // Зона «Просто деньги» ключа не получает, пока в ней нет своих вещей
+    // (тикет 44): пула демо-вещей у неё нет и не будет — призрак
+    // «пример: 3 000 ₽» обещал бы перевод, которого в продукте не существует
+    // (PRD §12а). Её пустоту заполняет карточка копилки на мечту.
+    expect(before?.itemsByZone.money).toBeUndefined();
     const zonesBefore = Object.values(before?.itemsByZone ?? {});
     expect(zonesBefore.length).toBeGreaterThan(0);
     expect(zonesBefore.every((items) => items.length > 0)).toBe(true);

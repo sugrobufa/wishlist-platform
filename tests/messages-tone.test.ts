@@ -282,6 +282,16 @@ describe("словарь и дизайн-пакет", () => {
     // вместо молчаливого пропуска, «Кнопка загорится, когда появится дата»
     // теми же словами, что и подпись у выключенной кнопки добавления вещи.
     //
+    // `Goal.*` — копилка на мечту в зоне «Просто деньги» (тикет 44, ADR-0008).
+    // С доски (турн 8d) взяты дословно «Основное желание», «Собрано {percent}%»
+    // и «{count} человек уже скинулись», а также обе галочки-обещания:
+    // «{name} не увидит, кто сколько дал» (на доске «Ирина не видит, кто
+    // сколько отправил» — «отправил» ушло вместе с переводом, который мы не
+    // делаем) и «Гости не видят друг друга». Остальное написано по памятке:
+    // словаря пакета для этой зоны нет вовсе — до ADR-0008 у неё не было ни
+    // экрана, ни сценария. «Быстрых сумм» и «Отправить 3 000 ₽» с доски здесь
+    // нет и не будет: это платёж (PRD §12а).
+    //
     // `Hall.*` (цена, значок «кто видит», сумма зала) и `Settings.hall*` —
     // стоимость в зале славы (тикет 35). Слова взяты с доски дословно
     // (турн 12d: «Всем, у кого есть ссылка», «Только друзьям», «Только мне»,
@@ -307,6 +317,38 @@ describe("словарь и дизайн-пакет", () => {
       "Booking.offerSubmit",
       "Booking.offerSubmitBusy",
       "Booking.offerTitle",
+      "Goal.amountLabel",
+      "Goal.badge",
+      "Goal.cancel",
+      "Goal.collected",
+      "Goal.emailLabel",
+      "Goal.errAlready",
+      "Goal.errGeneric",
+      "Goal.guestEmpty",
+      "Goal.join",
+      "Goal.joinConfirm",
+      "Goal.joined",
+      "Goal.joining",
+      "Goal.leave",
+      "Goal.nameLabel",
+      "Goal.of",
+      "Goal.ownerChange",
+      "Goal.ownerClear",
+      "Goal.ownerEmptyHint",
+      "Goal.ownerEmptyTitle",
+      "Goal.ownerQuiet",
+      "Goal.ownerSet",
+      "Goal.participants",
+      "Goal.pledgeAmountLabel",
+      "Goal.pledgeHint",
+      "Goal.promiseDirect",
+      "Goal.promiseHidden",
+      "Goal.promiseQuiet",
+      "Goal.revealedRow",
+      "Goal.save",
+      "Goal.saving",
+      "Goal.titleLabel",
+      "Goal.titlePlaceholder",
       "GuestRoom.freeGifts",
       "GuestRoom.noSignup",
       "GuestRoom.occasionIn",

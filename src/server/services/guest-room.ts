@@ -12,7 +12,7 @@ import { unstable_cache } from "next/cache";
 import type { Prisma } from "@prisma/client";
 import { z } from "zod";
 import { prisma } from "@/server/db";
-import { rooms as roomPresets } from "@/config/design";
+import { MONEY_ZONE_KEY, rooms as roomPresets } from "@/config/design";
 import { visibleZones } from "@/components/scene/zones";
 import { demoGhostsFor } from "@/config/demo-pools";
 import {
@@ -126,6 +126,16 @@ export async function getGuestRoom(slug: string): Promise<GuestRoomView | null> 
   const visible = visibleZones(preset.zones, room.zonesOff);
   for (const zone of visible) {
     const own = cached.itemsByZone[zone.key] ?? [];
+    // Зона «Просто деньги» без своих вещей ключа не получает вовсе (тикет 44):
+    // пула демо-вещей у неё нет и не будет — призрак «пример: 3 000 ₽» обещал
+    // бы перевод, которого в продукте не существует (PRD §12а). Её пустоту
+    // заполняет карточка копилки на мечту, и пустая сетка вкладок «Люблю ·
+    // 0 / Хочу · 0» под этой карточкой была бы просто шумом. Свои вещи в этой
+    // зоне никто не запрещает — появятся, и сетка вернётся сама.
+    if (zone.key === MONEY_ZONE_KEY && own.length === 0) {
+      summariesByZone[zone.key] = cached.summariesByZone[zone.key] ?? emptyZoneSummary(zone.key);
+      continue;
+    }
     itemsByZone[zone.key] =
       own.length > 0 || room.demoGhostsOff
         ? own

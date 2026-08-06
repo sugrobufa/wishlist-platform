@@ -122,11 +122,12 @@ function throughCss(
 }
 
 describe("наезд доводит зону до центра (тикет 20)", () => {
-  it("чистая функция совпадает с матричной моделью браузера (112 зон × 2 вида)", () => {
-    // 130 в контракте − 10 (`money`, ADR-0004) − 8 (предмета нет в интерьере,
-    // ADR-0006) = 112. Число зон, а не свойство расчёта: центровка ниже
-    // проверяется на каждой из них поимённо.
-    expect(allZones).toHaveLength(112);
+  it("чистая функция совпадает с матричной моделью браузера (122 зоны × 2 вида)", () => {
+    // 130 в контракте − 8 (предмета нет в интерьере, ADR-0006) = 122. Прежде
+    // вычиталось ещё десять — зона `money` во всех комнатах; ADR-0008 включил
+    // её. Число зон, а не свойство расчёта: центровка ниже проверяется на
+    // каждой из них поимённо.
+    expect(allZones).toHaveLength(122);
     for (const view of VIEWS) {
       for (const { id, rect } of allZones) {
         const r = zoneRectFor(rect, view);
@@ -452,15 +453,21 @@ describe("краевые зоны: сколько пустоты открыва�
     // что зажим возвращает промах центра, и он от карты не зависит.
     // Прежние числа: телефон clean 80, L 19.0, T 12.1, B 27.5, R ровно 0;
     //                десктоп clean 69, L 27.9, T 20.1, B 29.7, R ровно 0.
+    //
+    // ADR-0008 включил зону денег, и зон стало 122 вместо 112. Чистых
+    // прибавилось (телефон 55 → 61, десктоп 42 → 47): конверт стоит в глубине
+    // кадра, а не у края, и центруется без пустоты. Пределы пустоты по всем
+    // четырём сторонам не сдвинулись ни на десятую — худшие зоны прежние.
+    // (Десктоп 42 → 48: та же причина, и разница та же шестёрка зон.)
     const phone = worst("phone");
-    expect(phone.clean).toBe(55);
+    expect(phone.clean).toBe(61);
     expect(phone.left).toBeCloseTo(23.1, 1);
     expect(phone.right).toBeCloseTo(16.1, 1);
     expect(phone.top).toBeCloseTo(7.2, 1);
     expect(phone.bottom).toBeCloseTo(27.5, 1);
 
     const desktop = worst("desktop");
-    expect(desktop.clean).toBe(42);
+    expect(desktop.clean).toBe(48);
     expect(desktop.left).toBeCloseTo(30.5, 1);
     expect(desktop.right).toBeCloseTo(34.7, 1);
     expect(desktop.top).toBeCloseTo(7.2, 1);

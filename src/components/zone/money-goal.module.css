@@ -1,0 +1,206 @@
+/* Карточка копилки в зоне «Просто деньги» (тикет 44, доска — турн 8d).
+ *
+ * С доски взяты: плашка «Основное желание», крупная собранная сумма над
+ * «из 180 000 ₽», полоса прогресса со свечением акцента, строка «Собрано 36% ·
+ * 11 человек уже скинулись» и галочки-обещания внизу.
+ * НЕ взяты: «быстрые суммы» и кнопка «Отправить 3 000 ₽» — это платёж, он
+ * запрещён PRD §12а (ADR-0008).
+ *
+ * Цвета и типографика — с макета; акцент комнаты приезжает переменной
+ * --zg-accent, как у сетки вещей (её задаёт ZoneGrid, а здесь карточка ставит
+ * свою на случай, если стоит одна).
+ */
+
+.root {
+  margin-top: 14px;
+}
+
+.badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 6px 11px 7px;
+  background: var(--mg-accent);
+  font: 600 10px/1 var(--font-ui);
+  color: var(--mg-ink);
+}
+
+.badgeSign {
+  font-weight: 700;
+  font-size: 11px;
+}
+
+.title {
+  margin: 12px 0 0;
+  font: 600 19px/1.25 var(--font-ui);
+  color: var(--color-text-primary, #f8f2ea);
+}
+
+/* --- Суммы и полоса ------------------------------------------------------ */
+
+.amounts {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 16px;
+}
+
+.big {
+  font: 700 30px/1 var(--font-ui);
+  letter-spacing: -0.02em;
+  color: var(--color-text-primary, #f8f2ea);
+}
+
+.of {
+  padding-bottom: 4px;
+  font: 400 13px/1 var(--font-ui);
+  color: var(--color-text-muted, rgba(248, 242, 234, 0.58));
+}
+
+.track {
+  position: relative;
+  height: 6px;
+  margin-top: 14px;
+  overflow: hidden;
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.fill {
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: var(--mg-percent);
+  background: var(--mg-accent);
+  box-shadow: 0 0 18px 2px color-mix(in srgb, var(--mg-accent) 60%, transparent);
+  transition: width var(--mg-ms, 240ms) var(--mg-ease, ease-out);
+}
+
+.legend {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 10px;
+  font: 400 11.5px/1.3 var(--font-ui);
+  color: var(--color-text-muted, rgba(248, 242, 234, 0.56));
+}
+
+/* --- Обещания и честная строка ------------------------------------------- */
+
+.promises {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-top: 18px;
+  padding: 0;
+  list-style: none;
+}
+
+.promise {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  font: 400 12.5px/1.4 var(--font-ui);
+  color: var(--color-text-muted, rgba(248, 242, 234, 0.62));
+}
+
+.tick {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  width: 15px;
+  height: 15px;
+  margin-top: 1px;
+  background: var(--mg-accent);
+  color: var(--mg-ink);
+}
+
+/* --- Действия и форма ---------------------------------------------------- */
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 16px;
+  margin-top: 18px;
+}
+
+.primary {
+  padding: 0 4px 6px;
+  border: 0;
+  border-bottom: 2px solid var(--mg-accent);
+  background: none;
+  box-shadow: 0 4px 18px -3px color-mix(in srgb, var(--mg-accent) 42%, transparent);
+  font: 600 13px/1.4 var(--font-ui);
+  color: var(--color-text-primary, #f8f2ea);
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.quiet {
+  padding: 0;
+  border: 0;
+  background: none;
+  font: 500 12px/1.4 var(--font-ui);
+  color: var(--color-text-faint, rgba(248, 242, 234, 0.5));
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.form {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-top: 16px;
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.label {
+  font: 500 9px/1 var(--font-ui);
+  letter-spacing: 0.17em;
+  text-transform: uppercase;
+  color: var(--color-text-faint, rgba(248, 242, 234, 0.5));
+}
+
+.input {
+  width: 100%;
+  padding: 10px 12px;
+  border: 1px solid var(--color-surface-hairline, rgba(255, 255, 255, 0.12));
+  background: rgba(255, 255, 255, 0.03);
+  font: 400 14px/1.3 var(--font-ui);
+  color: var(--color-text-primary, #f8f2ea);
+}
+
+.input:focus-visible {
+  outline: 2px solid var(--mg-accent);
+  outline-offset: 1px;
+}
+
+.hint {
+  margin: 0;
+  font: 400 11.5px/1.45 var(--font-ui);
+  color: var(--color-text-faint, rgba(248, 242, 234, 0.5));
+}
+
+.status {
+  margin: 0;
+  font: 500 12px/1.45 var(--font-ui);
+  color: var(--mg-accent);
+}
+
+.empty {
+  margin: 14px 0 0;
+  font: 400 13.5px/1.6 var(--font-ui);
+  color: var(--color-text-muted, rgba(255, 249, 242, 0.62));
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .fill {
+    transition-duration: var(--mg-reduced, 120ms);
+  }
+}

@@ -6,7 +6,7 @@ import { redirect } from "next/navigation";
 import { auth } from "@/server/auth";
 import { getRoomForUser, getSessionUserId } from "@/server/services/rooms";
 import { listZoneItems } from "@/server/services/items";
-import { ownerTakenCount } from "@/server/services/bookings";
+import { ownerTakenTotal } from "@/server/services/goal";
 import { occasionBannerVisible } from "@/server/services/occasions";
 import { itemForOwner } from "@/server/dto/items";
 import {
@@ -14,7 +14,7 @@ import {
   zoneSummaryForOwner,
   type ZoneSummaryDto,
 } from "@/server/dto/zone-summary";
-import { rooms, type Room, type RoomZone } from "@/config/design";
+import { MONEY_ZONE_KEY, rooms, type Room, type RoomZone } from "@/config/design";
 import { roomImageUrl } from "@/app/rooms/room-image";
 import { SceneStage } from "@/components/scene/SceneStage";
 import { immersiveLayout } from "@/components/scene/immersive-layout";
@@ -58,7 +58,11 @@ export default async function RoomPage() {
   // знает о бронях до праздника (инвариант №1). Страница force-dynamic,
   // поэтому сервис зовётся напрямую — отдельный fetch не нужен; сам роут
   // /api/v1/room/taken-count живёт для клиентских обновлений.
-  const takenCount = await ownerTakenCount(userId);
+  //
+  // Копилка на мечту (тикет 44) входит в это же число ОДНОЙ вещью при любом
+  // числе участников: прогресс сбора хозяйке не показывается ничем, в том
+  // числе счётчиком, который рос бы на каждого нового участника.
+  const takenCount = await ownerTakenTotal(userId);
   // Тихая строка «праздник прошёл» (тикет 10): дата прошла без итога или
   // в «что подарили» остались неотмеченные подарки. Голый boolean — о бронях
   // он говорит не больше счётчика.
@@ -204,9 +208,14 @@ async function buildZoneContent(
       const own = rows.map(itemForOwner);
       const summary = zoneSummaryForOwner(zone.key, rows.map(ownerSummaryItem));
       const items = zoneDisplayItems(own, zone.key, zone.pool, demoGhostsOff);
+      // Зона «Просто деньги» без своих вещей сетку не показывает (тикет 44):
+      // пула демо-вещей у неё нет, и пустые вкладки «Люблю · 0 / Хочу · 0»
+      // под карточкой копилки были бы шумом. Ссылки остаются — вещи в этой
+      // зоне никто не запрещает, и первая же вернёт сетку.
+      const showGrid = zone.key !== MONEY_ZONE_KEY || items.length > 0;
       const node = (
         <div key={zone.key}>
-          <ZoneGrid items={items} accent={preset.accent} ink={preset.ink} />
+          {showGrid && <ZoneGrid items={items} accent={preset.accent} ink={preset.ink} />}
           <div className="mt-4 flex items-center gap-5">
             <Link
               href={`/room/zone/${zone.key}`}

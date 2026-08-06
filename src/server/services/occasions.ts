@@ -14,6 +14,7 @@ import { z } from "zod";
 import { prisma } from "@/server/db";
 import { roomCacheTag } from "@/server/services/items";
 import { upsertGiftConnection } from "@/server/services/connections";
+import { revealedPledges } from "@/server/services/goal";
 import { itemPhotoUrl } from "@/server/dto/items";
 import { enqueueOccasionOwnerMail } from "@/server/queues";
 
@@ -146,6 +147,23 @@ export type OccasionReceivedGift = {
   receivedAt: string;
 };
 
+/**
+ * Копилка на мечту на экране «что подарили» (тикет 44, доска — турн 6:
+ * «Просто деньги · Вложились трое · 22 000 ₽ · Кто»). СУЩЕСТВУЕТ только при
+ * существующем summary: до праздника хозяйка не знает о копилке ничего —
+ * ни суммы, ни числа участников, ни тем более имён (инварианты №1 и №2).
+ */
+export type OccasionGoal = {
+  /** На что копила — цель словами. */
+  title: string;
+  /** Собранное по названным обещаниям, Decimal строкой. */
+  pledged: string;
+  /** ISO 4217. */
+  currency: string;
+  /** Кто скинулся — то самое «Кто» с доски, раскрытое ровно здесь. */
+  givers: string[];
+};
+
 export type OccasionView = {
   /** null — праздник не закрыт: имена и вещи с бронями НЕ отдаются вообще. */
   summary: { id: string; date: string; revealedAt: string | null } | null;
@@ -153,6 +171,8 @@ export type OccasionView = {
   received: OccasionReceivedGift[];
   /** «Осталось незабранным · N» — вещи «хочу» без брони (голое число). */
   unclaimedCount: number;
+  /** Копилка с раскрытыми участниками; null — цели нет или в неё не скидывались. */
+  goal: OccasionGoal | null;
 };
 
 /**
@@ -186,7 +206,9 @@ export async function getOccasionView(userId: string): Promise<OccasionView> {
     orderBy: [{ date: "desc" }, { createdAt: "desc" }],
   });
   if (!summary) {
-    return { summary: null, pending: [], received: [], unclaimedCount };
+    // Копилки здесь нет ни строкой: до закрытия праздника хозяйка не видит
+    // ни прогресса сбора, ни участников (инвариант №1, ADR-0008).
+    return { summary: null, pending: [], received: [], unclaimedCount, goal: null };
   }
 
   // Первое открытие экрана = момент раскрытия. Guard revealedAt=null держит
@@ -225,6 +247,7 @@ export async function getOccasionView(userId: string): Promise<OccasionView> {
   });
 
   return {
+    goal: await revealedGoal(room.id),
     summary: {
       id: revealed.id,
       date: revealed.date.toISOString(),
@@ -246,6 +269,41 @@ export async function getOccasionView(userId: string): Promise<OccasionView> {
       receivedAt: (item.receivedAt ?? new Date(0)).toISOString(),
     })),
     unclaimedCount,
+  };
+}
+
+/**
+ * Копилка с раскрытыми именами. Зовётся ТОЛЬКО из ветки «summary существует»
+ * выше — иначе имена участников покинули бы «что подарили», а это единственное
+ * место, где они раскрываются (инвариант №2).
+ *
+ * Сумма складывается здесь, а не в сервисе копилки: там её нет ни в одной
+ * форме, отдаваемой хозяйке (dto/goal.ts), и заводить её ради этого экрана
+ * значило бы открыть дверь, которую инвариант №1 держит закрытой.
+ *
+ * Копилка без единого участника — null: строка «Вложились ноль» ничего не
+ * рассказывает, а цель хозяйка и так знает.
+ */
+async function revealedGoal(roomId: string): Promise<OccasionGoal | null> {
+  const goal = await prisma.roomGoal.findUnique({
+    where: { roomId },
+    select: { title: true, currency: true },
+  });
+  if (!goal) return null;
+
+  const pledges = await revealedPledges(roomId);
+  if (pledges.length === 0) return null;
+
+  const pledged = pledges.reduce(
+    (sum, pledge) => (pledge.amount ? sum.add(new Prisma.Decimal(pledge.amount)) : sum),
+    new Prisma.Decimal(0),
+  );
+
+  return {
+    title: goal.title,
+    pledged: pledged.toString(),
+    currency: goal.currency,
+    givers: pledges.map((pledge) => pledge.name),
   };
 }
 

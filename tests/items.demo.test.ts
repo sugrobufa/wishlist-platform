@@ -44,17 +44,28 @@ const LOVE_KEYS = [
 ];
 
 const packagePoolKeys = (itemsJson as { demoPools: { poolKeys: string[] } }).demoPools.poolKeys;
-// Пулы зон справочника — кроме тех зон, которые продукт не показывает вовсе.
-// Раунд 4 дописал в справочник ключ `money` с пулом `money`, но зона скрыта
-// решением владельца (PRD §12а, «деньги через сервис не ходят никогда»), и
-// демо-вещей для неё нет и не должно быть: см. zoneKeysHiddenByProduct.
+
+/**
+ * Пулы зон справочника — кроме тех зон, которые продукт не показывает вовсе,
+ * и кроме зоны «Просто деньги».
+ *
+ * Раунд 4 дописал в справочник ключ `money` с пулом `money`, которого нет в
+ * пакете. Пока зона была скрыта (ADR-0004), пустой пул никого не смущал.
+ * ADR-0008 зону включил — и пул остаётся пустым СОЗНАТЕЛЬНО: пустоту этой
+ * зоны заполняет не выдуманная вещь, а карточка копилки на мечту
+ * (components/zone/money-goal-card). Демо-призрак «пример: 3 000 ₽» обещал бы
+ * ровно тот перевод, которого в продукте нет (PRD §12а).
+ */
+const MONEY_POOL = "money";
 const zonesPoolKeys = Object.entries(
   (zonesJson as unknown as { keys: Record<string, [string, string, string, string, string]> })
     .keys,
 )
-  .filter(([key]) => !zoneKeysHiddenByProduct.includes(key))
+  .filter(([key]) => !zoneKeysHiddenByProduct.includes(key) && key !== MONEY_POOL)
   .map(([, row]) => row[3]);
-const roomPoolKeys = rooms.flatMap((room) => room.zones.map((zone) => zone.pool));
+const roomPoolKeys = rooms
+  .flatMap((room) => room.zones.map((zone) => zone.pool))
+  .filter((pool) => pool !== MONEY_POOL);
 
 describe("demoPools — покрытие пулов дизайн-пакета", () => {
   it("есть все 18 ключей из items.json → demoPools.poolKeys, лишних нет", () => {

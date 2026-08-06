@@ -348,32 +348,37 @@ describe("кадры «открыто» (openFrame — единственный 
     }
   });
 
-  it("на экране 26 раскрытий: 30 кадров контракта − 1 (warm) − 3 (money)", () => {
+  it("на экране 29 раскрытий: 30 кадров контракта − 1 (warm)", () => {
     // ДВА РАЗНЫХ ЧИСЛА, и их легко перепутать между собой:
     //   30 — зон с кадром `openFrame` в контракте, столько же файлов снято;
-    //   26 — раскрытий, которые человек может увидеть на экране.
-    // Разница 30 → 26 не про качество кадров:
+    //   29 — раскрытий, которые человек может увидеть на экране.
+    // Разница 30 → 29 не про качество кадров:
     //   −1  у комнат `warm` и `loft` базовый кадр пакета разошёлся с нынешним
     //       сильнее порога композиции 0.05 — мебель поехала, прямоугольники к
     //       этим кадрам не подходят, поэтому «открыто» у них не подключено
     //       вовсе (ADR-0005). В контракте у них остался один кадр на двоих
     //       (`warm/money`): два кадра `warm` сняла приёмка 46, у `loft` кадров
-    //       не осталось ещё после раунда 5;
-    //   −3  кадры скрытой зоны `money` (тест ниже: на диске лежат готовыми).
+    //       не осталось ещё после раунда 5.
+    // Прежде вычиталось ещё три — кадры скрытой зоны `money`. ADR-0008 зону
+    // включил, и на экран вышли `lux/money`, `bold/money`, `cottage/money`:
+    // конверт в этих комнатах действительно раскрывается. В остальных камера
+    // подъедет к конверту без раскрытия — как у любой зоны без кадра.
     // Осторожно с историей: до раунда 4 контракт давал 49 принятых и ровно 39
     // подключённых, и «39» успело осесть в ADR-0005 как «подключено».
     expect(withFrame).toHaveLength(30);
     const connected = rooms.flatMap((room) =>
       room.zones.filter((zone) => zone.openFrame).map((zone) => `${room.id}/${zone.key}`),
     );
-    expect(connected).toHaveLength(26);
+    expect(connected).toHaveLength(29);
     expect(connected.filter((id) => id.startsWith("warm/") || id.startsWith("loft/"))).toEqual([]);
-    expect(connected.filter((id) => id.endsWith("/money"))).toEqual([]);
-    expect(
-      withFrame.filter(
-        ({ room, zone }) => !["warm", "loft"].includes(room.id) && zone.key !== "money",
-      ),
-    ).toHaveLength(26);
+    // Конверт раскрывается ровно в трёх комнатах — в контракте кадров четыре,
+    // четвёртый (`warm/money`) уехал вместе со всей комнатой.
+    expect(connected.filter((id) => id.endsWith("/money"))).toEqual([
+      "lux/money",
+      "bold/money",
+      "cottage/money",
+    ]);
+    expect(withFrame.filter(({ room }) => !["warm", "loft"].includes(room.id))).toHaveLength(29);
     for (const room of rooms) {
       for (const zone of room.zones) {
         if (!zone.openFrame) continue;
@@ -446,13 +451,17 @@ describe("справочник зон (zones.json)", () => {
     expect(zoneKeysWithoutCatalogEntry).toEqual([]);
   });
 
-  it("зона money есть в каждой комнате контракта и ни в одной — в рендере", () => {
-    // Теперь это решение владельца, а не следствие дырки: PRD §12а «деньги
-    // через сервис не ходят никогда». Платежей нет ни в какой фазе, экрана
-    // складчины нет, пула демо-вещей нет — человек нажал бы на конверт и
-    // упёрся в пустоту. Снимается решением владельца, одним списком в
-    // src/config/design.ts.
-    expect(zoneKeysHiddenByProduct).toEqual(["money"]);
+  it("зона money есть в каждой комнате контракта — и теперь в каждой в рендере", () => {
+    // Было наоборот: ADR-0004 прятал зону явным списком, потому что за ней не
+    // было ни экрана, ни сценария, а единственное, что она обещала, —
+    // денежный перевод — запрещено PRD §12а.
+    //
+    // ADR-0008 (решение владельца 06.08.2026) выполнил условие возврата,
+    // записанное там же: внутри зоны — копилка на мечту, деньги идут МИМО
+    // сервиса. PRD §12а не изменился, переводов по-прежнему нет.
+    // Список исключений по ключу остался пустым и рабочим — следующее такое
+    // решение владельца пишется одной строкой.
+    expect(zoneKeysHiddenByProduct).toEqual([]);
     for (const room of contractRooms) {
       expect(
         room.zones.some((zone) => zone.key === "money"),
@@ -463,7 +472,7 @@ describe("справочник зон (zones.json)", () => {
       expect(
         room.zones.some((zone) => zone.key === "money"),
         `${room.id}`,
-      ).toBe(false);
+      ).toBe(true);
     }
   });
 
@@ -486,21 +495,22 @@ describe("справочник зон (zones.json)", () => {
     const absent = allZones.filter(({ zone }) => zone.objectAbsent).map((z) => z.id);
     expect([...zonesHiddenByProduct].sort()).toEqual([...absent].sort());
 
-    // 130 − 10 (money) − 8 (без предмета) = 112 зон в рендере.
+    // 130 − 8 (без предмета) = 122 зоны в рендере. Прежде вычиталось ещё
+    // десять — зона `money` во всех комнатах; ADR-0008 её включил.
     const perRoom = Object.fromEntries(rooms.map((room) => [room.id, room.zones.length]));
     expect(perRoom).toEqual({
-      cream: 12,
-      warm: 11,
-      lux: 11,
-      emerald: 11,
-      bold: 12,
-      cottage: 12,
-      gamer: 12,
-      sport: 10,
-      study: 10,
-      loft: 11,
+      cream: 13,
+      warm: 12,
+      lux: 12,
+      emerald: 12,
+      bold: 13,
+      cottage: 13,
+      gamer: 13,
+      sport: 11,
+      study: 11,
+      loft: 12,
     });
-    expect(rooms.reduce((n, room) => n + room.zones.length, 0)).toBe(112);
+    expect(rooms.reduce((n, room) => n + room.zones.length, 0)).toBe(122);
     for (const address of zonesHiddenByProduct) {
       const [roomId, key] = address.split("/");
       expect(
@@ -604,12 +614,14 @@ describe("пересечения прямоугольников зон", () => {
     expect(shared).toEqual([["cream/events", "cream/flowers"]]);
   });
 
-  it("в рендере пар на одну меньше: sport/sport×money гасится скрытой зоной money", () => {
-    // Единственная пара, которую продукт не чувствует: `money` не рисуется
-    // вовсе, значит и нажатие у неё не отнять. Остальные четырнадцать — живые.
+  it("в рендере пар столько же: включённая зона money вернула свою пару", () => {
+    // Прежде продукт не чувствовал пару `sport/sport×money`: зона `money` не
+    // рисовалась вовсе, значит и нажатие у неё было не отнять. ADR-0008 зону
+    // включил — пара вернулась в живые, и реестр долга совпадает с рендером
+    // строка в строку.
     const shown = rooms.flatMap(overlapsIn).map((o) => `${o.id} (${o.area} px²)`);
-    expect(shown).toEqual(OVERLAP_DEBT.filter((pair) => !pair.startsWith("sport/sport×money")));
-    expect(shown).toHaveLength(14);
+    expect(shown).toEqual(OVERLAP_DEBT);
+    expect(shown).toHaveLength(15);
   });
 });
 

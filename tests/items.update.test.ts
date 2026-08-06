@@ -215,7 +215,7 @@ describe("updateItem — перенос на другую полку", () => {
     expect(await getOwnItem(user.id, item.id)).toMatchObject({ zone: "bags" });
   });
 
-  it("зона не из пресета, выключенная зона и скрытая продуктом `money` → ZONE_NOT_VISIBLE", async () => {
+  it("зона не из пресета и выключенная зона → ZONE_NOT_VISIBLE; `money` теперь можно", async () => {
     const { user, room } = await createOwnerWithRoom();
     const item = await createWantItem(room.id, "jewelry");
 
@@ -223,11 +223,13 @@ describe("updateItem — перенос на другую полку", () => {
       updateItem(user.id, item.id, wantForm({ zone: "no-such-zone" })),
     ).rejects.toMatchObject({ code: "ZONE_NOT_VISIBLE" });
 
-    // Зона «Просто деньги» есть в контракте, но продукт её не показывает
-    // (ADR-0004) — перенести вещь туда нельзя.
-    await expect(updateItem(user.id, item.id, wantForm({ zone: "money" }))).rejects.toMatchObject({
-      code: "ZONE_NOT_VISIBLE",
-    });
+    // Зона «Просто деньги» показывается с ADR-0008, и никакого особого правила
+    // у неё нет: перенести вещь туда можно, как в любую видимую зону. Копилка
+    // на мечту живёт рядом с вещами и вещью не является — она в своей таблице
+    // (services/goal), а не среди Item.
+    const moved = await updateItem(user.id, item.id, wantForm({ zone: "money" }));
+    expect(moved.zone).toBe("money");
+    await updateItem(user.id, item.id, wantForm({ zone: "jewelry" }));
 
     // Выключенная полка исчезает вместе с мебелью (инвариант №5) — вещь
     // не должна проваливаться в невидимую комнату.

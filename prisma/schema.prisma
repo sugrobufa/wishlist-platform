@@ -97,8 +97,56 @@ model Room {
   // считается по точным значениям.
   hallRoundPrices Boolean @default(false)
 
-  user  User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user  User      @relation(fields: [userId], references: [id], onDelete: Cascade)
   items Item[]
+  goal  RoomGoal?
+}
+
+// ---------- Копилка на мечту (ADR-0008, тикет 44) ----------
+//
+// Хозяйка называет цель («на велосипед, 45 000 ₽»), гость говорит «я участвую».
+// Деньги идут МИМО СЕРВИСА: он их не принимает, не хранит и не переводит
+// (PRD §12а не меняется). Поэтому здесь нет ни платежа, ни статуса оплаты —
+// только договорённость.
+//
+// ПОЧЕМУ ОТДЕЛЬНАЯ МОДЕЛЬ, А НЕ BookingMode.POOL. Складчина — режим брони
+// ВЕЩИ: у неё есть Item, цена вещи, «Дошло» и переезд в зал славы. У копилки
+// вещи нет вовсе (цель — не вещь: в зал славы не уезжает, в агрегаты зоны не
+// входит), зато есть своя сумма и своя валюта. POOL остаётся Phase 2 и этой
+// моделью не разблокируется.
+model RoomGoal {
+  id       String  @id @default(cuid())
+  roomId   String  @unique // одна цель на комнату: «основной подарок» доски
+  title    String // на что копит: «на велосипед»
+  amount   Decimal @db.Decimal(12, 2) // Decimal, никогда float
+  currency String // ISO 4217 отдельным полем, как у вещей
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  room    Room         @relation(fields: [roomId], references: [id], onDelete: Cascade)
+  pledges GoalPledge[]
+}
+
+// «Я участвую». Имя хозяйке НЕ отдаётся до экрана «что подарили» (инвариант
+// №2), сумма — не отдаётся ей никогда (следствие инварианта №1: прогресс сбора
+// видят только гости).
+model GoalPledge {
+  id          String   @id @default(cuid())
+  goalId      String
+  guestName   String
+  guestEmail  String?
+  guestUserId String?
+  // Обещанная сумма — необязательна: «я участвую» без суммы тоже участие.
+  // Прогресс складывает названные суммы, участников считает всех.
+  amount      Decimal? @db.Decimal(12, 2)
+  currency    String
+  cancelToken String   @unique
+  createdAt   DateTime @default(now())
+
+  goal RoomGoal @relation(fields: [goalId], references: [id], onDelete: Cascade)
+
+  @@index([goalId])
 }
 
 // ---------- Вещь: одно тело, два состояния (items.json) ----------

@@ -1,11 +1,12 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { getFormatter, getTranslations } from "next-intl/server";
+import { getFormatter, getLocale, getTranslations } from "next-intl/server";
 import { redirect } from "next/navigation";
 import { auth } from "@/server/auth";
 import { getRoomForUser, getSessionUserId } from "@/server/services/rooms";
 import { getOccasionView } from "@/server/services/occasions";
 import { rooms } from "@/config/design";
+import { formatHallMoney } from "@/app/room/hall/money";
 import { CloseOccasionButton, OccasionRows } from "./occasion-client";
 
 export const dynamic = "force-dynamic";
@@ -32,6 +33,8 @@ export default async function OccasionPage() {
   if (!room) redirect("/onboarding");
 
   const t = await getTranslations("Occasion");
+  const tGoal = await getTranslations("Goal");
+  const locale = await getLocale();
   const format = await getFormatter();
   const preset = rooms.find((candidate) => candidate.id === room.preset);
   const accent = preset?.accent ?? "#E7C9A9";
@@ -108,6 +111,30 @@ export default async function OccasionPage() {
               />
             ) : (
               <p className="text-sm text-text-muted">{t("emptyHint")}</p>
+            )}
+
+            {/* Копилка на мечту (тикет 44, доска — турн 6): «Просто деньги ·
+                Вложились трое · 22 000 ₽» и имена. До этого экрана хозяйка не
+                видела ни суммы, ни числа участников — раскрытие живёт ровно
+                здесь и ровно один раз (инварианты №1 и №2). */}
+            {view.goal && (
+              <div className="mt-8 border-t border-surface-hairline pt-5">
+                <p className="overline" style={{ color: accent }}>
+                  {tGoal("badge")}
+                </p>
+                <p className="mt-2.5 text-[13px] font-semibold text-text-primary">
+                  {view.goal.title}
+                </p>
+                <p className="mt-1.5 text-[10.5px] font-medium text-text-muted">
+                  {tGoal("revealedRow", {
+                    count: view.goal.givers.length,
+                    amount: formatHallMoney(view.goal.pledged, view.goal.currency, locale),
+                  })}
+                </p>
+                <p className="mt-2.5 text-xs leading-relaxed text-text-body">
+                  {view.goal.givers.join(" · ")}
+                </p>
+              </div>
             )}
 
             {view.unclaimedCount > 0 && (

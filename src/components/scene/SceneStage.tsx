@@ -365,7 +365,14 @@ export function SceneStage({ preset, zonesOff, zoneContent, className }: SceneSt
         </div>
       </div>
 
-      <ZonePanel zone={zoomedIn ? activeZone : null} closing={phase === "closing"}>
+      {/* Акцент и ink комнаты панель передаёт дальше карточке копилки
+          (зона «Просто деньги», тикет 44) — она рисуется не из вещей. */}
+      <ZonePanel
+        zone={zoomedIn ? activeZone : null}
+        closing={phase === "closing"}
+        accent={preset.accent}
+        ink={preset.ink}
+      >
         {activeZone ? zoneContent?.[activeZone.key] : null}
       </ZonePanel>
     </section>

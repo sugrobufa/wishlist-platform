@@ -294,7 +294,7 @@ function clippedByWindow(rect: Zone["rect"], view: SceneView, screen: Screen) {
   );
 }
 
-/** Указатель зон (`ZoneIndex`) — тот же список, что строит сцена: 112 зон. */
+/** Указатель зон (`ZoneIndex`) — тот же список, что строит сцена: 122 зоны. */
 const listedInIndex = new Set(
   rooms.flatMap((room) => visibleZones(room.zones, []).map((zone) => `${room.id}/${zone.key}`)),
 );
@@ -609,10 +609,12 @@ describe("все 130 зон достижимы: кадром или указат
     // и смотрит только на данные — ни на кадр, ни на экран. Поэтому «зона не
     // видна» и «зона недоступна» — разные вещи, и это проверка, а не обещание.
     const listed = listedInIndex;
-    // Из 33 заоконных продукт показывает 30: три (`gamer/money`, `sport/money`,
-    // `loft/money`) — это скрытая зона денег, её нет ни в кадре, ни в списке.
+    // Все 33 заоконные зоны теперь лежат в указателе. Прежде четыре из них
+    // (`gamer/money`, `sport/money`, `study/money`, `loft/money`) были скрытой
+    // зоной денег — её не было ни в кадре, ни в списке; ADR-0008 её включил,
+    // и заоконных без второй дороги не осталось ни одной.
     const hidden = BEYOND_PHONE_WINDOW.filter((id) => !listed.has(id));
-    expect(hidden).toEqual(["gamer/money", "sport/money", "study/money", "loft/money"]);
+    expect(hidden).toEqual([]);
     for (const id of BEYOND_PHONE_WINDOW) {
       if (hidden.includes(id)) continue;
       expect(listed.has(id), `${id}: за окном и не в указателе — недостижима`).toBe(true);
@@ -621,10 +623,11 @@ describe("все 130 зон достижимы: кадром или указат
 
   it("ДОРОГА 2 на десктопе: всё, что срезал кроп, лежит в указателе", () => {
     // То же требование, что у телефона, на каждом десктопном вьюпорте: зона
-    // без полных 44×44 обязана быть либо в указателе, либо скрытой продуктом
-    // (зона денег — её нет ни в кадре, ни в списке, ADR-0004).
-    expect(listedInIndex.size).toBe(112);
-    expect(allZones.filter(({ roomId, key }) => zoneHiddenByProduct(roomId, key))).toHaveLength(18);
+    // без полных 44×44 обязана быть либо в указателе, либо скрытой продуктом.
+    // Скрытых осталось восемь — адресные исключения ADR-0006 «предмета нет в
+    // интерьере»; десять зон денег вернулись в продукт (ADR-0008).
+    expect(listedInIndex.size).toBe(122);
+    expect(allZones.filter(({ roomId, key }) => zoneHiddenByProduct(roomId, key))).toHaveLength(8);
     for (const screen of DESKTOP_SCREENS) {
       const short = allZones.filter(({ rect }) => !fullTarget(rect, "desktop", screen));
       for (const { id, roomId, key } of short) {

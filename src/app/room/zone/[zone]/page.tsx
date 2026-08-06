@@ -7,9 +7,10 @@ import { getRoomForUser, getSessionUserId } from "@/server/services/rooms";
 import { listZoneItems } from "@/server/services/items";
 import { itemForOwner } from "@/server/dto/items";
 import { ownerSummaryItem, zoneSummaryForOwner } from "@/server/dto/zone-summary";
-import { rooms, zoneInfo } from "@/config/design";
+import { MONEY_ZONE_KEY, rooms, zoneInfo } from "@/config/design";
 import { visibleZones } from "@/components/scene/zones";
 import { zoneDisplayItems } from "@/components/zone/zone-display-items";
+import { MoneyGoalCard } from "@/components/zone/money-goal-card";
 import { OwnerZoneGrid } from "./owner-zone-grid";
 
 export const dynamic = "force-dynamic";
@@ -80,15 +81,20 @@ export default async function ZoneListPage({ params }: Params) {
           )}
         </header>
 
+        {/* Копилка на мечту (тикет 44) — только в зоне «Просто деньги». Здесь
+            хозяйка её и задаёт: на что копит и сколько. Прогресса сбора она не
+            видит ни здесь, ни где-либо ещё (инвариант №1). */}
+        {zone.key === MONEY_ZONE_KEY && <MoneyGoalCard accent={preset.accent} ink={preset.ink} />}
+
         {/* Сетка хозяйки со слотом действий (тикет 13): «Спрятать/Показать»
             и «Удалить» на своих вещах; у демо-призраков меню нет. Оттуда же
-            открывается карточка вещи (тикет 39). */}
-        <OwnerZoneGrid
-          items={items}
-          accent={preset.accent}
-          ink={preset.ink}
-          zoneKey={zone.key}
-        />
+            открывается карточка вещи (тикет 39).
+            В зоне «Просто деньги» без своих вещей сетки нет вовсе: пула
+            демо-вещей у неё не будет, а пустые вкладки под карточкой копилки
+            — шум (тикет 44). */}
+        {(zone.key !== MONEY_ZONE_KEY || items.length > 0) && (
+          <OwnerZoneGrid items={items} accent={preset.accent} ink={preset.ink} zoneKey={zone.key} />
+        )}
 
         {/* Добавить вещь прямо в эту зону (полировка 16): ?zone=…
             предвыбирает её в карточке добавления (контракт тикета 04). */}
