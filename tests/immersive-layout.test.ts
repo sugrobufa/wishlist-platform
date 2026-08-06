@@ -1016,8 +1016,10 @@ describe("все 130 зон достижимы: кадром или указат
     };
     expect(touchedTop(PHONE)).toHaveLength(75);
     expect(touchedTop({ w: 390, h: 844 })).toHaveLength(91);
-    expect(touchedTop({ w: 375, h: 667 })).toHaveLength(97);
-    expect(touchedTop({ w: 360, h: 640 })).toHaveLength(102);
+    // 98, а не 97: раунд 11 поднял `cottage/music` с сундука на проигрыватель
+    // (y 238 → 217), и на этом экране зона въехала под вуаль.
+    expect(touchedTop({ w: 375, h: 667 })).toHaveLength(98);
+    expect(touchedTop({ w: 360, h: 640 })).toHaveLength(103);
 
     // НИЖНЯЯ ПОЛОСА КАДРА НЕ КАСАЕТСЯ ВОВСЕ — и это тоже требование, а не
     // случайность: кадр кончается на 352 при полосе, начинающейся на 816
