@@ -53,9 +53,24 @@ import {
 // лежат в контракте (`reshootReason`, «тикет 49»), сводка — `identityCheck`.
 // Пустое обещание раскрытия хуже его отсутствия, а раунд 8 переснимает всё.
 //
+// РАУНД 8, ПАРТИЯ «КРЕМОВАЯ» (2026-08-06, тикет 53) — 13 кадров, подключено 0.
+//
+// База партии оказалась НЕ нашим файлом (sha256 разошлись, 2400×1340 против
+// наших 2800, l1 0.0327 — то же число, что у базы раунда 7), при README,
+// утверждающем «правка от байт-в-байт продуктовой базы». Порог против базы
+// партии прошли 5 из 13, против чистой базы (медиана 13 кадров) 6, против
+// нашей базы — той пары, что кроссфейдится, — 1. Глаза по всем 13: 5 честных,
+// 6 подмен (включая две подмены ОКРУЖЕНИЯ — стёрты проигрыватель `music` и
+// банка-копилка `money`), 2 без действия. Подключать кадры, снятые не с нашей
+// базы, нельзя: каждое раскрытие мигало бы всей комнатой (фон 0.056–0.078).
+// Сводка — `roomsContract.round8`, вердикт дизайну — design/ANSWERS-cream-round8.md.
+// Из партии в контракт вошли: два прямоугольника rects-fix (`cream/events`,
+// `cream/money` — дизайн подтвердил, «восемь да»), пять глаголов движения в
+// zones.json и девятнадцатый пул `grooming`.
+//
 // Что осталось с раундов 4–5 и не трогалось: координаты кадра 630×351
-// (ADR-0006), 49 переразмеченных зон с `rectOld`, `eyeChecked` на всех 130,
-// восемь `objectAbsent`, реестр пересечений, долг по `bloomAR`.
+// (ADR-0006), `eyeChecked` на всех 130, восемь `objectAbsent`, реестр
+// пересечений, долг по `bloomAR`.
 //
 // Проверяем СЫРОЙ контракт (roomsContract.rooms, все 130), а не то, что
 // рендерит продукт: разница между ними — предмет отдельных блоков ниже.
@@ -118,7 +133,7 @@ describe("design handoff contract", () => {
     }
   });
 
-  it("ДОЛГ ДИЗАЙНУ: у 46 переразмеченных зон bloomAR остался от ПРЕЖНЕГО прямоугольника", () => {
+  it("ДОЛГ ДИЗАЙНУ: у 45 переразмеченных зон bloomAR остался от ПРЕЖНЕГО прямоугольника", () => {
     // Раунды 4 и 5 переразметили 49 зон, но форму светового пятна пересчитать
     // забыли: у 46 из них `bloomAR` ровно равен формуле от `rectOld`. Это не
     // мелочь — пятно рисуется по этому числу (тикет 23), и, например, у
@@ -127,18 +142,23 @@ describe("design handoff contract", () => {
     //
     // Кодом не чиним: bloom — производная контракта, считать её у себя значит
     // завести вторую карту. Держим реестр, чтобы долг был виден и не оброс.
+    //
+    // Раунд 8 (тикет 53) переразметил `cream/events` и `cream/money` по
+    // подтверждённому rects-fix и пересчитал им bloomAR по формуле пакета —
+    // долг не повторён, поэтому 46 стало 45: events из реестра вышла.
     const bloom = (r: { w: number; h: number }) =>
       Math.min(120, Math.max(30, Math.round((r.w / r.h) * 58)));
     const stale = allZones.filter(({ zone }) => zone.bloomAR !== bloom(zone.rect));
-    expect(stale).toHaveLength(46);
+    expect(stale).toHaveLength(45);
     for (const { id, zone } of stale) {
       expect(zone.rectOld, `${id}: расходится только у переразмеченных`).toBeTruthy();
       expect(zone.bloomAR, `${id}: и ровно по прежнему прямоугольнику`).toBe(
         bloom(zone.rectOld as { w: number; h: number }),
       );
     }
-    // Три переразмеченные зоны совпали случайно — пропорция не изменилась.
-    expect(allZones.filter(({ zone }) => zone.rectOld)).toHaveLength(49);
+    // 49 зон раундов 4–5 плюс cream/money раунда 8 (у cream/events rectOld был
+    // и раньше — раунд 5, теперь хранит прямоугольник, снятый раундом 8).
+    expect(allZones.filter(({ zone }) => zone.rectOld)).toHaveLength(50);
   });
 
   it("каждая зона лежит в границах КАДРА 630×351, а не окна 430", () => {
@@ -425,18 +445,23 @@ describe("кадры «открыто» (openFrame — единственный 
     }
   });
 
-  it("23 кадра сняты просмотром глазами — с классом и причиной у каждого", () => {
+  it("19 кадров сняты просмотром тикета 49 — с классом и причиной у каждого", () => {
     // Порог локальности их пропустил by design: он мерит, что изменение
     // случилось внутри прямоугольника, а не что это и есть обещанное действие.
     // `emerald/jewelry` прошёл его с запасом (своя 0.3473, фон 0.0763,
     // отн 4.55) — и подменил шкатулку косметикой.
+    //
+    // Тикет 49 снял 23; у четырёх из них (`cream/fashion`, `cream/jewelry`,
+    // `cream/bags`, `cream/anything`) причина с тех пор ПЕРЕЗАПИСАНА приёмкой
+    // партии раунда 8 (тикет 53, блок ниже) — актуальный вердикт у зоны ровно
+    // один. Здесь остаются 19 неперемеренных.
     const dropped = allZones.filter(({ zone }) => zone.reshootReason?.includes("тикет 49"));
-    expect(dropped).toHaveLength(23);
+    expect(dropped).toHaveLength(19);
     const byClass = (klass: string) =>
       dropped.filter(({ zone }) => zone.reshootReason?.startsWith(klass)).map((z) => z.id);
-    expect(byClass("подмена")).toHaveLength(17);
-    expect(byClass("пропажа")).toEqual(["cream/fashion", "gamer/fashion", "sport/fashion"]);
-    expect(byClass("действия нет")).toEqual(["cream/jewelry", "emerald/bags", "bold/bags"]);
+    expect(byClass("подмена")).toHaveLength(15);
+    expect(byClass("пропажа")).toEqual(["gamer/fashion", "sport/fashion"]);
+    expect(byClass("действия нет")).toEqual(["emerald/bags", "bold/bags"]);
     for (const { id, zone } of dropped) {
       expect(zone.openFrame ?? null, `${id}: кадр снят`).toBeNull();
       expect(zone.openVerb ?? null, `${id}: и обещание вместе с ним`).toBeNull();
@@ -446,13 +471,107 @@ describe("кадры «открыто» (openFrame — единственный 
         /Кольцо вокруг зоны 0\.\d+ при границе 0\.09$/u,
       );
     }
-    // Файлы уехали в legacy, а не удалены: имя освободилось под кадр раунда 8.
+    // Файлы уехали в legacy, а не удалены: имя освобождено под будущий кадр.
     const shipped = new Set(readdirSync(resolve(PKG, "refs")));
     const kept = new Set(readdirSync(resolve(PKG, "refs/legacy")));
     for (const { id, room, zone } of dropped) {
       expect(shipped.has(`o-${room.id}-${zone.key}.jpg`), `${id}: кадр обязан уехать`).toBe(false);
       expect(kept.has(`round3-o-${room.id}-${zone.key}.jpg`), `${id}: но не пропасть`).toBe(true);
     }
+    // Четыре кадра раунда 3, переоценённые тикетом 53, тоже остаются в legacy.
+    for (const key of ["fashion", "jewelry", "bags", "anything"]) {
+      expect(kept.has(`round3-o-cream-${key}.jpg`), `cream/${key}: история цела`).toBe(true);
+    }
+  });
+
+  it("раунд 8, «Кремовая»: 13 кадров смотрены глазами, подключено 0 — и почему", () => {
+    // Первая полная комната раунда 8 (тикет 53). Сводка лежит в контракте
+    // (`round8`), как `identityCheck` у тикета 49: отчёт в тикете легко
+    // расходится с данными, числа рядом с флагами — нет.
+    const raw = JSON.parse(readFileSync(resolve(PKG, "handoff/rooms.json"), "utf8")) as {
+      round8: {
+        batch: string;
+        shot: number;
+        passedThresholdBatchBase: number;
+        passedThresholdCleanBase: number;
+        passedThresholdOurBase: number;
+        connected: number;
+        eyes: {
+          reviewed: number;
+          honest: number;
+          substitution: number;
+          contentLost: number;
+          nothingHappened: number;
+        };
+        base: { identical: boolean; l1: number };
+        note: string;
+        masksArrived: boolean;
+      };
+    };
+    const r8 = raw.round8;
+    expect(r8.batch).toBe("cream");
+    expect(r8.shot).toBe(13);
+    expect(r8.connected).toBe(0);
+    // Глаза обязательны по всем парам, и арифметика классов сходится с partiей.
+    expect(r8.eyes.reviewed).toBe(13);
+    expect(
+      r8.eyes.honest + r8.eyes.substitution + r8.eyes.contentLost + r8.eyes.nothingHappened,
+    ).toBe(13);
+    // Главная причина нулевого подключения — база партии не наша: продукт
+    // кроссфейдит СВОЮ базу, и кадр, снятый с чужой, мигает всей комнатой.
+    expect(r8.base.identical).toBe(false);
+    expect(r8.base.l1).toBeCloseTo(0.0327, 4);
+    expect(r8.note).toMatch(/байт-в-байт/u);
+    expect(r8.masksArrived).toBe(false);
+
+    // Двенадцать вердиктов раунда 8 лежат у зон (travel не переоценивался:
+    // его рабочий кадр раунда 3 подключён, а новый кадр партии не нужен —
+    // DESIGN-BRIEF-08 §5 прямо запрещал переснимать работающие).
+    const cream = contractRooms.find((room) => room.id === "cream")!;
+    const reviewed = cream.zones.filter((zone) => zone.reshootReason?.includes("тикет 53"));
+    expect(reviewed.map((zone) => zone.key).sort()).toEqual(
+      [
+        "anything", "bags", "beauty", "books", "events", "fashion",
+        "flowers", "home", "jewelry", "money", "music", "perfume",
+      ].sort(),
+    );
+    const byClass = (klass: string) =>
+      reviewed.filter((zone) => zone.reshootReason?.startsWith(klass)).map((zone) => zone.key);
+    expect(byClass("честное раскрытие, не подключён").sort()).toEqual(
+      ["events", "fashion", "jewelry", "money"].sort(),
+    );
+    expect(byClass("подмена")).toHaveLength(6);
+    expect(byClass("подмена окружения").sort()).toEqual(["anything", "flowers"].sort());
+    expect(byClass("действия нет").sort()).toEqual(["home", "music"].sort());
+    for (const zone of reviewed) {
+      expect(zone.openFrame ?? null, `cream/${zone.key}: кадр партии не подключён`).toBeNull();
+      expect(zone.accepted, `cream/${zone.key}`).toBe(false);
+      expect(zone.reshoot, `cream/${zone.key}: очередь на пересъёмку`).toBe(true);
+    }
+    // И в раздаче кадров партии нет: единственный кремовый кадр — travel.
+    const shipped = readdirSync(resolve(PKG, "refs")).filter((f) => f.startsWith("o-cream-"));
+    expect(shipped).toEqual(["o-cream-travel.jpg"]);
+  });
+
+  it("прямоугольники cream/events и cream/money применены ровно из rects-fix", () => {
+    // Единственные два прямоугольника приложения, чью комнату раунд 8 уже
+    // прислал; дизайн подтвердил их словами («восемь да», ОТВЕТ-раунд-8).
+    // Остальные девять ждут партий своих комнат — их применяет отдельный
+    // тикет, а не этот тест.
+    const fix = JSON.parse(
+      readFileSync(resolve(__dirname, "../design/rects-fix.json"), "utf8"),
+    ) as { zones: { room: string; key: string; rect: unknown; was: unknown }[] };
+    const cream = contractRooms.find((room) => room.id === "cream")!;
+    for (const key of ["events", "money"]) {
+      const fixed = fix.zones.find((z) => z.room === "cream" && z.key === key)!;
+      const zone = cream.zones.find((z) => z.key === key)!;
+      expect(zone.rect, `cream/${key}: прямоугольник из приложения`).toEqual(fixed.rect);
+      expect(zone.rectOld, `cream/${key}: прежний сохранён для сверки`).toEqual(fixed.was);
+      expect(zone.remappedRound, `cream/${key}`).toBe(8);
+    }
+    // Предметы разъехались — деление предмета с «Что угодно» снято.
+    const money = cream.zones.find((z) => z.key === "money")!;
+    expect(money.sharedObjectWith).toBeUndefined();
   });
 
   it("итог просмотра записан в контракт числами, а не только в отчёт", () => {
@@ -646,13 +765,15 @@ describe("пересечения прямоугольников зон", () => {
   }
 
   /**
-   * РЕЕСТР ДОЛГА. Пятнадцать пар, которые завела переразметка раундов 4–5.
+   * РЕЕСТР ДОЛГА. Пятнадцать пар завела переразметка раундов 4–5; раунд 8
+   * закрыл одну — `cream/events×flowers` исчезла вместе с применением
+   * подтверждённого прямоугольника events (тикет 53): новый правый край 566,
+   * до flowers (568) зазор в 2 единицы, как и обещал rects-fix. Осталось 14.
    * Список закрытый: новая пара уронит тест, а закрытая — исчезнет из него
    * вместе со строкой. Площадь держим, чтобы было видно, где кромка задела
    * кромку (15 px²), а где предметы наложились всерьёз (7020 px²).
    */
   const OVERLAP_DEBT = [
-    "cream/events×flowers (1260 px²)",
     "cream/books×music (15 px²)",
     "warm/home×flowers (2576 px²)",
     "warm/books×flowers (1728 px²)",
@@ -675,15 +796,13 @@ describe("пересечения прямоугольников зон", () => {
     );
   });
 
-  it("НАХОДКА ДИЗАЙНУ: cream/events посажена в тот же угол, что cream/flowers", () => {
-    // Единственная пара во всём контракте с СОВПАДАЮЩИМ началом — 568,148 у
-    // обеих. Это не «два предмета рядом», это похоже на скопированную строку:
-    // «Цветы» переразметили в раунде 4, «Впечатления» — в раунде 5, и второй
-    // достался угол первой. Глазами по кадру `v4-cream` там ваза с пампасной
-    // травой, а доска с билетами — левее, примерно 445…580 по кадру.
-    // Свой отчёт дизайна это подтверждает: он пишет, что «Впечатления» в
-    // четырёх комнатах стояли на зеркале и их переносили НА ДОСКУ С БИЛЕТАМИ
-    // (в `study`, `sport` и `loft` перенос удался — проверено глазами).
+  it("НАХОДКА ЗАКРЫТА: cream/events больше не сидит в углу cream/flowers", () => {
+    // До раунда 8 это была единственная пара контракта с совпадающим началом —
+    // 568,148 у обеих: «Впечатлениям» досталась скопированная строка «Цветов»,
+    // и две зоны показывали одну вазу. Тикет 47 нашёл настоящую стену памяти
+    // (rects-fix), дизайн подтвердил («восемь да»), тикет 53 применил — теперь
+    // совпадающих начал в контракте ноль, и это правило сторожится дальше:
+    // следующая скопированная строка уронит тест.
     const corners = new Map<string, string[]>();
     for (const { id, zone } of allZones) {
       const key = `${zone.rect.x},${zone.rect.y}`;
@@ -693,7 +812,7 @@ describe("пересечения прямоугольников зон", () => {
       ]);
     }
     const shared = [...corners.values()].filter((group) => group.length > 1);
-    expect(shared).toEqual([["cream/events", "cream/flowers"]]);
+    expect(shared).toEqual([]);
   });
 
   it("в рендере пар столько же: включённая зона money вернула свою пару", () => {
@@ -703,7 +822,7 @@ describe("пересечения прямоугольников зон", () => {
     // строка в строку.
     const shown = rooms.flatMap(overlapsIn).map((o) => `${o.id} (${o.area} px²)`);
     expect(shown).toEqual(OVERLAP_DEBT);
-    expect(shown).toHaveLength(15);
+    expect(shown).toHaveLength(14);
   });
 });
 
@@ -740,14 +859,20 @@ describe("флаги проверки: notClamped / eyeChecked / wrongTarget", (
   });
 
   it("notClamped — машинное правило прежней системы, снятое с переразмеченных", () => {
-    // Правило считалось ДО переразметки, в координатах окна 430. У 49
-    // переразмеченных зон (35 в раунде 4, 14 в раунде 5) прямоугольник с тех пор
-    // сменился, и контракт снял с них флаг обрезки: они больше не прижаты ни к
-    // какому краю. Поэтому у переразмеченных проверяется только это, а машинное
-    // правило — у остальных, по их собственному прямоугольнику.
+    // Правило считалось ДО переразметки, в координатах окна 430. У
+    // переразмеченных зон (35 в раунде 4, 13 в раунде 5, 2 в раунде 8 —
+    // cream/events ушла из счёта раунда 5 в раунд 8 вместе с новым
+    // прямоугольником rects-fix) прямоугольник с тех пор сменился, и контракт
+    // снял с них флаг обрезки: они больше не прижаты ни к какому краю. Поэтому
+    // у переразмеченных проверяется только это, а машинное правило — у
+    // остальных, по их собственному прямоугольнику.
     const remapped = allZones.filter(({ zone }) => zone.remappedRound);
     expect(remapped.filter(({ zone }) => zone.remappedRound === 4)).toHaveLength(35);
-    expect(remapped.filter(({ zone }) => zone.remappedRound === 5)).toHaveLength(14);
+    expect(remapped.filter(({ zone }) => zone.remappedRound === 5)).toHaveLength(13);
+    expect(remapped.filter(({ zone }) => zone.remappedRound === 8).map((z) => z.id)).toEqual([
+      "cream/events",
+      "cream/money",
+    ]);
     for (const { id, zone } of remapped) {
       expect(zone.notClamped, `${id}: после переразметки обрезки нет`).toBe(true);
       expect(zone.rectOld, `${id}: прежний прямоугольник сохранён для сверки`).toBeTruthy();
@@ -767,10 +892,12 @@ describe("флаги проверки: notClamped / eyeChecked / wrongTarget", (
     expect(allZones.filter(({ zone }) => !zone.eyeChecked)).toEqual([]);
   });
 
-  it("14 прямоугольников исправлены осмотром раунда 5", () => {
+  it("13 прямоугольников исправлены осмотром раунда 5 — cream/events переехала дальше", () => {
+    // Раунд 5 исправлял 14; `cream/events` из этого счёта ушла в раунд 8:
+    // rects-fix нашёл настоящую стену памяти, дизайн подтвердил, тикет 53
+    // применил — теперь у неё remappedRound: 8, а здесь остаются 13.
     const fixed = allZones.filter(({ zone }) => zone.remappedRound === 5);
     expect(fixed.map((z) => z.id)).toEqual([
-      "cream/events",
       "cream/books",
       "gamer/watches",
       "gamer/books",

@@ -28,7 +28,12 @@ const LOVE = (title: string, photo?: string, giverName?: string, receivedYear?: 
 const WANT = (title: string, priceRub: number, photo?: string) =>
   ({ state: "WANT", title, priceRub, photo }) satisfies DemoSeed;
 
-/** Все 18 ключей пулов из items.json → demoPools.poolKeys (и zones.json). */
+/**
+ * Все 19 ключей пулов из items.json → demoPools.poolKeys (и zones.json).
+ * Девятнадцатый (`grooming`) приехал раундом 8 (тикет 53): до него зона «Уход»
+ * в четырёх мужских комнатах смотрела в `perfume` и показывала «Свечу с
+ * инжиром» и «Диффузор для дома».
+ */
 export const demoPools: Record<string, readonly DemoSeed[]> = {
   fashionF: [
     LOVE("Кашемировый джемпер", "refs/p-cashmere.jpg"),
@@ -61,6 +66,16 @@ export const demoPools: Record<string, readonly DemoSeed[]> = {
     LOVE("Свеча с инжиром"),
     WANT("Дорожный флакон", 5_200),
     WANT("Диффузор для дома", 7_600),
+  ],
+  // Пул дизайна (ОТВЕТ-раунд-8 §4), два «люблю» намеренно: «в пуле должно быть
+  // видно оба состояния». Предметных кадров мужского ухода в пакете нет —
+  // все пять честно без фото (серая заливка, а не чужая картинка).
+  grooming: [
+    WANT("Станок и лезвия", 6_400),
+    WANT("Триммер для бороды", 11_900),
+    LOVE("Масло для бороды"),
+    WANT("Кожаный несессер", 9_200),
+    LOVE("Одеколон, 100 мл"),
   ],
   bags: [
     LOVE("Тоут из кожи", "refs/p-tote.jpg"),

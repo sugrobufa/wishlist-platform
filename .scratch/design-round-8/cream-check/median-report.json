@@ -1,0 +1,109 @@
+{
+ "note": "чистая база = попиксельная медиана 13 кадров (метод пробника). Прямоугольники: контракт + rects-fix (events, money).",
+ "rows": [
+  {
+   "zone": "anything",
+   "own": 0.1193,
+   "bg": 0.0141,
+   "ratio": 8.46,
+   "ring": 0.0343,
+   "pass": true
+  },
+  {
+   "zone": "bags",
+   "own": 0.0689,
+   "bg": 0.0043,
+   "ratio": 16.12,
+   "ring": 0.0065,
+   "pass": true
+  },
+  {
+   "zone": "beauty",
+   "own": 0.0193,
+   "bg": 0.0035,
+   "ratio": 5.58,
+   "ring": 0.01,
+   "pass": false
+  },
+  {
+   "zone": "books",
+   "own": 0.0062,
+   "bg": 0.0177,
+   "ratio": 0.35,
+   "ring": 0.0537,
+   "pass": false
+  },
+  {
+   "zone": "events",
+   "own": 0.0604,
+   "bg": 0.0147,
+   "ratio": 4.1,
+   "ring": 0.0097,
+   "pass": true
+  },
+  {
+   "zone": "fashion",
+   "own": 0.0492,
+   "bg": 0.0035,
+   "ratio": 13.96,
+   "ring": 0.0062,
+   "pass": false
+  },
+  {
+   "zone": "flowers",
+   "own": 0.065,
+   "bg": 0.0369,
+   "ratio": 1.76,
+   "ring": 0.0473,
+   "pass": false
+  },
+  {
+   "zone": "home",
+   "own": 0.0027,
+   "bg": 0.0031,
+   "ratio": 0.86,
+   "ring": 0.0028,
+   "pass": false
+  },
+  {
+   "zone": "jewelry",
+   "own": 0.0362,
+   "bg": 0.0098,
+   "ratio": 3.69,
+   "ring": 0.0193,
+   "pass": false
+  },
+  {
+   "zone": "money",
+   "own": 0.0842,
+   "bg": 0.003,
+   "ratio": 28.01,
+   "ring": 0.0095,
+   "pass": true
+  },
+  {
+   "zone": "music",
+   "own": 0.0026,
+   "bg": 0.0029,
+   "ratio": 0.92,
+   "ring": 0.0034,
+   "pass": false
+  },
+  {
+   "zone": "perfume",
+   "own": 0.0992,
+   "bg": 0.0037,
+   "ratio": 26.92,
+   "ring": 0.0186,
+   "pass": true
+  },
+  {
+   "zone": "travel",
+   "own": 0.0942,
+   "bg": 0.0084,
+   "ratio": 11.25,
+   "ring": 0.0228,
+   "pass": true
+  }
+ ]
+}

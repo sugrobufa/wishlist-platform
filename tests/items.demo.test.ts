@@ -68,8 +68,28 @@ const roomPoolKeys = rooms
   .filter((pool) => pool !== MONEY_POOL);
 
 describe("demoPools — покрытие пулов дизайн-пакета", () => {
-  it("есть все 18 ключей из items.json → demoPools.poolKeys, лишних нет", () => {
+  it("есть все 19 ключей из items.json → demoPools.poolKeys, лишних нет", () => {
     expect(Object.keys(demoPools).sort()).toEqual([...packagePoolKeys].sort());
+    expect(packagePoolKeys).toHaveLength(19);
+  });
+
+  it("«Уход» смотрит в свой пул grooming — мужская комната без свечи с инжиром", () => {
+    // Девятнадцатый пул (раунд 8, тикет 53; состав — ответ дизайна, ОТВЕТ-раунд-8
+    // §4). До него зона «Уход» четырёх мужских комнат брала пул `perfume`, и
+    // мужчина открывал «Уход» на «Свече с инжиром» и «Диффузоре для дома».
+    const groomingRow = (
+      zonesJson as unknown as { keys: Record<string, [string, string, string, string, string]> }
+    ).keys.grooming;
+    expect(groomingRow).toBeDefined();
+    expect(groomingRow?.[3]).toBe("grooming");
+
+    const ghosts = demoGhostsFor("grooming", "grooming");
+    expect(ghosts).toHaveLength(5);
+    // Два «люблю» намеренно: «в пуле должно быть видно оба состояния».
+    expect(ghosts.filter((ghost) => ghost.state === "LOVE")).toHaveLength(2);
+    const titles = ghosts.map((ghost) => ghost.title);
+    expect(titles).not.toContain("Свеча с инжиром");
+    expect(titles).not.toContain("Диффузор для дома");
   });
 
   it("каждый пул, на который ссылаются zones.json и rooms.json, наполнен", () => {

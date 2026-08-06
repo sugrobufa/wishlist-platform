@@ -62,7 +62,7 @@
   },
 
   "demoPools": {
-    "note": "В прототипе вещи берутся из пулов по ключу зоны (pool в rooms.json). Это демо-данные для показа, не часть контракта. Признак состояния в них: цена «люблю» означает love, любая сумма — want.",
-    "poolKeys": ["fashionF", "fashionM", "jewel", "beauty", "perfume", "bags", "tech", "watches", "music", "sneakers", "sport", "gaming", "books", "events", "travel", "home", "anything", "flowers"]
+    "note": "В прототипе вещи берутся из пулов по ключу зоны (pool в rooms.json). Это демо-данные для показа, не часть контракта. Признак состояния в них: цена «люблю» означает love, любая сумма — want. Раунд 8 (тикет 53): добавлен девятнадцатый пул grooming — пять вещей мужского ухода из ответа дизайна (ОТВЕТ-раунд-8 §4, два «люблю» намеренно); зона «Уход» больше не смотрит в perfume, «Свеча с инжиром» из мужских комнат ушла.",
+    "poolKeys": ["fashionF", "fashionM", "jewel", "beauty", "perfume", "grooming", "bags", "tech", "watches", "music", "sneakers", "sport", "gaming", "books", "events", "travel", "home", "anything", "flowers"]
   }
 }
