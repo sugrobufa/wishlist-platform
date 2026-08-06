@@ -12,7 +12,15 @@ import { roomImageUrl } from "@/app/rooms/room-image";
 import { computeZoneCamera, frameRect, rectToPercent, walkScore, type SceneView } from "./camera";
 import { visibleZones, zoneLabel, zoneVerb } from "./zones";
 import { useMediaQuery } from "./use-media-query";
-import { focusOutline, markerWeights, vignetteShape } from "./zone-marker";
+import {
+  focusOutline,
+  markerMask,
+  markerWeights,
+  nearestZoneLight,
+  TOUCH_REST_STRENGTH,
+  VIGNETTE_BLEED_PCT,
+  vignetteShape,
+} from "./zone-marker";
 import { ZoneHotspot } from "./zone-hotspot";
 import { ZonePanel } from "./zone-panel";
 import { useSceneZoneIndex } from "./zone-index-context";
@@ -21,6 +29,8 @@ import s from "./scene.module.css";
 /** Десктопная сцена начинается с 1024px (spec Phase 1); это брейкпоинт, не координата. */
 const DESKTOP_MQ = "(min-width: 1024px)";
 const REDUCED_MQ = "(prefers-reduced-motion: reduce)";
+/** Те же ворота, что у hover-правил метки: точный указатель есть — свет ведёт он. */
+const FINE_POINTER_MQ = "(hover: hover) and (pointer: fine)";
 
 export type SceneStageProps = {
   /** Пресет комнаты из rooms.json (через src/config/design). */
@@ -109,6 +119,10 @@ const BASE_VARS = {
   // Рамка фокуса метки зоны: акцент берётся из --accent, поэтому строка одна
   // на все комнаты (tokens.json → zoneMarker.focus).
   "--zone-focus-outline": focusOutline(),
+  // Тикет 50: слои метки не обрезаются прямоугольником — маска пятна и вынос
+  // виньетки за коробку зоны. Числа живут в zone-marker.ts, не здесь.
+  "--zone-marker-mask": markerMask(),
+  "--zone-vignette-bleed": `${VIGNETTE_BLEED_PCT}%`,
 } satisfies Record<string, string>;
 
 export function SceneStage({ preset, zonesOff, zoneContent, className }: SceneStageProps) {
@@ -132,12 +146,16 @@ export function SceneStage({ preset, zonesOff, zoneContent, className }: SceneSt
 
   const isDesktop = useMediaQuery(DESKTOP_MQ);
   const reducedMotion = useMediaQuery(REDUCED_MQ);
+  const finePointer = useMediaQuery(FINE_POINTER_MQ);
   const view: SceneView = isDesktop ? "desktop" : "phone";
 
   const timerRef = useRef<number | null>(null);
   const backRef = useRef<HTMLButtonElement | null>(null);
   const hotspotRefs = useRef(new Map<string, HTMLButtonElement>());
   const restoreKeyRef = useRef<string | null>(null);
+  const viewportRef = useRef<HTMLDivElement | null>(null);
+  const hotspotsLayerRef = useRef<HTMLDivElement | null>(null);
+  const nearKeyRef = useRef<string | null>(null);
 
   const clearTimer = useCallback(() => {
     if (timerRef.current !== null) {
@@ -228,6 +246,91 @@ export function SceneStage({ preset, zonesOff, zoneContent, className }: SceneSt
   );
   const { lit, zoneEvents } = useSceneZoneIndex(openZoneByKey, zoomedIn ? activeKey : null);
 
+  // Разгорание по приближению (тикет 50, часть Б). В покое комната чистая —
+  // виден только пульс искры; свет зажигается у БЛИЖАЙШЕЙ зоны заранее, сила
+  // растёт по мере подхода указателя (правило числом — zone-marker.ts →
+  // PROXIMITY_RADIUS). Мышь: движение по сцене → раз в кадр (rAF) ближайшая
+  // зона; тач: свет стоит у зоны, чей прямоугольник ближе к центру видимого
+  // окна, касание-удержание отвечает press-состоянием из CSS. Сила пишется
+  // инлайн-переменной прямо в DOM: React-состояние на каждое движение мыши
+  // перерисовывало бы всю сцену. CSS-переходы сглаживают шаги сами — и они же
+  // укорачиваются при prefers-reduced-motion (scene.module.css).
+  useEffect(() => {
+    const viewport = viewportRef.current;
+    const layer = hotspotsLayerRef.current;
+    if (!viewport || !layer) return;
+
+    const setNear = (key: string | null, strength: number) => {
+      const prev = nearKeyRef.current;
+      if (prev && prev !== key) hotspotRefs.current.get(prev)?.style.removeProperty("--zone-near");
+      nearKeyRef.current = key;
+      if (key) hotspotRefs.current.get(key)?.style.setProperty("--zone-near", `${strength}`);
+    };
+
+    // Зона открыта: слой хотспотов спрятан, свет никому не нужен.
+    if (zoomedIn) {
+      setNear(null, 0);
+      return;
+    }
+
+    // Клиентская точка → координаты КАДРА 630×351 (та же система, что у
+    // прямоугольников зон): слой хотспотов повторяет геометрию кадра, поэтому
+    // перевод — доля его коробки, одинаково верная на всех раскладках.
+    const framePoint = (clientX: number, clientY: number) => {
+      const box = layer.getBoundingClientRect();
+      return {
+        x: ((clientX - box.left) / box.width) * scene.phone.image.w,
+        y: ((clientY - box.top) / box.height) * scene.phone.image.h,
+      };
+    };
+
+    if (!finePointer) {
+      const applyCenterHint = () => {
+        const box = viewport.getBoundingClientRect();
+        const light = nearestZoneLight(
+          framePoint(box.left + box.width / 2, box.top + box.height / 2),
+          zones,
+        );
+        setNear(light?.key ?? null, light ? TOUCH_REST_STRENGTH : 0);
+      };
+      applyCenterHint();
+      window.addEventListener("resize", applyCenterHint);
+      return () => {
+        window.removeEventListener("resize", applyCenterHint);
+        setNear(null, 0);
+      };
+    }
+
+    let raf = 0;
+    let clientX = 0;
+    let clientY = 0;
+    const onPointerMove = (event: PointerEvent) => {
+      clientX = event.clientX;
+      clientY = event.clientY;
+      if (raf) return;
+      raf = window.requestAnimationFrame(() => {
+        raf = 0;
+        const light = nearestZoneLight(framePoint(clientX, clientY), zones);
+        setNear(light?.key ?? null, light?.strength ?? 0);
+      });
+    };
+    const onPointerLeave = () => {
+      if (raf) {
+        window.cancelAnimationFrame(raf);
+        raf = 0;
+      }
+      setNear(null, 0);
+    };
+    viewport.addEventListener("pointermove", onPointerMove);
+    viewport.addEventListener("pointerleave", onPointerLeave);
+    return () => {
+      viewport.removeEventListener("pointermove", onPointerMove);
+      viewport.removeEventListener("pointerleave", onPointerLeave);
+      if (raf) window.cancelAnimationFrame(raf);
+      setNear(null, 0);
+    };
+  }, [zones, zoomedIn, finePointer]);
+
   // Наезд считается формулой для актуального вида и раскладывается по двум
   // слоям: внешний везёт сдвиг, внутренний — масштаб. В покое инлайновых
   // значений нет вовсе — слои возвращаются к своим `transform` из CSS, и это
@@ -261,7 +364,7 @@ export function SceneStage({ preset, zonesOff, zoneContent, className }: SceneSt
 
   return (
     <section className={className ? `${s.stage} ${className}` : s.stage} style={styleVars}>
-      <div className={zoomedIn ? `${s.viewport} ${s.zoomed}` : s.viewport}>
+      <div ref={viewportRef} className={zoomedIn ? `${s.viewport} ${s.zoomed}` : s.viewport}>
         {/* Наезд — стопка слоёв, по слою на фазу партитуры (motion.json →
             openZone). Снаружи внутрь: вес назад · перелёт · оседание · сдвиг ·
             масштаб · дыхание · кадр. У каждого свой transition — только так
@@ -311,6 +414,7 @@ export function SceneStage({ preset, zonesOff, zoneContent, className }: SceneSt
         <div className={s.dim} aria-hidden />
 
         <div
+          ref={hotspotsLayerRef}
           className={zoomedIn ? `${s.hotspots} ${s.hotspotsHidden}` : s.hotspots}
           inert={zoomedIn}
           {...zoneEvents}
