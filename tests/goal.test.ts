@@ -8,8 +8,10 @@
 //      ни имён (ни в сервисе, ни в DTO, ни в роуте — все три слоя канала);
 //   2. в счётчике «N вещей уже забрали» копилка — ОДНА вещь при любом числе
 //      участников;
-//   3. имена участников до праздника не раскрываются нигде, а после —
-//      только на экране «что подарили» (инвариант №2);
+//   3. имена участников ХОЗЯЙКЕ до праздника не раскрываются нигде, а после —
+//      только на экране «что подарили» (инвариант №2); между собой участники
+//      имена видят — тикет 54, и граница «участник / гость со стороны»
+//      проверяется отдельно;
 //   4. деньги — Decimal, никогда float;
 //   5. хозяйка, открывшая свою же гостевую ссылку, прогресса не получает
 //      (тот же приём, что у канала «занято», тикет 41).
@@ -42,7 +44,7 @@ import {
   revealedPledges,
   setRoomGoal,
 } from "../src/server/services/goal";
-import { goalForGuest, goalForOwner } from "../src/server/dto/goal";
+import { goalForGuest, goalForOwner, poolWho } from "../src/server/dto/goal";
 import { rooms as roomPresets, zoneKeysHiddenByProduct } from "../src/config/design";
 import { GET as takenCountRoute } from "../src/app/api/v1/room/taken-count/route";
 import {
@@ -82,6 +84,15 @@ async function createWantItem(roomId: string, zone = "jewelry") {
       currency: "RUB",
     },
   });
+}
+
+/**
+ * Гостевая ветка канала с сужением типа: у ветки хозяйки ключей прогресса и
+ * имён не существует, и компилятор об этом знает — поэтому сужаем, а не
+ * приводим типом.
+ */
+function guestGoal(channel: Awaited<ReturnType<typeof goalForRoomSlug>>) {
+  return channel?.viewer === "guest" ? channel.goal : null;
 }
 
 /** Комната с целью — самый частый сетап. */
@@ -370,11 +381,13 @@ describe("гость: цель, прогресс и «N человек уже с
         participants: 3,
         percent: 30,
         mine: false,
+        // Гость со стороны (без своего токена) имён не получает — тикет 54.
+        who: null,
       },
     });
   });
 
-  it("имён участников в гостевом ответе нет ни одного", async () => {
+  it("имён участников гостю СО СТОРОНЫ не достаётся ни одного", async () => {
     const owner = await roomWithGoal();
     await pledgeToGoal(owner.room.shareSlug, {
       name: "Секретная Гостья",
@@ -445,6 +458,149 @@ describe("гость: цель, прогресс и «N человек уже с
       participants: 0,
       percent: 0,
       mine: false,
+      who: null,
+    });
+  });
+});
+
+// ---------------------------------------------------------------------------
+// ТИКЕТ 54. Имена участников — участникам, и только им.
+//
+// Решение владельца 06.08.2026 (ADR-0008, второе уточнение; вопрос В4 реестра
+// закрыт): складчина прозрачна ВНУТРИ себя. Отсюда три границы, и каждая ниже
+// под тестом: участник видит соседей, гость со стороны — счётчик без имён,
+// хозяйка — по-прежнему ничего.
+// ---------------------------------------------------------------------------
+describe("тикет 54: имена участников складчины", () => {
+  it("четыре формы 25d выбираются по числу названных имён", () => {
+    expect(poolWho([])).toBeNull();
+    expect(poolWho(["Аня"])).toEqual({ form: "one", a: "Аня", b: null, rest: 0 });
+    expect(poolWho(["Аня", "Катя"])).toEqual({ form: "two", a: "Аня", b: "Катя", rest: 0 });
+    // «в складчине Аня, Катя и ещё 3» — форма зрителя ВНЕ складчины. В продукте
+    // сейчас не рисуется (имён со стороны не показываем), но живёт здесь: если
+    // владелец откроет имена и им, меняется одно условие в goalForGuest.
+    expect(poolWho(["Аня", "Катя", "Оля", "Ира", "Маша"])).toEqual({
+      form: "many",
+      a: "Аня",
+      b: "Катя",
+      rest: 3,
+    });
+  });
+
+  it("«ты внутри» — своя форма: один сосед назван, остальные сосчитаны", () => {
+    // «ты, Аня и ещё 2» — четверо в складчине вместе со зрителем.
+    expect(poolWho(["Аня", "Катя", "Оля"], { you: true })).toEqual({
+      form: "you",
+      a: "Аня",
+      b: null,
+      rest: 2,
+    });
+    // На одном и двух соседях перечисляем поимённо: «и ещё 0» не бывает, а
+    // доска просила имена, а не счёт.
+    expect(poolWho(["Аня"], { you: true })).toEqual({ form: "one", a: "Аня", b: null, rest: 0 });
+    expect(poolWho(["Аня", "Катя"], { you: true })).toEqual({
+      form: "two",
+      a: "Аня",
+      b: "Катя",
+      rest: 0,
+    });
+  });
+
+  it("длинное имя укорачивается по границе слова, пробелы схлопываются", () => {
+    expect(poolWho(["  Аня   Секретова  "])?.a).toBe("Аня Секретова");
+    expect(poolWho(["Александра Константиновна Ш."])?.a).toBe("Александра…");
+    expect(poolWho(["Александрапетровнаиванова"])?.a).toBe("Александрапетровнаиванов…");
+  });
+
+  it("участник видит соседей — сервер узнаёт его по своему же токену", async () => {
+    const owner = await roomWithGoal();
+    await pledgeToGoal(owner.room.shareSlug, { name: "Аня", amount: "1000" });
+    await pledgeToGoal(owner.room.shareSlug, { name: "Катя", amount: "2000" });
+    const mine = await pledgeToGoal(owner.room.shareSlug, { name: "Я Сама", amount: "3000" });
+
+    const channel = await goalForRoomSlug(owner.room.shareSlug, [mine.cancelToken]);
+    expect(channel?.goal).toMatchObject({
+      mine: true,
+      participants: 3,
+      who: { form: "two", a: "Аня", b: "Катя", rest: 0 },
+    });
+    // Своего имени в строке нет ни в каком виде: зритель в ней — «ты».
+    expect(JSON.stringify(channel)).not.toContain("Я Сама");
+  });
+
+  it("с тремя соседями — форма «ты внутри», имена в порядке «как скидывались»", async () => {
+    const owner = await roomWithGoal();
+    for (const name of ["Аня", "Катя", "Оля"]) {
+      await pledgeToGoal(owner.room.shareSlug, { name, amount: "1000" });
+    }
+    const mine = await pledgeToGoal(owner.room.shareSlug, { name: "Я Сама" });
+
+    const channel = await goalForRoomSlug(owner.room.shareSlug, [mine.cancelToken]);
+    expect(guestGoal(channel)?.who).toEqual({ form: "you", a: "Аня", b: null, rest: 2 });
+  });
+
+  it("участник-одиночка называть некого: who — null, а не пустая строка", async () => {
+    const owner = await roomWithGoal();
+    const mine = await pledgeToGoal(owner.room.shareSlug, { name: "Я Сама", amount: "1000" });
+    const channel = await goalForRoomSlug(owner.room.shareSlug, [mine.cancelToken]);
+    expect(channel?.goal).toMatchObject({ mine: true, participants: 1, who: null });
+  });
+
+  it("чужой токен имён не открывает: гость со стороны остаётся при счётчике", async () => {
+    const owner = await roomWithGoal();
+    await pledgeToGoal(owner.room.shareSlug, { name: "Аня Секретова", amount: "1000" });
+    await pledgeToGoal(owner.room.shareSlug, { name: "Катя Секретова", amount: "2000" });
+
+    // Токен правильного вида, но не от этой копилки — сервер его не признаёт.
+    const stranger = await goalForRoomSlug(owner.room.shareSlug, ["a".repeat(48)]);
+    expect(stranger?.goal).toMatchObject({ mine: false, participants: 2, who: null });
+    expect(JSON.stringify(stranger)).not.toContain("Секретова");
+  });
+
+  it("ИНВАРИАНТ №1: хозяйке имена не достаются ни одной из трёх дверей", async () => {
+    const owner = await roomWithGoal();
+    for (const name of ["Аня Секретова", "Катя Секретова", "Оля Секретова"]) {
+      await pledgeToGoal(owner.room.shareSlug, { name, amount: "1000" });
+    }
+
+    // Дверь 1 — её собственный канал; дверь 2 — её же гостевая ссылка, причём
+    // с чужой cookie участия в руках (кнопка «поделиться» открывает ссылку в
+    // том же браузере); дверь 3 — роут.
+    const guestChannel = await goalForRoomSlug(owner.room.shareSlug);
+    expect(guestGoal(guestChannel)?.participants).toBe(3); // участия правда есть
+    const stolen = await prisma.goalPledge.findFirstOrThrow({
+      where: { goal: { roomId: owner.room.id } },
+      select: { cancelToken: true },
+    });
+    const asOwner = await goalForRoomSlug(owner.room.shareSlug, [stolen.cancelToken], {
+      viewerUserId: owner.user.id,
+    });
+    expect(asOwner).toEqual({
+      viewer: "owner",
+      goal: { title: "на велосипед", amount: "45000", currency: "RUB" },
+    });
+
+    authMock.mockResolvedValue({ user: { id: owner.user.id } });
+    const doors = JSON.stringify([
+      await getOwnerGoal(owner.user.id),
+      asOwner,
+      await (await ownerGoalRoute()).json(),
+    ]);
+    expect(doors).not.toMatch(/Секретова|складчине|poolWho/i);
+    expect(doors).not.toMatch(/"who"|"form"|"rest"/);
+  });
+
+  it("DTO хозяйки не пропускает имена, даже когда они загружены в объект", async () => {
+    const owner = await roomWithGoal();
+    await pledgeToGoal(owner.room.shareSlug, { name: "Оля Секретова", amount: "7000" });
+    const polluted = await prisma.roomGoal.findUniqueOrThrow({
+      where: { roomId: owner.room.id },
+      include: { pledges: true },
+    });
+    expect(goalForOwner(polluted)).toEqual({
+      title: "на велосипед",
+      amount: "45000",
+      currency: "RUB",
     });
   });
 });
@@ -507,6 +663,39 @@ describe("гостевой роут копилки: cookie, коды, no-store",
     expect(deleted.status).toBe(200);
     expect(parseGuestPledgeTokens(deleted.cookies.get(GUEST_PLEDGES_COOKIE)?.value)).toEqual([]);
     expect(await goalTakenCount(owner.room.id)).toBe(0);
+  });
+
+  it("имена приходят только с cookie участия: с ней — строка, без неё — счёт", async () => {
+    const owner = await roomWithGoal();
+    await pledgeToGoal(owner.room.shareSlug, { name: "Аня Секретова", amount: "1000" });
+
+    // Свой POST — свой токен в HTTP-only cookie, и он же открывает имена.
+    const posted = await guestGoalPost(
+      goalRequest(owner.room.shareSlug, {
+        method: "POST",
+        body: JSON.stringify({ name: "Я Сама", amount: "2000" }),
+      }),
+      slugCtx(owner.room.shareSlug),
+    );
+    const tokens = parseGuestPledgeTokens(posted.cookies.get(GUEST_PLEDGES_COOKIE)?.value);
+
+    const withCookie = await guestGoalRoute(
+      goalRequest(owner.room.shareSlug, {}, tokens),
+      slugCtx(owner.room.shareSlug),
+    );
+    const mine = (await withCookie.json()) as { data: { goal: { who: unknown } } };
+    expect(mine.data.goal.who).toEqual({ form: "one", a: "Аня Секретова", b: null, rest: 0 });
+
+    // Тот же роут без cookie — тот же счётчик и ни одного имени в теле.
+    const anonymous = await guestGoalRoute(
+      goalRequest(owner.room.shareSlug),
+      slugCtx(owner.room.shareSlug),
+    );
+    const body = (await anonymous.json()) as {
+      data: { goal: { who: unknown; participants: number } };
+    };
+    expect(body.data.goal).toMatchObject({ who: null, participants: 2 });
+    expect(JSON.stringify(body)).not.toMatch(/Секретова|Я Сама/);
   });
 
   it("неизвестный слаг → 404, тело — не JSON → 400", async () => {

@@ -11,7 +11,9 @@
 //
 // ДВА ЗРИТЕЛЯ — ДВА РАЗНЫХ ЭКРАНА, и разводит их не эта карточка, а сервер:
 //   хозяйка → GET /api/v1/room/goal   — цель и ничего больше;
-//   гость   → GET /api/v1/rooms/{slug}/goal — цель, прогресс, «N скинулись».
+//   гость   → GET /api/v1/rooms/{slug}/goal — цель, прогресс, «N скинулись»,
+//             а если он сам скинулся — ещё и имена соседей по складчине
+//             (тикет 54; кому их можно, решает сервер по cookie участия).
 // Прогресс своей копилки хозяйка не видит (инвариант №1), и это свойство не
 // формы, а ответа: в её ответе таких ключей нет вовсе (dto/goal.ts). Даже
 // открыв собственную гостевую ссылку, она получит ветку `owner`.
@@ -30,13 +32,38 @@ import s from "./money-goal.module.css";
 /** Цель глазами хозяйки — ровно то, что отдаёт /api/v1/room/goal. */
 type OwnerGoal = { title: string; amount: string; currency: string };
 
-/** Цель глазами гостя — та же плюс прогресс. Имён нет ни одного. */
+/** Значения строки «кто в складчине» — их считает сервер (dto/goal.ts). */
+type GuestGoalWho = {
+  form: "one" | "two" | "many" | "you";
+  a: string;
+  b: string | null;
+  rest: number;
+};
+
+/**
+ * Цель глазами гостя — та же плюс прогресс и, если гость сам участвует, имена
+ * соседей по складчине (тикет 54). Не участвует — `who` приходит `null`, и
+ * рисовать нечего: решение принимает сервер, а не эта разметка.
+ */
 type GuestGoal = OwnerGoal & {
   pledged: string;
   participants: number;
   percent: number;
   mine: boolean;
+  who: GuestGoalWho | null;
 };
+
+/**
+ * Четыре формы строки 25d лежат в словаре складчины (`Booking.poolWho*`) — там
+ * же, где ими пользуется складчина вещи. Карточка не выбирает форму, а только
+ * переводит выбор сервера в ключ.
+ */
+const WHO_KEY = {
+  one: "poolWho1",
+  two: "poolWho2",
+  many: "poolWhoMany",
+  you: "poolWhoYou",
+} as const;
 
 type Loaded =
   { viewer: "owner"; goal: OwnerGoal | null } | { viewer: "guest"; goal: GuestGoal | null };
@@ -67,6 +94,9 @@ export function MoneyGoalCard({ accent, ink, ownerName }: MoneyGoalCardProps) {
   // Имя хозяйки в строке обещаний: сцена его не знает, и вместо выдуманного
   // имени подставляем ту же подпись, что шапка гостевой комнаты.
   const tGuest = useTranslations("GuestRoom");
+  // Строки «кто в складчине» живут в словаре складчины, а не копилки: копилка
+  // и складчина говорят о людях одними и теми же словами (турн 25d).
+  const tPool = useTranslations("Booking");
   const locale = useLocale();
   const params = useParams<{ slug?: string }>();
   const slug = typeof params?.slug === "string" ? params.slug : null;
@@ -251,16 +281,41 @@ export function MoneyGoalCard({ accent, ink, ownerName }: MoneyGoalCardProps) {
       </div>
       <p className={s.legend}>
         <span>{t("collected", { percent: goal.percent })}</span>
-        {/* «11 человек уже скинулись» — число без единого имени: кто именно,
-            гость узнает вместе со всеми на «что подарили» (инвариант №2). */}
+        {/* «11 человек уже скинулись» — счёт для всех: имена ниже и только
+            участнику. Хозяйке не достаётся ни того, ни другого. */}
         <span>{t("participants", { count: goal.participants })}</span>
       </p>
 
+      {/* «в складчине Аня и Катя» / «ты, Аня и ещё 2» — тикет 54. Строка
+          приходит уже разобранной: сервер выбрал форму и назвал имена, здесь
+          остаётся подставить их в словарную строку. Гостю со стороны сервер
+          присылает who: null, и строки нет вовсе. */}
+      {goal.who && (
+        <p className={s.legend}>
+          <span>
+            {tPool(WHO_KEY[goal.who.form], {
+              a: goal.who.a,
+              b: goal.who.b ?? "",
+              rest: goal.who.rest,
+            })}
+          </span>
+        </p>
+      )}
+
+      {/* Третье обещание было «Гости не видят друг друга» и перестало быть
+          правдой, когда владелец открыл имена между участниками (ADR-0008,
+          второе уточнение). Молча снять его нельзя: гость называет имя ДО
+          того, как узнает, кто его увидит, — а это ровно то согласие, которое
+          обещания на этой карточке и собирают. Поэтому строка не удалена, а
+          переписана честно (`promiseNames`): она называет границу видимости —
+          участники да, остальные гости и хозяйка нет. Строка наша, не с доски
+          (как и прежняя — она в реестре сирот messages-tone), у дизайна
+          запрошена своя формулировка письмом ANSWERS-cream-measures. */}
       <ul className={s.promises}>
         {[
           t("promiseDirect"),
           t("promiseQuiet", { name: ownerName ?? tGuest("ownerFallback") }),
-          t("promiseHidden"),
+          t("promiseNames"),
         ].map((line) => (
           <li key={line} className={s.promise}>
             <span className={s.tick} aria-hidden>

@@ -21,9 +21,16 @@
 //     комнаты: в кэшируемых данных /r/{slug} копилки нет вовсе, карточка
 //     забирает её отдельным некэшируемым запросом.
 //
-// ИНВАРИАНТ №2. Имена участников раскрываются ровно один раз — на экране «что
-// подарили» (`revealedPledges`, зовёт services/occasions под существующим
-// OccasionSummary). До этого имён нет ни в одном ответе.
+// ИНВАРИАНТ №2. ХОЗЯЙКЕ имена участников раскрываются ровно один раз — на
+// экране «что подарили» (`revealedPledges`, зовёт services/occasions под
+// существующим OccasionSummary). До этого её ответы имён не несут.
+//
+// Между собой участники копилки имена видят (тикет 54, ADR-0008, второе
+// уточнение владельца): их собирает гостевой DTO по токенам из cookie
+// (dto/goal.goalForGuest). Отсюда наружу уходит только выбор полей — имя
+// участия попадает в запрос ниже, и потому же ниже стоит порядок «как
+// скидывались»: строка «в складчине Аня и Катя» перечисляет людей в том же
+// порядке, в каком их позже назовёт экран «что подарили».
 import { randomBytes } from "node:crypto";
 import { Prisma, type RoomGoal } from "@prisma/client";
 import { z } from "zod";
@@ -244,7 +251,19 @@ export async function goalForRoomSlug(
 
   const goal = await prisma.roomGoal.findUnique({
     where: { roomId: room.id },
-    include: { pledges: { select: { amount: true, cancelToken: true } } },
+    include: {
+      pledges: {
+        // guestName нужен гостевому DTO (тикет 54). Ветке хозяйки он не
+        // страшен: `goalForOwner` собирает ответ allowlist'ом из трёх полей
+        // цели, и загруженный relation в него не протекает — под тестом.
+        select: { amount: true, cancelToken: true, guestName: true },
+        // «Как скидывались» — тот же порядок, что на экране «что подарили».
+        // Вторым ключом id: `createdAt` округлён до миллисекунд, и два участия
+        // в одну миллисекунду иначе вставали бы в случайном порядке, а строка
+        // «в складчине Аня и Катя» меняла бы имена местами между запросами.
+        orderBy: [{ createdAt: "asc" }, { id: "asc" }],
+      },
+    },
   });
 
   const viewerUserId = options.viewerUserId ? idSchema.parse(options.viewerUserId) : null;

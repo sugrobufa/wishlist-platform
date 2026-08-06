@@ -409,7 +409,7 @@ describe("словарь и дизайн-пакет", () => {
       "Goal.pledgeAmountLabel",
       "Goal.pledgeHint",
       "Goal.promiseDirect",
-      "Goal.promiseHidden",
+      "Goal.promiseNames",
       "Goal.promiseQuiet",
       "Goal.revealedRow",
       "Goal.save",
