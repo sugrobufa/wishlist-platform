@@ -145,7 +145,10 @@ describe("design handoff contract", () => {
     //
     // Раунд 8 (тикет 53) переразметил `cream/events` и `cream/money` по
     // подтверждённому rects-fix и пересчитал им bloomAR по формуле пакета —
-    // долг не повторён, поэтому 46 стало 45: events из реестра вышла.
+    // долг не повторён, поэтому 46 стало 45: events из реестра вышла. Сверка
+    // замеров 06.08 добавила третью — `cream/beauty` (пункт 12 rects-fix,
+    // прямоугольник стоял на зеркале): bloomAR пересчитан там же, 97 → 77,
+    // поэтому в реестре долга по-прежнему 45.
     const bloom = (r: { w: number; h: number }) =>
       Math.min(120, Math.max(30, Math.round((r.w / r.h) * 58)));
     const stale = allZones.filter(({ zone }) => zone.bloomAR !== bloom(zone.rect));
@@ -156,9 +159,10 @@ describe("design handoff contract", () => {
         bloom(zone.rectOld as { w: number; h: number }),
       );
     }
-    // 49 зон раундов 4–5 плюс cream/money раунда 8 (у cream/events rectOld был
-    // и раньше — раунд 5, теперь хранит прямоугольник, снятый раундом 8).
-    expect(allZones.filter(({ zone }) => zone.rectOld)).toHaveLength(50);
+    // 49 зон раундов 4–5 плюс cream/money и cream/beauty раунда 8 (у
+    // cream/events rectOld был и раньше — раунд 5, теперь хранит прямоугольник,
+    // снятый раундом 8).
+    expect(allZones.filter(({ zone }) => zone.rectOld)).toHaveLength(51);
   });
 
   it("каждая зона лежит в границах КАДРА 630×351, а не окна 430", () => {
@@ -597,16 +601,18 @@ describe("кадры «открыто» (openFrame — единственный 
     ]);
   });
 
-  it("прямоугольники cream/events и cream/money применены ровно из rects-fix", () => {
-    // Единственные два прямоугольника приложения, чью комнату раунд 8 уже
-    // прислал; дизайн подтвердил их словами («восемь да», ОТВЕТ-раунд-8).
-    // Остальные девять ждут партий своих комнат — их применяет отдельный
-    // тикет, а не этот тест.
+  it("прямоугольники cream/events, cream/money и cream/beauty применены ровно из rects-fix", () => {
+    // Прямоугольники приложения, чью комнату раунд 8 уже прислал; events и
+    // money дизайн подтвердил словами («восемь да», ОТВЕТ-раунд-8). Beauty —
+    // пункт 12, найден при сверке замеров 06.08 (ANSWERS-cream-measures):
+    // прямоугольник стоял на зеркале визажиста, предмет — органайзер ниже и
+    // левее. Остальные девять ждут партий своих комнат — их применяет
+    // отдельный тикет, а не этот тест.
     const fix = JSON.parse(
       readFileSync(resolve(__dirname, "../design/rects-fix.json"), "utf8"),
     ) as { zones: { room: string; key: string; rect: unknown; was: unknown }[] };
     const cream = contractRooms.find((room) => room.id === "cream")!;
-    for (const key of ["events", "money"]) {
+    for (const key of ["events", "money", "beauty"]) {
       const fixed = fix.zones.find((z) => z.room === "cream" && z.key === key)!;
       const zone = cream.zones.find((z) => z.key === key)!;
       expect(zone.rect, `cream/${key}: прямоугольник из приложения`).toEqual(fixed.rect);
@@ -911,7 +917,7 @@ describe("флаги проверки: notClamped / eyeChecked / wrongTarget", (
 
   it("notClamped — машинное правило прежней системы, снятое с переразмеченных", () => {
     // Правило считалось ДО переразметки, в координатах окна 430. У
-    // переразмеченных зон (35 в раунде 4, 13 в раунде 5, 2 в раунде 8 —
+    // переразмеченных зон (35 в раунде 4, 13 в раунде 5, 3 в раунде 8 —
     // cream/events ушла из счёта раунда 5 в раунд 8 вместе с новым
     // прямоугольником rects-fix) прямоугольник с тех пор сменился, и контракт
     // снял с них флаг обрезки: они больше не прижаты ни к какому краю. Поэтому
@@ -921,6 +927,7 @@ describe("флаги проверки: notClamped / eyeChecked / wrongTarget", (
     expect(remapped.filter(({ zone }) => zone.remappedRound === 4)).toHaveLength(35);
     expect(remapped.filter(({ zone }) => zone.remappedRound === 5)).toHaveLength(13);
     expect(remapped.filter(({ zone }) => zone.remappedRound === 8).map((z) => z.id)).toEqual([
+      "cream/beauty",
       "cream/events",
       "cream/money",
     ]);
