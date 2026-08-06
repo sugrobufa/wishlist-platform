@@ -3,12 +3,24 @@ import { getTranslations } from "next-intl/server";
 import { redirect } from "next/navigation";
 import { auth } from "@/server/auth";
 import { AFTER_SIGNIN_PATH, magicLinkVerifyAction } from "@/server/auth-links";
+import { SigninBackdrop } from "../backdrop";
 
 export const dynamic = "force-dynamic";
-export const metadata: Metadata = { robots: { index: false, follow: false } };
+
+// Тайтл — «Вход — Grace» (Brand.name, тикет 56); robots как были: страница
+// одноразовой ссылки в индексе не живёт.
+export async function generateMetadata(): Promise<Metadata> {
+  const t = await getTranslations("SignIn");
+  const brand = await getTranslations("Brand");
+  return {
+    title: `${t("confirmOverline")} — ${brand("name")}`,
+    robots: { index: false, follow: false },
+  };
+}
 
 /**
- * Подтверждение входа по ссылке из письма (тикет 19).
+ * Подтверждение входа по ссылке из письма (тикет 19; стилизация — тикет 56:
+ * тот же кадр «Кремовой» с ровной вуалью, что у экрана «письмо ушло»).
  *
  * GET этой страницы НЕ ТРАТИТ НИЧЕГО: предзагрузка адресной строки Chrome,
  * почтовый антивирус и корпоративный сканер, кликающий ссылки за человека,
@@ -38,49 +50,53 @@ export default async function ConfirmSignInPage({
   if (error || !token || !email) {
     const expired = !error || error === "Verification";
     return (
-      <main className="flex min-h-screen flex-col items-center justify-center gap-6 px-6 text-center">
-        <p className="overline text-text-muted">{t("confirmOverline")}</p>
-        <h1 className="display text-3xl md:text-5xl">
-          {expired ? t("expiredTitle") : t("failedTitle")}
-        </h1>
-        <p className="max-w-md text-text-body">
-          {expired ? t("expiredBody") : t("failedBody")}
-        </p>
-        {/* Обычная ссылка, не next/link: экран обязан работать без JS. */}
-        <a
-          href="/signin"
-          className="pressable border-b-2 px-6 py-3 text-text-primary"
-          style={{
-            borderColor: "#E7C9A9",
-            boxShadow: "0 4px 18px -3px rgba(231,201,169,.42)",
-          }}
-        >
-          {t("newLink")} →
-        </a>
+      <main className="relative min-h-[100dvh] overflow-hidden">
+        <SigninBackdrop variant="quiet" />
+        <div className="relative mx-auto flex min-h-[100dvh] w-full max-w-[430px] flex-col items-center justify-center gap-6 px-[22px] py-10 text-center">
+          {/* Не класс .overline: его имя совпадает с утилитой Tailwind
+              text-decoration: overline, рисующей черту над строкой. */}
+          <p className="text-[9px] font-medium uppercase tracking-[.2em] text-text-muted">
+            {t("confirmOverline")}
+          </p>
+          <h1 className="display text-3xl md:text-5xl">
+            {expired ? t("expiredTitle") : t("failedTitle")}
+          </h1>
+          <p className="max-w-md text-text-body">
+            {expired ? t("expiredBody") : t("failedBody")}
+          </p>
+          {/* Обычная ссылка, не next/link: экран обязан работать без JS. */}
+          <a
+            href="/signin"
+            className="pressable border-b-2 border-[#E7C9A9] px-6 py-3 text-text-primary shadow-[0_4px_18px_-3px_rgba(231,201,169,.42)]"
+          >
+            {t("newLink")} →
+          </a>
+        </div>
       </main>
     );
   }
 
   return (
-    <main className="flex min-h-screen flex-col items-center justify-center gap-6 px-6 text-center">
-      <p className="overline text-text-muted">{t("confirmOverline")}</p>
-      <h1 className="display text-3xl md:text-5xl">{t("confirmTitle")}</h1>
-      <p className="max-w-md text-text-body">{t("confirmBody")}</p>
-      <p className="text-sm text-text-muted">{email}</p>
+    <main className="relative min-h-[100dvh] overflow-hidden">
+      <SigninBackdrop variant="quiet" />
+      <div className="relative mx-auto flex min-h-[100dvh] w-full max-w-[430px] flex-col items-center justify-center gap-6 px-[22px] py-10 text-center">
+        <p className="text-[9px] font-medium uppercase tracking-[.2em] text-text-muted">
+          {t("confirmOverline")}
+        </p>
+        <h1 className="display text-3xl md:text-5xl">{t("confirmTitle")}</h1>
+        <p className="max-w-md text-text-body">{t("confirmBody")}</p>
+        <p className="text-sm text-text-muted">{email}</p>
 
-      {/* Строковый action + method="post" — браузерная отправка, без JS. */}
-      <form method="post" action={magicLinkVerifyAction(token, email)}>
-        <button
-          type="submit"
-          className="pressable border-b-2 px-6 py-3 text-text-primary"
-          style={{
-            borderColor: "#E7C9A9",
-            boxShadow: "0 4px 18px -3px rgba(231,201,169,.42)",
-          }}
-        >
-          {t("confirmSubmit")} →
-        </button>
-      </form>
+        {/* Строковый action + method="post" — браузерная отправка, без JS. */}
+        <form method="post" action={magicLinkVerifyAction(token, email)}>
+          <button
+            type="submit"
+            className="pressable border-b-2 border-[#E7C9A9] px-6 py-3 text-text-primary shadow-[0_4px_18px_-3px_rgba(231,201,169,.42)]"
+          >
+            {t("confirmSubmit")} →
+          </button>
+        </form>
+      </div>
     </main>
   );
 }
