@@ -4,7 +4,7 @@ import Link from "next/link";
 import { getTranslations } from "next-intl/server";
 import { redirect } from "next/navigation";
 import { auth } from "@/server/auth";
-import { getRoomForUser, getSessionUserId } from "@/server/services/rooms";
+import { getOwnerProfile, getRoomForUser, getSessionUserId } from "@/server/services/rooms";
 import { listZoneItems } from "@/server/services/items";
 import { ownerTakenTotal } from "@/server/services/goal";
 import { occasionBannerVisible } from "@/server/services/occasions";
@@ -35,9 +35,10 @@ export const metadata: Metadata = { robots: { index: false, follow: false } };
  *
  * Раскладка «во весь экран» (тикет 24): страница не листается и не собрана
  * стопкой. Слоями снизу вверх — размытый кадр комнаты на весь экран, сцена с
- * картой зон посередине, две полосы интерфейса на вуалях. Числа полос —
- * tokens.json → layout.phoneImmersive/desktopImmersive; геометрия и проверка
- * видимости зон — components/scene/immersive-layout.ts.
+ * картой зон У ВЕРХА экрана (тикет 57), две полосы интерфейса на вуалях, и
+ * верхняя лежит НА комнате. Числа полос — tokens.json →
+ * layout.phoneImmersive/desktopImmersive; геометрия и проверка видимости зон —
+ * components/scene/immersive-layout.ts. Порядок слоёв — globals.css (.imm).
  */
 export default async function RoomPage() {
   const session = await auth();
@@ -77,6 +78,19 @@ export default async function RoomPage() {
 
   const accent = preset?.accent ?? "#E7C9A9";
 
+  // В шапке — ИМЯ хозяйки, а не название пресета (тикет 57). Владелец с
+  // телефона: «там должна быть не комната, а имя». Доска говорит то же самое:
+  // турн 23c подписывает телефонную шапку «Мила», турн 15a — переменной
+  // `rOwner`, и у гостя (/r/[slug]) шапка давно говорит именем хозяйки.
+  //
+  // ФОЛБЭК ЧЕСТНЫЙ, А НЕ ПУСТОТА: пока имя не заполнено (оно необязательное —
+  // онбординг его пропускает), в шапке остаётся имя пресета, как было. Само
+  // название пресета из продукта никуда не делось — оно живёт в настройках и в
+  // смене интерьера, где им и выбирают комнату.
+  const profile = await getOwnerProfile(userId);
+  const presetName = preset?.name ?? room.preset;
+  const roomTitle = profile?.displayName?.trim() || presetName;
+
   return (
     <main
       className="imm"
@@ -88,7 +102,8 @@ export default async function RoomPage() {
       }
     >
       {/* Комната на весь экран: тот же кадр фоном, размытый до состояния
-          света в помещении. Резкая часть с зонами — сцена посередине. */}
+          света в помещении. Резкая часть с зонами — сцена у верха экрана
+          (тикет 57); ниже неё этот же слой и есть фон под панелью зоны. */}
       <div className="imm-backdrop" aria-hidden />
       <div className="imm-veil imm-veil-top" aria-hidden />
       <div className="imm-veil imm-veil-bottom" aria-hidden />
@@ -105,9 +120,7 @@ export default async function RoomPage() {
           <div className="imm-top-grid">
             <div className="imm-area-titles">
               <p className="overline text-text-muted">{t("overline")}</p>
-              <h1 className="display imm-title mt-1 text-2xl lg:text-4xl">
-                {preset?.name ?? room.preset}
-              </h1>
+              <h1 className="display imm-title mt-1 text-2xl lg:text-4xl">{roomTitle}</h1>
             </div>
 
             <div className="imm-area-quiet">

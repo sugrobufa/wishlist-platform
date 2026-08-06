@@ -97,6 +97,16 @@ import {
 // широкая зона у́же окна). Обе цифры под тестом в блоке «пан окна по кадру».
 // Пан — свойство показа: карта, указатель и камера не изменились ни на пиксель.
 //
+// Раунд пятый (тикет 57). Телефон повторил движение десктопа: кадр стоял ПОД
+// верхней полосой (top 190), и между шапкой и комнатой лежала мёртвая тёмная
+// зона в 190 px — владелец увидел её на стенде. Теперь кадр от верха экрана,
+// вуаль лежит НА нём, освободившееся ушло вниз (лист вещей 362 → 552 px).
+// ТАБЛИЦА ДОСТИЖИМОСТИ ОТ ЭТОГО НЕ СДВИНУЛАСЬ НИ НА ЗОНУ, и это не совпадение:
+// кадр ПЕРЕЕХАЛ, а не изменился в размере (проверка «размер тот же до пикселя»
+// ниже), обрезка `sceneVisible` просто сдвинулась вместе с ним, а режет она по
+// горизонтали — там, где стоят те самые 33 заоконные и 7 узких. Что появилось
+// нового — числа задетых вуалью зон: было 0, стало 75 из 130 на 430×932.
+//
 // РАЗНИЦА МЕЖДУ ВИДАМИ. На телефоне список «заоконных» зон — свойство КАДРА:
 // окно всегда показывает 430 из 630 px, на любом экране одни и те же 33 зоны.
 // На десктопе кроп — свойство ОКНА: сколько кадра срежется, решает пропорция
@@ -437,8 +447,9 @@ describe("раскладка «во весь экран»: числа из па�
     const desktop = sceneBand("desktop", DESKTOP);
     expect(phone.width / phone.height).toBeCloseTo(scene.phone.w / scene.phone.h, 6);
     expect(desktop.width / desktop.height).toBeCloseTo(scene.desktop.w / scene.desktop.h, 6);
-    // Телефон 430×932: кадр берёт всю ширину и встаёт под верхнюю полосу.
-    expect(phone).toEqual({ left: 0, top: 190, width: 430, height: 352 });
+    // Телефон 430×932: кадр берёт всю ширину и встаёт У ВЕРХА экрана (тикет
+    // 57). Размер тот же, что был под полосой, — переехал, а не растянулся.
+    expect(phone).toEqual({ left: 0, top: 0, width: 430, height: 352 });
   });
 
   it("две раскладки названы одним словом: телефон вписывает, десктоп заполняет", () => {
@@ -596,17 +607,93 @@ describe("комната во весь экран: кроп вместо пол�
     }
   });
 
-  it("телефон вписан по-прежнему: по бокам нулей, сверху и снизу — полосы", () => {
-    // Телефонная раскладка тикетом 42 не тронута ни на пиксель: кадр стоит
-    // между полосами, поля сверху/снизу — это они и есть.
-    expect(sceneGap("phone", PHONE)).toEqual({ left: 0, right: 0, top: 190, bottom: 390 });
+  it("телефон вписан, но прижат к верху: поля только снизу (тикет 57)", () => {
+    // Прежде здесь стояло `top: 190, bottom: 390` — «поля сверху и снизу это
+    // полосы и есть». Верхнее поле и было мёртвой тёмной зоной, которую увидел
+    // владелец: между шапкой и комнатой 190 px, где нет ни того, ни другого.
+    // Теперь его НОЛЬ, а всё, что освободилось, ушло вниз — 390 стало 580.
+    expect(sceneGap("phone", PHONE)).toEqual({ left: 0, right: 0, top: 0, bottom: 580 });
     for (const screen of PHONE_SCREENS) {
       const gap = sceneGap("phone", screen);
       const where = `${screen.w}×${screen.h}`;
       expect(gap.left, `${where} слева`).toBe(0);
       expect(gap.right, `${where} справа`).toBe(0);
-      expect(gap.top, `${where} сверху`).toBe(immersiveLayout.phone.railTop);
+      expect(gap.top, `${where} сверху`).toBe(0);
+      // Всё поле теперь снизу, и его ровно столько, сколько экран длиннее кадра.
+      expect(gap.bottom, `${where} снизу`).toBeCloseTo(
+        screen.h - sceneBand("phone", screen).height,
+        4,
+      );
     }
+  });
+
+  it("телефон: кадр ПЕРЕЕХАЛ, а не растянулся — размер тот же до пикселя", () => {
+    // Главная страховка тикета 57: пропорция 430:352 неприкосновенна (ADR-0006),
+    // и «поднять кадр к верху» не имело права превратиться в «растянуть кадр».
+    // Прежняя формула считала ширину как min(экран, (высота − полосы − зазор) ×
+    // пропорция); на всех телефонах обхода ограничителем был ЭКРАН, а не
+    // высота, — поэтому размер и не изменился. Здесь это записано числом.
+    const before = (screen: Screen) => {
+      const l = immersiveLayout.phone;
+      const width = Math.min(
+        screen.w,
+        Math.max(0, screen.h - l.railTop - l.railBottom - l.gap) * l.ar,
+      );
+      return { width: round4(width), height: round4(width / l.ar) };
+    };
+    for (const screen of PHONE_SCREENS) {
+      const now = sceneBand("phone", screen);
+      const was = before(screen);
+      const where = `${screen.w}×${screen.h}`;
+      expect(now.width, `${where} ширина кадра`).toBeCloseTo(was.width, 4);
+      expect(now.height, `${where} высота кадра`).toBeCloseTo(was.height, 4);
+      // И то, и другое — просто ширина экрана и она же ÷ пропорция.
+      expect(now.width, `${where} кадр во всю ширину`).toBe(screen.w);
+    }
+    // Контрольные числа обхода: 430 → 352, 390 → 319.26, 375 → 307, 360 → 294.7.
+    expect(sceneBand("phone", { w: 390, h: 844 }).height).toBeCloseTo(319.2558, 3);
+    expect(sceneBand("phone", { w: 375, h: 667 }).height).toBeCloseTo(306.9767, 3);
+    expect(sceneBand("phone", { w: 360, h: 640 }).height).toBeCloseTo(294.6977, 3);
+  });
+
+  it("CSS телефона считает ту же формулу и кладёт вуаль НА комнату (тикет 57)", () => {
+    // Раскладку рисует CSS, а проверяет этот файл — сходятся они только пока
+    // числа совпадают. Тикет 57 переставил ДВА места, и оба здесь:
+    //   1) кадр больше не отсчитывается от полос и не отступает под них;
+    //   2) верхняя вуаль поднялась НАД сценой слоем — иначе комната закрасила
+    //      бы её собой (в разметке вуаль стоит до сцены), и вместо шапки на
+    //      комнате получилась бы шапка ПОД комнатой. Ни один другой тест этого
+    //      не увидит: геометрия при такой поломке остаётся верной до пикселя.
+    const scene = readFileSync(
+      fileURLToPath(new URL("../src/components/scene/scene.module.css", import.meta.url)),
+      "utf8",
+    );
+    expect(scene, "в формулу кадра вернулись полосы").toContain("--band-free-h: 100dvh;");
+    expect(scene, "кадр снова отступает под верхнюю полосу").toMatch(
+      /\.stage \{[^}]*padding-top: 0;/u,
+    );
+    expect(scene, "лист вещей снова считается от верхней полосы").toContain(
+      "max-height: calc(100dvh - var(--band-h) * 0.75 - var(--rail-bottom));",
+    );
+
+    const globals = readFileSync(
+      fileURLToPath(new URL("../src/app/globals.css", import.meta.url)),
+      "utf8",
+    );
+    const layer = (selector: string) =>
+      new RegExp(`\\.${selector} \\{[^}]*z-index: (\\d+);`, "u").exec(globals)?.[1];
+    // Вуаль над сценой, шапка над вуалью. Сцена своего z-index не берёт
+    // намеренно: возьми она его — стала бы контекстом наложения, и лист вещей
+    // (.panel, z-index 2) уже не смог бы подняться над вуалью.
+    expect(layer("imm-veil-top"), "вуаль потеряла слой — уедет под комнату").toBe("1");
+    expect(layer("imm-rail-top"), "шапка потеряла слой — уедет под свою вуаль").toBe("2");
+    expect(scene, "сцена взяла z-index и заперла лист вещей").not.toMatch(
+      /\.stage \{[^}]*z-index:/u,
+    );
+    // И обе полосы по-прежнему прозрачны для пальца: зона под шапкой обязана
+    // нажиматься насквозь — на телефоне таких зон теперь 75 из 130.
+    expect(globals).toMatch(/\.imm-rail \{[^}]*pointer-events: none;/u);
+    expect(globals).toMatch(/\.imm-veil \{[^}]*pointer-events: none;/u);
   });
 
   it("полосы интерфейса лежат НА комнате, а не вокруг неё", () => {
@@ -907,25 +994,98 @@ describe("все 130 зон достижимы: кадром или указат
     }
   });
 
-  it("телефон: ни одна зона не лежит под полосами интерфейса", () => {
-    // По вертикали окно кадр НЕ режет: полосы держат заголовок, служебные
-    // ссылки, «Добавить вещь» и указатель зон, и зона под ними была бы видна,
-    // но не нажимаема. Это требование пережило смену координат целиком —
-    // разметка по вертикали как была в пределах кадра, так и осталась.
-    // Тикет 42 его тоже не трогал: телефон по-прежнему ВПИСЫВАЕТ кадр между
-    // полосами, поэтому под ними физически нет комнаты.
+  it("телефон: верхняя вуаль лежит НА зонах, нижняя до кадра не достаёт", () => {
+    // ПРЕЖДЕ ЗДЕСЬ СТОЯЛО «ни одна зона не лежит под полосами интерфейса», и
+    // держалось это вписыванием: кадр стоял МЕЖДУ полосами, под ними физически
+    // не было комнаты — а была мёртвая тёмная зона в 190 px, которую владелец и
+    // увидел на стенде. Тикет 57 поднял кадр к верху экрана, и телефон стал
+    // жить по десктопному правилу тикета 42: полоса лежит на комнате, зона под
+    // ней — норма, нажатий полоса не берёт (`.imm-rail { pointer-events: none }`
+    // в globals.css, вуаль — тем более: `.imm-veil { pointer-events: none }`).
+    //
+    // Числа записаны, чтобы рост был виден в диффе. Верхняя вуаль — 190 px, и
+    // это 54% кадра на 430-широком телефоне против 16.5% на десктопе: кадр у
+    // телефона всего 352 px высотой, а вуаль пакета (phoneImmersive.topVeil)
+    // рисовалась в турне 23c поверх комнаты во весь экран 932. Отсюда и разница
+    // с десктопными 34–41: задетых зон 75 из 130 на 430, 102 на 360×640.
+    const touchedTop = (screen: Screen) => {
+      const free = clearBand("phone", screen);
+      return allZones.filter(
+        ({ rect }) => zoneOnScreen(rect, "phone", screen).top < free.top - EPS,
+      );
+    };
+    expect(touchedTop(PHONE)).toHaveLength(75);
+    expect(touchedTop({ w: 390, h: 844 })).toHaveLength(91);
+    expect(touchedTop({ w: 375, h: 667 })).toHaveLength(97);
+    expect(touchedTop({ w: 360, h: 640 })).toHaveLength(102);
+
+    // НИЖНЯЯ ПОЛОСА КАДРА НЕ КАСАЕТСЯ ВОВСЕ — и это тоже требование, а не
+    // случайность: кадр кончается на 352 при полосе, начинающейся на 816
+    // (430×932). Заедь он под неё — «Добавить вещь» и указатель зон встали бы
+    // на комнату, а подсказка «коснись зоны» (она живёт внизу с тикета 52)
+    // оказалась бы на кадре. На самом коротком экране обхода запас всё ещё
+    // 229 px (360×640: кадр до 294.7, полоса с 524).
     for (const screen of PHONE_SCREENS) {
       const free = clearBand("phone", screen);
+      const band = sceneBand("phone", screen);
+      const where = `phone ${screen.w}×${screen.h}`;
+      expect(bottom(band), `${where}: кадр заехал под нижнюю полосу`).toBeLessThanOrEqual(
+        free.bottom + EPS,
+      );
       for (const { id, rect } of allZones) {
-        const box = zoneOnScreen(rect, "phone", screen);
-        const where = `${id} @ phone ${screen.w}×${screen.h}`;
-        expect(box.top, `${where} заезжает под верхнюю полосу`).toBeGreaterThanOrEqual(
-          free.top - EPS,
-        );
-        expect(bottom(box), `${where} заезжает под нижнюю полосу`).toBeLessThanOrEqual(
-          free.bottom + EPS,
-        );
+        expect(
+          bottom(zoneOnScreen(rect, "phone", screen)),
+          `${id} @ ${where} заезжает под нижнюю полосу`,
+        ).toBeLessThanOrEqual(free.bottom + EPS);
       }
+    }
+    expect(bottom(sceneBand("phone", PHONE))).toBe(352);
+    expect(clearBand("phone", PHONE).bottom).toBe(816);
+  });
+
+  it("телефон: цена решения — 35 зон целиком под вуалью, и все они достижимы", () => {
+    // Честная цена тикета 57, записанная числом. «Целиком под вуалью» —
+    // прямоугольник зоны не выходит из полосы 0…190; на 430×932 таких 35.
+    // Мера грубая: вуаль — ГРАДИЕНТ (0.92 → 0.46 на 66% → 0), и зона у её
+    // нижнего края почти не притемнена. Прикидка по альфе в центре зоны (не
+    // утверждение теста — градиент живёт в globals.css, не в модуле) даёт
+    // мягче: на 430×932 темнее 0.5 лежат 14 зон, и 7 из них и так стоят за
+    // правым краем окна в покое, — в окне реально гаснут семь.
+    //
+    // Это ровно тот же размен, что принял тикет 42 на десктопе (`study/money`
+    // целиком под полосой), и обе дороги к таким зонам остались: указатель зон
+    // строится по данным, камера доводит любую зону до середины экрана, пан
+    // (тикет 55) даёт полные 44×44 каждой. Проверяем именно это.
+    const swallowed = allZones.filter(({ rect }) => {
+      const free = clearBand("phone", PHONE);
+      return bottom(zoneOnScreen(rect, "phone", PHONE)) <= free.top + EPS;
+    });
+    expect(swallowed).toHaveLength(35);
+    // На узком телефоне кадр ниже, а вуаль та же — тонет больше.
+    const swallowedAt = (screen: Screen) =>
+      allZones.filter(
+        ({ rect }) =>
+          bottom(zoneOnScreen(rect, "phone", screen)) <= clearBand("phone", screen).top + EPS,
+      ).length;
+    expect(swallowedAt({ w: 430, h: 745 })).toBe(35);
+    expect(swallowedAt({ w: 390, h: 844 })).toBe(55);
+    expect(swallowedAt({ w: 375, h: 667 })).toBe(66);
+    expect(swallowedAt({ w: 360, h: 640 })).toBe(77);
+    for (const { id, roomId, key, rect } of swallowed) {
+      // Дорога 1 — пан: у каждой полные 44×44 в какой-то позиции окна.
+      const hit = phoneZoneHitBoxAtPan(rect, PHONE, phonePanToZone(rect));
+      expect(hit.width, `${id} ширина цели паном`).toBeGreaterThanOrEqual(hitTargetMin - EPS);
+      expect(hit.height, `${id} высота цели паном`).toBeGreaterThanOrEqual(hitTargetMin - EPS);
+      // Дорога 2 — указатель: либо зона в нём, либо продукт её не показывает.
+      if (zoneHiddenByProduct(roomId, key)) continue;
+      expect(listedInIndex.has(id), `${id}: под вуалью и не в указателе`).toBe(true);
+    }
+    // Ни одна из них не потеряла цель нажатия от переезда кадра: вуаль не
+    // режет пиксели, она их красит (`pointer-events: none`).
+    for (const { id, rect } of swallowed) {
+      const box = zoneHitBox(rect, "phone", PHONE);
+      const beyond = BEYOND_PHONE_WINDOW.includes(id);
+      expect(box.width > 0, `${id} цель в покое`).toBe(!beyond);
     }
   });
 
