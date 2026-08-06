@@ -1,3 +1,5 @@
+import { readFileSync } from "node:fs";
+import { fileURLToPath } from "node:url";
 import { describe, it, expect } from "vitest";
 import tokensJson from "@design/tokens.json";
 import {
@@ -8,6 +10,7 @@ import {
   zoneHiddenByProduct,
 } from "../src/config/design";
 import {
+  round4,
   sceneSize,
   viewportCenter,
   zoneCenterAfterCamera,
@@ -18,7 +21,9 @@ import {
 import { visibleZones } from "../src/components/scene/zones";
 import {
   clearBand,
+  desktopReference,
   immersiveLayout,
+  minWindowAr,
   railBand,
   railContent,
   sceneBand,
@@ -52,6 +57,17 @@ import {
 // «все 130 получают 44×44 на любом окне», «зон под полосами нет», «кадр не
 // шире экрана»). Переписаны, а не ослаблены — что именно осталось под тестом,
 // перечислено ниже.
+//
+// Раунд третий (тикет 45). Кроп оказался БЕЗ ДНА: его глубину задаёт пропорция
+// окна, и на 4:3 (1024×768 — айпад в альбоме, он же порог десктопной раскладки)
+// срезалась четверть ширины комнаты. Числа этот файл и записал: 105 зон пальцем
+// из 130, 12 недобирают 44 px, 13 срезаны в ноль. Тикет 45 поставил кропу
+// предел — «не глубже, чем на эталонном окне 1280×800» (`minWindowAr`), —
+// и 1024×768 стал вести себя ровно как эталон: 125 пальцем, 5 указателем, ноль
+// срезанных. Цена — поле сверху и снизу (64 px на 1024×768), и оно тоже под
+// тестом: обязано быть меньше полос интерфейса, которые его накрывают.
+// Окна 16:10 и шире не изменились НИ НА ПИКСЕЛЬ — это отдельная проверка,
+// сверяющая нынешнюю формулу с прежней («чистый cover») на каждом из них.
 //
 // ТРЕБОВАНИЕ: **все зоны ДОСТИЖИМЫ** — теперь на ОБЕИХ раскладках одинаково.
 // Дорог ровно две, и каждая зона обязана иметь хотя бы одну:
@@ -101,18 +117,48 @@ const PHONE_SCREENS: Screen[] = [
 /**
  * Десктопные экраны обхода — от порога раскладки (`@media min-width: 1024px`)
  * до 1920. Пропорция окна здесь и есть главная переменная: у кадра она 1.792
- * (1120:625), поэтому 16:9 срезается почти не срезаясь, 16:10 теряет по 5.4%
- * ширины с каждой стороны, а 4:3 — по 12.8%.
+ * (1120:625), поэтому 16:9 срезается почти не срезаясь, а 16:10 теряет по 5.4%
+ * ширины с каждой стороны. Всё, что у́же 16:10, кроп резал тем глубже, чем у́же
+ * окно (4:3 — по 12.8% с каждой стороны, 5:4 — по 15.1%), пока тикет 45 не
+ * поставил ему предел.
+ *
+ * Три узких окна здесь не выдуманы: 1024×768 — айпад в альбоме и ровно порог
+ * раскладки, 1194×834 — iPad Pro 11 в альбоме, 1280×1024 — 5:4, самое узкое
+ * из реально встречающихся десктопных окон.
  */
 const DESKTOP_SCREENS: Screen[] = [
   { w: 1024, h: 768 },
+  { w: 1194, h: 834 },
   { w: 1280, h: 720 },
   DESKTOP,
+  { w: 1280, h: 1024 },
   { w: 1366, h: 768 },
   { w: 1440, h: 900 },
   { w: 1536, h: 864 },
   { w: 1920, h: 1080 },
 ];
+
+/** Окна 16:10 и шире: их тикет 45 не трогает вовсе. */
+const DESKTOP_WIDE = DESKTOP_SCREENS.filter((s) => s.w / s.h >= minWindowAr);
+
+/** Окна у́же эталона: здесь кроп упирается в предел, и появляется поле. */
+const DESKTOP_NARROW = DESKTOP_SCREENS.filter((s) => s.w / s.h < minWindowAr);
+
+/**
+ * Прежняя формула — «чистый cover» без предела, с тем же округлением до 4
+ * знаков, что у `sceneBand`. Эталон проверки «ничего не изменилось».
+ */
+function pureCoverBand(screen: Screen): Box {
+  const ar = immersiveLayout.desktop.ar;
+  const width = Math.max(screen.w, screen.h * ar);
+  const height = width / ar;
+  return {
+    left: round4((screen.w - width) / 2),
+    top: round4((screen.h - height) / 2),
+    width: round4(width),
+    height: round4(height),
+  };
+}
 
 /** Все 130 зон контракта: 13 в каждой из 10 комнат (money тоже — ADR-0003). */
 const allZones = roomsContract.rooms.flatMap((room) =>
@@ -171,38 +217,55 @@ const BEYOND_PHONE_WINDOW = [
 ];
 
 /**
- * Достижимость пальцем на ДЕСКТОПЕ, по вьюпортам (тикет 42).
+ * Достижимость пальцем на ДЕСКТОПЕ, по вьюпортам (тикеты 42 и 45).
  *
- * `bleedX` — сколько кадра ушло за КАЖДЫЙ боковой край окна; `full` — зон с
- * полными 44×44; `short` — цель есть, но меньше 44 хотя бы по одной стороне;
- * `gone` — цель срезана в ноль. Сумма трёх всегда 130: молча потеряться нельзя
- * ни одной, дорога к `short` и `gone` — указатель зон (проверено ниже).
+ * `bleedX` — сколько кадра ушло за КАЖДЫЙ боковой край окна; `field` — поле
+ * сверху и снизу (кроп упёрся в предел, тикет 45); `full` — зон с полными
+ * 44×44; `short` — цель есть, но меньше 44 хотя бы по одной стороне; `gone` —
+ * цель срезана в ноль. Сумма трёх всегда 130: молча потеряться нельзя ни одной,
+ * дорога к `short` — указатель зон (проверено ниже), а `gone` теперь ноль
+ * везде — это и есть приёмка тикета 45.
  *
  * Читать таблицу так: пока пропорция окна близка к пропорции кадра (16:9),
  * кроп меньше полупроцента и пальцем достаются ВСЕ 130. На 16:10 срезается по
  * 5.4% ширины, и правый край окна начинает подъедать зоны у правой стены
- * комнаты. На 4:3 — по 12.8%, и десктоп становится похож на телефон.
+ * комнаты. Уже 16:10 картинка больше НЕ ухудшается: кроп остановлен на глубине
+ * эталона, и 1024×768, 1194×834, 1280×1024 повторяют строку 1280×800 зона в
+ * зону — разной остаётся только высота поля.
+ *
+ * Было до тикета 45 (для сравнения, эти строки и есть находка тикета):
+ *   1024×768   bleedX 176.128  →  105 / 12 / 13
+ *   1194×834   bleedX 150.336  →  117 /  4 /  9
+ *   1280×1024  bleedX 277.504  →  101 /  5 / 24
  */
 const DESKTOP_REACH: Array<{
   screen: Screen;
   bleedX: number;
+  field: number;
   full: number;
   short: number;
   gone: number;
 }> = [
-  { screen: { w: 1024, h: 768 }, bleedX: 176.128, full: 105, short: 12, gone: 13 },
-  { screen: { w: 1280, h: 720 }, bleedX: 5.12, full: 130, short: 0, gone: 0 },
-  { screen: DESKTOP, bleedX: 76.8, full: 125, short: 5, gone: 0 },
-  { screen: { w: 1366, h: 768 }, bleedX: 5.128, full: 130, short: 0, gone: 0 },
-  { screen: { w: 1440, h: 900 }, bleedX: 86.4, full: 127, short: 3, gone: 0 },
-  { screen: { w: 1536, h: 864 }, bleedX: 6.144, full: 130, short: 0, gone: 0 },
-  { screen: { w: 1920, h: 1080 }, bleedX: 7.68, full: 130, short: 0, gone: 0 },
+  { screen: { w: 1024, h: 768 }, bleedX: 61.44, field: 64, full: 125, short: 5, gone: 0 },
+  { screen: { w: 1194, h: 834 }, bleedX: 71.64, field: 43.875, full: 125, short: 5, gone: 0 },
+  { screen: { w: 1280, h: 720 }, bleedX: 5.12, field: 0, full: 130, short: 0, gone: 0 },
+  { screen: DESKTOP, bleedX: 76.8, field: 0, full: 125, short: 5, gone: 0 },
+  { screen: { w: 1280, h: 1024 }, bleedX: 76.8, field: 112, full: 125, short: 5, gone: 0 },
+  { screen: { w: 1366, h: 768 }, bleedX: 5.128, field: 0, full: 130, short: 0, gone: 0 },
+  { screen: { w: 1440, h: 900 }, bleedX: 86.4, field: 0, full: 127, short: 3, gone: 0 },
+  { screen: { w: 1536, h: 864 }, bleedX: 6.144, field: 0, full: 130, short: 0, gone: 0 },
+  { screen: { w: 1920, h: 1080 }, bleedX: 7.68, field: 0, full: 130, short: 0, gone: 0 },
 ];
 
 /**
- * Пять зон, которым на 1280×800 правый край окна не даёт полных 44×44. Список
- * именной по той же причине, что телефонный: незаметно приехавшая сюда шестая
- * зона — это ухудшение, а не мелочь.
+ * Пять зон, которым на эталонном 1280×800 правый край окна не даёт полных
+ * 44×44. Список именной по той же причине, что телефонный: незаметно приехавшая
+ * сюда шестая зона — это ухудшение, а не мелочь.
+ *
+ * После тикета 45 этот же список получают ВСЕ окна у́же эталона: глубина кропа
+ * у них общая с эталоном, а недобирают до 44 те же зоны у правой стены. Прежде
+ * на 1024×768 список был другой и вдвое длиннее — 12 недобирающих и 13
+ * срезанных в ноль.
  */
 const DESKTOP_1280_SHORT = [
   "lux/home",
@@ -212,50 +275,27 @@ const DESKTOP_1280_SHORT = [
   "loft/money",
 ];
 
-/** 1024×768 — худший десктоп у порога раскладки: 12 зон недобирают до 44 px… */
-const DESKTOP_1024_SHORT = [
-  "warm/home",
-  "warm/flowers",
-  "lux/bags",
-  "lux/books",
-  "emerald/fashion",
-  "bold/flowers",
-  "sport/music",
-  "sport/travel",
-  "study/music",
-  "study/travel",
-  "study/money",
-  "loft/sport",
-];
-
-/** …а 13 срезаны краем окна начисто. Все 25 — на указателе зон. */
-const DESKTOP_1024_GONE = [
-  "cream/events",
-  "cream/flowers",
-  "lux/flowers",
-  "lux/home",
-  "emerald/anything",
-  "emerald/flowers",
-  "cottage/flowers",
-  "gamer/money",
-  "sport/money",
-  "study/watches",
-  "study/books",
-  "loft/travel",
-  "loft/money",
-];
-
 /**
  * Зоны, целиком спрятанные под полосой интерфейса на десктопе — по вьюпортам.
- * Почти везде это одна `study/money` (зона денег, продукт её не показывает);
- * на 1280×720 нижняя полоса накрывает ещё и `cream/anything`. Список именной:
- * следующая показываемая зона, уехавшая под полосу целиком, обязана быть
- * замечена, а не приехать молча.
+ * Почти везде это одна `study/money`; на 1280×720 нижняя полоса накрывает ещё и
+ * `cream/anything` (долг из тикета 42, 16:9 тикет 45 не трогал). Список
+ * именной: следующая показываемая зона, уехавшая под полосу целиком, обязана
+ * быть замечена, а не приехать молча.
+ *
+ * На узких окнах спрятанных нет вовсе, и это побочный выигрыш тикета 45: кадр
+ * стал ниже окна, его верх и низ отошли от полос. На 1024×768 `study/money`
+ * из-под полосы вышла.
+ *
+ * NB: `study/money` больше НЕ «зона, которую продукт не показывает» — ADR-0008
+ * вернул зоны денег в продукт (122 зоны из 130). Так что это показываемая зона,
+ * целиком лежащая под полосой, и её дорога — указатель зон.
  */
 const DESKTOP_SWALLOWED_BY_RAIL: Record<string, string[]> = {
-  "1024×768": ["study/money"],
+  "1024×768": [],
+  "1194×834": [],
   "1280×720": ["cream/anything", "study/money"],
   "1280×800": ["study/money"],
+  "1280×1024": [],
   "1366×768": ["study/money"],
   "1440×900": ["study/money"],
   "1536×864": ["study/money"],
@@ -394,11 +434,24 @@ describe("раскладка «во весь экран»: числа из па�
 // ТРЕБОВАНИЕ ТИКЕТА 42: комната от края до края, полей вокруг неё нет.
 // ---------------------------------------------------------------------------
 describe("комната во весь экран: кроп вместо полей (тикет 42)", () => {
-  it("десктоп: полей вокруг сцены нет — ноль со всех четырёх сторон", () => {
-    // Это и есть требование тикета, записанное числом. Владелец трижды просил
+  it("десктоп: по бокам полей нет никогда — комната от края до края", () => {
+    // Это и есть требование тикета 42, записанное числом. Владелец трижды просил
     // комнату во весь экран; вписанный кадр давал на 1920 чёрную рамку в 234 px
-    // с каждой стороны, и рамка была ровно тем, что он видел.
-    for (const screen of DESKTOP_SCREENS) {
+    // с каждой стороны, и рамка была ровно тем, что он видел. По ГОРИЗОНТАЛИ
+    // это требование безусловное и предел кропа его не касается: кадр всегда
+    // не у́же окна.
+    for (const screen of [...DESKTOP_SCREENS, { w: 2560, h: 1080 }]) {
+      const gap = sceneGap("desktop", screen);
+      const where = `${screen.w}×${screen.h}`;
+      expect(gap.left, `${where} слева`).toBe(0);
+      expect(gap.right, `${where} справа`).toBe(0);
+    }
+  });
+
+  it("десктоп: на 16:10 и шире полей нет и сверху со снизу", () => {
+    // Требование тикета 42 целиком: 1920×1080, 1440×900, 1280×800 — нули со
+    // всех четырёх сторон. Тикет 45 их не тронул и не имел права тронуть.
+    for (const screen of DESKTOP_WIDE) {
       expect(sceneGap("desktop", screen), `${screen.w}×${screen.h}`).toEqual({
         left: 0,
         right: 0,
@@ -416,32 +469,73 @@ describe("комната во весь экран: кроп вместо пол�
     });
   });
 
-  it("десктоп: кадр не меньше окна ни по одной стороне — это и есть cover", () => {
+  it("десктоп: на узком окне поле есть — и оно меньше полос, которые его прячут", () => {
+    // Цена предела кропа (тикет 45). Поле делится поровну, стоит там же, где
+    // полосы интерфейса, и того же цвета, что фон сцены — на альбомных окнах
+    // человек видит не чёрную рамку, а ту же тёмную полосу, что и всегда.
+    // Если поле когда-нибудь перерастёт полосу, оно вылезет наружу — вот это
+    // и ловится здесь.
+    expect(DESKTOP_NARROW.map((s) => `${s.w}×${s.h}`)).toEqual([
+      "1024×768",
+      "1194×834",
+      "1280×1024",
+    ]);
+    for (const screen of DESKTOP_NARROW) {
+      const gap = sceneGap("desktop", screen);
+      const where = `${screen.w}×${screen.h}`;
+      expect(gap.top, `${where} поле сверху`).toBeGreaterThan(0);
+      expect(gap.top, `${where} поле = половина остатка`).toBeCloseTo(gap.bottom, 6);
+      expect(gap.top, `${where} поле вылезло из-под верхней полосы`).toBeLessThanOrEqual(
+        immersiveLayout.desktop.railTop,
+      );
+      expect(gap.bottom, `${where} поле вылезло из-под нижней полосы`).toBeLessThanOrEqual(
+        immersiveLayout.desktop.railBottom,
+      );
+    }
+    // Числами: 64 px на 1024×768 против полос в 132 и 116; 112 на 1280×1024 —
+    // это самое большое поле из реальных окон, и оно всё ещё под полосой.
+    expect(sceneGap("desktop", { w: 1024, h: 768 })).toEqual({
+      left: 0,
+      right: 0,
+      top: 64,
+      bottom: 64,
+    });
+    expect(sceneGap("desktop", { w: 1280, h: 1024 }).top).toBe(112);
+  });
+
+  it("десктоп: кадр не меньше окна по ширине — это и есть cover", () => {
     for (const screen of DESKTOP_SCREENS) {
       const band = sceneBand("desktop", screen);
       const where = `${screen.w}×${screen.h}`;
       expect(band.width, `${where} ширина кадра`).toBeGreaterThanOrEqual(screen.w - EPS);
-      expect(band.height, `${where} высота кадра`).toBeGreaterThanOrEqual(screen.h - EPS);
-      // Видимая часть сцены на десктопе — весь экран, без остатка.
+      // По высоте кадр перерастает окно только там, где кроп не упёрся в предел.
+      const wide = screen.w / screen.h >= minWindowAr;
+      if (wide) expect(band.height, `${where} высота кадра`).toBeGreaterThanOrEqual(screen.h - EPS);
+      else expect(band.height, `${where} высота кадра`).toBeLessThan(screen.h);
+      // Видимая часть сцены — весь экран по ширине; по высоте весь, пока нет поля.
       expect(sceneVisible("desktop", screen), where).toEqual({
         left: 0,
-        top: 0,
+        top: wide ? 0 : sceneGap("desktop", screen).top,
         width: screen.w,
-        height: screen.h,
+        height: wide ? screen.h : band.height,
       });
     }
     // Контрольные числа: 1280×800 (16:10) и 1920×1080 (16:9). Кадр вылезает
     // вбок, по высоте садится ровно в окно.
-    const wide = sceneBand("desktop", DESKTOP);
-    expect(wide.left).toBeCloseTo(-76.8, 4);
-    expect(wide.width).toBeCloseTo(1433.6, 4);
-    expect(wide.top).toBeCloseTo(0, 4);
-    expect(wide.height).toBeCloseTo(800, 4);
+    const refBand = sceneBand("desktop", DESKTOP);
+    expect(refBand.left).toBeCloseTo(-76.8, 4);
+    expect(refBand.width).toBeCloseTo(1433.6, 4);
+    expect(refBand.top).toBeCloseTo(0, 4);
+    expect(refBand.height).toBeCloseTo(800, 4);
     const full = sceneBand("desktop", { w: 1920, h: 1080 });
     expect(full.left).toBeCloseTo(-7.68, 4);
     expect(full.width).toBeCloseTo(1935.36, 4);
     expect(full.top).toBeCloseTo(0, 4);
     expect(full.height).toBeCloseTo(1080, 4);
+    // А на 1024×768 кадр 1146.88×640 стоит по центру: вбок ушло по 61.44,
+    // сверху и снизу осталось по 64 (было — 1376.256×768 и по 176.128 вбок).
+    const narrow = sceneBand("desktop", { w: 1024, h: 768 });
+    expect(narrow).toEqual({ left: -61.44, top: 64, width: 1146.88, height: 640 });
   });
 
   it("кроп делится поровну: центр кадра совпадает с центром экрана", () => {
@@ -457,25 +551,32 @@ describe("комната во весь экран: кроп вместо пол�
   });
 
   it("сколько кадра видно: доля — это отношение пропорций окна и комнаты", () => {
-    // Кроп не выдуман раскладкой, он выводится: видно min(1, ar_окна/ar_кадра)
-    // ширины кадра. Отсюда и вся десктопная таблица достижимости ниже.
+    // Кроп не выдуман раскладкой, он выводится. Формула была
+    // min(1, ar_окна/ar_кадра); тикет 45 подставил в неё пол:
+    // min(1, max(ar_окна, ar_эталона)/ar_кадра) — окно у́же эталона считается
+    // как эталон. Отсюда и вся десктопная таблица достижимости ниже.
     const frameAr = immersiveLayout.desktop.ar;
     for (const screen of DESKTOP_SCREENS) {
       const band = sceneBand("desktop", screen);
       const share = screen.w / band.width;
       expect(share, `${screen.w}×${screen.h}`).toBeCloseTo(
-        Math.min(1, screen.w / screen.h / frameAr),
+        Math.min(1, Math.max(screen.w / screen.h, minWindowAr) / frameAr),
         6,
       );
     }
-    // Числами: 16:9 показывает 99.2% кадра, 16:10 — 89.3%, 4:3 — 74.4%.
+    // Числами: 16:9 показывает 99.2% кадра, 16:10 — 89.3%. 4:3 показывал 74.4%,
+    // теперь показывает те же 89.3%, что эталон, — это и есть тикет 45.
     const shown = (screen: Screen) => (screen.w / sceneBand("desktop", screen).width) * 100;
     expect(shown({ w: 1920, h: 1080 })).toBeCloseTo(99.2, 1);
     expect(shown(DESKTOP)).toBeCloseTo(89.3, 1);
-    expect(shown({ w: 1024, h: 768 })).toBeCloseTo(74.4, 1);
-    // Телефон видит 68.3% — десктоп 4:3 ближе всего к нему, и это не совпадение:
-    // и там и там окно ездит по кадру, а не обрезает карту.
+    expect(shown({ w: 1024, h: 768 })).toBeCloseTo(89.3, 1);
+    expect(shown({ w: 1280, h: 1024 })).toBeCloseTo(89.3, 1);
+    // Телефон видит 68.3% — и теперь ни одно десктопное окно к нему не
+    // приближается: пол держит десктоп на 89.3% и выше.
     expect((scene.phone.w / scene.phone.image.w) * 100).toBeCloseTo(68.3, 1);
+    for (const screen of DESKTOP_SCREENS) {
+      expect(shown(screen), `${screen.w}×${screen.h}`).toBeGreaterThanOrEqual(89.28);
+    }
   });
 
   it("телефон вписан по-прежнему: по бокам нулей, сверху и снизу — полосы", () => {
@@ -505,15 +606,103 @@ describe("комната во весь экран: кроп вместо пол�
         right(vis) + EPS,
       );
       // Обе полосы по вертикали тоже лежат на комнате: сверху 0…132, снизу
-      // последние 116 px окна — и то и другое внутри видимой сцены.
-      expect(vis.top, `${where} верх комнаты`).toBeLessThanOrEqual(EPS);
-      expect(bottom(vis), `${where} низ комнаты`).toBeGreaterThanOrEqual(screen.h - EPS);
+      // последние 116 px окна. На окне у́же эталона комната начинается ниже нуля
+      // (поле), и требование становится мягче ровно на высоту поля: полоса
+      // обязана его накрыть, иначе поле видно наружу.
+      expect(vis.top, `${where} верх комнаты`).toBeLessThanOrEqual(
+        immersiveLayout.desktop.railTop + EPS,
+      );
+      expect(bottom(vis), `${where} низ комнаты`).toBeGreaterThanOrEqual(
+        screen.h - immersiveLayout.desktop.railBottom - EPS,
+      );
       // Содержимое полосы отступает от края комнаты ровно на sidePad = 44.
       expect(content.left - vis.left, `${where} отступ содержимого`).toBeCloseTo(
         immersiveLayout.desktop.sidePad,
         6,
       );
     }
+  });
+});
+
+// ---------------------------------------------------------------------------
+// ТРЕБОВАНИЕ ТИКЕТА 45: у кропа есть дно, и оно на глубине эталона 1280×800.
+// ---------------------------------------------------------------------------
+describe("предел глубины кропа (тикет 45)", () => {
+  it("эталон — 1280×800, и это тот же вьюпорт, на котором принимали раскладку", () => {
+    expect(desktopReference).toEqual({ w: 1280, h: 800 });
+    expect(desktopReference).toEqual(DESKTOP);
+    expect(minWindowAr).toBeCloseTo(1.6, 9);
+    // Предел лежит между пропорцией кадра и пропорцией телефонного окна: он
+    // ограничивает кроп, а не отменяет его.
+    expect(minWindowAr).toBeLessThan(immersiveLayout.desktop.ar);
+  });
+
+  it("глубже эталона не режется ни одно окно", () => {
+    // Одна фраза тикета 45, записанная числом: доля видимого кадра на любом
+    // десктопном окне не меньше, чем на 1280×800.
+    const share = (screen: Screen) => screen.w / sceneBand("desktop", screen).width;
+    const refShare = share(desktopReference);
+    expect(refShare).toBeCloseTo(0.892857, 6);
+    for (const screen of [...DESKTOP_SCREENS, { w: 2560, h: 1080 }, { w: 1024, h: 1366 }]) {
+      expect(share(screen), `${screen.w}×${screen.h}`).toBeGreaterThanOrEqual(refShare - 1e-9);
+    }
+    // На окне у́же эталона кроп упирается в предел ТОЧНО, а не примерно:
+    // 4:3, 5:4 и даже айпад в портрете видят ровно ту же долю кадра.
+    for (const screen of [...DESKTOP_NARROW, { w: 1024, h: 1366 }]) {
+      expect(share(screen), `${screen.w}×${screen.h}`).toBeCloseTo(refShare, 9);
+    }
+  });
+
+  it("окна 16:10 и шире не изменились ни на пиксель", () => {
+    // Прямое сравнение с ПРЕЖНЕЙ формулой (чистый cover): там, где пропорция
+    // окна не у́же эталона, предел не участвует и коробка сцены совпадает до
+    // знака. Это и есть гарантия «1920×1080 и 1280×800 не тронуты».
+    for (const screen of [...DESKTOP_WIDE, { w: 2560, h: 1080 }, { w: 2560, h: 1440 }]) {
+      const where = `${screen.w}×${screen.h}`;
+      expect(sceneBand("desktop", screen), where).toEqual(pureCoverBand(screen));
+    }
+    // А на узких — изменились, и вот насколько: кадр стал уже на 20%, зато
+    // целиком поместился в предел.
+    const narrowBefore = pureCoverBand({ w: 1024, h: 768 });
+    expect(narrowBefore.width).toBeCloseTo(1376.256, 3);
+    expect(sceneBand("desktop", { w: 1024, h: 768 }).width).toBeCloseTo(1146.88, 3);
+  });
+
+  it("предел не откатывает тикет 42: даже на 4:3 кадр больше вписанного", () => {
+    // Проверка на «а не вернулись ли мы тихо к вписыванию». Вписывание держало
+    // пропорцию ПОЛЯМИ со всех сторон: на 1024×768 кадр был бы 892.4×498 и
+    // вокруг него стояла бы рамка в 66 px слева и справа. Нынешний кадр шире
+    // окна (по бокам его режет край) и в 1.28 раза больше прежнего — комната
+    // по-прежнему во всю ширину экрана, поля только сверху и снизу.
+    const screen: Screen = { w: 1024, h: 768 };
+    const before = preCoverBand(screen);
+    const now = sceneBand("desktop", screen);
+    expect(before.width).toBeCloseTo(892.4, 0);
+    expect(now.width / before.width).toBeGreaterThan(1.28);
+    expect(now.width).toBeGreaterThan(screen.w);
+    expect(sceneGap("desktop", screen).left).toBe(0);
+  });
+
+  it("CSS считает ту же формулу: `--band-ar-min` в scene.module.css — тот же эталон", () => {
+    // Раскладку рисует CSS, а проверяет этот файл; сходятся они только пока
+    // числа совпадают. Пропорция эталона — единственное число тикета 45, и
+    // записано оно дважды, поэтому сверяется здесь напрямую по тексту файла.
+    const css = readFileSync(
+      fileURLToPath(new URL("../src/components/scene/scene.module.css", import.meta.url)),
+      "utf8",
+    );
+    const floor = /--band-ar-min:\s*(\d+(?:\.\d+)?)\s*\/\s*(\d+(?:\.\d+)?)\s*;/u.exec(css);
+    expect(floor, "в scene.module.css нет --band-ar-min").not.toBeNull();
+    const w = Number(floor?.[1]);
+    const h = Number(floor?.[2]);
+    expect([w, h], "CSS взял другое эталонное окно").toEqual([
+      desktopReference.w,
+      desktopReference.h,
+    ]);
+    expect(w / h).toBeCloseTo(minWindowAr, 9);
+    // И сама формула на месте: высота кропа ограничена min(), ширина — cover.
+    expect(css).toContain("--band-cover-h: min(100dvh, calc(100vw / (var(--band-ar-min))));");
+    expect(css).toContain("--band-w: max(100vw, calc(var(--band-cover-h) * var(--band-ar)));");
   });
 });
 
@@ -568,7 +757,8 @@ describe("все 130 зон достижимы: кадром или указат
 
   it("десктоп: разбиение по вьюпортам — сумма всегда 130", () => {
     // Здесь и записано, «сколько пальцем, сколько указателем» на десктопе:
-    // на 16:9 — 130 и 0, на 1280×800 — 125 и 5, на 1024×768 — 105 и 25.
+    // на 16:9 — 130 и 0, на 1280×800 — 125 и 5. На 1024×768 было 105 и 25
+    // (13 из них в ноль), после предела кропа — те же 125 и 5, что у эталона.
     for (const row of DESKTOP_REACH) {
       const where = `${row.screen.w}×${row.screen.h}`;
       const band = sceneBand("desktop", row.screen);
@@ -576,6 +766,7 @@ describe("все 130 зон достижимы: кадром или указат
         row.bleedX,
         3,
       );
+      expect(sceneGap("desktop", row.screen).top, `${where} поле`).toBeCloseTo(row.field, 3);
       const full = allZones.filter(({ rect }) => fullTarget(rect, "desktop", row.screen));
       const gone = allZones.filter(({ rect }) => !tappable(rect, "desktop", row.screen));
       const short = allZones.filter(
@@ -589,19 +780,53 @@ describe("все 130 зон достижимы: кадром или указат
     }
   });
 
-  it("десктоп 1024×768 — худший случай у порога раскладки, и он именной", () => {
+  it("ни одна зона не срезана в ноль — ни на одном десктопном окне", () => {
+    // ГЛАВНАЯ ПРИЁМКА ТИКЕТА 45. До предела кропа на 1024×768 тринадцать зон
+    // теряли цель нажатия целиком: указатель до них доводил, но человек не
+    // видел даже намёка, что комната там продолжается. Теперь их ноль.
+    for (const screen of DESKTOP_SCREENS) {
+      const gone = allZones.filter(({ rect }) => !tappable(rect, "desktop", screen));
+      expect(
+        gone.map((z) => z.id),
+        `${screen.w}×${screen.h}`,
+      ).toEqual([]);
+    }
+  });
+
+  it("десктоп 1024×768 — порог раскладки, и он повторяет эталон зона в зону", () => {
     // 1024 — ровно та ширина, с которой включается десктопная раскладка
-    // (@media min-width: 1024px). Пропорция 4:3 срезает по 12.8% с каждой
-    // стороны, и десктоп становится телефоном: 25 зон из 130 уходят на
-    // указатель. Это ДОЛГ, а не приёмка (записан в Comments тикета 42):
-    // либо раскладка на узких окнах, либо принять указатель как дорогу.
-    const screen: Screen = { w: 1024, h: 768 };
-    const gone = allZones.filter(({ rect }) => !tappable(rect, "desktop", screen));
-    const short = allZones.filter(
-      ({ rect }) => tappable(rect, "desktop", screen) && !fullTarget(rect, "desktop", screen),
+    // (@media min-width: 1024px), и 1024×768 — айпад в альбоме, реальное
+    // устройство. Прежде пропорция 4:3 срезала по 12.8% с каждой стороны, и
+    // десктоп становился телефоном: 25 зон из 130 уходили на указатель, 13 из
+    // них в ноль. После тикета 45 на любом окне у́же эталона недобирают до 44 px
+    // ровно те же пять зон, что и на 1280×800, — и ни одна не срезана.
+    for (const screen of DESKTOP_NARROW) {
+      const gone = allZones.filter(({ rect }) => !tappable(rect, "desktop", screen));
+      const short = allZones.filter(
+        ({ rect }) => tappable(rect, "desktop", screen) && !fullTarget(rect, "desktop", screen),
+      );
+      const where = `${screen.w}×${screen.h}`;
+      expect(
+        gone.map((z) => z.id),
+        where,
+      ).toEqual([]);
+      expect(
+        short.map((z) => z.id),
+        where,
+      ).toEqual(DESKTOP_1280_SHORT);
+    }
+    // Самая узкая цель на 1024×768 — 15 px (`lux/home`, зона у правой стены).
+    // Это не ноль: зону видно, палец в неё попадает, а точная дорога —
+    // указатель. Прежде у неё не было ни одного пикселя.
+    const worst = Math.min(
+      ...DESKTOP_1280_SHORT.map((id) => {
+        const zone = allZones.find((z) => z.id === id);
+        if (!zone) throw new Error(`зоны ${id} нет в контракте`);
+        return zoneHitBox(zone.rect, "desktop", { w: 1024, h: 768 }).width;
+      }),
     );
-    expect(gone.map((z) => z.id)).toEqual(DESKTOP_1024_GONE);
-    expect(short.map((z) => z.id)).toEqual(DESKTOP_1024_SHORT);
+    expect(worst).toBeCloseTo(15, 0);
+    expect(worst).toBeGreaterThan(0);
   });
 
   it("ДОРОГА 2: каждая зона за краем окна есть в указателе зон", () => {
@@ -691,7 +916,8 @@ describe("все 130 зон достижимы: кадром или указат
     // `pointer-events: none`, нажатия берут только её ссылки и кнопки.
     //
     // Числа записаны, чтобы рост был виден в диффе: на 1920×1080 полосы задевают
-    // 33 зоны, на 1280×800 — 40, на 1024×768 — 42.
+    // 33 зоны, на 1280×800 — 40, на 1024×768 — 29 (было 42: предел кропа сделал
+    // кадр ниже окна, и его верх с низом отошли от полос).
     const touched = (screen: Screen) => {
       const free = clearBand("desktop", screen);
       return allZones.filter(({ rect }) => {
@@ -701,12 +927,14 @@ describe("все 130 зон достижимы: кадром или указат
     };
     expect(touched({ w: 1920, h: 1080 })).toHaveLength(33);
     expect(touched(DESKTOP)).toHaveLength(40);
-    expect(touched({ w: 1024, h: 768 })).toHaveLength(42);
+    expect(touched({ w: 1024, h: 768 })).toHaveLength(29);
+    expect(touched({ w: 1280, h: 1024 })).toHaveLength(5);
 
-    // ЦЕЛИКОМ под полосой почти везде лежит только `study/money` — зона денег,
-    // продукт её не показывает. Единственное исключение — 1280×720: там нижняя
-    // полоса накрывает `cream/anything` целиком. Это ДОЛГ (Comments тикета 42),
-    // а не приёмка: на низком окне зону видно только сквозь полосу.
+    // ЦЕЛИКОМ под полосой почти везде лежит только `study/money`. Исключений
+    // два: на 1280×720 нижняя полоса накрывает ещё и `cream/anything` (долг из
+    // тикета 42 — на низком окне зону видно только сквозь полосу), а на узких
+    // окнах не спрятана ни одна: кадр стал ниже, и обе его кромки вышли
+    // из-под полос.
     for (const screen of DESKTOP_SCREENS) {
       const where = `${screen.w}×${screen.h}`;
       const free = clearBand("desktop", screen);
@@ -754,6 +982,11 @@ describe("все 130 зон достижимы: кадром или указат
     // 16:9 при любом размере не теряет никого.
     expect(shortAt({ w: 1280, h: 720 })).toEqual([]);
     expect(shortAt({ w: 1920, h: 1080 })).toEqual([]);
+    // А вот у окон У́ЖЕ эталона список общий, и это тикет 45: глубина кропа у
+    // них одна на всех (89.3% кадра), поэтому недобирают одни и те же зоны —
+    // хотя размеры окон разные, как у 1280×800 с 1440×900.
+    expect(shortAt({ w: 1024, h: 768 })).toEqual(DESKTOP_1280_SHORT);
+    expect(shortAt({ w: 1280, h: 1024 })).toEqual(DESKTOP_1280_SHORT);
   });
 
   it("«зона целиком в окне» и «есть цель нажатия» — разные вещи, и обе посчитаны", () => {
