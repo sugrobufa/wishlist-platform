@@ -22,7 +22,7 @@ import { ZoneIndexProvider } from "@/components/scene/zone-index-context";
 import { ZoneRail } from "@/components/scene/zone-rail";
 import { RoomTabDrawer } from "@/components/tab-bar/room-tab-drawer";
 import { visibleZones } from "@/components/scene/zones";
-import { ZoneGrid } from "@/components/zone/ZoneGrid";
+import { SHEET_TILES, ZoneGrid } from "@/components/zone/ZoneGrid";
 import { zoneDisplayItems } from "@/components/zone/zone-display-items";
 import { ShareButton } from "./share-button";
 
@@ -219,6 +219,7 @@ async function buildZoneContent(
   demoGhostsOff: boolean,
 ): Promise<{ content: Record<string, ReactNode>; summaries: Record<string, ZoneSummaryDto> }> {
   const tZone = await getTranslations("ZoneGrid");
+  const tScene = await getTranslations("Scene");
   const zones = visibleZones(preset.zones, zonesOff);
 
   const entries = await Promise.all(
@@ -232,6 +233,17 @@ async function buildZoneContent(
       // под карточкой копилки были бы шумом. Ссылки остаются — вещи в этой
       // зоне никто не запрещает, и первая же вернёт сетку.
       const showGrid = zone.key !== MONEY_ZONE_KEY || items.length > 0;
+      // «А если вещей много?» (тикет 59). Дорога на экран «зона целиком
+      // списком» из листа есть всегда — она же вход в саму зону, — но ГОВОРИТ
+      // числом только тогда, когда вещей больше, чем лист держит на виду
+      // (SHEET_TILES — правило доски, выведенное из `moreLabel` в zones.json).
+      //
+      // Число живое и своё: считает его сводка зоны (тикет 34), а значит без
+      // спрятанных вещей и без демо-призраков — «ещё 1» про выдуманную вещь
+      // читалось бы как настоящая. Счётчик-заглушку пакета («+26») в интерфейс
+      // не несём по той же причине, по которой её не несёт заголовок экрана
+      // зоны: там числа настоящие (полировка 16).
+      const beyondSheet = Math.max(0, summary.count - SHEET_TILES);
       const node = (
         <div key={zone.key}>
           {showGrid && <ZoneGrid items={items} accent={preset.accent} ink={preset.ink} />}
@@ -241,7 +253,7 @@ async function buildZoneContent(
               className="pressable inline-block text-xs font-semibold"
               style={{ color: preset.accent }}
             >
-              {tZone("openFull")} →
+              {beyondSheet > 0 ? tScene("summaryMore", { count: beyondSheet }) : tZone("openFull")} →
             </Link>
             {/* Добавить вещь сразу в открытую зону (полировка 16): ?zone=…
                 предвыбирает её в карточке добавления (контракт тикета 04). */}

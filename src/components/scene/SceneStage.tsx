@@ -10,7 +10,7 @@ import { useTranslations } from "next-intl";
 import { hitTargetMin, scene, sceneMotion, type Room, type RoomZone } from "@/config/design";
 import { roomImageUrl } from "@/app/rooms/room-image";
 import { computeZoneCamera, frameRect, rectToPercent, walkScore, type SceneView } from "./camera";
-import { visibleZones, zoneLabel, zoneVerb } from "./zones";
+import { visibleZones, zoneLabel } from "./zones";
 import { useMediaQuery } from "./use-media-query";
 import {
   focusOutline,
@@ -382,13 +382,14 @@ export function SceneStage({ preset, zonesOff, zoneContent, className }: SceneSt
     } as React.CSSProperties;
   }, [preset.accent, preset.roomLightness]);
 
-  const captionSub = (() => {
-    if (!activeZone) return "";
-    const verb = zoneVerb(activeZone);
-    if (activeZone.openFrame) return verb ?? "";
-    // Честная подпись зоны без кадра «открыто» (handoff/README.md).
-    return verb ? `${verb} · ${t("noOpenFrame")}` : t("noOpenFrame");
-  })();
+  // Подписи под названием зоны здесь больше нет (тикет 59). Стояли две, и обе
+  // говорили не человеку, а нам: `openVerb` («чемодан раскрывается») описывает,
+  // что показывает КАДР раскрытия — это слово съёмки, оно живёт в контракте и
+  // проверяется `tests/design-contract.test.ts`, но на экране не значит ничего;
+  // `Scene.noOpenFrame` («мебель здесь пока не открывается») сообщал человеку о
+  // том, чего у нас нет, — сам дизайн убрал эту строку из пакета в раунде 4
+  // (ADR-0005, handoff/README.md §7), а продукт продолжал её показывать.
+  // `zoneVerb()` и поле `openVerb` НЕ трогали: это данные съёмки.
 
   return (
     <section className={className ? `${s.stage} ${className}` : s.stage} style={styleVars}>
@@ -485,12 +486,6 @@ export function SceneStage({ preset, zonesOff, zoneContent, className }: SceneSt
         {zoomedIn && (
           <div className={phase === "closing" ? `${s.caption} ${s.captionOut}` : s.caption}>
             <h2 className={s.captionTitle}>{zoneLabel(activeZone)}</h2>
-            {captionSub && (
-              <p className={s.captionSub}>
-                <span className={s.captionDot} aria-hidden />
-                {captionSub}
-              </p>
-            )}
             <button
               ref={backRef}
               type="button"

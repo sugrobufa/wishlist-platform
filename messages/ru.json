@@ -88,7 +88,6 @@
     "hint": "коснись зоны — подойдём ближе",
     "zoneAria": "{label} — подойти ближе",
     "back": "Отойти",
-    "noOpenFrame": "Мебель здесь пока не открывается",
     "itemsSoon": "В этой зоне пока пусто",
     "indexAria": "Зоны комнаты",
     "summaryCountsGuest": "{total, plural, one {# вещь} few {# вещи} many {# вещей} other {# вещи}}{want, plural, =0 {} other { · # можно подарить}}",
