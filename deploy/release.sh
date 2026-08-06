@@ -46,6 +46,42 @@ image_ref() {
   printf '%s:%s' "$(sed -n 's/^APP_IMAGE=//p' "$ENV_FILE" | tr -d '\r' | tail -1)" "$(current_tag)"
 }
 
+# Убрать образы приложения, кроме нынешнего и предыдущего.
+#
+# ЗАЧЕМ АДРЕСНО, А НЕ prune. Здесь раньше стояло
+# `docker image prune -f --filter "until=168h"`, и оно не удаляло НИ ОДНОГО
+# образа по двум причинам сразу: без `-a` prune трогает только образы без
+# тега, а у наших тег есть всегда; и `until=168h` означает «старше недели»,
+# тогда как выпуски идут по нескольку в день. Диск тихо копил по 1.6 ГБ на
+# выпуск, и 06.08.2026 кончился ровно посреди выпуска: образ не распаковался,
+# сработал откат, а `docker rmi` ответил «gc failed» — сборщику мусора тоже
+# нужно немного места, чтобы освободить место.
+#
+# Предыдущий тег НЕ трогаем: на него откатывается этот же скрипт, и снести
+# его значило бы остаться без страховки. Ошибки глушим: уборка не повод
+# завалить принятый выпуск.
+prune_old_images() {
+  local keep_new="$1" keep_prev="${2:-}" repo images image
+  repo="$(sed -n 's/^APP_IMAGE=//p' "$ENV_FILE" | tr -d '\r' | tail -1)"
+  [ -n "$repo" ] || return 0
+
+  # Список забираем в переменную, а не гоним конвейером: при `set -o pipefail`
+  # пустой grep уронил бы весь скрипт уже ПОСЛЕ принятого выпуска.
+  images="$(docker images --format '{{.Repository}}:{{.Tag}}' 2>/dev/null | grep -F "$repo:" || true)"
+  [ -n "$images" ] || return 0
+
+  while IFS= read -r image; do
+    if [ -z "$image" ]; then continue; fi
+    if [ "$image" = "$repo:$keep_new" ]; then continue; fi
+    if [ -n "$keep_prev" ] && [ "$image" = "$repo:$keep_prev" ]; then continue; fi
+    log "Убираю старый образ $image"
+    docker rmi "$image" >/dev/null 2>&1 || true
+  done <<<"$images"
+
+  # Слои снятых тегов освобождаются не всегда сразу — добиваем осиротевшие.
+  docker image prune -f >/dev/null 2>&1 || true
+}
+
 set_tag() {
   local tag="$1" tmp
   tmp="$(mktemp)"
@@ -132,8 +168,7 @@ if apply_release; then
   echo "$NEW_TAG" >"$STATE_FILE"
   log "Выпуск $NEW_TAG принят"
   compose ps
-  # Старые образы копятся и съедают диск маленького VPS.
-  docker image prune -f --filter "until=168h" >/dev/null 2>&1 || true
+  prune_old_images "$NEW_TAG" "$PREVIOUS_TAG"
   exit 0
 fi
 
