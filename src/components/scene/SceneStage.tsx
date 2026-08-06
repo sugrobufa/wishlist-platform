@@ -9,15 +9,25 @@ import { preload } from "react-dom";
 import { useTranslations } from "next-intl";
 import { hitTargetMin, scene, sceneMotion, type Room, type RoomZone } from "@/config/design";
 import { roomImageUrl } from "@/app/rooms/room-image";
-import { computeZoneCamera, frameRect, rectToPercent, walkScore, type SceneView } from "./camera";
+import {
+  computeZoneCamera,
+  frameRect,
+  rectToPercent,
+  walkScore,
+  zoneFramePercent,
+  type SceneView,
+} from "./camera";
 import { visibleZones, zoneLabel } from "./zones";
 import { useMediaQuery } from "./use-media-query";
 import {
+  bloomShape,
   focusOutline,
   markerMask,
   markerWeights,
   nearestZoneLight,
   TOUCH_REST_STRENGTH,
+  wakeScore,
+  zoneWakesWithLight,
 } from "./zone-marker";
 import { ZoneHotspot } from "./zone-hotspot";
 import { ZonePanel } from "./zone-panel";
@@ -56,6 +66,10 @@ const FRAME_DESKTOP = rectToPercent(frameRect("desktop"), "desktop");
 const WALK_PHONE = walkScore("phone");
 const WALK_DESKTOP = walkScore("desktop");
 
+// Отклик предмета светом (тикет 64): две фазы партитуры, разбор выбора —
+// zone-marker.ts → wakeScore.
+const WAKE = wakeScore();
+
 const BASE_VARS = {
   "--ease-out": sceneMotion.easingOut,
   "--ease-walk": sceneMotion.easingWalk,
@@ -87,6 +101,14 @@ const BASE_VARS = {
   "--frame-ms": `${sceneMotion.openFrame.durationMs}ms`,
   "--frame-delay": `${sceneMotion.openFrame.delayMs.phone}ms`,
   "--frame-delay-d": `${sceneMotion.openFrame.delayMs.desktop}ms`,
+  // Отклик светом (тикет 64) занимает СЛОТ фазы «Мебель раскрывается» — тот
+  // такт, на котором у зоны с кадром створки идут навстречу камере. Числа те
+  // же, но переменные свои: если дизайн однажды разведёт кроссфейд кадра и
+  // отклик света, менять придётся одно место, а не искать общий `--frame-*`.
+  "--wake-at": `${WAKE.atMs.phone}ms`,
+  "--wake-at-d": `${WAKE.atMs.desktop}ms`,
+  "--wake-ms": `${WAKE.riseMs}ms`,
+  "--wake-out-ms": `${WAKE.fallMs}ms`,
   "--grid-ms": `${sceneMotion.closeGrid.durationMs}ms`,
   "--grid-at": `${sceneMotion.gridEnter.atMs.phone}ms`,
   "--grid-at-d": `${sceneMotion.gridEnter.atMs.desktop}ms`,
@@ -141,6 +163,12 @@ export function SceneStage({ preset, zonesOff, zoneContent, className }: SceneSt
   // Ленивые кадры «открыто»: слой зоны монтируется при первом открытии,
   // дальше остаётся в стопке — браузерный кэш делает повторы мгновенными.
   const [openedEver, setOpenedEver] = useState<ReadonlySet<string>>(() => new Set());
+  // Номер входа в зону (тикет 64). Слой света узнаёт по нему СВОЙ приход:
+  // ключ меняется на каждом открытии, узел пересоздаётся, анимация стартует с
+  // нуля. Без номера повторный вход в ТУ ЖЕ зону, пока сцена ещё закрывается
+  // (220 мс «сетка гаснет», зайти можно из указателя зон), доставался бы
+  // прежнему узлу с уже доигранной анимацией — и предмет промолчал бы.
+  const [openSeq, setOpenSeq] = useState(0);
 
   const isDesktop = useMediaQuery(DESKTOP_MQ);
   const reducedMotion = useMediaQuery(REDUCED_MQ);
@@ -182,6 +210,7 @@ export function SceneStage({ preset, zonesOff, zoneContent, className }: SceneSt
       restoreKeyRef.current = zone.key;
       setOpenedEver((prev) => (prev.has(zone.key) ? prev : new Set(prev).add(zone.key)));
       setActiveKey(zone.key);
+      setOpenSeq((seq) => seq + 1);
       setPhase("open");
     },
     [clearTimer],
@@ -367,6 +396,17 @@ export function SceneStage({ preset, zonesOff, zoneContent, className }: SceneSt
   // наезд (масштаб у телефона и десктопа разный — формула, не число).
   const camera = zoomedIn ? computeZoneCamera(activeZone.rect, view) : null;
 
+  // Отклик предмета светом (тикет 64). У зоны с кадром «открыто» всё уже есть —
+  // кроссфейд кадра, и её поведение не меняется НИЧЕМ: слой ниже просто не
+  // монтируется, разница между «до» и «после» у таких зон равна нулю узлов.
+  // У остальных фотографии нет и не будет, и вместо неё на тот же такт
+  // партитуры встаёт свет по прямоугольнику зоны — форма из контракта
+  // (`bloomAR`/`bloomRot`), как у метки. Значения живут инлайн-переменными,
+  // движение целиком в CSS: ре-рендеров на кадр нет, как у движка близости
+  // (тикет 50) и панорамы (тикет 55).
+  const wakeZone = zoomedIn && zoneWakesWithLight(activeZone) ? activeZone : null;
+  const wakeBox = wakeZone ? zoneFramePercent(wakeZone.rect) : null;
+
   // Метка зоны: одно число комнаты решает, чем она обозначена — светом
   // (тёмный интерьер) или тенью вокруг предмета (светлый). Веса считаются
   // здесь и приезжают числом: `calc()` из tokens.css объявлен в `:root` и
@@ -412,6 +452,31 @@ export function SceneStage({ preset, zonesOff, zoneContent, className }: SceneSt
                         className={s.frame}
                         style={{ backgroundImage: `url(${roomImageUrl(preset.base)})` }}
                       />
+                      {/* Отклик светом лежит ВНУТРИ дыхания, рядом с кадром:
+                          он едет с камерой и дышит с фотографией, то есть
+                          приклеен к предмету, а не к экрану. Ключ — номер
+                          входа: каждый приход камеры получает свой узел, и
+                          свет разгорается заново, а не доигрывает прошлый. */}
+                      {wakeZone && wakeBox && (
+                        <div className={s.wakeLayer} aria-hidden>
+                          <span
+                            key={openSeq}
+                            className={s.wake}
+                            style={
+                              {
+                                "--hs-l": `${wakeBox.left}%`,
+                                "--hs-t": `${wakeBox.top}%`,
+                                "--hs-w": `${wakeBox.width}%`,
+                                "--hs-h": `${wakeBox.height}%`,
+                                "--zone-bloom-bg": bloomShape(wakeZone.bloomAR),
+                                "--zone-bloom-rot": `${wakeZone.bloomRot}deg`,
+                              } as React.CSSProperties
+                            }
+                          >
+                            <span className={s.wakeGlow} />
+                          </span>
+                        </div>
+                      )}
                     </div>
                   </div>
                 </div>
@@ -496,7 +561,6 @@ export function SceneStage({ preset, zonesOff, zoneContent, className }: SceneSt
             </button>
           </div>
         )}
-
       </div>
 
       {/* Подсказка «коснись зоны» — ВНЕ вьюпорта (приёмка тикета 52): внутри
