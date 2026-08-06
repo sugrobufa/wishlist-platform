@@ -16,12 +16,18 @@ body {
   letter-spacing: var(--display-tracking);
 }
 
-/* Оверлайны: 9px, разрядка .17em—.24em (tokens.json → type.overline) */
+/* Оверлайны: 9px, разрядка .17em—.24em (tokens.json → type.overline).
+ * text-decoration: none обязателен: имя класса совпадает со встроенной
+ * утилитой Tailwind v4 `overline` (text-decoration-line: overline), и она
+ * эмитится, потому что строка «overline» стоит в className по всему src/ —
+ * каждый оверлайн продукта рисовался с чертой над текстом. Наше правило вне
+ * @layer, поэтому перекрывает утилиту из @layer utilities. */
 .overline {
   font-size: 9px;
   font-weight: 500;
   letter-spacing: 0.2em;
   text-transform: uppercase;
+  text-decoration: none;
 }
 
 /* Любой нажимаемый элемент проседает (tokens.json → button.press) */
