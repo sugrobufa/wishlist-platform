@@ -1,0 +1,20 @@
+{
+ "note": "Нативные выходы nano_banana_pro (~1376×768), правка role:image от базы 06a03e87…. JPEG в пакете — апскейл до 2800, q0.92. Ссылки живут ~сутки. failed — кадры, не прошедшие мой порог: не отдаю файлами, ссылки для разбора.",
+ "frames": {
+  "fashion": "https://d8j0ntlcm91z4.cloudfront.net/user_3HDF1JmDzrZEnMGchIRHHskUZ25/hf_20260806_122014_413f2de4-e80a-4f83-b6b1-8db7bafafd0e.png",
+  "perfume": "https://d8j0ntlcm91z4.cloudfront.net/user_3HDF1JmDzrZEnMGchIRHHskUZ25/hf_20260806_122250_5f3879f9-a0ce-4926-9b03-54525a74dcc0.png",
+  "travel": "https://d8j0ntlcm91z4.cloudfront.net/user_3HDF1JmDzrZEnMGchIRHHskUZ25/hf_20260806_122250_ce666a2e-a3d0-4ce3-be4e-810a774b198a.png",
+  "anything": "https://d8j0ntlcm91z4.cloudfront.net/user_3HDF1JmDzrZEnMGchIRHHskUZ25/hf_20260806_122250_f60759b7-8305-4f2f-b755-68b1d4b8df3c.png",
+  "flowers": "https://d8j0ntlcm91z4.cloudfront.net/user_3HDF1JmDzrZEnMGchIRHHskUZ25/hf_20260806_122250_05df88d5-9f37-424d-90ea-3c9eed3ee1c5.png",
+  "home": "https://d8j0ntlcm91z4.cloudfront.net/user_3HDF1JmDzrZEnMGchIRHHskUZ25/hf_20260806_122250_c5b8af54-ea9c-4006-ac76-44cd50f643b8.png"
+ },
+ "failedFrames": {
+  "beauty": "https://d8j0ntlcm91z4.cloudfront.net/user_3HDF1JmDzrZEnMGchIRHHskUZ25/hf_20260806_122250_5001b3b8-c3c1-4e6b-902b-dd7b07dea129.png",
+  "jewelry": "https://d8j0ntlcm91z4.cloudfront.net/user_3HDF1JmDzrZEnMGchIRHHskUZ25/hf_20260806_122250_4398bf96-5993-42bc-89cd-3a27411e7334.png",
+  "bags": "https://d8j0ntlcm91z4.cloudfront.net/user_3HDF1JmDzrZEnMGchIRHHskUZ25/hf_20260806_122250_f91d6b50-77dc-407d-9d08-a7c5c7bdca2e.png",
+  "events": "https://d8j0ntlcm91z4.cloudfront.net/user_3HDF1JmDzrZEnMGchIRHHskUZ25/hf_20260806_122250_3c5d016d-aa9a-47c4-8b99-bba2cd7fd97a.png",
+  "books": "https://d8j0ntlcm91z4.cloudfront.net/user_3HDF1JmDzrZEnMGchIRHHskUZ25/hf_20260806_122250_ffc08db3-495d-4a54-850b-3d83532fed3e.png",
+  "music": "https://d8j0ntlcm91z4.cloudfront.net/user_3HDF1JmDzrZEnMGchIRHHskUZ25/hf_20260806_122250_5e54242d-809b-459e-9854-6e5438dcefb9.png",
+  "money": "https://d8j0ntlcm91z4.cloudfront.net/user_3HDF1JmDzrZEnMGchIRHHskUZ25/hf_20260806_122250_87a97e0d-31a0-469b-ba97-e7e8182da5e7.png"
+ }
+}

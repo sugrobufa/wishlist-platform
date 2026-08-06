@@ -237,24 +237,30 @@ describe("кадры «открыто» (openFrame — единственный 
   const accepted = allZones.filter(({ zone }) => zone.accepted);
   const absent = allZones.filter(({ zone }) => zone.objectAbsent);
 
-  it("кадров «открыто» ровно 7, и столько же с флагом accepted", () => {
+  it("кадров «открыто» ровно 10, и столько же с флагом accepted", () => {
     // Счёт кадров по раундам: 49 → 39 (раунд 4 переразметил 35 зон) → 33
     // (раунд 5 исправил ещё 14 прямоугольников) → 30 (раунд 7: +1 новый,
     // −4 никогда не проходивших порог) → 7 (тикет 49: −23 по просмотру
-    // глазами). Флаг и данные совпадают, потому что и то и другое ставит наше
-    // измерение, а не пакет.
-    expect(withFrame).toHaveLength(7);
-    expect(accepted).toHaveLength(7);
+    // глазами) → 10 (партия 2 «Кремовой»: +4, из них travel — замена кадра
+    // раунда 3, гасившего банку-копилку). Флаг и данные совпадают, потому что
+    // и то и другое ставит наше измерение, а не пакет.
+    expect(withFrame).toHaveLength(10);
+    expect(accepted).toHaveLength(10);
     expect(absent).toHaveLength(8);
-    expect(withFrame.map((z) => z.id)).toEqual([
-      "cream/travel",
-      "gamer/travel",
-      "sport/anything",
-      "sport/sneakers",
-      "sport/travel",
-      "study/events",
-      "study/sport",
-    ]);
+    expect(withFrame.map((z) => z.id).sort()).toEqual(
+      [
+        "cream/anything",
+        "cream/flowers",
+        "cream/home",
+        "cream/travel",
+        "gamer/travel",
+        "sport/anything",
+        "sport/sneakers",
+        "sport/travel",
+        "study/events",
+        "study/sport",
+      ].sort(),
+    );
   });
 
   it("accepted ⟺ openFrame: флаг больше не может разойтись с данными", () => {
@@ -315,8 +321,13 @@ describe("кадры «открыто» (openFrame — единственный 
     // ровно до тех пор, пока прямоугольник тот же, против которого его мерили.
     // `rectOld` — прямоугольник до последней переразметки; если он есть, зона
     // переразмечена, и кадр обязан быть снят заново.
-    const round3 = withFrame.filter(({ zone }) => zone.frameRound !== 7);
-    expect(round3).toHaveLength(6);
+    const byRound: Record<string, number> = {};
+    for (const { zone } of withFrame)
+      byRound[zone.frameRound ?? "r3"] = (byRound[zone.frameRound ?? "r3"] ?? 0) + 1;
+    // 5 раунда 3 (без поля), 1 раунда 7, 4 партии 2 раунда 8.
+    expect(byRound).toEqual({ r3: 5, "7": 1, "8": 4 });
+    const round3 = withFrame.filter(({ zone }) => zone.frameRound === undefined);
+    expect(round3).toHaveLength(5);
     for (const { id, zone } of round3) {
       expect(zone.rectOld, `${id}: у зоны с кадром переразметки быть не может`).toBeUndefined();
       expect(zone.remappedRound, `${id}`).toBeUndefined();
@@ -361,9 +372,10 @@ describe("кадры «открыто» (openFrame — единственный 
     // кадра», пять стояли одновременно в «нет предмета» и «переснять». Обе
     // поломки шли от флагов пакета. Теперь флаги ставит наше измерение, и
     // арифметика снова сходится в одну строку — новый пакет сломает её сразу.
-    // Тикет 49 передвинул 23 зоны из «принято» в «переснять»: 92 → 115.
+    // Тикет 49 передвинул 23 зоны из «принято» в «переснять»: 92 → 115;
+    // партия 2 «Кремовой» вернула четыре обратно: 115 → 112.
     const reshoot = allZones.filter(({ zone }) => zone.reshoot);
-    expect([accepted.length, reshoot.length, absent.length]).toEqual([7, 115, 8]);
+    expect([accepted.length, reshoot.length, absent.length]).toEqual([10, 112, 8]);
     const doubled = allZones.filter(
       ({ zone }) => [zone.accepted, zone.reshoot, zone.objectAbsent].filter(Boolean).length > 1,
     );
@@ -415,13 +427,13 @@ describe("кадры «открыто» (openFrame — единственный 
     // сняла приёмка 49: конверт там подменён шкатулкой с украшениями. Правило
     // про `warm`/`loft` осталось в силе и сторожится ниже — просто вычитать
     // ему больше нечего.
-    expect(withFrame).toHaveLength(7);
+    expect(withFrame).toHaveLength(10);
     const connected = rooms.flatMap((room) =>
       room.zones.filter((zone) => zone.openFrame).map((zone) => `${room.id}/${zone.key}`),
     );
-    expect(connected).toHaveLength(7);
+    expect(connected).toHaveLength(10);
     expect(connected.filter((id) => id.startsWith("warm/") || id.startsWith("loft/"))).toEqual([]);
-    expect(withFrame.filter(({ room }) => !["warm", "loft"].includes(room.id))).toHaveLength(7);
+    expect(withFrame.filter(({ room }) => !["warm", "loft"].includes(room.id))).toHaveLength(10);
     for (const room of rooms) {
       for (const zone of room.zones) {
         if (!zone.openFrame) continue;
@@ -484,7 +496,7 @@ describe("кадры «открыто» (openFrame — единственный 
     }
   });
 
-  it("раунд 8, «Кремовая»: 13 кадров смотрены глазами, подключено 0 — и почему", () => {
+  it("раунд 8, «Кремовая»: две партии в контракте числами", () => {
     // Первая полная комната раунда 8 (тикет 53). Сводка лежит в контракте
     // (`round8`), как `identityCheck` у тикета 49: отчёт в тикете легко
     // расходится с данными, числа рядом с флагами — нет.
@@ -508,21 +520,41 @@ describe("кадры «открыто» (openFrame — единственный 
         masksArrived: boolean;
       };
     };
-    const r8 = raw.round8;
-    expect(r8.batch).toBe("cream");
-    expect(r8.shot).toBe(13);
-    expect(r8.connected).toBe(0);
-    // Глаза обязательны по всем парам, и арифметика классов сходится с partiей.
-    expect(r8.eyes.reviewed).toBe(13);
+    const history = raw.round8 as unknown as {
+      batches: number;
+      latest: {
+        batch: string; shot: number; passedThreshold: number; connected: number;
+        eyes: { reviewed: number; honest: number; contentLost: number; outOfFocus: number };
+        base: { identical: boolean; sha256: string };
+        masksArrived: number; note: string;
+      };
+      first: typeof raw.round8;
+    };
+    expect(history.batches).toBe(2);
+
+    // Партия 1 (тикет 53): 13 кадров, подключено 0, база не наша — история
+    // хранится целиком, чтобы урок не потерялся.
+    const first = history.first;
+    expect(first.shot).toBe(13);
+    expect(first.connected).toBe(0);
+    expect(first.base.identical).toBe(false);
+    expect(first.base.l1).toBeCloseTo(0.0327, 4);
+    expect(first.masksArrived).toBe(false);
+
+    // Партия 2: база байт-в-байт наша — блок «база» исчез из приёмки, как и
+    // обещали; порог 6 из 6, глаза сняли два (пропажа и расфокус).
+    const latest = history.latest;
+    expect(latest.batch).toBe("cream");
+    expect(latest.shot).toBe(6);
+    expect(latest.passedThreshold).toBe(6);
+    expect(latest.connected).toBe(4);
+    expect(latest.eyes.reviewed).toBe(6);
     expect(
-      r8.eyes.honest + r8.eyes.substitution + r8.eyes.contentLost + r8.eyes.nothingHappened,
-    ).toBe(13);
-    // Главная причина нулевого подключения — база партии не наша: продукт
-    // кроссфейдит СВОЮ базу, и кадр, снятый с чужой, мигает всей комнатой.
-    expect(r8.base.identical).toBe(false);
-    expect(r8.base.l1).toBeCloseTo(0.0327, 4);
-    expect(r8.note).toMatch(/байт-в-байт/u);
-    expect(r8.masksArrived).toBe(false);
+      latest.eyes.honest + latest.eyes.contentLost + latest.eyes.outOfFocus,
+    ).toBe(6);
+    expect(latest.base.identical).toBe(true);
+    expect(latest.base.sha256).toBe("06a03e87ff2d6ce7");
+    expect(latest.masksArrived).toBe(3);
 
     // Двенадцать вердиктов раунда 8 лежат у зон (travel не переоценивался:
     // его рабочий кадр раунда 3 подключён, а новый кадр партии не нужен —
@@ -531,26 +563,38 @@ describe("кадры «открыто» (openFrame — единственный 
     const reviewed = cream.zones.filter((zone) => zone.reshootReason?.includes("тикет 53"));
     expect(reviewed.map((zone) => zone.key).sort()).toEqual(
       [
-        "anything", "bags", "beauty", "books", "events", "fashion",
-        "flowers", "home", "jewelry", "money", "music", "perfume",
+        "bags", "beauty", "books", "events", "fashion",
+        "jewelry", "money", "music", "perfume",
       ].sort(),
     );
     const byClass = (klass: string) =>
       reviewed.filter((zone) => zone.reshootReason?.startsWith(klass)).map((zone) => zone.key);
     expect(byClass("честное раскрытие, не подключён").sort()).toEqual(
-      ["events", "fashion", "jewelry", "money"].sort(),
+      ["events", "jewelry", "money"].sort(),
     );
-    expect(byClass("подмена")).toHaveLength(6);
-    expect(byClass("подмена окружения").sort()).toEqual(["anything", "flowers"].sort());
-    expect(byClass("действия нет").sort()).toEqual(["home", "music"].sort());
+    // Подмены первой партии: bags, beauty, books (perfume перекрыт партией 2;
+    // anything и flowers — «подмена окружения» — подключены честными кадрами
+    // партии 2, их причины сняты вместе с reshoot).
+    expect(byClass("подмена").sort()).toEqual(["bags", "beauty", "books"].sort());
+    expect(byClass("действия нет").sort()).toEqual(["music"].sort());
+    // Партия 2 переоценила двоих: у fashion и perfume причина начинается с
+    // «партия 2» — их вердикты первой партии перекрыты вторыми кадрами
+    // (fashion: пропажа двух свитеров, третий раз; perfume: зона в расфокусе).
+    expect(byClass("партия 2").sort()).toEqual(["fashion", "perfume"].sort());
     for (const zone of reviewed) {
       expect(zone.openFrame ?? null, `cream/${zone.key}: кадр партии не подключён`).toBeNull();
       expect(zone.accepted, `cream/${zone.key}`).toBe(false);
       expect(zone.reshoot, `cream/${zone.key}: очередь на пересъёмку`).toBe(true);
     }
-    // И в раздаче кадров партии нет: единственный кремовый кадр — travel.
+    // В раздаче — пять кремовых кадров: travel партии 2 плюс home, flowers,
+    // anything (fashion и perfume партия 2 не прошла по глазам).
     const shipped = readdirSync(resolve(PKG, "refs")).filter((f) => f.startsWith("o-cream-"));
-    expect(shipped).toEqual(["o-cream-travel.jpg"]);
+    expect(shipped.sort()).toEqual([
+      "o-cream-anything.jpg",
+      "o-cream-flowers.jpg",
+      "o-cream-home.jpg",
+      "o-cream-travel.jpg",
+    ]);
   });
 
   it("прямоугольники cream/events и cream/money применены ровно из rects-fix", () => {
@@ -592,7 +636,11 @@ describe("кадры «открыто» (openFrame — единственный 
     };
     const check = raw.identityCheck;
     expect(check.reviewed).toBe(30);
-    expect(check.honest).toBe(withFrame.length);
+    // identityCheck — снимок аудита 49: семь честных ТОГДА. Партия 2 добавила
+    // четыре кадра сверх аудита — их история в `round8.latest`, а не здесь.
+    expect(check.honest).toBe(7);
+    expect(withFrame.length).toBe(check.honest + raw.round8.latest.connected - 1);
+    // (−1: travel был честным у аудита И заменён партией 2 — не двойной счёт.)
     expect(check.substitution + check.contentLost + check.nothingHappened + check.honest).toBe(30);
     expect(check.ringMax).toBe(0.09);
     // Кольцо — флаг для глаза, а не отказ. Это записано, чтобы следующий
