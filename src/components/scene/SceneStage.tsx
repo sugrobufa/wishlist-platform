@@ -18,8 +18,6 @@ import {
   markerWeights,
   nearestZoneLight,
   TOUCH_REST_STRENGTH,
-  VIGNETTE_BLEED_PCT,
-  vignetteShape,
 } from "./zone-marker";
 import { ZoneHotspot } from "./zone-hotspot";
 import { ZonePanel } from "./zone-panel";
@@ -122,7 +120,6 @@ const BASE_VARS = {
   // Тикет 50: слои метки не обрезаются прямоугольником — маска пятна и вынос
   // виньетки за коробку зоны. Числа живут в zone-marker.ts, не здесь.
   "--zone-marker-mask": markerMask(),
-  "--zone-vignette-bleed": `${VIGNETTE_BLEED_PCT}%`,
 } satisfies Record<string, string>;
 
 export function SceneStage({ preset, zonesOff, zoneContent, className }: SceneStageProps) {
@@ -260,11 +257,19 @@ export function SceneStage({ preset, zonesOff, zoneContent, className }: SceneSt
     const layer = hotspotsLayerRef.current;
     if (!viewport || !layer) return;
 
-    const setNear = (key: string | null, strength: number) => {
+    const setNear = (key: string | null, strength: number, dimScene = true) => {
       const prev = nearKeyRef.current;
       if (prev && prev !== key) hotspotRefs.current.get(prev)?.style.removeProperty("--zone-near");
       nearKeyRef.current = key;
       if (key) hotspotRefs.current.get(key)?.style.setProperty("--zone-near", `${strength}`);
+      // Общая сила близости — вьюпорту: ею дышит затемнение кадра (.dim).
+      // Локальной тени вокруг предмета больше нет (чёрные круги, жалоба
+      // владельца); на тач затемнение не включаем — dimScene=false.
+      if (key && dimScene && strength > 0) {
+        viewport.style.setProperty("--zone-near-max", `${strength}`);
+      } else {
+        viewport.style.removeProperty("--zone-near-max");
+      }
     };
 
     // Зона открыта: слой хотспотов спрятан, свет никому не нужен.
@@ -291,7 +296,7 @@ export function SceneStage({ preset, zonesOff, zoneContent, className }: SceneSt
           framePoint(box.left + box.width / 2, box.top + box.height / 2),
           zones,
         );
-        setNear(light?.key ?? null, light ? TOUCH_REST_STRENGTH : 0);
+        setNear(light?.key ?? null, light ? TOUCH_REST_STRENGTH : 0, false);
       };
       applyCenterHint();
       window.addEventListener("resize", applyCenterHint);
@@ -350,7 +355,6 @@ export function SceneStage({ preset, zonesOff, zoneContent, className }: SceneSt
       "--accent": preset.accent,
       "--room-lightness": `${preset.roomLightness}`,
       "--zone-bloom-weight": `${weights.bloom}`,
-      "--zone-vignette-bg": vignetteShape(weights),
     } as React.CSSProperties;
   }, [preset.accent, preset.roomLightness]);
 

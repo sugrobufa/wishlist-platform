@@ -236,7 +236,11 @@
   inset: 0;
   pointer-events: none;
   background: #0b0806; /* та же краска, что у вуали и фона сцены, макет 15a */
-  opacity: 0;
+  /* Приближение указателя притемняет ВЕСЬ кадр — предмет остаётся ярким и
+     читается подсвеченным. Это и есть жест метки на светлой комнате (тень
+     вокруг предмета выкинута: она рисовала чёрный круг — жалоба владельца).
+     На тач --zone-near-max не ставится вовсе: комната не темнеет без мыши. */
+  opacity: calc(var(--zone-dim-hover) * var(--zone-near-max, 0));
   transition: opacity var(--zone-dim-ms) var(--zone-marker-ease);
 }
 
@@ -319,7 +323,6 @@
  * на композиторе и сажают телефон. */
 
 .bloom,
-.vignette,
 .spark,
 .zoneLabel {
   position: absolute;
@@ -343,19 +346,6 @@
   -webkit-mask-image: var(--zone-marker-mask);
   mask-image: var(--zone-marker-mask);
   opacity: calc(var(--zone-bloom-hover) * var(--zone-bloom-weight) * var(--zone-near));
-  transition: opacity var(--zone-marker-ms) var(--zone-marker-ease);
-}
-
-/* Мягкая тень КОЛЬЦОМ вокруг предмета: центр остаётся освещённым, кадр по
- * границе зоны притемняется и растворяется чуть снаружи неё. Слой на 18%
- * больше прямоугольника (zone-marker.ts → VIGNETTE_BLEED_PCT), а фигура
- * завершается прозрачностью до его края — обрезаться коробкой ей негде.
- * Вес тени подставлен в альфу цвета (так написан контракт), слою остаётся
- * его собственная альфа состояния; в покое тени не видно (--zone-near: 0). */
-.vignette {
-  inset: calc(-1 * var(--zone-vignette-bleed));
-  background: var(--zone-vignette-bg);
-  opacity: calc(var(--zone-vignette-hover) * var(--zone-near));
   transition: opacity var(--zone-marker-ms) var(--zone-marker-ease);
 }
 
@@ -417,11 +407,7 @@
     opacity: calc(var(--zone-bloom-hover) * var(--zone-bloom-weight));
   }
 
-  .hotspot:hover .vignette {
-    opacity: var(--zone-vignette-hover);
-  }
-
-  /* Искра уходит в 0 — её место занимает подпись. */
+  .hotspot:hover   /* Искра уходит в 0 — её место занимает подпись. */
   .hotspot:hover .spark {
     opacity: 0;
   }
@@ -453,9 +439,6 @@
   opacity: calc(var(--zone-bloom-hover) * var(--zone-bloom-weight));
 }
 
-.hotspot:focus-visible .vignette {
-  opacity: var(--zone-vignette-hover);
-}
 
 .hotspot:focus-visible .spark {
   opacity: 0;
@@ -479,9 +462,6 @@
   opacity: calc(var(--zone-bloom-hover) * var(--zone-bloom-weight));
 }
 
-[data-lit] .vignette {
-  opacity: var(--zone-vignette-hover);
-}
 
 [data-lit] .spark {
   opacity: 0;
@@ -791,7 +771,6 @@
   .dim,
   .hotspot,
   .bloom,
-  .vignette,
   .spark,
   .zoneLabel,
   .hint,
