@@ -38,11 +38,17 @@
 // ?fresh=1 — сброс аккаунта в состояние «первый раз» (тикет 31 §2): комната
 // владельца удаляется со всем содержимым, и человек уезжает в /onboarding.
 // Что именно удаляется — src/server/services/stand-reset.ts.
+//
+// ?seed=1 — обратная операция (тикет 61): комната владельца НАПОЛНЯЕТСЯ
+// настоящими вещами курируемого набора, и человек уезжает в /room смотреть.
+// Что именно создаётся — src/server/services/stand-seed.ts. Защита у обеих
+// операций одна и та же и живёт здесь: флаг + почта из окружения.
 
 import { createHash, randomBytes, timingSafeEqual } from "node:crypto";
 import { prisma } from "./db";
 import { magicLinkVerifyAction } from "./auth-links";
 import { resetStandRoom, type StandResetResult, type StandResetStorage } from "./services/stand-reset";
+import { seedStandRoom, type StandSeedResult, type StandSeedStorage } from "./services/stand-seed";
 
 /** Адрес служебного экрана. Нигде в интерфейсе не упоминается. */
 export const QUICK_LOGIN_PATH = "/dev-login";
@@ -52,6 +58,9 @@ export const QUICK_LOGIN_KEY_PARAM = "key";
 
 /** Имя параметра «онбординг заново»: /dev-login?fresh=1. */
 export const QUICK_LOGIN_FRESH_PARAM = "fresh";
+
+/** Имя параметра «наполнить комнату»: /dev-login?seed=1 (тикет 61). */
+export const QUICK_LOGIN_SEED_PARAM = "seed";
 
 /**
  * Куда уводить после сброса. /room и сам увёл бы в /onboarding (комнаты уже
@@ -105,7 +114,7 @@ export interface QuickLoginConfig {
  * нужен тестам и логам, в ответ он не попадает.
  */
 export type QuickLoginResult =
-  | { ok: true; redirectTo: string; reset: StandResetResult | null }
+  | { ok: true; redirectTo: string; reset: StandResetResult | null; seed: StandSeedResult | null }
   | { ok: false; reason: "disabled" | "bad-key" };
 
 // ---------------------------------------------------------------------------
@@ -191,15 +200,26 @@ export function readQuickLoginConfig(env: QuickLoginEnv = process.env): QuickLog
 }
 
 /**
- * Просили ли онбординг заново. Считаем просьбой любое присутствие параметра —
- * `?fresh`, `?fresh=1`, `?fresh=yes`, — кроме явного отказа `0`/`false`:
- * адрес набирают руками, и спорить с владельцем из-за формы значения глупо.
+ * Просили ли операцию флагом в адресе. Считаем просьбой любое присутствие
+ * параметра — `?fresh`, `?fresh=1`, `?fresh=yes`, — кроме явного отказа
+ * `0`/`false`/`no`: адрес набирают руками, и спорить с владельцем из-за формы
+ * значения глупо. Массив значений (`?fresh=1&fresh=0`) — берём первое.
  */
-export function isFreshRequested(raw: string | string[] | undefined): boolean {
+function isFlagRequested(raw: string | string[] | undefined): boolean {
   const value = Array.isArray(raw) ? raw[0] : raw;
   if (value === undefined) return false;
   const normalized = value.trim().toLowerCase();
   return normalized !== "0" && normalized !== "false" && normalized !== "no";
+}
+
+/** Просили ли онбординг заново (?fresh=1). */
+export function isFreshRequested(raw: string | string[] | undefined): boolean {
+  return isFlagRequested(raw);
+}
+
+/** Просили ли наполнить комнату (?seed=1, тикет 61). */
+export function isSeedRequested(raw: string | string[] | undefined): boolean {
+  return isFlagRequested(raw);
 }
 
 // ---------------------------------------------------------------------------
@@ -253,10 +273,14 @@ export interface QuickLoginAttempt {
   key?: string;
   /** Просили ли онбординг заново (?fresh=1). */
   fresh?: boolean;
+  /** Просили ли наполнить комнату вещами (?seed=1, тикет 61). */
+  seed?: boolean;
   /** Подмена окружения — тестам; в приложении не передаётся. */
   env?: QuickLoginEnv;
   /** Шов хранилища для сброса — тестам; в приложении настоящий S3. */
   storage?: StandResetStorage;
+  /** Шов хранилища для посева — тестам; в приложении настоящий S3. */
+  seedStorage?: StandSeedStorage;
 }
 
 /**
@@ -265,8 +289,14 @@ export interface QuickLoginAttempt {
  * заведение пользователя, уход в /room или /onboarding) делает сам Auth.js.
  *
  * Порядок намеренный: сначала «механизма нет», потом ключ (если он вообще
- * задан в окружении и передан в адресе), потом сброс — и только последним
- * выпуск токена, чтобы неудавшийся сброс не оставил в БД живой токен.
+ * задан в окружении и передан в адресе), потом сброс и посев — и только
+ * последним выпуск токена, чтобы неудавшаяся операция не оставила в БД живой
+ * токен.
+ *
+ * `?fresh=1&seed=1` вместе не запрещены, но и смысла не имеют: сброс сносит
+ * комнату, и посеву нечего наполнять (он честно вернёт roomFound:false).
+ * Порядок при этом соблюдён — сначала стираем, потом сеем, — и владелец
+ * уезжает в /onboarding заводить комнату заново.
  */
 export async function attemptQuickLogin(attempt: QuickLoginAttempt): Promise<QuickLoginResult> {
   const config = readQuickLoginConfig(attempt.env);
@@ -278,14 +308,16 @@ export async function attemptQuickLogin(attempt: QuickLoginAttempt): Promise<Qui
     if (!secretMatches(attempt.key, config.secret)) return { ok: false, reason: "bad-key" };
   }
 
-  // Сброс — ТОЛЬКО комната владельца стенда: почта берётся из конфига, то
-  // есть из окружения. Ни один параметр запроса на неё не влияет.
+  // Сброс и посев — ТОЛЬКО комната владельца стенда: почта берётся из конфига,
+  // то есть из окружения. Ни один параметр запроса на неё не влияет.
   const reset = attempt.fresh ? await resetStandRoom(config.email, attempt.storage) : null;
+  const seed = attempt.seed ? await seedStandRoom(config.email, attempt.seedStorage) : null;
 
   const rawToken = await issueVerificationToken(config);
   // Тот же адрес, куда шлёт форма подтверждения штатного входа (тикет 19);
-  // после сброса — сразу на онбординг, без прыжка через пустую /room.
+  // после сброса — сразу на онбординг, без прыжка через пустую /room. После
+  // посева адрес штатный: /room — это и есть наполненная комната.
   const action = magicLinkVerifyAction(rawToken, config.email);
   const redirectTo = attempt.fresh ? withCallbackUrl(action, QUICK_LOGIN_FRESH_PATH) : action;
-  return { ok: true, redirectTo, reset };
+  return { ok: true, redirectTo, reset, seed };
 }

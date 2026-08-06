@@ -3,8 +3,10 @@ import { notFound, redirect } from "next/navigation";
 import {
   attemptQuickLogin,
   isFreshRequested,
+  isSeedRequested,
   QUICK_LOGIN_FRESH_PARAM,
   QUICK_LOGIN_KEY_PARAM,
+  QUICK_LOGIN_SEED_PARAM,
 } from "@/server/quick-login";
 
 // Служебный экран: не кэшируется, не индексируется, в интерфейсе штатного
@@ -20,9 +22,10 @@ export const metadata: Metadata = { robots: { index: false, follow: false } };
  * вопросов. Форма с полем для ключа исчезла вместе с обязательностью ключа;
  * старая закладка `?key=…` продолжает работать (обратная совместимость).
  *
- * Два адреса, одна дорога:
+ * Три адреса, одна дорога:
  *   /dev-login          → вход → /room
  *   /dev-login?fresh=1  → вход + сброс комнаты владельца → /onboarding
+ *   /dev-login?seed=1   → вход + посев комнаты владельца вещами → /room
  *
  * Любой отказ — 404 через notFound(): выключенный флаг, кривая настройка и
  * неверный ключ выглядят снаружи одинаково, и по ответу нельзя понять,
@@ -34,17 +37,23 @@ export const metadata: Metadata = { robots: { index: false, follow: false } };
 export default async function DevLoginPage({
   searchParams,
 }: {
-  searchParams: Promise<{ key?: string | string[]; fresh?: string | string[] }>;
+  searchParams: Promise<{
+    key?: string | string[];
+    fresh?: string | string[];
+    seed?: string | string[];
+  }>;
 }) {
   const params = await searchParams;
-  // Страница читает РОВНО два параметра — ключ и «заново». Ни почты, ни «кого
-  // стереть» здесь нет и быть не может: и то и другое берётся из окружения.
+  // Страница читает РОВНО три параметра — ключ, «заново» и «наполнить». Ни
+  // почты, ни «кого стереть/наполнить» здесь нет и быть не может: это берётся
+  // из окружения.
   const raw = params[QUICK_LOGIN_KEY_PARAM];
   const key = Array.isArray(raw) ? raw[0] : raw;
 
   const outcome = await attemptQuickLogin({
     key,
     fresh: isFreshRequested(params[QUICK_LOGIN_FRESH_PARAM]),
+    seed: isSeedRequested(params[QUICK_LOGIN_SEED_PARAM]),
   });
   if (!outcome.ok) notFound();
 

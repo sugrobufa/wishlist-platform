@@ -15,7 +15,7 @@ import { z } from "zod";
 import { prisma } from "../server/db";
 import { safeFetch, SafeFetchError } from "../server/parser";
 import type { LookupFn, SafeFetchErrorCode } from "../server/parser";
-import { presignPut } from "../server/s3";
+import { putObjectViaPresign } from "../server/s3";
 import { newItemPhotoKey, roomCacheTag } from "../server/services/items";
 
 /** Картинки качаем спокойнее, чем HTML: 10 с вместо парсерных 3 с. */
@@ -52,19 +52,13 @@ export interface ImageIngestDeps {
   putObject?: (key: string, body: Buffer, contentType: string) => Promise<void>;
 }
 
-/** Оригинал в S3 через pre-signed PUT — тот же путь, что у фото из браузера. */
+/**
+ * Оригинал в S3 через pre-signed PUT — тот же путь, что у фото из браузера.
+ * Сама запись живёт в src/server/s3 (единая точка работы с хранилищем);
+ * здесь остался только порядок аргументов шва putObject.
+ */
 async function putViaPresign(key: string, body: Buffer, contentType: string): Promise<void> {
-  const url = await presignPut(key, contentType, body.byteLength);
-  const response = await fetch(url, {
-    method: "PUT",
-    headers: { "content-type": contentType },
-    // Buffer (Uint8Array<ArrayBufferLike>) формально не BodyInit в свежих
-    // lib.dom — сужаем, как в tests/parser/testUtils.
-    body: body as unknown as BodyInit,
-  });
-  if (!response.ok) {
-    throw new Error(`image.ingest: S3 PUT ответил ${response.status}`);
-  }
+  await putObjectViaPresign(key, contentType, body);
 }
 
 /**

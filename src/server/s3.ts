@@ -110,6 +110,34 @@ export async function presignPut(
   );
 }
 
+/**
+ * Положить объект в S3 ТЕМ ЖЕ путём, каким его кладёт браузер: подписываем
+ * PUT и ходим по подписанному адресу. Отдельного «серверного» способа записи
+ * в хранилище нет намеренно — иначе у фото вещи было бы два разных пути
+ * загрузки с разными правилами (лимит, Content-Type, форма ключа).
+ *
+ * Кто зовёт: воркер image.ingest (фото магазина, тикет 06) и посев стенда
+ * (тикет 61). Оба сначала берут ключ у newItemPhotoKey — своей формы ключа
+ * здесь не изобретается.
+ */
+export async function putObjectViaPresign(
+  key: string,
+  contentType: string,
+  body: Uint8Array,
+): Promise<void> {
+  const url = await presignPut(key, contentType, body.byteLength);
+  const response = await fetch(url, {
+    method: "PUT",
+    headers: { "content-type": contentType },
+    // Buffer/Uint8Array формально не BodyInit в свежих lib.dom — сужаем,
+    // как в tests/parser/testUtils.
+    body: body as unknown as BodyInit,
+  });
+  if (!response.ok) {
+    throw new Error(`s3.putObjectViaPresign: PUT ${key} ответил ${response.status}`);
+  }
+}
+
 // ---------- Чтение (стрим для маршрута раздачи /media/…) ----------
 
 export type S3ObjectStream = {
