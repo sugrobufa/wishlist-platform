@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useFormStatus } from "react-dom";
 import { useTranslations } from "next-intl";
+import { IconCheck, IconEye } from "@/components/icons";
 import { createRoomAction } from "./actions";
 import { initialOccasionValue } from "./occasion-date";
 
@@ -127,21 +128,8 @@ export function OnboardingFlow({
         </div>
 
         <div className="mt-6 flex items-start gap-3 border border-surface-hairline bg-surface-fill p-4">
-          <svg
-            viewBox="0 0 24 24"
-            width="17"
-            height="17"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="1.7"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            aria-hidden
-            className="mt-0.5 flex-none text-text-faint"
-          >
-            <path d="M2 12s3.8-6.5 10-6.5S22 12 22 12s-3.8 6.5-10 6.5S2 12 2 12z" />
-            <circle cx="12" cy="12" r="2.6" />
-          </svg>
+          {/* Открытый глаз — наш знак (канона в 25a нет), из общего набора. */}
+          <IconEye size={17} className="mt-0.5 flex-none text-text-faint" />
           <p className="text-xs leading-relaxed text-text-muted">{t("zoneSetHint")}</p>
         </div>
       </main>
@@ -232,19 +220,9 @@ export function OnboardingFlow({
                     className="absolute right-2 top-2 flex h-[22px] w-[22px] items-center justify-center rounded-full"
                     style={{ background: preset.accent }}
                   >
-                    <svg
-                      viewBox="0 0 24 24"
-                      width="13"
-                      height="13"
-                      fill="none"
-                      stroke={preset.ink}
-                      strokeWidth="3"
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      aria-hidden
-                    >
-                      <path d="M4.5 12.5l5 5 10-11" />
-                    </svg>
+                    {/* Галочка «Дошло» из набора; на 13 px контур утолщён до 3 —
+                        оптическая компенсация (см. components/icons.tsx). */}
+                    <IconCheck size={13} strokeWidth={3} style={{ color: preset.ink }} />
                   </span>
                 )}
               </button>

@@ -468,9 +468,17 @@ export function SceneStage({ preset, zonesOff, zoneContent, className }: SceneSt
           </div>
         )}
 
-        <div className={zoomedIn ? `${s.hint} ${s.hintHidden}` : s.hint} aria-hidden>
-          <span className={s.hintPill}>{t("hint")}</span>
-        </div>
+      </div>
+
+      {/* Подсказка «коснись зоны» — ВНЕ вьюпорта (приёмка тикета 52): внутри
+          него она стояла у нижней кромки КАДРА, а на телефоне это середина
+          экрана — пилюля перекрывала предметы нижнего ряда (чемоданы, пол у
+          столика). Теперь она в жёлобе над нижней полосой: сцена на телефоне
+          заканчивается выше, пилюля лежит на вуали, а не на комнате. Позиция —
+          scene.module.css → .hint, одна формула на оба вида; планка таб-бара
+          живёт ниже, у самого края (bottom 14), и они не толкаются. */}
+      <div className={zoomedIn ? `${s.hint} ${s.hintHidden}` : s.hint} aria-hidden>
+        <span className={s.hintPill}>{t("hint")}</span>
       </div>
 
       {/* Акцент и ink комнаты панель передаёт дальше карточке копилки

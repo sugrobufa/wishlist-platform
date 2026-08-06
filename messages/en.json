@@ -1,4 +1,7 @@
 {
+  "Brand": {
+    "name": "Grace"
+  },
   "Home": {
     "overline": "Wishlist Platform · Phase 0",
     "title": "The room opens soon",
@@ -14,6 +17,19 @@
     "submit": "Send me a sign-in link",
     "google": "Continue with Google",
     "sent": "Link sent. In dev mode, check the server console.",
+    "brand": "A quiet\nspace",
+    "manifestTitle": "A room,\nnot a list",
+    "manifestBody": "Fill the space with what you love and what you'd like to receive. Friends won't have to guess anymore",
+    "emailPlaceholder": "your@email.com",
+    "noPassword": "No password. The room stays private until you share the link",
+    "sentTitle": "The email is out",
+    "sentBody": "One link inside. Open it — the room is yours, nothing to type",
+    "resendIn": "Send again in {time}",
+    "resend": "Send again",
+    "otherEmail": "Another email",
+    "notArrived": "No email yet?",
+    "spamHint": "Check the Spam folder",
+    "back": "Back",
     "confirmOverline": "Sign in",
     "confirmTitle": "Into your room",
     "confirmBody": "This link is yours. One tap — and the room opens.",
@@ -447,5 +463,13 @@
     "revealedRow": "Chipped in: {count, plural, one {# person} other {# people}} · {amount}",
     "errAlready": "You are already in — thank you",
     "errGeneric": "It did not work — try again"
+  },
+  "TabBar": {
+    "room": "Room",
+    "connections": "Friends",
+    "add": "Add",
+    "hall": "Hall of fame",
+    "settings": "Settings",
+    "tabsAria": "Tabs"
   }
 }

@@ -9,6 +9,7 @@ import { itemPhotoUrl } from "@/server/dto/items";
 import { hallItemForOwner, hallSettingsOf, hallTotals } from "@/server/dto/hall";
 import { roomImageUrl } from "@/app/rooms/room-image";
 import { rooms } from "@/config/design";
+import { TabBar } from "@/components/tab-bar/tab-bar";
 import { HallShowcase } from "./hall-showcase";
 import { formatHallMoney } from "./money";
 import s from "./hall.module.css";
@@ -68,7 +69,8 @@ export default async function HallPage() {
           .join(" · ");
 
   return (
-    <main className="min-h-screen bg-surface-hall-ground pb-16">
+    // Нижний отступ освобождает место постоянному таб-бару (86 px, фикс).
+    <main className="min-h-screen bg-surface-hall-ground pb-[calc(var(--imm-tab-bar)+30px)]">
       {/* Витрина зала из пакета (refs/c-hall.jpg) — фон шапки с виньеткой. */}
       <div className={s.hero}>
         <div
@@ -98,6 +100,9 @@ export default async function HallPage() {
           <p className="max-w-md text-sm leading-relaxed text-text-muted">{t("empty")}</p>
         )}
       </div>
+
+      {/* Таб-бар «в списках — постоянный» (тикет 52, турн 25a). */}
+      <TabBar active="hall" accent={accent} ink={preset?.ink ?? "#241A0E"} />
     </main>
   );
 }

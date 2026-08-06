@@ -10,6 +10,7 @@ import {
 } from "@/server/services/rooms";
 import { rooms, zoneInfo } from "@/config/design";
 import { roomImageUrl } from "@/app/rooms/room-image";
+import { TabBar } from "@/components/tab-bar/tab-bar";
 import { signOutAction } from "./actions";
 import { DELETE_ACCOUNT_PHRASE } from "@/server/services/account";
 import { hallSettingsOf } from "@/server/dto/hall";
@@ -75,7 +76,8 @@ export default async function SettingsPage() {
   const hallSettings: HallSettingsView = hallSettingsOf(room);
 
   return (
-    <main className="min-h-screen pb-16">
+    // Нижний отступ освобождает место постоянному таб-бару (86 px, фикс).
+    <main className="min-h-screen pb-[calc(var(--imm-tab-bar)+30px)]">
       <div className="mx-auto flex w-full max-w-3xl flex-col gap-4 px-5 lg:px-0">
         <header className="pb-2 pt-6 lg:pt-10">
           <Link href="/room" className="pressable text-xs font-semibold text-text-strong">
@@ -117,6 +119,11 @@ export default async function SettingsPage() {
         {/* Данные (тикет 14, GDPR): экспорт и удаление аккаунта — после выхода. */}
         <DataSection deletePhrase={DELETE_ACCOUNT_PHRASE} accent={accent} />
       </div>
+
+      {/* Таб-бар «в списках — постоянный» (тикет 52, турн 25a). Вкладка этой
+          страницы в 25a звалась «Профилем» — слово не прошло памятку тона,
+          временная подпись и TODO — components/tab-bar/tabs.ts. */}
+      <TabBar active="settings" accent={accent} ink={preset?.ink ?? "#241A0E"} />
     </main>
   );
 }

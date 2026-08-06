@@ -24,6 +24,7 @@ import { useCallback, useEffect, useState, type CSSProperties, type FormEvent } 
 import { useParams } from "next/navigation";
 import { useLocale, useTranslations } from "next-intl";
 import { formatHallMoney } from "@/app/room/hall/money";
+import { IconCheck } from "@/components/icons";
 import s from "./money-goal.module.css";
 
 /** Цель глазами хозяйки — ровно то, что отдаёт /api/v1/room/goal. */
@@ -263,18 +264,9 @@ export function MoneyGoalCard({ accent, ink, ownerName }: MoneyGoalCardProps) {
         ].map((line) => (
           <li key={line} className={s.promise}>
             <span className={s.tick} aria-hidden>
-              <svg
-                viewBox="0 0 24 24"
-                width="11"
-                height="11"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="3.2"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              >
-                <path d="M4.5 12.5l5 5 10-11" />
-              </svg>
+              {/* Галочка «Дошло» из набора; на 11 px контур утолщён до 3.2 —
+                  оптическая компенсация (см. components/icons.tsx). */}
+              <IconCheck size={11} strokeWidth={3.2} />
             </span>
             {line}
           </li>

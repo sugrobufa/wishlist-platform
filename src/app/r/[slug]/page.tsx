@@ -11,6 +11,7 @@ import { SceneStage } from "@/components/scene/SceneStage";
 import { immersiveLayout } from "@/components/scene/immersive-layout";
 import { ZoneIndexProvider } from "@/components/scene/zone-index-context";
 import { ZoneRail } from "@/components/scene/zone-rail";
+import { IconLock } from "@/components/icons";
 import { GuestBookingProvider } from "./booking/booking-context";
 import { FreeGifts } from "./booking/free-gifts";
 import { GuestZoneGrid } from "./booking/guest-zone-grid";
@@ -208,21 +209,9 @@ export default async function GuestRoomPage({ params }: Params) {
                 {/* Честная строка (турн 12b): человек имеет право знать, что
                     его не считают и не заставят заводить аккаунт. */}
                 <p className="flex items-center gap-1.5 text-xs text-text-faint">
-                  <svg
-                    viewBox="0 0 24 24"
-                    width="13"
-                    height="13"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="1.8"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    aria-hidden
-                    className="flex-none"
-                  >
-                    <path d="M5 11h14a1 1 0 0 1 1 1v8a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1v-8a1 1 0 0 1 1-1z" />
-                    <path d="M8 11V7.5a4 4 0 0 1 8 0V11" />
-                  </svg>
+                  {/* Замок — канон 25a «Приватность» (тикет 52): наш и был
+                      теми же путями, только контур 1.8 против канонных 1.7. */}
+                  <IconLock size={13} className="flex-none" />
                   {t("noSignup", { name: ownerName })}
                 </p>
               </div>

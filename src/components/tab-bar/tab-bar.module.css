@@ -1,0 +1,244 @@
+/* Таб-бар (тикет 52) — три состояния турна 25a.
+ *
+ * 1. В комнате свёрнут: одна планка 112×4 в жёлобе безопасной зоны, bottom 14.
+ *    Не иконка и не подпись — только обещание, что снизу что-то есть.
+ * 2. Вытянут поверх комнаты: шторка 96 px (78 — строка вкладок, над ней ручка
+ *    36×4). Комната видна сверху и не гаснет — фон полупрозрачный, вуали нет.
+ *    Планка стала ручкой шторки; касание сцены убирает.
+ * 3. В списках — постоянный: высота 86 (tokens.json → phoneImmersive.tabBar,
+ *    var(--imm-tab-bar)), иконка 22. В шторке 78 и 21 — она гость на чужом
+ *    экране, поэтому чуть тише.
+ *
+ * Активная вкладка — ТОЛЬКО цветом (акцент комнаты): подчёркивание спорило бы
+ * с полосой света. Тяга 96 px за 240 ms, обратно 200 (кривая out из
+ * motion.json — интерфейсная мелочь, не походка камеры). Отпустил меньше
+ * половины — вернулось (логика в room-tab-drawer.tsx).
+ *
+ * РАСКЛАДКУ СЦЕНЫ ТАБ-БАР НЕ ДВИГАЕТ (территория тикетов 42/45, тест
+ * immersive-layout): планка живёт в жёлобе НИЖНЕЙ ПОЛОСЫ (116 px) поверх её
+ * свободного низа, шторка — оверлей над полосой. Цена жёлоба: полоса-ручка
+ * берёт нажатия в нижних 26 px центральных 152 px экрана — у пунктов
+ * указателя зон, попавших в эту полоску, цель нажатия срезается снизу до
+ * ~25 px (виден и нажимаем весь остальной пункт). Двигать указатель ради
+ * полных 44 px значило бы менять раскладку полосы — согласовано жить так.
+ *
+ * Числа в .numbers — контракт с tests/tab-bar.test.ts. */
+
+.numbers {
+  --tb-strip-w: 112px;
+  --tb-strip-h: 4px;
+  --tb-strip-bottom: 14px;
+  --tb-sheet-h: 96px;
+  --tb-sheet-row-h: 78px;
+  --tb-sheet-handle-w: 36px;
+  --tb-pull-open-ms: 240ms;
+  --tb-pull-close-ms: 200ms;
+  --tb-ease: cubic-bezier(0.23, 1, 0.32, 1);
+}
+
+/* --- Состояние 1: планка ------------------------------------------------- */
+
+.strip {
+  position: fixed;
+  left: 50%;
+  bottom: 0;
+  transform: translateX(-50%);
+  z-index: 30;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  width: 152px;
+  height: 26px;
+  padding: 0 0 var(--tb-strip-bottom);
+  border: 0;
+  background: none;
+  cursor: pointer;
+  /* Жест тяги обрабатываем сами (pointer events) — браузерный скролл мимо. */
+  touch-action: none;
+  -webkit-tap-highlight-color: transparent;
+  transition: opacity var(--tb-pull-close-ms) var(--tb-ease);
+}
+
+.strip::after {
+  content: "";
+  width: var(--tb-strip-w);
+  height: var(--tb-strip-h);
+  border-radius: 2px;
+  background: rgba(255, 249, 242, 0.42);
+  /* Ореол — акцентом комнаты (в макете rgba(231,201,169,.3) — кремовый). */
+  box-shadow: 0 0 14px 2px color-mix(in srgb, var(--tb-accent, #e7c9a9) 30%, transparent);
+}
+
+/* Шторка вытянута — планка стала её ручкой, своей больше нет. */
+.stripHidden {
+  opacity: 0;
+  pointer-events: none;
+}
+
+/* --- Состояние 2: шторка -------------------------------------------------- */
+
+/* Касание сцены убирает шторку. Ловец прозрачный: комната видна и не гаснет
+ * (25a); нажатие гасит шторку, а не открывает зону под пальцем. */
+.backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 39;
+}
+
+.sheet {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 40;
+  height: var(--tb-sheet-h);
+  background: rgba(11, 8, 6, 0.88);
+  border-top: 1px solid color-mix(in srgb, var(--tb-accent, #e7c9a9) 28%, transparent);
+  transform: translateY(calc(var(--tb-sheet-h) + 2px));
+  transition: transform var(--tb-pull-close-ms) var(--tb-ease);
+  pointer-events: none;
+  visibility: hidden;
+  /* Убранная шторка дожидается конца выезда, потом прячется от табуляции. */
+  transition-property: transform, visibility;
+}
+
+.sheetOpen {
+  transform: translateY(0);
+  transition-duration: var(--tb-pull-open-ms);
+  pointer-events: auto;
+  visibility: visible;
+}
+
+/* Палец ведёт шторку сам — переходы выключены, transform ставит инлайн. */
+.sheetDragging {
+  transition: none;
+  pointer-events: auto;
+  visibility: visible;
+}
+
+.handle {
+  position: absolute;
+  left: 50%;
+  bottom: var(--tb-sheet-row-h);
+  transform: translateX(-50%);
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  width: 152px;
+  height: calc(var(--tb-sheet-h) - var(--tb-sheet-row-h));
+  border: 0;
+  background: none;
+  cursor: pointer;
+  touch-action: none;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.handle::after {
+  content: "";
+  width: var(--tb-sheet-handle-w);
+  height: var(--tb-strip-h);
+  border-radius: 2px;
+  background: rgba(255, 249, 242, 0.3);
+}
+
+/* Фокус — как у всего продукта: рамка законна только здесь (tokens.json →
+ * zoneMarker.focus), свет для клавиатуры не годится. */
+.strip:focus-visible,
+.handle:focus-visible,
+.slot:focus-visible {
+  outline: 1px dashed var(--tb-accent, #e7c9a9);
+  outline-offset: 2px;
+}
+
+.sheetRow {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: var(--tb-sheet-row-h);
+  display: flex;
+  align-items: flex-start;
+  padding: 11px 20px 0;
+}
+
+/* --- Места (общие для шторки и постоянного) ------------------------------ */
+
+.slot {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  min-height: var(--hit-target-min, 44px);
+  color: rgba(255, 249, 242, 0.55);
+  font-family: var(--font-ui);
+  font-size: 9px;
+  font-weight: 600;
+  line-height: 1;
+  text-decoration: none;
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* Активная вкладка — только цветом. */
+.slotActive {
+  color: var(--tb-accent, #e7c9a9);
+}
+
+.slotAdd {
+  gap: 4px;
+}
+
+.addBadge {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  margin-top: -5px;
+  border-radius: 50%;
+  background: var(--tb-accent, #e7c9a9);
+  color: var(--tb-ink, #241a0e);
+}
+
+/* --- Состояние 3: в списках — постоянный --------------------------------- */
+
+.bar {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 30;
+  height: var(--imm-tab-bar, 86px);
+  display: flex;
+  align-items: flex-start;
+  padding: 13px 18px 0;
+  background: var(--color-surface-app-ground, #0b0806);
+  border-top: 1px solid var(--color-surface-hairline, rgba(255, 255, 255, 0.09));
+}
+
+.bar .slot {
+  gap: 7px;
+  font-size: 9.5px;
+}
+
+.bar .slotAdd {
+  gap: 5px;
+}
+
+.bar .addBadge {
+  width: 34px;
+  height: 34px;
+}
+
+/* --- prefers-reduced-motion ---------------------------------------------- */
+
+/* Смена состояния остаётся читаемой, но короткой (motion.json → reducedMotion:
+ * transitions → 120ms). Тягу пальцем не трогаем — это прямое управление, а не
+ * анимация. */
+@media (prefers-reduced-motion: reduce) {
+  .sheet,
+  .sheetOpen,
+  .strip {
+    transition-duration: 120ms;
+  }
+}

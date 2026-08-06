@@ -458,7 +458,9 @@ describe("краевые зоны: сколько пустоты открыва�
     // прибавилось (телефон 55 → 61, десктоп 42 → 47): конверт стоит в глубине
     // кадра, а не у края, и центруется без пустоты. Пределы пустоты по всем
     // четырём сторонам не сдвинулись ни на десятую — худшие зоны прежние.
-    // (Десктоп 42 → 48: та же причина, и разница та же шестёрка зон.)
+    // (Десктоп 42 → 48: та же причина, и разница та же шестёрка зон.
+    // Тикет 53: новый рект `cream/events` у верхней кромки центруется с
+    // пустотой сверху — чистых на десктопе стало 47.)
     const phone = worst("phone");
     expect(phone.clean).toBe(61);
     expect(phone.left).toBeCloseTo(23.1, 1);
@@ -467,7 +469,7 @@ describe("краевые зоны: сколько пустоты открыва�
     expect(phone.bottom).toBeCloseTo(27.5, 1);
 
     const desktop = worst("desktop");
-    expect(desktop.clean).toBe(48);
+    expect(desktop.clean).toBe(47);
     expect(desktop.left).toBeCloseTo(30.5, 1);
     expect(desktop.right).toBeCloseTo(34.7, 1);
     expect(desktop.top).toBeCloseTo(7.2, 1);

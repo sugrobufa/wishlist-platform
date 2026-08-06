@@ -7,6 +7,7 @@ import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
+import { IconCheck } from "@/components/icons";
 import type { MyBookingDto } from "@/server/services/bookings";
 
 type BookingsListProps = {
@@ -84,13 +85,18 @@ export function BookingsList({ bookings }: BookingsListProps) {
                     aria-pressed={booking.purchased}
                     disabled={busy}
                     onClick={() => void togglePurchased(booking)}
-                    className={`pressable border px-3 py-2 text-xs font-semibold ${
+                    className={`pressable inline-flex items-center gap-1.5 border px-3 py-2 text-xs font-semibold ${
                       booking.purchased
                         ? "border-surface-hairline-strong text-text-strong"
                         : "border-surface-hairline text-text-muted"
                     }`}
                   >
-                    {booking.purchased ? `${t("purchased")} ✓` : t("purchased")}
+                    {t("purchased")}
+                    {/* Галочка «Дошло» из набора вместо прежней галочки-глифа
+                        из шрифта — глифов в интерфейсе не бывает (tokens.json →
+                        icons, найдено проверкой тикета 52). На 11 px контур
+                        утолщён до 3.2 (см. components/icons.tsx). */}
+                    {booking.purchased && <IconCheck size={11} strokeWidth={3.2} />}
                   </button>
 
                   {confirming ? (

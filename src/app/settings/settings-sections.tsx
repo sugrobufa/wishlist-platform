@@ -7,6 +7,7 @@
 import { useRef, useState, useTransition, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
+import { IconCheck } from "@/components/icons";
 import {
   changePresetAction,
   presignAvatarAction,
@@ -441,19 +442,9 @@ export function PresetSection({
                   className="absolute right-2 top-2 flex h-[22px] w-[22px] items-center justify-center rounded-full"
                   style={{ background: preset.accent }}
                 >
-                  <svg
-                    viewBox="0 0 24 24"
-                    width="13"
-                    height="13"
-                    fill="none"
-                    stroke={preset.ink}
-                    strokeWidth="3"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    aria-hidden
-                  >
-                    <path d="M4.5 12.5l5 5 10-11" />
-                  </svg>
+                  {/* Галочка «Дошло» из набора; на 13 px контур утолщён до 3 —
+                      оптическая компенсация (см. components/icons.tsx). */}
+                  <IconCheck size={13} strokeWidth={3} style={{ color: preset.ink }} />
                 </span>
               )}
             </button>
@@ -541,18 +532,9 @@ export function ZonesSection({
                 }
               >
                 {isOn && (
-                  <svg
-                    viewBox="0 0 24 24"
-                    width="12"
-                    height="12"
-                    fill="none"
-                    stroke="#0B0806"
-                    strokeWidth="3.2"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                  >
-                    <path d="M4.5 12.5l5 5 10-11" />
-                  </svg>
+                  // Галочка «Дошло» из набора; на 12 px контур утолщён до 3.2 —
+                  // оптическая компенсация (см. components/icons.tsx).
+                  <IconCheck size={12} strokeWidth={3.2} style={{ color: "#0B0806" }} />
                 )}
               </span>
               {pending ? "…" : zone.label}

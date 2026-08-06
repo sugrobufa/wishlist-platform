@@ -7,6 +7,7 @@
 // связи не добавляются руками (инвариант №4).
 import { useMemo, useState } from "react";
 import { useFormatter, useTranslations } from "next-intl";
+import { IconPerson } from "@/components/icons";
 import type { ConnectionOriginDto, ConnectionRowDto } from "@/server/services/connections";
 
 type Filter = "ALL" | "MUTUAL" | "FOLLOW" | "VIEWED";
@@ -33,22 +34,9 @@ function Avatar({ url }: { url: string | null }) {
         url ? { backgroundImage: `url(${url})`, backgroundSize: "cover", backgroundPosition: "center" } : undefined
       }
     >
-      {!url && (
-        <svg
-          viewBox="0 0 24 24"
-          width="20"
-          height="20"
-          fill="none"
-          stroke="currentColor"
-          strokeWidth="1.7"
-          strokeLinecap="round"
-          strokeLinejoin="round"
-          className="text-text-faint"
-        >
-          <circle cx="12" cy="8" r="3.5" />
-          <path d="M5.5 20.5c0-3.6 2.9-6.5 6.5-6.5s6.5 2.9 6.5 6.5" />
-        </svg>
-      )}
+      {/* Силуэт — канон 25a «Профиль» (тикет 52): наш и был этими путями,
+          теперь из общего набора. */}
+      {!url && <IconPerson size={20} className="text-text-faint" />}
     </span>
   );
 }

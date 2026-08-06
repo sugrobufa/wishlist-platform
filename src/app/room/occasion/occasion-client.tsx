@@ -8,6 +8,7 @@ import { useState, useTransition } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
+import { IconCheck } from "@/components/icons";
 import type { OccasionPendingGift, OccasionReceivedGift } from "@/server/services/occasions";
 import { closeOccasionAction, receiveGiftAction, type OccasionActionResult } from "./actions";
 
@@ -34,9 +35,9 @@ function RowPhoto({ photoUrl, badgeAccent }: { photoUrl: string | null; badgeAcc
           className="absolute bottom-0 right-0 flex h-4.5 w-4.5 items-center justify-center"
           style={{ background: badgeAccent }}
         >
-          <svg viewBox="0 0 24 24" width="11" height="11" fill="none" strokeWidth="3.2">
-            <path d="M4.5 12.5l5 5 10-11" stroke="#0B0806" strokeLinecap="round" strokeLinejoin="round" />
-          </svg>
+          {/* Галочка «Дошло» из набора; на 11 px контур утолщён до 3.2 —
+              оптическая компенсация (см. components/icons.tsx). */}
+          <IconCheck size={11} strokeWidth={3.2} style={{ color: "#0B0806" }} />
         </span>
       )}
     </div>

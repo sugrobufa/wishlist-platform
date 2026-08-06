@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useTranslations } from "next-intl";
+import { IconShare } from "@/components/icons";
 
 /** Сколько живёт подтверждение с адресом (тикет 24: «короткое подтверждение»). */
 const CONFIRM_MS = 5000;
@@ -96,25 +97,10 @@ export function ShareButton({ path, accent }: { path: string; accent: string }) 
         className="pressable justify-center rounded-full border border-surface-hairline-strong text-text-strong"
         style={{ width: "var(--hit-target-min)", height: "var(--hit-target-min)" }}
       >
-        {/* Иконка по контракту пакета: сетка 24, обводка 1.7, скруглённые
-            концы, без заливки (tokens.json → icons). */}
-        <svg
-          width="24"
-          height="24"
-          viewBox="0 0 24 24"
-          fill="none"
-          stroke="currentColor"
-          strokeWidth="1.7"
-          strokeLinecap="round"
-          strokeLinejoin="round"
-          aria-hidden
-        >
-          <circle cx="18" cy="5.5" r="2.8" />
-          <circle cx="6" cy="12" r="2.8" />
-          <circle cx="18" cy="18.5" r="2.8" />
-          <path d="M8.5 10.6 15.5 6.9" />
-          <path d="M8.5 13.4 15.5 17.1" />
-        </svg>
+        {/* Канон 25a «Поделиться» — стрелка из лотка (тикет 52): наши три
+            узла с рёбрами были другой метафорой и заменены по списку
+            тикета 51. */}
+        <IconShare size={24} />
       </button>
     </span>
   );

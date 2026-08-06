@@ -30,6 +30,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { sceneMotion, type ZoneRect } from "@/config/design";
+import { IconGallery } from "@/components/icons";
 import { useMediaQuery } from "@/components/scene/use-media-query";
 import type { ParsedProduct } from "@/server/parser";
 import type { DuplicateItem } from "@/server/services/items";
@@ -764,21 +765,9 @@ export function AddItemFlow({
           )}
           {file === null ? (
             <label className={`pressable ${s.photoDrop}`}>
-              <svg
-                viewBox="0 0 24 24"
-                width="17"
-                height="17"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="1.7"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                aria-hidden
-              >
-                <rect x="3" y="5" width="18" height="14" />
-                <circle cx="9" cy="10" r="1.8" />
-                <path d="M3 17l5.5-5 4 3.5L16 12l5 5" />
-              </svg>
+              {/* «Из галереи» с доски (турн 24, 23a) — наша рамка с кружком
+                  заменена по списку тикета 51 (тикет 52). */}
+              <IconGallery size={17} />
               <span>{t("photoAdd")}</span>
               <span className={s.photoDropHint}>{t("photoHint")}</span>
               <input type="file" accept="image/*" onChange={onFileChange} className="sr-only" />

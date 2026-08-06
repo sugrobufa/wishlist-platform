@@ -916,8 +916,10 @@ describe("все 130 зон достижимы: кадром или указат
     // `pointer-events: none`, нажатия берут только её ссылки и кнопки.
     //
     // Числа записаны, чтобы рост был виден в диффе: на 1920×1080 полосы задевают
-    // 33 зоны, на 1280×800 — 40, на 1024×768 — 29 (было 42: предел кропа сделал
-    // кадр ниже окна, и его верх с низом отошли от полос).
+    // 34 зоны, на 1280×800 — 41, на 1024×768 — 30 (тикет 53 переставил
+    // `cream/events` на стену памяти у верха кадра — рект из rects-fix, y=74,
+    // и зона легла под верхнюю полосу на всех широких вьюпортах; до предела
+    // кропа на 1024×768 было 42 — обе кромки кадра тогда стояли под полосами).
     const touched = (screen: Screen) => {
       const free = clearBand("desktop", screen);
       return allZones.filter(({ rect }) => {
@@ -925,9 +927,9 @@ describe("все 130 зон достижимы: кадром или указат
         return box.top < free.top - EPS || bottom(box) > free.bottom + EPS;
       });
     };
-    expect(touched({ w: 1920, h: 1080 })).toHaveLength(33);
-    expect(touched(DESKTOP)).toHaveLength(40);
-    expect(touched({ w: 1024, h: 768 })).toHaveLength(29);
+    expect(touched({ w: 1920, h: 1080 })).toHaveLength(34);
+    expect(touched(DESKTOP)).toHaveLength(41);
+    expect(touched({ w: 1024, h: 768 })).toHaveLength(30);
     expect(touched({ w: 1280, h: 1024 })).toHaveLength(5);
 
     // ЦЕЛИКОМ под полосой почти везде лежит только `study/money`. Исключений

@@ -6,6 +6,7 @@ import { auth } from "@/server/auth";
 import { getRoomForUser, getSessionUserId } from "@/server/services/rooms";
 import { listConnections } from "@/server/services/connections";
 import { rooms } from "@/config/design";
+import { TabBar } from "@/components/tab-bar/tab-bar";
 import { ConnectionsList } from "./connections-list";
 
 export const dynamic = "force-dynamic";
@@ -45,7 +46,8 @@ export default async function ConnectionsPage() {
   };
 
   return (
-    <main className="min-h-screen pb-16">
+    // Нижний отступ освобождает место постоянному таб-бару (86 px, фикс).
+    <main className="min-h-screen pb-[calc(var(--imm-tab-bar)+30px)]">
       <div className="mx-auto w-full max-w-xl px-5 lg:px-0">
         <header className="pb-5 pt-6 lg:pt-10">
           <Link href="/room" className="pressable text-xs font-semibold text-text-strong">
@@ -75,6 +77,9 @@ export default async function ConnectionsPage() {
           </div>
         )}
       </div>
+
+      {/* Таб-бар «в списках — постоянный» (тикет 52, турн 25a). */}
+      <TabBar active="connections" accent={accent} ink={ink} />
     </main>
   );
 }

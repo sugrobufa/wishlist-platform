@@ -20,6 +20,7 @@ import { SceneStage } from "@/components/scene/SceneStage";
 import { immersiveLayout } from "@/components/scene/immersive-layout";
 import { ZoneIndexProvider } from "@/components/scene/zone-index-context";
 import { ZoneRail } from "@/components/scene/zone-rail";
+import { RoomTabDrawer } from "@/components/tab-bar/room-tab-drawer";
 import { visibleZones } from "@/components/scene/zones";
 import { ZoneGrid } from "@/components/zone/ZoneGrid";
 import { zoneDisplayItems } from "@/components/zone/zone-display-items";
@@ -178,6 +179,11 @@ export default async function RoomPage() {
           </ZoneRail>
         </div>
       </ZoneIndexProvider>
+
+      {/* Таб-бар над комнатой (тикет 52, турн 25a): планка в жёлобе нижней
+          полосы, по тяге вверх — шторка. Оба слоя — оверлеи, раскладку сцены
+          и полос они не двигают (immersive-layout остаётся как был). */}
+      <RoomTabDrawer accent={accent} ink={preset?.ink ?? "#241A0E"} />
     </main>
   );
 }
