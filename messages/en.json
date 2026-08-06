@@ -218,7 +218,11 @@
     "poolShort": "{gap} short",
     "poolJoin": "chip in",
     "poolJoinAmount": "chip in · {suggest}",
-    "poolFull": "collected, waiting for the occasion"
+    "poolFull": "collected, waiting for the occasion",
+    "poolWho1": "{a} is in",
+    "poolWho2": "{a} and {b} are in",
+    "poolWhoMany": "{a}, {b} and {rest} more are in",
+    "poolWhoYou": "you, {a} and {rest} more"
   },
   "MyBookings": {
     "overline": "Guest",

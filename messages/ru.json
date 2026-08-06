@@ -218,7 +218,11 @@
     "poolShort": "не хватает {gap}",
     "poolJoin": "скинуться",
     "poolJoinAmount": "скинуться · {suggest}",
-    "poolFull": "собрано, ждём праздника"
+    "poolFull": "собрано, ждём праздника",
+    "poolWho1": "в складчине {a}",
+    "poolWho2": "в складчине {a} и {b}",
+    "poolWhoMany": "в складчине {a}, {b} и ещё {rest}",
+    "poolWhoYou": "ты, {a} и ещё {rest}"
   },
   "MyBookings": {
     "overline": "Гость",

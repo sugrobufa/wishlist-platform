@@ -341,6 +341,12 @@ describe("словарь и дизайн-пакет", () => {
       "Booking.poolLastDay",
       "Booking.poolProgress",
       "Booking.poolShort",
+      // poolWho*: имена участников складчины друг другу — решение владельца
+      // 06.08.2026 (вопрос В4 закрыт). Хозяйке — только после праздника.
+      "Booking.poolWho1",
+      "Booking.poolWho2",
+      "Booking.poolWhoMany",
+      "Booking.poolWhoYou",
       "Goal.amountLabel",
       "Goal.badge",
       "Goal.cancel",
