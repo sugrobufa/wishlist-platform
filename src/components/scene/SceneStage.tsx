@@ -22,6 +22,7 @@ import {
 import { ZoneHotspot } from "./zone-hotspot";
 import { ZonePanel } from "./zone-panel";
 import { useSceneZoneIndex } from "./zone-index-context";
+import { useScenePan } from "./use-scene-pan";
 import s from "./scene.module.css";
 
 /** Десктопная сцена начинается с 1024px (spec Phase 1); это брейкпоинт, не координата. */
@@ -153,6 +154,9 @@ export function SceneStage({ preset, zonesOff, zoneContent, className }: SceneSt
   const viewportRef = useRef<HTMLDivElement | null>(null);
   const hotspotsLayerRef = useRef<HTMLDivElement | null>(null);
   const nearKeyRef = useRef<string | null>(null);
+  const panWindowRef = useRef<HTMLDivElement | null>(null);
+  // Тач-подсветка «свет у центра окна»: пан меняет центр, движок пересчитывает.
+  const recenterTouchRef = useRef<(() => void) | null>(null);
 
   const clearTimer = useCallback(() => {
     if (timerRef.current !== null) {
@@ -243,6 +247,21 @@ export function SceneStage({ preset, zonesOff, zoneContent, className }: SceneSt
   );
   const { lit, zoneEvents } = useSceneZoneIndex(openZoneByKey, zoomedIn ? activeKey : null);
 
+  // Пан окна по кадру (тикет 55): драг в покое двигает окно 430 по кадру 630,
+  // тап остаётся тапом. Формула позиции — immersive-layout.ts, поведение
+  // жеста — use-scene-pan.ts; сцена лишь отдаёт ему свои слои и флаги.
+  // На десктопе (cover, кадр целиком) хук выключен и DOM не трогает.
+  useScenePan({
+    viewportRef,
+    panWindowRef,
+    zones,
+    enabled: !isDesktop,
+    zoomed: zoomedIn,
+    reducedMotion,
+    presetId: preset.id,
+    onSettle: () => recenterTouchRef.current?.(),
+  });
+
   // Разгорание по приближению (тикет 50, часть Б). В покое комната чистая —
   // виден только пульс искры; свет зажигается у БЛИЖАЙШЕЙ зоны заранее, сила
   // растёт по мере подхода указателя (правило числом — zone-marker.ts →
@@ -300,7 +319,12 @@ export function SceneStage({ preset, zonesOff, zoneContent, className }: SceneSt
       };
       applyCenterHint();
       window.addEventListener("resize", applyCenterHint);
+      // Пан окна (тикет 55) меняет, какая зона ближе к центру: движок пана
+      // зовёт пересчёт, когда окно встало (framePoint меряет от коробки слоя
+      // хотспотов — она уже сдвинута, формула та же).
+      recenterTouchRef.current = applyCenterHint;
       return () => {
+        recenterTouchRef.current = null;
         window.removeEventListener("resize", applyCenterHint);
         setNear(null, 0);
       };
@@ -370,20 +394,24 @@ export function SceneStage({ preset, zonesOff, zoneContent, className }: SceneSt
     <section className={className ? `${s.stage} ${className}` : s.stage} style={styleVars}>
       <div ref={viewportRef} className={zoomedIn ? `${s.viewport} ${s.zoomed}` : s.viewport}>
         {/* Наезд — стопка слоёв, по слою на фазу партитуры (motion.json →
-            openZone). Снаружи внутрь: вес назад · перелёт · оседание · сдвиг ·
-            масштаб · дыхание · кадр. У каждого свой transition — только так
-            сдвиг может длиться дольше масштаба; три слоя жеста стоят СНАРУЖИ
-            сдвига, поэтому перелёт не уводит зону из центра (camera.ts). */}
-        <div className={s.camera} aria-hidden>
-          <div className={s.over}>
-            <div className={s.settle}>
-              <div className={s.pan} style={{ transform: camera?.pan }}>
-                <div className={s.zoom} style={{ transform: camera?.zoom }}>
-                  <div className={s.drift}>
-                    <div
-                      className={s.frame}
-                      style={{ backgroundImage: `url(${roomImageUrl(preset.base)})` }}
-                    />
+            openZone). Снаружи внутрь: сани пана окна (тикет 55) · вес назад ·
+            перелёт · оседание · сдвиг · масштаб · дыхание · кадр. У каждого
+            свой transition — только так сдвиг может длиться дольше масштаба;
+            три слоя жеста стоят СНАРУЖИ сдвига, поэтому перелёт не уводит зону
+            из центра (camera.ts). Сани — ещё снаружи: их сдвиг уезжает в ноль
+            к наезду, и центровка камеры о пане не знает. */}
+        <div ref={panWindowRef} className={s.panWindow} aria-hidden>
+          <div className={s.camera}>
+            <div className={s.over}>
+              <div className={s.settle}>
+                <div className={s.pan} style={{ transform: camera?.pan }}>
+                  <div className={s.zoom} style={{ transform: camera?.zoom }}>
+                    <div className={s.drift}>
+                      <div
+                        className={s.frame}
+                        style={{ backgroundImage: `url(${roomImageUrl(preset.base)})` }}
+                      />
+                    </div>
                   </div>
                 </div>
               </div>
@@ -416,6 +444,12 @@ export function SceneStage({ preset, zonesOff, zoneContent, className }: SceneSt
             кадр темнеет на 15% — так предмет читается подсвеченным изнутри.
             Включается из CSS по наведению/фокусу любого хотспота. */}
         <div className={s.dim} aria-hidden />
+        {/* Кромки «за краем есть ещё» (тикет 55): тихое свечение акцентом у
+            края окна, за которым стоят зоны. Горят по данным (--edge-l/r от
+            движка пана), принадлежат окну — с кадром не едут. Декорация:
+            дороги к зонам — пан, указатель, камера. На десктопе их нет. */}
+        <div className={`${s.edge} ${s.edgeL}`} aria-hidden />
+        <div className={`${s.edge} ${s.edgeR}`} aria-hidden />
 
         <div
           ref={hotspotsLayerRef}

@@ -20,10 +20,19 @@ import {
 } from "../src/components/scene/camera";
 import { visibleZones } from "../src/components/scene/zones";
 import {
+  clampPan,
   clearBand,
   desktopReference,
+  EDGE_HINT_SLACK,
   immersiveLayout,
   minWindowAr,
+  phoneEdgeHints,
+  phonePanRange,
+  phonePanShiftPx,
+  phonePanToZone,
+  phoneWindowOnFrame,
+  phoneZoneHitBoxAtPan,
+  phoneZoneOnScreenAtPan,
   railBand,
   railContent,
   sceneBand,
@@ -79,6 +88,14 @@ import {
 // Ослабления порога здесь нет: там, где зона видна, требования к цели прежние.
 // Что действительно исчезло — обещание «видно всё сразу», которого раскладка
 // никогда не давала, а давала обрезка карты.
+//
+// Раунд четвёртый (тикет 55). У телефона появилась ТРЕТЬЯ дорога — пан: окно
+// 430 ездит по кадру 630 пальцем, а не только наездом камеры. Инвариант
+// достижимости переписан ЧЕСТНО, двумя числами: «пальцем В ПОКОЕ» — прежние
+// 97 против 33 (свойство кадра, разбиение ниже не менялось), «пальцем ПАНОМ» —
+// все 130 (у каждой зоны есть позиция окна с полной целью 44×44 — самая
+// широкая зона у́же окна). Обе цифры под тестом в блоке «пан окна по кадру».
+// Пан — свойство показа: карта, указатель и камера не изменились ни на пиксель.
 //
 // РАЗНИЦА МЕЖДУ ВИДАМИ. На телефоне список «заоконных» зон — свойство КАДРА:
 // окно всегда показывает 430 из 630 px, на любом экране одни и те же 33 зоны.
@@ -715,9 +732,14 @@ describe("все 130 зон достижимы: кадром или указат
     expect(roomsContract.rooms).toHaveLength(10);
   });
 
-  it("телефон: 97 зон достаются пальцем, 33 стоят за краем окна — и это все 130", () => {
+  it("телефон, окно В ПОКОЕ: 97 зон пальцем, 33 за краем — и это все 130", () => {
     // Разбиение, а не порог: у каждой зоны ровно одно из двух состояний, и
     // сумма обязана давать 130. Молча потеряться нельзя ни одной.
+    //
+    // «В покое» — слово тикета 55: пан двигает окно по кадру, и ПАНОМ пальцем
+    // достижимы все 130 (см. блок «пан окна по кадру» ниже, там второе число).
+    // Здешнее разбиение — про окно в позиции покоя (12…442), оно от пана не
+    // зависит и осталось свойством кадра.
     const beyond = allZones.filter(({ rect }) => !tappable(rect, "phone", PHONE));
     const reachableByFinger = allZones.filter(({ rect }) => tappable(rect, "phone", PHONE));
     expect(beyond.map((z) => z.id)).toEqual(BEYOND_PHONE_WINDOW);
@@ -1007,6 +1029,147 @@ describe("все 130 зон достижимы: кадром или указат
     // со сдвигом −12, поэтому зона у левого края кадра (x < 12) уходит под
     // левый край окна. Их 17, и все они срезаются, а не пропадают.
     expect(allZones.filter(({ rect }) => rect.x < -scene.phone.image.x)).toHaveLength(17);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// ТРЕБОВАНИЕ ТИКЕТА 55: «окно ездит по кадру» — жестом. Третья дорога телефона.
+// ---------------------------------------------------------------------------
+describe("пан окна по кадру (тикет 55)", () => {
+  it("диапазон пана покрывает весь кадр: окно доезжает и до 0, и до 630", () => {
+    // Числа не выдуманы: min = image.x (−12), max = 630 − 430 − 12 = 188.
+    const { min, max } = phonePanRange();
+    expect(min).toBe(scene.phone.image.x);
+    expect([min, max]).toEqual([-12, 188]);
+    // Покой — прежнее окно ADR-0006, упоры — края кадра.
+    expect(phoneWindowOnFrame(0)).toEqual({ left: 12, right: 442 });
+    expect(phoneWindowOnFrame(min)).toEqual({ left: 0, right: 430 });
+    expect(phoneWindowOnFrame(max)).toEqual({ left: 200, right: 630 });
+    expect(clampPan(10_000)).toBe(max);
+    expect(clampPan(-10_000)).toBe(min);
+  });
+
+  it("пан — свойство показа: при нуле совпадает с прежней проекцией x − 12", () => {
+    // Та же гарантия, что у кропа тикета 42: формула с паном НЕ вторая карта
+    // координат, при p = 0 она даёт ровно zoneOnScreen/zoneHitBox.
+    for (const { id, rect } of allZones) {
+      const box = phoneZoneOnScreenAtPan(rect, PHONE, 0);
+      const classic = zoneOnScreen(rect, "phone", PHONE);
+      expect(box.left, `${id} left`).toBeCloseTo(classic.left, 2);
+      expect(box.top, `${id} top`).toBeCloseTo(classic.top, 2);
+      expect(box.width, `${id} width`).toBeCloseTo(classic.width, 2);
+      expect(box.height, `${id} height`).toBeCloseTo(classic.height, 2);
+      const hit = phoneZoneHitBoxAtPan(rect, PHONE, 0);
+      const classicHit = zoneHitBox(rect, "phone", PHONE);
+      expect(hit.width, `${id} цель ширина`).toBeCloseTo(classicHit.width, 2);
+      expect(hit.height, `${id} цель высота`).toBeCloseTo(classicHit.height, 2);
+    }
+  });
+
+  it("сдвиг слоёв — px экрана: покой ноль, окно вправо ⟹ кадр влево", () => {
+    // px, а не проценты: переменную читают два слоя разной ширины (сани камеры
+    // и слой хотспотов), и общий процент значил бы у них разные пиксели.
+    expect(phonePanShiftPx(0, 430)).toBe(0);
+    expect(phonePanShiftPx(188, 430)).toBe(-188);
+    expect(phonePanShiftPx(-12, 430)).toBe(12);
+    // На узком телефоне пиксель кадра меньше пикселя экрана: 390/430 от хода.
+    expect(phonePanShiftPx(40, 390)).toBeCloseTo(-36.2791, 3);
+  });
+
+  it("ВТОРОЕ ЧИСЛО ДОСТИЖИМОСТИ: паном пальцем — все 130, полные 44×44", () => {
+    // «97 пальцем в покое» дополнено, а не переписано: у КАЖДОЙ зоны есть
+    // позиция окна, в которой её цель нажатия полная. Это возможно, потому что
+    // самая широкая зона контракта (269) у́же окна (430) — и тоже проверено.
+    const widest = Math.max(...allZones.map((z) => z.rect.w));
+    expect(widest).toBeLessThanOrEqual(scene.phone.w);
+    for (const { id, rect } of allZones) {
+      const pan = phonePanToZone(rect);
+      expect(pan, `${id} пан в диапазоне`).toBe(clampPan(pan));
+      const hit = phoneZoneHitBoxAtPan(rect, PHONE, pan);
+      expect(hit.width, `${id} ширина цели при пане ${pan}`).toBeGreaterThanOrEqual(
+        hitTargetMin - EPS,
+      );
+      expect(hit.height, `${id} высота цели при пане ${pan}`).toBeGreaterThanOrEqual(
+        hitTargetMin - EPS,
+      );
+    }
+    // И честная обратная сторона: 33 заоконным зонам пан НЕОБХОДИМ — в покое
+    // полной цели у них нет (их дороги до тикета 55 — указатель и камера).
+    for (const id of BEYOND_PHONE_WINDOW) {
+      const zone = allZones.find((z) => z.id === id);
+      if (!zone) throw new Error(`зоны ${id} нет в контракте`);
+      const restHit = phoneZoneHitBoxAtPan(zone.rect, PHONE, 0);
+      expect(restHit.width, `${id} в покое`).toBeLessThan(hitTargetMin - EPS);
+    }
+  });
+
+  it("семь узких зон у правого края покоя тоже получают полные 44 паном", () => {
+    // Долг ADR-0006 («самая узкая цель — 16 px») пан закрывает без правки
+    // карты: bold/music и остальные шесть достаются целиком, стоит окну
+    // отъехать. Список — тот же, что в блоке «цель нажатия» ниже.
+    for (const id of [
+      "cream/home",
+      "emerald/home",
+      "bold/music",
+      "bold/home",
+      "cottage/music",
+      "sport/events",
+      "study/events",
+    ]) {
+      const zone = allZones.find((z) => z.id === id);
+      if (!zone) throw new Error(`зоны ${id} нет в контракте`);
+      const hit = phoneZoneHitBoxAtPan(zone.rect, PHONE, phonePanToZone(zone.rect));
+      expect(hit.width, `${id} ширина цели`).toBeGreaterThanOrEqual(hitTargetMin - EPS);
+    }
+  });
+
+  it("намёк на край: справа в покое горит во всех 10 комнатах, слева — ни в одной", () => {
+    // Правило по данным ВИДИМЫХ зон (тот же visibleZones, что у сцены и
+    // указателя) с люфтом EDGE_HINT_SLACK: спрятано больше люфта — горит.
+    expect(EDGE_HINT_SLACK).toBe(12);
+    expect(EDGE_HINT_SLACK).toBe(-scene.phone.image.x);
+    for (const room of rooms) {
+      const visible = visibleZones(room.zones, []);
+      const rest = phoneEdgeHints(visible, 0);
+      expect(rest.right, `${room.id} справа в покое`).toBe(true);
+      expect(rest.left, `${room.id} слева в покое`).toBe(false);
+      // У правого упора сторона меняется: справа гаснет, слева загорается.
+      const atMax = phoneEdgeHints(visible, phonePanRange().max);
+      expect(atMax.right, `${room.id} справа у упора`).toBe(false);
+      expect(atMax.left, `${room.id} слева у упора`).toBe(true);
+    }
+  });
+
+  it("«Кремовая»: за правым краем в покое — ровно пять зон владельца", () => {
+    // Тикет 55 начинается с его вопроса: «home, books, music, flowers,
+    // events». Порог люфта обязан давать этот же список — home срезан краем
+    // (413…475 при окне до 442), остальные четыре стоят целиком за ним.
+    const cream = roomsContract.rooms.find((room) => room.id === "cream");
+    if (!cream) throw new Error("комнаты cream нет в контракте");
+    const win = phoneWindowOnFrame(0);
+    const beyond = cream.zones
+      .filter((zone) => zone.rect.x + zone.rect.w - win.right > EDGE_HINT_SLACK)
+      .map((zone) => zone.key)
+      .sort();
+    expect(beyond).toEqual(["books", "events", "flowers", "home", "music"]);
+  });
+
+  it("десктоп не изменился ни на пиксель: пан — телефонный, cover прежний", () => {
+    // Функции пана принимают только телефонные величины; десктопная коробка
+    // сцены — контрольное число тикета 42 — осталась той же (JS на десктопе
+    // переменных пана не пишет, CSS их жёстко глушит — см. scene.module.css).
+    const refBand = sceneBand("desktop", DESKTOP);
+    expect(refBand.left).toBeCloseTo(-76.8, 4);
+    expect(refBand.top).toBeCloseTo(0, 4);
+    expect(refBand.width).toBeCloseTo(1433.6, 4);
+    expect(refBand.height).toBeCloseTo(800, 4);
+    const css = readFileSync(
+      fileURLToPath(new URL("../src/components/scene/scene.module.css", import.meta.url)),
+      "utf8",
+    );
+    // Слои пана и кромки на десктопе выключены самим CSS, не только жестом.
+    expect(css).toMatch(/@media \(min-width: 1024px\)[\s\S]*?\.panWindow,\s*\.hotspots \{\s*transform: none;\s*transition: none;\s*\}/u);
+    expect(css).toMatch(/@media \(min-width: 1024px\)[\s\S]*?\.edgeL,\s*\.edgeR \{\s*display: none;\s*\}/u);
   });
 });
 

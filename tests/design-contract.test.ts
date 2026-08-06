@@ -639,7 +639,10 @@ describe("кадры «открыто» (openFrame — единственный 
     // identityCheck — снимок аудита 49: семь честных ТОГДА. Партия 2 добавила
     // четыре кадра сверх аудита — их история в `round8.latest`, а не здесь.
     expect(check.honest).toBe(7);
-    expect(withFrame.length).toBe(check.honest + raw.round8.latest.connected - 1);
+    const latestConnected = (
+      raw as unknown as { round8: { latest: { connected: number } } }
+    ).round8.latest.connected;
+    expect(withFrame.length).toBe(check.honest + latestConnected - 1);
     // (−1: travel был честным у аудита И заменён партией 2 — не двойной счёт.)
     expect(check.substitution + check.contentLost + check.nothingHappened + check.honest).toBe(30);
     expect(check.ringMax).toBe(0.09);

@@ -24,6 +24,10 @@
 // 1280×800 считается так, будто оно и есть 1280×800 (`minWindowAr`): кроп
 // упирается в предел, а остаток высоты уходит в поле сверху и снизу. См.
 // `sceneBand`.
+// ПАН ОКНА ПО КАДРУ (тикет 55) — тоже здесь: «окно 430 ездит по кадру 630»
+// (ADR-0006) из свойства контракта стало жестом, и вся арифметика позиции
+// окна собрана в одном месте (см. блок «Пан окна» в конце файла). Пан —
+// свойство ПОКАЗА, как кроп: карта координат не меняется ни на пиксель.
 import tokensJson from "@design/tokens.json";
 import { hitTargetMin, scene, type ZoneRect } from "@/config/design";
 import { round4, zoneScenePercent, type FrameGap, type SceneView } from "./camera";
@@ -291,4 +295,129 @@ export function zoneHitBox(rect: ZoneRect, view: SceneView, screen: Screen): Box
 export function clearBand(view: SceneView, screen: Screen): { top: number; bottom: number } {
   const l = immersiveLayout[view];
   return { top: l.railTop, bottom: screen.h - l.railBottom };
+}
+
+// ---------------------------------------------------------------------------
+// Пан окна по кадру (тикет 55) — только телефон.
+// ---------------------------------------------------------------------------
+//
+// ADR-0006 говорит про телефон: «окно 430 ездит по кадру и показывает его с 12
+// по 442». До тикета 55 «ездило» оно только наездом камеры; пан делает это
+// буквально: горизонтальный драг в покое сдвигает окно по кадру. Позиция окна —
+// ОДНО число `pan`: сдвиг окна ВПРАВО от покоя в px кадра (кадр и телефонная
+// сцена в одном масштабе, ADR-0006). pan = 0 — покой (окно 12…442);
+// pan = −12 — окно упёрлось в левый край кадра (0…430); pan = 188 — в правый
+// (200…630). Карта зон не участвует: пан, как и кроп, — свойство показа.
+//
+// ДЕСКТОПА ЗДЕСЬ НЕТ НАМЕРЕННО: там кадр виден целиком (cover, тикет 42),
+// панорамировать нечего — функции ниже принимают только телефонные величины,
+// а CSS-слой пана на десктопе выключен (scene.module.css).
+
+/**
+ * Диапазон пана: окно ходит по всему кадру, от левого края до правого.
+ * Числа не выдуманы: min = `scene.phone.image.x` (−12 — насколько окно в покое
+ * НЕ у левого края), max = 630 − 430 − 12 = 188 (остаток кадра справа).
+ */
+export function phonePanRange(): { min: number; max: number } {
+  const img = scene.phone.image;
+  return { min: img.x, max: img.w - scene.phone.w + img.x };
+}
+
+/** Пан, обрезанный диапазоном, — окно не выезжает за кадр. */
+export function clampPan(pan: number): number {
+  const { min, max } = phonePanRange();
+  return Math.min(max, Math.max(min, pan));
+}
+
+/** Какие колонки кадра видит окно при пане p: покой — [12, 442). */
+export function phoneWindowOnFrame(pan: number): { left: number; right: number } {
+  const img = scene.phone.image;
+  return { left: -img.x + pan, right: -img.x + pan + scene.phone.w };
+}
+
+/**
+ * Значение CSS-переменной `--win-pan`: сдвиг слоёв кадра и хотспотов в px
+ * ЭКРАНА (окно едет вправо ⟹ содержимое влево, знак минус). Пан задан в px
+ * кадра, экранный px другой (вьюпорт на телефоне равен ширине экрана —
+ * 430/390/375…), масштаб — ширина вьюпорта ÷ 430. Именно px, а не проценты:
+ * переменную читают ДВА слоя разной ширины (сани камеры — вьюпорт, слой
+ * хотспотов — кадр, 146.5% вьюпорта), и процент значил бы у них разные
+ * пиксели. Цена px — пересчёт при resize (use-scene-pan.ts его делает).
+ */
+export function phonePanShiftPx(pan: number, viewportWidth: number): number {
+  // `|| 0` съедает минус-ноль (−pan при pan = 0): в CSS уехало бы «-0px».
+  return round4((-pan * viewportWidth) / scene.phone.w) || 0;
+}
+
+/**
+ * Люфт намёка на край: зона считается «за краем», если спрятано БОЛЬШЕ этого.
+ * Число не выдумано: 12 = |image.x| — ровно столько кадра окно в покое не
+ * показывает слева, и это никогда не считалось «скрытой зоной» (ADR-0006
+ * описывает покой как «видно с 12 по 442», а заоконными зовёт зоны за 442).
+ * Порог симметричен: слева в покое намёк не горит ни в одной комнате
+ * (min x = 0), справа горит во всех десяти (3–5 зон за краем).
+ */
+export const EDGE_HINT_SLACK = -scene.phone.image.x;
+
+/**
+ * Намёк «за краем есть ещё»: с какой стороны окна стоят зоны, спрятанные
+ * больше чем на люфт. Правая кромка в покое горит всегда (33 зоны из 130 за
+ * правым краем — свойство кадра, тест immersive-layout), левая загорается,
+ * когда окно уехало вправо. Считается по ДАННЫМ видимых зон, не по пикселям.
+ */
+export function phoneEdgeHints(
+  zones: ReadonlyArray<{ rect: ZoneRect }>,
+  pan: number,
+): { left: boolean; right: boolean } {
+  const win = phoneWindowOnFrame(clampPan(pan));
+  return {
+    left: zones.some(({ rect }) => win.left - rect.x > EDGE_HINT_SLACK),
+    right: zones.some(({ rect }) => rect.x + rect.w - win.right > EDGE_HINT_SLACK),
+  };
+}
+
+/**
+ * Пан, который ставит центр зоны в центр окна (обрезан диапазоном). Дорога
+ * «достижимо паном»: самая широкая зона контракта (269) у́же окна (430),
+ * поэтому у КАЖДОЙ из 130 зон есть позиция окна с полной целью 44×44 —
+ * это разбиение теста immersive-layout («97 в покое + 33 паном»).
+ */
+export function phonePanToZone(rect: ZoneRect): number {
+  const img = scene.phone.image;
+  return clampPan(round4(rect.x + rect.w / 2 - scene.phone.w / 2 + img.x));
+}
+
+/** Прямоугольник зоны на экране при пане p — тот же расчёт, что zoneOnScreen. */
+export function phoneZoneOnScreenAtPan(rect: ZoneRect, screen: Screen, pan: number): Box {
+  const band = sceneBand("phone", screen);
+  const img = scene.phone.image;
+  return {
+    left: round4(band.left + ((rect.x + img.x - pan) / scene.phone.w) * band.width),
+    top: round4(band.top + ((rect.y + img.y) / scene.phone.h) * band.height),
+    width: round4((rect.w / scene.phone.w) * band.width),
+    height: round4((rect.h / scene.phone.h) * band.height),
+  };
+}
+
+/**
+ * Цель нажатия зоны при пане p: та же добивка до 44 и та же обрезка видимой
+ * сценой, что в `zoneHitBox` (при p = 0 они совпадают — под тестом). Этим
+ * числом тест и говорит «зона достижима паном»: существует p, при котором
+ * цель полная.
+ */
+export function phoneZoneHitBoxAtPan(rect: ZoneRect, screen: Screen, pan: number): Box {
+  const clip = sceneVisible("phone", screen);
+  const box = phoneZoneOnScreenAtPan(rect, screen, pan);
+  const growX = Math.max(0, hitTargetMin - box.width) / 2;
+  const growY = Math.max(0, hitTargetMin - box.height) / 2;
+  const left = Math.max(clip.left, box.left - growX);
+  const top = Math.max(clip.top, box.top - growY);
+  const right = Math.min(clip.left + clip.width, box.left + box.width + growX);
+  const bottom = Math.min(clip.top + clip.height, box.top + box.height + growY);
+  return {
+    left: round4(left),
+    top: round4(top),
+    width: round4(Math.max(0, right - left)),
+    height: round4(Math.max(0, bottom - top)),
+  };
 }

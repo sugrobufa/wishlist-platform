@@ -133,7 +133,12 @@ body {
 .imm-rail-bottom {
   bottom: 0;
   height: var(--imm-rail-bottom);
-  align-items: center;
+  /* Прижато к низу, не центр (тикет 55): последние 18 px полосы — зона
+     нажатия планки таб-бара, и содержимое отдаёт их своим нижним отступом
+     (zone-index.module.css → .stack, margin-bottom 18). Центровка ставила
+     пункты указателя зон в 7.5 px от края — ручка планки срезала их цели
+     до ~25 px (долг тикета 52, закрыт 55-м). */
+  align-items: flex-end;
 }
 
 .imm-row {

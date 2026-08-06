@@ -57,6 +57,7 @@ describe("числа 25a в CSS", () => {
       "--tb-strip-w: 112px;",
       "--tb-strip-h: 4px;",
       "--tb-strip-bottom: 14px;",
+      "--tb-strip-tap: 18px;",
       "--tb-sheet-h: 96px;",
       "--tb-sheet-row-h: 78px;",
       "--tb-sheet-handle-w: 36px;",
@@ -67,6 +68,40 @@ describe("числа 25a в CSS", () => {
     }
     // Кривая — интерфейсный out из motion.json, не самодельная.
     expect(css).toContain("--tb-ease: cubic-bezier(0.23, 1, 0.32, 1);");
+  });
+
+  it("жёлоб разведён с указателем зон: у планки свои 18 px, у пунктов — 44 (тикет 55)", () => {
+    // Долг тикета 52 закрыт: ручка планки больше не срезает цели центральных
+    // пунктов указателя. Числа живут в трёх файлах, их сверка — здесь.
+    //
+    // Бюджет нижней полосы (116, tokens.json → phoneImmersive.railBottom):
+    //   1 свободный + 44 действия + 4 шаг + 1 линия + 4 воздух + 44 пункты
+    //   + 18 планке = 116. Пункты кончаются в 18 px от низа экрана, зона
+    //   нажатия планки — нижние 18: пересечения ноль. Бар 112×4 стоит где
+    //   стоял (bottom 14, как в 25a): 14 + 4 = 18 — верхняя кромка бара
+    //   на границе своей зоны нажатия.
+    const zoneIndexCss = read("../src/components/scene/zone-index.module.css");
+    const globalsCss = read("../src/app/globals.css");
+
+    // Планка: высота зоны нажатия — из своей переменной, не из прежних 26.
+    expect(css).toContain("height: var(--tb-strip-tap);");
+    expect(css).not.toContain("height: 26px;");
+
+    // Указатель: стопка полосы отдаёт планке ровно её 18 и прижата к низу.
+    expect(zoneIndexCss).toContain("margin-bottom: 18px;");
+    expect(zoneIndexCss).toContain("gap: 4px;");
+    expect(zoneIndexCss).toContain("padding-top: 4px;");
+    expect(globalsCss).toMatch(/\.imm-rail-bottom \{[^}]*align-items: flex-end;/u);
+
+    // Арифметика жёлоба: две цели по 44, шаг, линия, воздух и планка — в 116.
+    const railBottom = 116;
+    const stack = 44 + 4 + 1 + 4 + 44;
+    const stripTap = 18;
+    const stripBottom = 14;
+    const stripBar = 4;
+    expect(stack + stripTap).toBeLessThanOrEqual(railBottom);
+    // Бар планки лежит внутри своей зоны нажатия, впритык к её верху.
+    expect(stripBottom + stripBar).toBe(stripTap);
   });
 
   it("цель нажатия вкладки — не меньше контрактных 44", () => {
