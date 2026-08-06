@@ -165,8 +165,11 @@ describe("design handoff contract", () => {
     }
     // 49 зон раундов 4–5 плюс cream/money и cream/beauty раунда 8 (у
     // cream/events rectOld был и раньше — раунд 5, теперь хранит прямоугольник,
-    // снятый раундом 8).
-    expect(allZones.filter(({ zone }) => zone.rectOld)).toHaveLength(51);
+    // снятый раундом 8). Раунд 11 добавил ещё две — `study/travel` и
+    // `loft/travel` (тикет 63): 51 стало 53. В реестр долга bloomAR они НЕ
+    // попали и он остался 44 — обеим пятно пересчитано по формуле пакета
+    // (study 75 → 67, loft 53 → 97) вместе с прямоугольником.
+    expect(allZones.filter(({ zone }) => zone.rectOld)).toHaveLength(53);
   });
 
   it("каждая зона лежит в границах КАДРА 630×351, а не окна 430", () => {
@@ -942,8 +945,14 @@ describe("флаги проверки: notClamped / eyeChecked / wrongTarget", (
     // «Загородном доме» стоял на сундуке ПОД проигрывателем. До раунда 4 он
     // стоял на самой вертушке (y 217) — раунд 4 сдвинул его вниз на 21
     // единицу, и это была регрессия, которую никто не заметил три раунда.
+    // Тикет 63 добавил в тот же раунд две зоны с той же болезнью: `study/travel`
+    // и `loft/travel` стояли на фронте НИЖНЕГО сундука (коробки), а раскрывается
+    // ВЕРХНИЙ, который на нём стоит. Диагноз пришёл от дизайна, числа измерены
+    // нами по оригиналам 4k — его замены съедали зону обуви и уезжали в x=0.
     expect(remapped.filter(({ zone }) => zone.remappedRound === 11).map((z) => z.id)).toEqual([
       "cottage/music",
+      "study/travel",
+      "loft/travel",
     ]);
     for (const { id, zone } of remapped) {
       expect(zone.notClamped, `${id}: после переразметки обрезки нет`).toBe(true);
