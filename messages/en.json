@@ -80,7 +80,12 @@
     "summaryPrice": "Price",
     "summaryBrands": "Brands",
     "summaryEmpty": "Nothing here yet",
-    "summaryEnter": "Step closer"
+    "summaryEnter": "Step closer",
+    "summaryFreeSingle": "one item, still free",
+    "summaryFreeAll": "all {m} free",
+    "summaryFreeLast": "1 of {m} free",
+    "summaryFreeSome": "{n} of {m} free",
+    "summaryFreeNone": "all {m} being gifted"
   },
   "ZoneGrid": {
     "tabsAria": "Love and want",
@@ -206,7 +211,14 @@
     "offerSentTitle": "The letter is on its way",
     "offerSentBody": "Open the link we sent to {email} — and we will build the room",
     "offerErrEmail": "Check the email — the link goes there",
-    "offerErr": "The letter did not go — try again"
+    "offerErr": "The letter did not go — try again",
+    "poolProgress": "{have} of {need} collected",
+    "poolDaysLeft": "{days} left",
+    "poolLastDay": "last day",
+    "poolShort": "{gap} short",
+    "poolJoin": "chip in",
+    "poolJoinAmount": "chip in · {suggest}",
+    "poolFull": "collected, waiting for the occasion"
   },
   "MyBookings": {
     "overline": "Guest",

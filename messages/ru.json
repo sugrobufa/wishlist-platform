@@ -80,7 +80,12 @@
     "summaryPrice": "Цена",
     "summaryBrands": "Марки",
     "summaryEmpty": "Пока пусто",
-    "summaryEnter": "Подойти ближе"
+    "summaryEnter": "Подойти ближе",
+    "summaryFreeSingle": "вещь одна и свободна",
+    "summaryFreeAll": "все {m} свободны",
+    "summaryFreeLast": "1 из {m} свободна",
+    "summaryFreeSome": "{n} из {m} свободны",
+    "summaryFreeNone": "все {m} уже дарят"
   },
   "ZoneGrid": {
     "tabsAria": "Люблю и хочу",
@@ -206,7 +211,14 @@
     "offerSentTitle": "Письмо ушло",
     "offerSentBody": "Открой ссылку из письма на {email} — и соберём комнату",
     "offerErrEmail": "Проверь почту — на неё придёт ссылка",
-    "offerErr": "Письмо не ушло — попробуй ещё раз"
+    "offerErr": "Письмо не ушло — попробуй ещё раз",
+    "poolProgress": "собрали {have} из {need}",
+    "poolDaysLeft": "осталось {days}",
+    "poolLastDay": "последний день",
+    "poolShort": "не хватает {gap}",
+    "poolJoin": "скинуться",
+    "poolJoinAmount": "скинуться · {suggest}",
+    "poolFull": "собрано, ждём праздника"
   },
   "MyBookings": {
     "overline": "Гость",

@@ -299,6 +299,23 @@ describe("словарь и дизайн-пакет", () => {
     // «Округлять цены», «около 60 000» вместо 62 000, и подпись значка
     // «видят друзья»). Экрана настроек зала в messages-ru.json дизайн не
     // положил — словарь пакета собирали до турна 12.
+    //
+    // `Scene.summaryFree*` — зонный счётчик гостя, строки турна 25d (тикет 51),
+    // дословно из новой поставки дизайна (zoneCounterGuest.cases): «все {m}
+    // свободны», «{n} из {m} свободны», «1 из {m} свободна», «все {m} уже
+    // дарят», «вещь одна и свободна». Показываются ТОЛЬКО гостю — у хозяйки
+    // то же место занято числом вещей (инвариант №1); случай «пока пусто»
+    // не дублирован: он уже живёт в `Scene.summaryEmpty`. Обновлённый
+    // handoff/messages-ru.json ещё не принят (приёмка словаря пакета —
+    // отдельный тикет), поэтому ключи пока сироты.
+    //
+    // `Booking.pool*` — строки складчины из того же турна 25d: прогресс,
+    // сроки и исходы, которые проходят инварианты (прогресс сбора виден
+    // только гостям, ADR-0008). НЕ перенесены и ждут решения владельца или
+    // правки дизайна: строки с именами участников («в складчине Аня…») —
+    // вопрос В4 реестра ещё открыт; «не собрали — деньги вернулись» —
+    // спорит с PRD §12а (деньги через сервис не ходят, возвращать нечего).
+    // Сам механизм складчины — Phase 2 (`POOL_NOT_SUPPORTED`).
     const own = [...ru.keys()].filter((key) => !handoff.has(key)).sort();
     expect(own).toEqual([
       "AddItem.back",
@@ -317,6 +334,13 @@ describe("словарь и дизайн-пакет", () => {
       "Booking.offerSubmit",
       "Booking.offerSubmitBusy",
       "Booking.offerTitle",
+      "Booking.poolDaysLeft",
+      "Booking.poolFull",
+      "Booking.poolJoin",
+      "Booking.poolJoinAmount",
+      "Booking.poolLastDay",
+      "Booking.poolProgress",
+      "Booking.poolShort",
       "Goal.amountLabel",
       "Goal.badge",
       "Goal.cancel",
@@ -382,6 +406,11 @@ describe("словарь и дизайн-пакет", () => {
       "Scene.summaryCountsGuest",
       "Scene.summaryEmpty",
       "Scene.summaryEnter",
+      "Scene.summaryFreeAll",
+      "Scene.summaryFreeLast",
+      "Scene.summaryFreeNone",
+      "Scene.summaryFreeSingle",
+      "Scene.summaryFreeSome",
       "Scene.summaryMore",
       "Scene.summaryPrice",
       "Settings.hallFriendsHint",
