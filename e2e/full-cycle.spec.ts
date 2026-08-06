@@ -97,7 +97,9 @@ async function signInWithMagicLink(page: Page, email: string): Promise<void> {
   await page.goto("/signin");
   await page.getByLabel("Твоя почта").fill(email);
   await page.getByRole("button", { name: "Прислать ссылку" }).click();
-  await expect(page.getByText("Письмо ушло")).toBeVisible();
+  // Роль-заголовок, не текст: анонсер маршрута Next дублирует тайтл страницы,
+  // и текстовый селектор ловит два элемента (strict mode, тикет 56).
+  await expect(page.getByRole("heading", { name: "Письмо ушло" })).toBeVisible();
 
   let magicUrl = "";
   await expect
