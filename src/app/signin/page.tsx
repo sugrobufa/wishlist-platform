@@ -9,13 +9,12 @@ import { ResendButton } from "./resend-button";
 
 export const dynamic = "force-dynamic";
 
-// Тайтл вкладки: «Вход — Grace». Имя площадки — Brand.name (решение
-// владельца 06.08.2026): один ключ, чтобы приезд SVG-логотипа и любые
-// переименования были заменой в одном месте.
+// Тайтл вкладки: «Вход — Grace». Хвост « — Grace» добавляет template
+// корневого layout (тикет 58) — здесь остаётся только своё имя страницы.
+// Само имя площадки живёт одним ключом Brand.name (тикет 56).
 export async function generateMetadata(): Promise<Metadata> {
   const t = await getTranslations("SignIn");
-  const brand = await getTranslations("Brand");
-  return { title: `${t("overline")} — ${brand("name")}` };
+  return { title: t("overline") };
 }
 
 /**

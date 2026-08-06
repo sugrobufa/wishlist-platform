@@ -1,4 +1,4 @@
-# ARCHITECTURE — Wishlist Platform
+# ARCHITECTURE — Grace (техимя репозитория — wishlist-platform)
 
 Версия 0.3 (синхронизирована с PRD 0.3 и дизайн-пакетом `design/package/`).
 

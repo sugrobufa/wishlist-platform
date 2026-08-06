@@ -181,6 +181,9 @@ export const nickSchema = z
  * сегодняшние (/r/settings выглядел бы как чужая страница), и кандидаты на
  * корневые адреса будущих фаз. Дефис в нике невозможен по формату, но
  * словарь держит и дефисные написания — на случай смягчения формата.
+ *
+ * Имя площадки тоже в резерве: `wishlist` (техимя) и `grace` (продуктовое,
+ * тикет 58) — чтобы /r/grace не оказался чьей-то личной комнатой.
  */
 const RESERVED_NICKS = new Set([
   "r", "api", "room", "rooms", "settings", "signin", "signout", "signup",
@@ -191,7 +194,7 @@ const RESERVED_NICKS = new Set([
   "static", "assets", "public", "img", "images", "files", "mail", "email",
   "new", "edit", "delete", "search", "sitemap", "robots", "favicon",
   "manifest", "worker", "test", "www", "app", "blog", "docs", "status",
-  "gdpr", "next", "_next", "wishlist",
+  "gdpr", "next", "_next", "wishlist", "grace",
 ]);
 
 /** true — слово занято системой (для подсказки в UI до сабмита). */

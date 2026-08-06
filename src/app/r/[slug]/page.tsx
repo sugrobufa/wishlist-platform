@@ -56,7 +56,11 @@ function absoluteUrl(path: string): string {
 // noindex стоит и на живой комнате, и на неизвестном слаге.
 export async function generateMetadata({ params }: Params): Promise<Metadata> {
   const { slug } = await params;
-  const [room, t] = await Promise.all([getRoom(slug), getTranslations("GuestRoom")]);
+  const [room, t, brand] = await Promise.all([
+    getRoom(slug),
+    getTranslations("GuestRoom"),
+    getTranslations("Brand"),
+  ]);
   const robots = { index: false, follow: false };
   if (!room) return { title: t("metaTitle", { name: t("ownerFallback") }), robots };
 
@@ -73,6 +77,10 @@ export async function generateMetadata({ params }: Params): Promise<Metadata> {
     openGraph: {
       title,
       description,
+      // Единственная ссылка продукта, которую пересылают, — комната гостя.
+      // Имя площадки в карточке одним ключом Brand.name (тикет 58); свой
+      // openGraph перекрывает корневой целиком, поэтому siteName нужен здесь.
+      siteName: brand("name"),
       type: "website",
       ...(image ? { images: [{ url: image }] } : {}),
     },

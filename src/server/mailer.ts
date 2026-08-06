@@ -16,7 +16,7 @@
 // «что подарили». Покрыто тестом (tests/mailer.worker.test.ts).
 
 import type { Transporter } from "nodemailer";
-import { fillMail, mailMessages } from "./mail-messages";
+import { brandName, fillMail, mailMessages } from "./mail-messages";
 
 // ---------- Транспорт ----------
 
@@ -162,6 +162,21 @@ function fillHtml(template: string, values: Record<string, string>): string {
   return escapeHtml(fillMail(template, values));
 }
 
+/**
+ * Подпись письма — имя площадки (тикет 58). Имя приходит из ЕДИНСТВЕННОГО
+ * ключа продукта (`Brand.name`, см. mail-messages), поэтому здесь только
+ * подстановка. Строка одна и та же у всех трёх писем: человек узнаёт, от кого
+ * письмо, до того как перейдёт по ссылке.
+ */
+function signature(): string {
+  return fillMail(mailMessages.Common.signature, { brand: brandName });
+}
+
+/** Та же подпись серым, последним абзацем письма. */
+function signatureHtml(): string {
+  return `<p style="margin:20px 0 0;color:#888888;font-size:13px;">${escapeHtml(signature())}</p>`;
+}
+
 // ---------- Шаблон: письмо входа ----------
 
 /**
@@ -171,7 +186,7 @@ function fillHtml(template: string, values: Record<string, string>): string {
 export function signInMail(url: string): MailContent {
   const t = mailMessages.SignInMail;
 
-  const text = [t.body, ``, url, ``, t.hint].join("\n");
+  const text = [t.body, ``, url, ``, t.hint, ``, signature()].join("\n");
 
   const html = [
     HTML_WRAP,
@@ -179,10 +194,11 @@ export function signInMail(url: string): MailContent {
     `<p style="margin:0 0 16px;">`,
     `<a href="${escapeHtml(url)}" style="color:#333333;">${escapeHtml(t.link)}</a></p>`,
     `<p style="margin:0;color:#888888;font-size:13px;">${escapeHtml(t.hint)}</p>`,
+    signatureHtml(),
     `</div>`,
   ].join("");
 
-  return { subject: t.subject, text, html };
+  return { subject: fillMail(t.subject, { brand: brandName }), text, html };
 }
 
 // ---------- Шаблон: напоминание гостю за 3 дня ----------
@@ -227,6 +243,8 @@ export function reminderGuestMail(params: ReminderGuestParams): MailContent {
     `${t.room}: ${roomUrl}`,
     ``,
     t.quiet,
+    ``,
+    signature(),
   ].join("\n");
 
   const html = [
@@ -239,6 +257,7 @@ export function reminderGuestMail(params: ReminderGuestParams): MailContent {
     ` — ${escapeHtml(t.bookingsHint)}<br/>`,
     `<a href="${escapeHtml(roomUrl)}" style="color:#333333;">${escapeHtml(t.room)}</a></p>`,
     `<p style="margin:0;color:#888888;font-size:13px;">${escapeHtml(t.quiet)}</p>`,
+    signatureHtml(),
     `</div>`,
   ].join("");
 
@@ -269,7 +288,16 @@ export function occasionOwnerMail(params: OccasionOwnerParams): MailContent {
   // Имени нет — здороваемся без него, а не с пустотой на его месте.
   const greeting = params.ownerName ? fillMail(t.greeting, values) : t.greetingNoName;
 
-  const text = [greeting, ``, t.body, `${t.link}: ${params.occasionUrl}`, ``, t.reveal].join("\n");
+  const text = [
+    greeting,
+    ``,
+    t.body,
+    `${t.link}: ${params.occasionUrl}`,
+    ``,
+    t.reveal,
+    ``,
+    signature(),
+  ].join("\n");
 
   const html = [
     HTML_WRAP,
@@ -277,6 +305,7 @@ export function occasionOwnerMail(params: OccasionOwnerParams): MailContent {
     `<p style="margin:0 0 16px;">${escapeHtml(t.body)}<br/>`,
     `<a href="${escapeHtml(params.occasionUrl)}" style="color:#333333;">${escapeHtml(t.link)}</a></p>`,
     `<p style="margin:0;color:#888888;font-size:13px;">${escapeHtml(t.reveal)}</p>`,
+    signatureHtml(),
     `</div>`,
   ].join("");
 

@@ -3,7 +3,7 @@
     "name": "Grace"
   },
   "Home": {
-    "overline": "Wishlist Platform · Phase 0",
+    "overline": "A room of wishes",
     "title": "The room opens soon",
     "subtitle": "Project skeleton is ready: Next.js 16, design tokens from handoff, passwordless auth.",
     "signedInAs": "Signed in as {email}",
@@ -450,7 +450,7 @@
     "participants": "{count, plural, =0 {nobody yet} one {# person has chipped in} other {# people have chipped in}}",
     "promiseDirect": "You hand the money over directly — we never take or transfer it",
     "promiseQuiet": "{name} will not see who gave how much",
-    "promiseHidden": "Guests do not see each other",
+    "promiseNames": "Only the others chipping in will see your name",
     "join": "I am in",
     "joinConfirm": "Done, count me in",
     "joining": "Saving…",

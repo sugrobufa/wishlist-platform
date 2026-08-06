@@ -131,9 +131,20 @@ describe("setRoomNick — занятие, смена, освобождение",
     expect((await roomOf(b.user.id)).nick).toBeNull();
   });
 
-  it("резерв слов: системные маршруты не выдаются", async () => {
+  // «grace» и «wishlist» — имя площадки и техимя (тикет 58): продуктовое имя
+  // не должно стать чьим-то адресом комнаты.
+  it("резерв слов: системные маршруты и имя площадки не выдаются", async () => {
     const { user } = await createOwnerWithRoom();
-    for (const reserved of ["settings", "api", "room", "signin", "demo", "onboarding"]) {
+    for (const reserved of [
+      "settings",
+      "api",
+      "room",
+      "signin",
+      "demo",
+      "onboarding",
+      "grace",
+      "wishlist",
+    ]) {
       expect(isReservedNick(reserved)).toBe(true);
       await expect(setRoomNick(user.id, reserved)).rejects.toMatchObject({
         code: "NICK_RESERVED",

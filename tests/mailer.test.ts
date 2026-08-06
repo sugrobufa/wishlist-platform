@@ -16,6 +16,7 @@ import {
   sendMail,
   signInMail,
 } from "../src/server/mailer";
+import { brandName } from "../src/server/mail-messages";
 
 const BASE = "https://rooms.test";
 const OCCASION_DATE = new Date("2026-03-14T00:00:00.000Z");
@@ -218,13 +219,48 @@ describe("signInMail — письмо входа", () => {
     const url = `${BASE}/signin/confirm?token=abc&email=dev%40x.ru`;
     const mail = signInMail(url);
 
-    expect(mail.subject).toBe("Вход в твою комнату");
+    expect(mail.subject).toBe(`Вход в твою комнату — ${brandName}`);
     expect(mail.text).toContain(url);
     // ссылку не трогаем: &amp; ушёл бы в адрес и сломал бы вход
     expect(mail.html).toContain(`href="${BASE}/signin/confirm?token=abc&amp;email=dev%40x.ru"`);
     // «Вход в вашу комнату» — то, с чего начинался тикет 32
     expect(`${mail.subject} ${mail.text}`.toLowerCase()).not.toContain("ваш");
     expect(mail.text).not.toContain("!");
+  });
+});
+
+describe("имя площадки в письмах (тикет 58)", () => {
+  // Имя берётся из ЕДИНСТВЕННОГО ключа продукта (`Brand.name`), поэтому тест
+  // сверяет с `brandName`, а не с литералом: переименование не должно
+  // требовать правок в двух местах. Адрес отправителя (EMAIL_FROM) — техимя,
+  // его тикет 58 не трогает.
+  const letters = {
+    вход: signInMail(`${BASE}/signin/confirm?token=abc`),
+    напоминание: reminderGuestMail({
+      guestName: "Паша",
+      ownerName: "Мила",
+      itemTitle: "Серьги-каффы",
+      occasionDate: OCCASION_DATE,
+      roomSlug: "x7k2m9",
+    }),
+    праздник: occasionOwnerMail({ ownerName: "Мила", occasionUrl: `${BASE}/room/occasion` }),
+  };
+
+  for (const [name, mail] of Object.entries(letters)) {
+    it(`письмо «${name}» подписано именем площадки`, () => {
+      expect(mail.text.trimEnd().endsWith(`${brandName} — комната, а не список`)).toBe(true);
+      expect(mail.html).toContain(`${brandName} — комната, а не список`);
+    });
+  }
+
+  it("тема письма входа несёт имя площадки", () => {
+    expect(letters.вход.subject).toContain(brandName);
+  });
+
+  it("подстановка {brand} нигде не осталась сырой", () => {
+    for (const mail of Object.values(letters)) {
+      expect(`${mail.subject} ${mail.text} ${mail.html}`).not.toContain("{brand}");
+    }
   });
 });
 

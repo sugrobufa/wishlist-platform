@@ -1,4 +1,4 @@
-# ROADMAP — Wishlist Platform
+# ROADMAP — Grace (техимя репозитория — wishlist-platform)
 
 Версия 0.3. Скоуп фаз выровнен по приоритетам дизайн-пакета (P0/P1/P2 из
 `design/package/handoff/README.md`, турн 19b). Фаза закрыта, когда выполнен её

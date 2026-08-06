@@ -7,13 +7,13 @@ import { SigninBackdrop } from "../backdrop";
 
 export const dynamic = "force-dynamic";
 
-// Тайтл — «Вход — Grace» (Brand.name, тикет 56); robots как были: страница
+// Тайтл — «Вход — Grace»: хвост даёт template корневого layout (тикет 58),
+// имя площадки — один ключ Brand.name (тикет 56). robots как были: страница
 // одноразовой ссылки в индексе не живёт.
 export async function generateMetadata(): Promise<Metadata> {
   const t = await getTranslations("SignIn");
-  const brand = await getTranslations("Brand");
   return {
-    title: `${t("confirmOverline")} — ${brand("name")}`,
+    title: t("confirmOverline"),
     robots: { index: false, follow: false },
   };
 }

@@ -19,8 +19,10 @@ type Params = { params: Promise<{ zone: string }> };
 
 export async function generateMetadata({ params }: Params): Promise<Metadata> {
   const { zone } = await params;
+  // Ключа зоны нет в пакете — тайтл не выдумываем: без него страница берёт
+  // `title.default` корневого layout, то есть имя площадки (тикет 58).
   return {
-    title: zoneInfo(zone)?.label ?? "Wishlist Platform",
+    title: zoneInfo(zone)?.label,
     robots: { index: false, follow: false },
   };
 }
