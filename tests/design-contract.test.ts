@@ -36,6 +36,23 @@ import {
 //   • прямоугольники НЕ менялись ни у одной зоны: восемь `placeBased` из
 //     пакета не приняты (см. `roomsContract.round7.rectsNotApplied`).
 //
+// ПРОСМОТР ГЛАЗАМИ (2026-08-06, тикет 49) — 30 кадров стали 7.
+//
+// Порог локальности мерит, что изменение произошло внутри прямоугольника. Он
+// НЕ мерит, что изменение — это обещанное действие: у каждой зоны есть
+// `openVerb` («шкатулка поднимает крышку»), и подпись эту человек видит на
+// экране (`zoneVerb` → `ZonePanel`). Владелец нажал на шкатулку в «Изумруде» —
+// вместо неё появились косметические палетки; кадр стоял `accepted: true`.
+//
+// Поэтому все 30 подключённых пар «базовый ↔ открыто» просмотрены глазами по
+// вырезкам (`.scratch/design-round-7/identity-check/`), вопрос к каждой один:
+// делает ли кадр ровно то, что обещает глагол, с тем же предметом и тем же
+// содержимым. Честных оказалось семь. Отключены 23: 17 подмен предмета или
+// окружения, 3 пропажи содержимого (половина одежды исчезла со штанги),
+// 3 кадра без действия (сменился только свет). Числа и причина у каждой зоны
+// лежат в контракте (`reshootReason`, «тикет 49»), сводка — `identityCheck`.
+// Пустое обещание раскрытия хуже его отсутствия, а раунд 8 переснимает всё.
+//
 // Что осталось с раундов 4–5 и не трогалось: координаты кадра 630×351
 // (ADR-0006), 49 переразмеченных зон с `rectOld`, `eyeChecked` на всех 130,
 // восемь `objectAbsent`, реестр пересечений, долг по `bloomAR`.
@@ -178,28 +195,46 @@ describe("design handoff contract", () => {
 });
 
 // ---------------------------------------------------------------------------
-// Кадры «открыто»: 30 принятых из 130 — и почему на экране их 26.
+// Кадры «открыто»: 7 принятых из 130 — и все семь видны на экране.
 //
-// Порог приёмки (DESIGN-BRIEF-04, `handoff/reshoot-recipe.md`, считает
-// `scripts/check-frames.mjs`): собственный прямоугольник обязан измениться на
-// ≥ 0.05 и при этом в ≥ 3 раза сильнее фона. Первое означает «предмет
-// действительно изменился», второе — «изменился только он»: продукт делает
-// кроссфейд между базовым кадром и «открыто», и поплывший фон читается как
-// рывок всей комнаты.
+// ДВЕ ПРОВЕРКИ, и они разные.
+//
+// 1. Порог локальности (DESIGN-BRIEF-04, `handoff/reshoot-recipe.md`, считает
+//    `scripts/check-frames.mjs`): собственный прямоугольник обязан измениться
+//    на ≥ 0.05 и при этом в ≥ 3 раза сильнее фона. Первое означает «предмет
+//    действительно изменился», второе — «изменился только он»: продукт делает
+//    кроссфейд между базовым кадром и «открыто», и поплывший фон читается как
+//    рывок всей комнаты.
+//
+// 2. Совпадение с обещанием (тикет 49) — только глазами. Порог по построению
+//    не отличает «шкатулку открыли» от «шкатулку заменили косметикой»: и то и
+//    другое локально. Автоматике здесь верить нельзя (`.scratch/STATE.md`,
+//    «чему НЕ верить» §1), поэтому вердикт на каждую из 30 пар вынесен
+//    просмотром, а кольцо в `check-frames.mjs` осталось флагом для глаза.
 // ---------------------------------------------------------------------------
 describe("кадры «открыто» (openFrame — единственный источник истины)", () => {
   const withFrame = allZones.filter(({ zone }) => zone.openFrame);
   const accepted = allZones.filter(({ zone }) => zone.accepted);
   const absent = allZones.filter(({ zone }) => zone.objectAbsent);
 
-  it("кадров «открыто» ровно 30, и столько же с флагом accepted", () => {
+  it("кадров «открыто» ровно 7, и столько же с флагом accepted", () => {
     // Счёт кадров по раундам: 49 → 39 (раунд 4 переразметил 35 зон) → 33
     // (раунд 5 исправил ещё 14 прямоугольников) → 30 (раунд 7: +1 новый,
-    // −4 никогда не проходивших порог). Флаг и данные снова совпадают,
-    // потому что теперь и то и другое ставит наше измерение, а не пакет.
-    expect(withFrame).toHaveLength(30);
-    expect(accepted).toHaveLength(30);
+    // −4 никогда не проходивших порог) → 7 (тикет 49: −23 по просмотру
+    // глазами). Флаг и данные совпадают, потому что и то и другое ставит наше
+    // измерение, а не пакет.
+    expect(withFrame).toHaveLength(7);
+    expect(accepted).toHaveLength(7);
     expect(absent).toHaveLength(8);
+    expect(withFrame.map((z) => z.id)).toEqual([
+      "cream/travel",
+      "gamer/travel",
+      "sport/anything",
+      "sport/sneakers",
+      "sport/travel",
+      "study/events",
+      "study/sport",
+    ]);
   });
 
   it("accepted ⟺ openFrame: флаг больше не может разойтись с данными", () => {
@@ -255,13 +290,13 @@ describe("кадры «открыто» (openFrame — единственный 
     expect(roomsContract.round7).toMatchObject({ shot: 130, passedOurThreshold: 12, connected: 1 });
   });
 
-  it("у остальных 29 кадров прямоугольник не двигался с раунда 3 — иначе порог мерили не там", () => {
+  it("у остальных 6 кадров прямоугольник не двигался с раунда 3 — иначе порог мерили не там", () => {
     // Это правило, из которого и вычитаются отключения: кадр действителен
     // ровно до тех пор, пока прямоугольник тот же, против которого его мерили.
     // `rectOld` — прямоугольник до последней переразметки; если он есть, зона
     // переразмечена, и кадр обязан быть снят заново.
     const round3 = withFrame.filter(({ zone }) => zone.frameRound !== 7);
-    expect(round3).toHaveLength(29);
+    expect(round3).toHaveLength(6);
     for (const { id, zone } of round3) {
       expect(zone.rectOld, `${id}: у зоны с кадром переразметки быть не может`).toBeUndefined();
       expect(zone.remappedRound, `${id}`).toBeUndefined();
@@ -301,13 +336,14 @@ describe("кадры «открыто» (openFrame — единственный 
     }
   });
 
-  it("состояние у зоны ровно одно: 30 + 92 + 8 = 130", () => {
+  it("состояние у зоны ровно одно: 7 + 115 + 8 = 130", () => {
     // Раунд 5 сломал разбиение с двух сторон сразу: шесть зон были «приняты без
     // кадра», пять стояли одновременно в «нет предмета» и «переснять». Обе
     // поломки шли от флагов пакета. Теперь флаги ставит наше измерение, и
     // арифметика снова сходится в одну строку — новый пакет сломает её сразу.
+    // Тикет 49 передвинул 23 зоны из «принято» в «переснять»: 92 → 115.
     const reshoot = allZones.filter(({ zone }) => zone.reshoot);
-    expect([accepted.length, reshoot.length, absent.length]).toEqual([30, 92, 8]);
+    expect([accepted.length, reshoot.length, absent.length]).toEqual([7, 115, 8]);
     const doubled = allZones.filter(
       ({ zone }) => [zone.accepted, zone.reshoot, zone.objectAbsent].filter(Boolean).length > 1,
     );
@@ -348,37 +384,24 @@ describe("кадры «открыто» (openFrame — единственный 
     }
   });
 
-  it("на экране 29 раскрытий: 30 кадров контракта − 1 (warm)", () => {
-    // ДВА РАЗНЫХ ЧИСЛА, и их легко перепутать между собой:
-    //   30 — зон с кадром `openFrame` в контракте, столько же файлов снято;
-    //   29 — раскрытий, которые человек может увидеть на экране.
-    // Разница 30 → 29 не про качество кадров:
-    //   −1  у комнат `warm` и `loft` базовый кадр пакета разошёлся с нынешним
-    //       сильнее порога композиции 0.05 — мебель поехала, прямоугольники к
-    //       этим кадрам не подходят, поэтому «открыто» у них не подключено
-    //       вовсе (ADR-0005). В контракте у них остался один кадр на двоих
-    //       (`warm/money`): два кадра `warm` сняла приёмка 46, у `loft` кадров
-    //       не осталось ещё после раунда 5.
-    // Прежде вычиталось ещё три — кадры скрытой зоны `money`. ADR-0008 зону
-    // включил, и на экран вышли `lux/money`, `bold/money`, `cottage/money`:
-    // конверт в этих комнатах действительно раскрывается. В остальных камера
-    // подъедет к конверту без раскрытия — как у любой зоны без кадра.
-    // Осторожно с историей: до раунда 4 контракт давал 49 принятых и ровно 39
-    // подключённых, и «39» успело осесть в ADR-0005 как «подключено».
-    expect(withFrame).toHaveLength(30);
+  it("на экране все 7 раскрытий: разрыв между контрактом и рендером закрылся", () => {
+    // ДВА РАЗНЫХ ЧИСЛА, которые прежде расходились и их легко было перепутать:
+    //   7 — зон с кадром `openFrame` в контракте, столько же файлов лежит;
+    //   7 — раскрытий, которые человек может увидеть на экране.
+    // Раньше разница была: у комнат `warm` и `loft` базовый кадр пакета
+    // разошёлся с нынешним сильнее порога композиции 0.05 — мебель поехала,
+    // прямоугольники к этим кадрам не подходят, поэтому «открыто» у них не
+    // подключено вовсе (ADR-0005). Единственный кадр `warm` (`warm/money`)
+    // сняла приёмка 49: конверт там подменён шкатулкой с украшениями. Правило
+    // про `warm`/`loft` осталось в силе и сторожится ниже — просто вычитать
+    // ему больше нечего.
+    expect(withFrame).toHaveLength(7);
     const connected = rooms.flatMap((room) =>
       room.zones.filter((zone) => zone.openFrame).map((zone) => `${room.id}/${zone.key}`),
     );
-    expect(connected).toHaveLength(29);
+    expect(connected).toHaveLength(7);
     expect(connected.filter((id) => id.startsWith("warm/") || id.startsWith("loft/"))).toEqual([]);
-    // Конверт раскрывается ровно в трёх комнатах — в контракте кадров четыре,
-    // четвёртый (`warm/money`) уехал вместе со всей комнатой.
-    expect(connected.filter((id) => id.endsWith("/money"))).toEqual([
-      "lux/money",
-      "bold/money",
-      "cottage/money",
-    ]);
-    expect(withFrame.filter(({ room }) => !["warm", "loft"].includes(room.id))).toHaveLength(29);
+    expect(withFrame.filter(({ room }) => !["warm", "loft"].includes(room.id))).toHaveLength(7);
     for (const room of rooms) {
       for (const zone of room.zones) {
         if (!zone.openFrame) continue;
@@ -387,17 +410,76 @@ describe("кадры «открыто» (openFrame — единственный 
     }
   });
 
-  it("кадры скрытой зоны money тоже на диске — флаг можно снять без 404", () => {
-    // zoneKeysHiddenByProduct прячет зону, но не выбрасывает её кадры: три
-    // оставшихся «money» (не warm, не loft) лежат готовыми. Было пять — раунд 5
-    // исправил прямоугольники `gamer/money` и `sport/money`, и их кадры уехали.
-    const moneyFrames = withFrame
-      .filter(({ room, zone }) => zone.key === "money" && !["warm", "loft"].includes(room.id))
-      .map(({ zone }) => framePath(zone.openFrame as string));
-    expect(moneyFrames).toHaveLength(3);
-    for (const file of moneyFrames) {
-      expect(existsSync(resolve(PKG, file)), file).toBe(true);
+  it("у зоны money кадров не осталось: конверт нигде не светится честно", () => {
+    // ADR-0008 вывел зону на экран, и до тикета 49 у неё было три кадра
+    // (`lux/money`, `bold/money`, `cottage/money`) плюс `warm/money` в
+    // контракте. Просмотр глазами снял все четыре: ни на одном конверт не
+    // светится — вместо него зеркальная карусель с косметикой (`lux`), банка
+    // с гирляндой и второй конверт из ниоткуда (`bold`), ряд бутылей вместо
+    // посылки (`cottage`), шкатулка с украшениями (`warm`). Камера к конверту
+    // подъедет, раскрытия не обещает — как у любой зоны без кадра.
+    const moneyFrames = withFrame.filter(({ zone }) => zone.key === "money");
+    expect(moneyFrames).toEqual([]);
+    for (const { id, zone } of allZones.filter(({ zone }) => zone.key === "money")) {
+      expect(zone.openVerb ?? null, `${id}: обещания без кадра не бывает`).toBeNull();
     }
+  });
+
+  it("23 кадра сняты просмотром глазами — с классом и причиной у каждого", () => {
+    // Порог локальности их пропустил by design: он мерит, что изменение
+    // случилось внутри прямоугольника, а не что это и есть обещанное действие.
+    // `emerald/jewelry` прошёл его с запасом (своя 0.3473, фон 0.0763,
+    // отн 4.55) — и подменил шкатулку косметикой.
+    const dropped = allZones.filter(({ zone }) => zone.reshootReason?.includes("тикет 49"));
+    expect(dropped).toHaveLength(23);
+    const byClass = (klass: string) =>
+      dropped.filter(({ zone }) => zone.reshootReason?.startsWith(klass)).map((z) => z.id);
+    expect(byClass("подмена")).toHaveLength(17);
+    expect(byClass("пропажа")).toEqual(["cream/fashion", "gamer/fashion", "sport/fashion"]);
+    expect(byClass("действия нет")).toEqual(["cream/jewelry", "emerald/bags", "bold/bags"]);
+    for (const { id, zone } of dropped) {
+      expect(zone.openFrame ?? null, `${id}: кадр снят`).toBeNull();
+      expect(zone.openVerb ?? null, `${id}: и обещание вместе с ним`).toBeNull();
+      expect(zone.accepted, `${id}`).toBe(false);
+      expect(zone.reshoot, `${id}: ушли в очередь на пересъёмку`).toBe(true);
+      expect(zone.reshootReason, `${id}: кольцо записано числом`).toMatch(
+        /Кольцо вокруг зоны 0\.\d+ при границе 0\.09$/u,
+      );
+    }
+    // Файлы уехали в legacy, а не удалены: имя освободилось под кадр раунда 8.
+    const shipped = new Set(readdirSync(resolve(PKG, "refs")));
+    const kept = new Set(readdirSync(resolve(PKG, "refs/legacy")));
+    for (const { id, room, zone } of dropped) {
+      expect(shipped.has(`o-${room.id}-${zone.key}.jpg`), `${id}: кадр обязан уехать`).toBe(false);
+      expect(kept.has(`round3-o-${room.id}-${zone.key}.jpg`), `${id}: но не пропасть`).toBe(true);
+    }
+  });
+
+  it("итог просмотра записан в контракт числами, а не только в отчёт", () => {
+    // Отчёт живёт в тикете и легко расходится с данными — как разошлось письмо
+    // дизайна («accepted стоит на каждой зоне» при 33 из 130). Сводка лежит
+    // рядом с флагами, и арифметика сходится с самими зонами.
+    const raw = JSON.parse(readFileSync(resolve(PKG, "handoff/rooms.json"), "utf8")) as {
+      identityCheck: {
+        reviewed: number;
+        honest: number;
+        substitution: number;
+        contentLost: number;
+        nothingHappened: number;
+        ringMax: number;
+        note: string;
+        ringNote: string;
+      };
+    };
+    const check = raw.identityCheck;
+    expect(check.reviewed).toBe(30);
+    expect(check.honest).toBe(withFrame.length);
+    expect(check.substitution + check.contentLost + check.nothingHappened + check.honest).toBe(30);
+    expect(check.ringMax).toBe(0.09);
+    // Кольцо — флаг для глаза, а не отказ. Это записано, чтобы следующий
+    // читатель не превратил его в порог: `study/events` кольцо не проходит.
+    expect(check.ringNote).toMatch(/ФЛАГ, а не как отказ/u);
+    expect(check.ringNote).toMatch(/study\/events/u);
   });
 
   it("на именах зон без кадра в refs не лежит ничего", () => {

@@ -1,0 +1,306 @@
+{
+ "mode": "self",
+ "ringMax": 0.09,
+ "rows": [
+  {
+   "zone": "anything",
+   "verb": "коробка раскрывается",
+   "own": 0.1099,
+   "bg": 0.0244,
+   "ratio": 4.51,
+   "ring": 0.073,
+   "ringPass": true,
+   "id": "cream/anything"
+  },
+  {
+   "zone": "bags",
+   "verb": "витрина открывается",
+   "own": 0.2652,
+   "bg": 0.0693,
+   "ratio": 3.83,
+   "ring": 0.101,
+   "ringPass": false,
+   "id": "cream/bags"
+  },
+  {
+   "zone": "fashion",
+   "verb": "створки расходятся",
+   "own": 0.0765,
+   "bg": 0.0248,
+   "ratio": 3.09,
+   "ring": 0.032,
+   "ringPass": true,
+   "id": "cream/fashion"
+  },
+  {
+   "zone": "jewelry",
+   "verb": "шкатулка поднимает крышку",
+   "own": 0.1116,
+   "bg": 0.0243,
+   "ratio": 4.59,
+   "ring": 0.0295,
+   "ringPass": true,
+   "id": "cream/jewelry"
+  },
+  {
+   "zone": "travel",
+   "verb": "чемодан раскрывается",
+   "own": 0.109,
+   "bg": 0.036,
+   "ratio": 3.03,
+   "ring": 0.0636,
+   "ringPass": true,
+   "id": "cream/travel"
+  },
+  {
+   "zone": "money",
+   "verb": "конверт светится",
+   "own": 0.2372,
+   "bg": 0.0366,
+   "ratio": 6.48,
+   "ring": 0.0668,
+   "ringPass": true,
+   "id": "warm/money"
+  },
+  {
+   "zone": "anything",
+   "verb": "коробка раскрывается",
+   "own": 0.1922,
+   "bg": 0.0346,
+   "ratio": 5.55,
+   "ring": 0.0583,
+   "ringPass": true,
+   "id": "lux/anything"
+  },
+  {
+   "zone": "money",
+   "verb": "конверт светится",
+   "own": 0.2674,
+   "bg": 0.0392,
+   "ratio": 6.81,
+   "ring": 0.166,
+   "ringPass": false,
+   "id": "lux/money"
+  },
+  {
+   "zone": "bags",
+   "verb": "витрина открывается",
+   "own": 0.0998,
+   "bg": 0.0332,
+   "ratio": 3.01,
+   "ring": 0.0236,
+   "ringPass": true,
+   "id": "emerald/bags"
+  },
+  {
+   "zone": "jewelry",
+   "verb": "шкатулка поднимает крышку",
+   "own": 0.3473,
+   "bg": 0.0763,
+   "ratio": 4.55,
+   "ring": 0.256,
+   "ringPass": false,
+   "id": "emerald/jewelry"
+  },
+  {
+   "zone": "bags",
+   "verb": "витрина открывается",
+   "own": 0.2025,
+   "bg": 0.0481,
+   "ratio": 4.21,
+   "ring": 0.0778,
+   "ringPass": true,
+   "id": "bold/bags"
+  },
+  {
+   "zone": "jewelry",
+   "verb": "шкатулка поднимает крышку",
+   "own": 0.1964,
+   "bg": 0.0533,
+   "ratio": 3.68,
+   "ring": 0.1472,
+   "ringPass": false,
+   "id": "bold/jewelry"
+  },
+  {
+   "zone": "money",
+   "verb": "конверт светится",
+   "own": 0.2373,
+   "bg": 0.0394,
+   "ratio": 6.03,
+   "ring": 0.1265,
+   "ringPass": false,
+   "id": "bold/money"
+  },
+  {
+   "zone": "perfume",
+   "verb": "флаконы выходят на свет",
+   "own": 0.3921,
+   "bg": 0.0981,
+   "ratio": 4,
+   "ring": 0.1437,
+   "ringPass": false,
+   "id": "bold/perfume"
+  },
+  {
+   "zone": "money",
+   "verb": "конверт светится",
+   "own": 0.1237,
+   "bg": 0.0403,
+   "ratio": 3.07,
+   "ring": 0.0535,
+   "ringPass": true,
+   "id": "cottage/money"
+  },
+  {
+   "zone": "perfume",
+   "verb": "флаконы выходят на свет",
+   "own": 0.264,
+   "bg": 0.0689,
+   "ratio": 3.83,
+   "ring": 0.0826,
+   "ringPass": true,
+   "id": "cottage/perfume"
+  },
+  {
+   "zone": "fashion",
+   "verb": "створки расходятся",
+   "own": 0.1293,
+   "bg": 0.0153,
+   "ratio": 8.45,
+   "ring": 0.0151,
+   "ringPass": true,
+   "id": "gamer/fashion"
+  },
+  {
+   "zone": "gaming",
+   "verb": "консоль выходит вперёд",
+   "own": 0.4045,
+   "bg": 0.0125,
+   "ratio": 32.37,
+   "ring": 0.1023,
+   "ringPass": false,
+   "id": "gamer/gaming"
+  },
+  {
+   "zone": "sneakers",
+   "verb": "витрина открывается",
+   "own": 0.2999,
+   "bg": 0.0135,
+   "ratio": 22.17,
+   "ring": 0.0192,
+   "ringPass": true,
+   "id": "gamer/sneakers"
+  },
+  {
+   "zone": "travel",
+   "verb": "чемодан раскрывается",
+   "own": 0.1125,
+   "bg": 0.0129,
+   "ratio": 8.7,
+   "ring": 0.0191,
+   "ringPass": true,
+   "id": "gamer/travel"
+  },
+  {
+   "zone": "anything",
+   "verb": "коробка раскрывается",
+   "own": 0.1605,
+   "bg": 0.0213,
+   "ratio": 7.55,
+   "ring": 0.0357,
+   "ringPass": true,
+   "id": "sport/anything"
+  },
+  {
+   "zone": "fashion",
+   "verb": "створки расходятся",
+   "own": 0.1683,
+   "bg": 0.0159,
+   "ratio": 10.61,
+   "ring": 0.0299,
+   "ringPass": true,
+   "id": "sport/fashion"
+  },
+  {
+   "zone": "sneakers",
+   "verb": "витрина открывается",
+   "own": 0.1606,
+   "bg": 0.017,
+   "ratio": 9.43,
+   "ring": 0.034,
+   "ringPass": true,
+   "id": "sport/sneakers"
+  },
+  {
+   "zone": "travel",
+   "verb": "чемодан раскрывается",
+   "own": 0.123,
+   "bg": 0.0166,
+   "ratio": 7.43,
+   "ring": 0.0615,
+   "ringPass": true,
+   "id": "sport/travel"
+  },
+  {
+   "zone": "anything",
+   "verb": "коробка раскрывается",
+   "own": 0.2786,
+   "bg": 0.0556,
+   "ratio": 5.01,
+   "ring": 0.1235,
+   "ringPass": false,
+   "id": "study/anything"
+  },
+  {
+   "zone": "events",
+   "verb": "билеты выходят из рамки",
+   "own": 0.3154,
+   "bg": 0.0138,
+   "ratio": 22.89,
+   "ring": 0.1295,
+   "ringPass": false,
+   "id": "study/events"
+  },
+  {
+   "zone": "fashion",
+   "verb": "створки расходятся",
+   "own": 0.1362,
+   "bg": 0.0451,
+   "ratio": 3.02,
+   "ring": 0.0357,
+   "ringPass": true,
+   "id": "study/fashion"
+  },
+  {
+   "zone": "grooming",
+   "verb": "несессер раскрывается",
+   "own": 0.4737,
+   "bg": 0.0515,
+   "ratio": 9.19,
+   "ring": 0.2014,
+   "ringPass": false,
+   "id": "study/grooming"
+  },
+  {
+   "zone": "sneakers",
+   "verb": "витрина открывается",
+   "own": 0.0703,
+   "bg": 0.016,
+   "ratio": 4.4,
+   "ring": 0.0152,
+   "ringPass": true,
+   "id": "study/sneakers"
+  },
+  {
+   "zone": "sport",
+   "verb": "стойка раскрывается",
+   "own": 0.0769,
+   "bg": 0.0206,
+   "ratio": 3.73,
+   "ring": 0.0432,
+   "ringPass": true,
+   "id": "study/sport"
+  }
+ ]
+}
