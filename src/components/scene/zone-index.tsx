@@ -125,7 +125,21 @@ export function ZoneIndex({ zones, zonesOff, summaries, viewer, accent }: ZoneIn
             // раскрывается влево, иначе уехала бы за край экрана.
             const flip = index / shown.length > FLIP_AFTER;
             return (
-              <li key={zone.key} className={s.item}>
+              <li
+                key={zone.key}
+                className={s.item}
+                // Наведение слушает ПУНКТ, а не кнопка (тикет 62). Карточка
+                // сводки — сосед кнопки, а не её потомок: пока наведение висело
+                // на кнопке, переход курсора кнопка → карточка считался уходом
+                // (pointerleave), подсветка гасла и карточка исчезала прямо
+                // из-под курсора. У общего родителя переход остаётся внутри
+                // элемента, и уход считается один раз — когда курсор ушёл и с
+                // пункта, и с карточки. Зазор в 10 px между ними закрыт мостом
+                // (.card::after в модуле): без него пункт терял наведение
+                // ровно посередине дороги.
+                onPointerEnter={() => actions?.setLit(zone.key)}
+                onPointerLeave={() => actions?.setLit(null)}
+              >
                 <button
                   type="button"
                   ref={(el) => {
@@ -142,8 +156,8 @@ export function ZoneIndex({ zones, zonesOff, summaries, viewer, accent }: ZoneIn
                   aria-label={t("zoneAria", { label: `${ordinal(index)} ${label}` })}
                   aria-current={zone.key === active ? "true" : undefined}
                   onClick={() => actions?.open(zone.key)}
-                  onPointerEnter={() => actions?.setLit(zone.key)}
-                  onPointerLeave={() => actions?.setLit(null)}
+                  // Фокус остаётся на кнопке: клавиатура ходит по кнопкам, а
+                  // наведение — забота пункта (выше).
                   onFocus={() => actions?.setLit(zone.key)}
                   onBlur={() => actions?.setLit(null)}
                 >
@@ -154,9 +168,25 @@ export function ZoneIndex({ zones, zonesOff, summaries, viewer, accent }: ZoneIn
 
                 {/* Сводка: только там, где есть настоящее наведение (ворота в
                     CSS-модуле), и только пока зона не открыта — подойдя, человек
-                    видит сами вещи. Нажатие не перехватывает никогда. */}
+                    видит сами вещи.
+
+                    НАЖИМАЕТСЯ ЦЕЛИКОМ (тикет 62): клик по карточке открывает ту
+                    же зону, что и клик по пункту снизу. Раньше она была насквозь
+                    прозрачной для мыши (pointer-events: none) — нажатие
+                    проваливалось в кадр за ней, и владелец видел окно, которое
+                    нажать невозможно.
+
+                    ДЛЯ ЧИТАЛКИ ЕЁ НЕТ: `aria-hidden` остаётся, tabIndex не
+                    появляется. Карточка не несёт ни одного слова и ни одного
+                    действия, которого нет у кнопки пункта, — второй контрол на
+                    ту же зону только удлинил бы обход. Мышь получает большую
+                    цель, клавиатура — прежнюю одну кнопку. */}
                 {zone.key === lit && !active && (
-                  <div className={flip ? `${s.card} ${s.cardFlip}` : s.card} aria-hidden>
+                  <div
+                    className={flip ? `pressable ${s.card} ${s.cardFlip}` : `pressable ${s.card}`}
+                    aria-hidden
+                    onClick={() => actions?.open(zone.key)}
+                  >
                     <div className={s.cardHead}>
                       <span className={s.cardTitle}>{label}</span>
                       {summary && summary.count > 0 && (
@@ -224,6 +254,12 @@ export function ZoneIndex({ zones, zonesOff, summaries, viewer, accent }: ZoneIn
                       </>
                     )}
 
+                    {/* «Подойти ближе» ОСТАЁТСЯ ПОДПИСЬЮ, а не становится
+                        кнопкой (тикет 62): нажимается вся карточка, и отдельная
+                        кнопка внутри неё была бы фокусируемым элементом внутри
+                        `aria-hidden`-поддерева — то самое нарушение, которое
+                        ловит правило aria-hidden-focus. Подпись говорит, что
+                        сделает нажатие; делает его любая точка карточки. */}
                     <div className={s.cardCta}>{t("summaryEnter")}</div>
                   </div>
                 )}
