@@ -9,6 +9,7 @@ export type TileItemLike = {
   state: "LOVE" | "WANT";
   photoUrl: string | null;
   isDemo: boolean;
+  title: string;
 };
 
 export type TileAppearance = {
@@ -20,14 +21,34 @@ export type TileAppearance = {
   greyFill: boolean;
   /** Демо-призрак: полупрозрачность и бейдж «пример». */
   ghost: boolean;
+  /**
+   * Буква названия на серой заливке — та же техническая пометка «фото нет»,
+   * что и сама заливка, только видимая (тикет 68). null, когда фото есть.
+   */
+  monogram: string | null;
 };
+
+/**
+ * Первая буква названия для заглушки. Разбор по code points, а не charAt:
+ * названия приходят от людей, и суррогатная пара (эмодзи в начале) не должна
+ * разъезжаться половинкой символа.
+ */
+function firstLetter(title: string): string | null {
+  const letter = [...title.trim()][0];
+  return letter ? letter.toLocaleUpperCase("ru") : null;
+}
 
 export function tileAppearance(item: TileItemLike): TileAppearance {
   const dashed = item.state === "WANT";
+  const greyFill = item.photoUrl === null;
   return {
     dashed,
     accentBar: dashed,
-    greyFill: item.photoUrl === null,
+    greyFill,
     ghost: item.isDemo,
+    // ИНВАРИАНТ №3 НЕ ЗАТРОНУТ: буква приходит вместе с серой заливкой, то
+    // есть кодирует ровно «фотографии нет», как заливка и кодировала. Пунктир
+    // по-прежнему говорит «хочу» и ставится независимо — их пары в коде нет.
+    monogram: greyFill ? firstLetter(item.title) : null,
   };
 }

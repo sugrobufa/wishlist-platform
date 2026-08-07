@@ -161,6 +161,21 @@ export const demoPools: Record<string, readonly DemoSeed[]> = {
 /** Демо-призрак — та же форма, что owner-DTO, но isDemo: true. */
 export type DemoGhostDto = OwnerItemDto & { isDemo: true };
 
+/**
+ * Примеры с фотографией — вперёд, внутри групп порядок пула сохраняется
+ * (тикет 68). Предметных кадров в пакете 15 на 19 пулов, и без сортировки
+ * зона нередко открывалась заглушкой в первой же плитке.
+ *
+ * ПОРЯДОК ПУЛА ТУТ НЕ ПЕРЕПИСЫВАЕТСЯ: сортируется копия, сами массивы
+ * `demoPools` остаются как объявлены — по ним же идёт посев стенда
+ * (services/stand-seed), и менять ему порядок создания вещей незачем.
+ * Сортировка устойчивая (`Array.prototype.sort` таким и обязан быть), значит
+ * состояния внутри групп по-прежнему чередуются, как задумано пулом.
+ */
+function orderByPhotoFirst(seeds: readonly DemoSeed[]): DemoSeed[] {
+  return [...seeds].sort((a, b) => Number(Boolean(b.photo)) - Number(Boolean(a.photo)));
+}
+
 /** Дата «появления» призрака — фиксированная (см. комментарий в demoGhostsFor). */
 const DEMO_CREATED_AT = "2026-01-01T12:00:00.000Z";
 
@@ -179,7 +194,7 @@ const DEMO_CREATED_AT = "2026-01-01T12:00:00.000Z";
  */
 export function demoGhostsFor(zoneKey: string, poolKey: string): DemoGhostDto[] {
   const seeds = (Object.hasOwn(demoPools, poolKey) ? demoPools[poolKey] : undefined) ?? [];
-  return seeds.map((seed, index) => {
+  return orderByPhotoFirst(seeds).map((seed, index) => {
     const base = {
       id: `demo:${zoneKey}:${index}`,
       zone: zoneKey,

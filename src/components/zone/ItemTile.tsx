@@ -75,6 +75,13 @@ export function ItemTile({ item, staggerIndex, action }: ItemTileProps) {
             aria-hidden
           />
         )}
+        {/* Плитка без фотографии — буквой названия, а не чёрной дырой
+            (тикет 68). Читалке она не нужна: название стоит подписью ниже. */}
+        {look.monogram && (
+          <span className={s.monogram} aria-hidden>
+            {look.monogram}
+          </span>
+        )}
         {look.accentBar && <div className={s.bar} aria-hidden />}
         {look.ghost && <span className={s.badge}>{t("demoBadge")}</span>}
       </div>

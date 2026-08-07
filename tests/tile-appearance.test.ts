@@ -8,7 +8,7 @@ import { tileAppearance, type TileItemLike } from "../src/components/zone/tile-a
 const PHOTO = "/rooms/p-vinyl.jpg";
 
 function make(overrides: Partial<TileItemLike>): TileItemLike {
-  return { state: "WANT", photoUrl: null, isDemo: false, ...overrides };
+  return { state: "WANT", photoUrl: null, isDemo: false, title: "Плетёная корзинка", ...overrides };
 }
 
 describe("tileAppearance", () => {
@@ -48,12 +48,47 @@ describe("tileAppearance", () => {
     for (const state of ["LOVE", "WANT"] as const) {
       for (const photoUrl of [null, PHOTO]) {
         for (const isDemo of [false, true]) {
-          const look = tileAppearance({ state, photoUrl, isDemo });
+          const look = tileAppearance({ state, photoUrl, isDemo, title: "Что-то" });
           expect(look.accentBar).toBe(look.dashed);
           expect(look.dashed).toBe(state === "WANT");
           expect(look.ghost).toBe(isDemo);
         }
       }
     }
+  });
+});
+
+// Заглушка вместо чёрной дыры (тикет 68, приёмка 07.08): владелец увидел
+// в зоне подряд четыре-пять пустых плиток. Предметных кадров в пакете 15 на
+// 19 пулов, у 54 примеров из 80 фотографии нет вовсе.
+describe("буква вместо отсутствующего фото", () => {
+  it("нет фото → первая буква названия заглавной", () => {
+    expect(tileAppearance(make({ title: "плетёная корзинка" })).monogram).toBe("П");
+    expect(tileAppearance(make({ title: "Ночной крем" })).monogram).toBe("Н");
+  });
+
+  it("есть фото → буквы нет: место занято настоящим кадром", () => {
+    expect(tileAppearance(make({ photoUrl: PHOTO })).monogram).toBeNull();
+  });
+
+  it("буква ходит РОВНО с серой заливкой — это одна и та же пометка «фото нет»", () => {
+    for (const state of ["LOVE", "WANT"] as const) {
+      for (const photoUrl of [null, PHOTO]) {
+        const look = tileAppearance(make({ state, photoUrl }));
+        expect(look.monogram !== null).toBe(look.greyFill);
+        // И НЕ ходит с пунктиром: инвариант №3 остаётся нетронутым.
+        expect(look.monogram !== null).toBe(photoUrl === null);
+      }
+    }
+  });
+
+  it("пустое или пробельное название буквы не даёт — рисовать нечего", () => {
+    expect(tileAppearance(make({ title: "" })).monogram).toBeNull();
+    expect(tileAppearance(make({ title: "   " })).monogram).toBeNull();
+  });
+
+  it("суррогатная пара в начале не разъезжается половинкой символа", () => {
+    // Название приходит от человека: эмодзи первым знаком — законный ввод.
+    expect(tileAppearance(make({ title: "🎁 подарок" })).monogram).toBe("🎁");
   });
 });
