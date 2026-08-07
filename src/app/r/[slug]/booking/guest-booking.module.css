@@ -21,7 +21,5 @@
   margin: 0;
 }
 
-.myBookingsLink {
-  font: 500 12px/1 var(--font-ui);
-  color: var(--color-text-muted);
-}
+/* Своего вида у ссылки «Мои брони» больше нет: она стала тихой пилюлей
+ * `.btn-quiet` (globals.css, тикет 86), общей со «Списком» по соседству. */

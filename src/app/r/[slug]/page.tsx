@@ -246,36 +246,43 @@ export default async function GuestRoomPage({ params }: Params) {
               viewer="guest"
               accent={preset.accent}
               below={
-                // Призыв собрать свою комнату — ПОД оглавлением (тикет 77).
-                // Прошёл зоны — получил предложение; так он и читается, и ни
-                // с чем не сталкивается.
+                // Всё, что словами, — ПОД оглавлением (тикет 77, расширен
+                // тикетом 85). Прошёл зоны — получил и другой вход в них, и
+                // предложение собрать свою. В строке НАД оглавлением места
+                // тексту нет: там по центру висит подсказка «коснись зоны»,
+                // и на 430 ей остаётся по 60 px с краёв (globals.css).
                 <>
-                  <p className="min-w-0 text-xs text-text-muted">{t("ctaHint")}</p>
-                  <Link
-                    href="/"
-                    className="pressable flex-none text-sm font-semibold"
-                    style={{ color: preset.accent }}
-                  >
-                    {t("cta")} →
-                  </Link>
+                  <div className="flex min-w-0 items-center gap-4">
+                    {/* Второй вход в то же содержимое (тикет 67): гость,
+                        который пришёл выбрать подарок за минуту, смотрит
+                        вещи списком. */}
+                    <Link
+                      href={`/r/${room.nick ?? room.shareSlug}/list`}
+                      className="pressable btn-quiet"
+                    >
+                      {tList("toList")}
+                    </Link>
+                    {/* «Мои брони · N» — появляется после клиентского fetch,
+                        если cookie непуст. */}
+                    <MyBookingsLink />
+                  </div>
+                  <div className="flex min-w-0 items-center gap-3">
+                    <p className="min-w-0 text-xs text-text-muted">{t("ctaHint")}</p>
+                    <Link
+                      href="/"
+                      className="pressable btn-quiet"
+                      style={{ "--pill-accent": preset.accent } as React.CSSProperties}
+                    >
+                      {t("cta")}
+                    </Link>
+                  </div>
                 </>
               }
             >
-              {/* Строка НАД оглавлением держит только короткие ссылки: по
-                  центру этой же полосы висит подсказка «коснись зоны», и
-                  длинному тексту тут места нет (тикет 77). */}
-              <div className="imm-actions">
-                {/* Второй вход в то же содержимое (тикет 67): гость, который
-                    пришёл выбрать подарок за минуту, смотрит вещи списком. */}
-                <Link
-                  href={`/r/${room.nick ?? room.shareSlug}/list`}
-                  className="pressable text-xs font-semibold text-text-muted hover:text-text-strong"
-                >
-                  {tList("toList")} →
-                </Link>
-                {/* «Мои брони · N» — появляется после клиентского fetch, если cookie непуст. */}
-                <MyBookingsLink />
-              </div>
+              {/* Строка НАД оглавлением у гостя пуста: её полоса отдана
+                  подсказке целиком (тикет 85). Высоту держит CSS, чтобы
+                  список не подъехал под пилюлю. */}
+              <div className="imm-actions" />
             </ZoneRail>
           </footer>
         </ZoneIndexProvider>

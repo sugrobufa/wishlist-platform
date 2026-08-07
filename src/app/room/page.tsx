@@ -190,11 +190,8 @@ export default async function RoomPage() {
               // как у гостя (тикет 77): прошёл зоны — вот другой способ их
               // посмотреть. Слот стоит вне прокрутки списка, поэтому ссылка
               // видна без листания.
-              <Link
-                href="/room/list"
-                className="pressable text-xs font-semibold text-text-muted hover:text-text-strong"
-              >
-                {tList("toList")} →
+              <Link href="/room/list" className="pressable btn-quiet">
+                {tList("toList")}
               </Link>
             }
           >
@@ -275,20 +272,23 @@ async function buildZoneContent(
       const node = (
         <div key={zone.key}>
           {showGrid && <ZoneGrid items={items} accent={preset.accent} ink={preset.ink} />}
-          <div className="mt-4 flex items-center gap-5">
+          {/* Оба перехода — тихие пилюли акцентом комнаты (тикет 86): текст
+              со стрелкой владелец на приёмке 07.08 прочитал как подпись, а не
+              как кнопку. */}
+          <div className="mt-4 flex flex-wrap items-center gap-3">
             <Link
               href={`/room/zone/${zone.key}`}
-              className="pressable inline-block text-xs font-semibold"
-              style={{ color: preset.accent }}
+              className="pressable btn-quiet"
+              style={{ "--pill-accent": preset.accent } as React.CSSProperties}
             >
-              {beyondSheet > 0 ? tScene("summaryMore", { count: beyondSheet }) : tZone("openFull")} →
+              {beyondSheet > 0 ? tScene("summaryMore", { count: beyondSheet }) : tZone("openFull")}
             </Link>
             {/* Добавить вещь сразу в открытую зону (полировка 16): ?zone=…
                 предвыбирает её в карточке добавления (контракт тикета 04). */}
             <Link
               href={`/room/add?zone=${zone.key}`}
-              className="pressable inline-block text-xs font-semibold"
-              style={{ color: preset.accent }}
+              className="pressable btn-quiet"
+              style={{ "--pill-accent": preset.accent } as React.CSSProperties}
             >
               + {tZone("addItem")}
             </Link>

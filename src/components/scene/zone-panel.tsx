@@ -57,6 +57,14 @@ export function ZonePanel({ zone, closing, accent, ink, children }: ZonePanelPro
       const body = panel.firstElementChild;
       const contentHeight = body ? body.scrollHeight : panel.scrollHeight;
       setMore(contentHeight - panel.scrollTop - panel.clientHeight > EDGE_SLACK);
+      // Своя высота — сцене, переменной (тикет 84). Подпись зоны с кнопкой
+      // «Отойти» стоит НАД листом, и её место считалось по худшему случаю:
+      // лист вправе подняться в нижнюю четверть кадра, поэтому подпись висела
+      // на 25% высоты кадра — посреди комнаты, поверх предметов. Владелец
+      // попросил опустить её в угол. Лист почти всегда ниже своего потолка,
+      // и с настоящей высотой подпись садится ровно на его кромку, а в
+      // пределе (лист во весь потолок) возвращается туда, где стояла.
+      panel.parentElement?.style.setProperty("--panel-h", `${panel.clientHeight}px`);
     };
     update();
     panel.addEventListener("scroll", update, { passive: true });

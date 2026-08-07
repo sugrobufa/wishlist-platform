@@ -15,7 +15,9 @@ export function MyBookingsLink() {
 
   return (
     <p className={s.myBookingsRow}>
-      <Link href="/my-bookings" className={`pressable ${s.myBookingsLink}`}>
+      {/* Тихая пилюля, как у соседнего «Списком» (тикет 86): в одной строке
+          два перехода, и разного вида им быть незачем. */}
+      <Link href="/my-bookings" className="pressable btn-quiet">
         {t("myBookingsLink", { count: myBookingsCount })}
       </Link>
     </p>

@@ -551,13 +551,18 @@ export function SceneStage({ preset, zonesOff, zoneContent, className }: SceneSt
         {zoomedIn && (
           <div className={phase === "closing" ? `${s.caption} ${s.captionOut}` : s.caption}>
             <h2 className={s.captionTitle}>{zoneLabel(activeZone)}</h2>
+            {/* «Отойти» — тихая пилюля из пакета (tokens.json →
+                button.secondary), с подложкой: кнопка стоит НА фотографии, и
+                на светлых комнатах белая обводка без заливки не видна
+                (тикет 79). Стрелки больше нет — она признак главной кнопки
+                (турн 22), а «Отойти» второстепенно. */}
             <button
               ref={backRef}
               type="button"
-              className={`pressable ${s.backButton}`}
+              className={`pressable btn-quiet btn-quiet-on-photo ${s.backButton}`}
               onClick={closeZone}
             >
-              ← {t("back")}
+              {t("back")}
             </button>
           </div>
         )}
