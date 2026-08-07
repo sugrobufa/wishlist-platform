@@ -52,6 +52,13 @@ export type SceneStageProps = {
    * RSC-узлы проходят через client-границу как children.
    */
   zoneContent?: Record<string, ReactNode>;
+  /**
+   * Комната сама едет от края до края, пока её не тронули (тикет 72, турн 28b).
+   * Включается ТОЛЬКО у гостя: он видит комнату впервые, и проезд показывает
+   * ему 33 зоны, которые в покое стоят за правым краем окна. Хозяйке остаётся
+   * «вздох» — своя комната ей знакома, и постоянное движение будет мешать.
+   */
+  drift?: boolean;
   className?: string;
 };
 
@@ -145,7 +152,13 @@ const BASE_VARS = {
   "--zone-marker-mask": markerMask(),
 } satisfies Record<string, string>;
 
-export function SceneStage({ preset, zonesOff, zoneContent, className }: SceneStageProps) {
+export function SceneStage({
+  preset,
+  zonesOff,
+  zoneContent,
+  drift = false,
+  className,
+}: SceneStageProps) {
   const t = useTranslations("Scene");
   const zones = useMemo(() => visibleZones(preset.zones, zonesOff), [preset.zones, zonesOff]);
 
@@ -285,6 +298,7 @@ export function SceneStage({ preset, zonesOff, zoneContent, className }: SceneSt
     panWindowRef,
     zones,
     enabled: !isDesktop,
+    drift,
     zoomed: zoomedIn,
     reducedMotion,
     presetId: preset.id,

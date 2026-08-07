@@ -51,6 +51,27 @@ const INTRO_HOLD_MS = 120;
 const INTRO_DELAY_MS = 900;
 const INTRO_SESSION_KEY = "wl-scene-pan-intro";
 
+/**
+ * Дрейф комнаты (тикет 72, турн 28b): окно медленно едет от края до края, пока
+ * человек читает, и само показывает 33 зоны, которые в покое стоят за правым
+ * краем. Только гостю: свою комнату хозяйка знает наизусть, ей остаётся
+ * «вздох» (ambient.drift — дыхание кадра, отдельный слой).
+ *
+ * АВТОПРОЕЗД ТИКЕТА 55 НЕ ЗАДВОЕН, а заменён: у гостя дрейф делает то же самое
+ * («комната шире экрана»), только не рывком в 40 единиц и обратно, а всё
+ * время. Держать оба значило бы показать одно и то же движение дважды подряд.
+ * У хозяйки дрейфа нет — там автопроезд остался как был.
+ *
+ * ЧИСЛА. Скорость 23 единицы кадра в секунду — с доски, турн 28b; своей фазы
+ * под проезд окна в motion.json нет. Форма движения взята из ближайшей по
+ * смыслу фазы `ambient.drift`: `loop: "yoyo"` (от края до края и обратно) и
+ * `easing: "ease-in-out"` («маятник разворачивается на концах» — её же
+ * примечание). Длительность плеча считается, а не задаётся: путь ÷ скорость,
+ * то есть 200 единиц ÷ 23 ≈ 8.7 с на проход.
+ */
+const DRIFT_UNITS_PER_S = 23;
+const DRIFT_DELAY_MS = 1400;
+
 type UseScenePanOptions = {
   /** Вьюпорт сцены — на нём слушатели и инлайн-переменные. */
   viewportRef: React.RefObject<HTMLDivElement | null>;
@@ -60,6 +81,12 @@ type UseScenePanOptions = {
   zones: readonly RoomZone[];
   /** Телефонная раскладка. На десктопе хук не делает ничего и не следит. */
   enabled: boolean;
+  /**
+   * Комната сама едет от края до края, пока её не тронули (тикет 72). Только
+   * гостю: он видит комнату впервые. Первое касание останавливает дрейф до
+   * конца сессии — иначе в зону не прицелиться.
+   */
+  drift?: boolean;
   /** Зона открыта: жест спит, окно передано камере (пан уезжает в ноль). */
   zoomed: boolean;
   reducedMotion: boolean;
@@ -91,6 +118,7 @@ export function useScenePan({
   panWindowRef,
   zones,
   enabled,
+  drift = false,
   zoomed,
   reducedMotion,
   presetId,
@@ -105,6 +133,8 @@ export function useScenePan({
   const suppressClickRef = useRef(false);
   const introTimersRef = useRef<number[]>([]);
   const introRidingRef = useRef(false);
+  /** Дрейф остановлен навсегда: тронули сцену или открыли зону (тикет 72). */
+  const driftStoppedRef = useRef(false);
   const settleTimerRef = useRef<number | null>(null);
 
   const zoomedRef = useRef(zoomed);
@@ -190,6 +220,8 @@ export function useScenePan({
 
     /** Перехват автопроезда пальцем: где сани сейчас, там окно и замирает. */
     const freezeIntro = () => {
+      // Тронули сцену — дрейф не возвращается в этой сессии (тикет 72).
+      driftStoppedRef.current = true;
       if (!introRidingRef.current) return;
       clearIntroRef.current();
       const sled = panWindowRef.current;
@@ -331,6 +363,9 @@ export function useScenePan({
   useEffect(() => {
     if (!enabled) return;
     if (zoomed) {
+      // Открыли зону — человек уже выбрал, показывать ему комнату больше не
+      // нужно: дрейф гаснет насовсем (тикет 72).
+      driftStoppedRef.current = true;
       clearIntroRef.current();
       savedPanRef.current = clampPan(panRef.current);
       if (panRef.current !== 0) {
@@ -355,9 +390,42 @@ export function useScenePan({
     }
   }, [enabled, zoomed]);
 
-  // --- Первовходный автопроезд: один раз за сессию --------------------------
+  // --- Дрейф комнаты: едет, пока не тронули (тикет 72) ----------------------
+  //
+  // Движение композитное: меняется одна переменная `--win-pan`, слои едут
+  // своим transition — ре-рендеров на кадр нет, как и у панорамы пальцем.
+  // Указатель зон синхронен по построению: он висит на той же переменной, а
+  // не на втором сдвиге (условие тикета).
   useEffect(() => {
-    if (!enabled || reducedMotion) return;
+    if (!enabled || !drift || reducedMotion) return;
+    if (driftStoppedRef.current) return;
+    // Показывать есть что: справа за краем стоят зоны — правило по данным.
+    if (!phoneEdgeHints(zonesRef.current, 0).right) return;
+
+    const { min, max } = phonePanRange();
+    const leg = (from: number, to: number) => {
+      if (driftStoppedRef.current || zoomedRef.current || dragRef.current) return;
+      introRidingRef.current = true;
+      panRef.current = to;
+      const ms = Math.round((Math.abs(to - from) / DRIFT_UNITS_PER_S) * 1000);
+      applyRef.current(to, ms, "ease-in-out");
+      const next = window.setTimeout(() => leg(to, to === max ? min : max), ms);
+      introTimersRef.current.push(next);
+    };
+
+    const start = window.setTimeout(() => leg(panRef.current, max), DRIFT_DELAY_MS);
+    introTimersRef.current.push(start);
+
+    const clearIntro = clearIntroRef.current;
+    return () => clearIntro();
+  }, [enabled, drift, reducedMotion, presetId, zoomed]);
+
+  // --- Первовходный автопроезд: один раз за сессию --------------------------
+  //
+  // У гостя его заменяет дрейф (тикет 72): одно и то же сообщение «комната
+  // шире экрана» двумя движениями подряд — шум.
+  useEffect(() => {
+    if (!enabled || reducedMotion || drift) return;
     try {
       if (window.sessionStorage.getItem(INTRO_SESSION_KEY)) return;
     } catch {
@@ -396,5 +464,5 @@ export function useScenePan({
 
     const clearIntro = clearIntroRef.current;
     return () => clearIntro();
-  }, [enabled, reducedMotion, presetId]);
+  }, [enabled, reducedMotion, drift, presetId]);
 }

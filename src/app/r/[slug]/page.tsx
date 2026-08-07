@@ -182,7 +182,16 @@ export default async function GuestRoomPage({ params }: Params) {
         {/* Указатель зон в нижней полосе (тикет 34) делит со сценой состояние
             «какая зона подсвечена и какая открыта» — отсюда провайдер. */}
         <ZoneIndexProvider>
-          <SceneStage preset={preset} zonesOff={room.zonesOff} zoneContent={zoneContent} />
+          {/* `drift` — только у гостя (тикет 72, турн 28b): комната сама едет
+              от края до края, пока её не тронули, и показывает 33 зоны,
+              которые в покое стоят за правым краем окна. Первое касание
+              останавливает проезд до конца сессии. */}
+          <SceneStage
+            preset={preset}
+            zonesOff={room.zonesOff}
+            zoneContent={zoneContent}
+            drift
+          />
 
           <header className="imm-rail imm-rail-top">
             {/* Та же сетка полосы, что у хозяйки (globals.css → .imm-top-grid):
