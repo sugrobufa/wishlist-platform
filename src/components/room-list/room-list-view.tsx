@@ -65,7 +65,9 @@ export function RoomListView({ groups, accent, roomHref, zoneHref }: RoomListVie
   const t = useTranslations("RoomList");
   const tGrid = useTranslations("ZoneGrid");
   const locale = useLocale();
-  const [filter, setFilter] = useState<Filter>("all");
+  // «Хочу» по умолчанию и первым (тикет 78) — то же правило, что во вкладках
+  // зоны: список затевался, чтобы выбрать подарок, а не листать витрину.
+  const [filter, setFilter] = useState<Filter>("want");
 
   const shown = useMemo(() => {
     if (filter === "all") return groups.filter((group) => group.items.length > 0);
@@ -81,9 +83,9 @@ export function RoomListView({ groups, accent, roomHref, zoneHref }: RoomListVie
   const total = useMemo(() => shown.reduce((sum, group) => sum + group.items.length, 0), [shown]);
 
   const filters: Array<[Filter, string]> = [
-    ["all", t("filterAll")],
     ["want", t("filterWant")],
     ["love", t("filterLove")],
+    ["all", t("filterAll")],
   ];
 
   return (
