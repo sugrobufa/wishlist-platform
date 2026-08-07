@@ -185,6 +185,18 @@ export default async function RoomPage() {
             summaries={zones?.summaries}
             viewer="owner"
             accent={accent}
+            below={
+              // Второй вход в то же содержимое (тикет 67) — ПОД оглавлением,
+              // как у гостя (тикет 77): прошёл зоны — вот другой способ их
+              // посмотреть. Слот стоит вне прокрутки списка, поэтому ссылка
+              // видна без листания.
+              <Link
+                href="/room/list"
+                className="pressable text-xs font-semibold text-text-muted hover:text-text-strong"
+              >
+                {tList("toList")} →
+              </Link>
+            }
           >
             {/* Вход в добавление вещи (полировка 16). «Полоса света» — главная
                 кнопка везде (турн 22), здесь тихого размера. ТОЛЬКО НА
@@ -197,20 +209,12 @@ export default async function RoomPage() {
             >
               {t("addItem")} →
             </Link>
-            <div className="imm-actions">
-              {/* Вместо карточки с адресом — один значок (тикет 24). Сам адрес
-                  живёт в «Настройках», рядом с ником, которым его и меняют. */}
-              <ShareButton path={sharePath} accent={accent} />
-              {/* Второй вход в то же содержимое (тикет 67): кто не хочет гулять
-                  по комнате, смотрит все вещи списком. Сцену не заменяет —
-                  стоит рядом с ней. */}
-              <Link
-                href="/room/list"
-                className="pressable text-xs font-semibold text-text-muted hover:text-text-strong"
-              >
-                {tList("toList")} →
-              </Link>
-            </div>
+            {/* В строке НАД оглавлением — только значок «поделиться». По центру
+                той же полосы висит подсказка «коснись зоны», и второй вещи там
+                места нет: тикет 73 поставил рядом «Списком →», и подсказка
+                легла прямо на неё (приёмка 07.08). Адрес комнаты живёт в
+                «Настройках», рядом с ником, которым его и меняют (тикет 24). */}
+            <ShareButton path={sharePath} accent={accent} />
           </ZoneRail>
         </div>
       </ZoneIndexProvider>
