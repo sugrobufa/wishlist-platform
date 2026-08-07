@@ -181,7 +181,8 @@ describe("design handoff contract", () => {
     // (objectAbsent, ужата, чтобы уступить полосу крышке кейса) и `lux/travel`
     // (поднят на раскрытый кейс). `gamer/anything` переразмечен вторично —
     // `rectOld` у него уже был. 60 стало 65.
-    expect(allZones.filter(({ zone }) => zone.rectOld)).toHaveLength(65);
+    // Тикет 81-3 добавил шестую — `emerald/anything`: 65 стало 66.
+    expect(allZones.filter(({ zone }) => zone.rectOld)).toHaveLength(66);
   });
 
   it("каждая зона лежит в границах КАДРА 630×351, а не окна 430", () => {

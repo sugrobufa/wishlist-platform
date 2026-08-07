@@ -1226,11 +1226,14 @@ describe("все 130 зон достижимы: кадром или указат
     // Тикет 81 перевёл ещё две зоны из «краем» в «целиком»: `gamer/anything`
     // (x 0 → 12) и `bold/anything` (была во всю ширину кадра, 269 единиц).
     // Сумма 130 не сдвинулась: 73 + 24 + 33.
-    expect(whole).toHaveLength(73);
+    // Тикет 81-3 перевёл четвёртую — `emerald/anything` (x 0 → 12): её левый
+    // край так и обрезал раскрытую коробку, из-за которой зона три раунда не
+    // снималась. Сумма 130 не сдвинулась: 74 + 23 + 33.
+    expect(whole).toHaveLength(74);
     const partial = allZones.filter(
       ({ id, rect }) => !zoneInsideViewport(rect, "phone") && !BEYOND_PHONE_WINDOW.includes(id),
     );
-    expect(partial).toHaveLength(24);
+    expect(partial).toHaveLength(23);
     expect(whole.length + partial.length + BEYOND_PHONE_WINDOW.length).toBe(130);
     // Левый свес — обратная сторона той же смены координат: кадр стоит в сцене
     // со сдвигом −12, поэтому зона у левого края кадра (x < 12) уходит под
@@ -1240,7 +1243,8 @@ describe("все 130 зон достижимы: кадром или указат
     // Было 14: тикет 81 увёл `gamer/anything` от левого края (x 0 → 12),
     // и свешиваться ей стало нечем. Осталось 12... плюс `bold/anything`,
     // которая тоже начиналась с нуля.
-    expect(allZones.filter(({ rect }) => rect.x < -scene.phone.image.x)).toHaveLength(12);
+    // Тикет 81-3 увёл от края `emerald/anything` (x 0 → 12): 12 → 11.
+    expect(allZones.filter(({ rect }) => rect.x < -scene.phone.image.x)).toHaveLength(11);
   });
 });
 
