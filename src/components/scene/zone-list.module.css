@@ -1,0 +1,134 @@
+/* Зоны списком под комнатой — телефон (тикет 66).
+ *
+ * Типографика снята с горизонтального указателя (zone-index.module.css):
+ * номер Archivo 9/.16em, подпись Archivo 11/.06em uppercase — это уже язык
+ * оглавления комнаты, и второго заводить незачем. Что добавлено списком:
+ * вторая строка со счётчиком (в полосе для неё не было места) и три
+ * миниатюры вещей.
+ *
+ * ТОЛЬКО ТЕЛЕФОН. На десктопе под комнатой пустоты нет, а сводка по наведению
+ * делает ту же работу богаче — там список не показывается вовсе, и порог тот
+ * же 1024, что у всей раскладки комнаты. */
+
+.list {
+  display: block;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior-y: contain;
+  scrollbar-width: none;
+  pointer-events: auto;
+  /* Список уезжает под края экрана, а не обрывается по гуттеру полосы —
+     тот же приём, что у горизонтального указателя. */
+  margin-inline: calc(var(--imm-gutter, 22px) * -1);
+  padding-inline: var(--imm-gutter, 22px);
+  /* Кромка-затухание внизу: низ не режется молча (правило тикета 59). */
+  mask-image: linear-gradient(180deg, #000 calc(100% - 28px), transparent 100%);
+}
+
+.list::-webkit-scrollbar {
+  display: none;
+}
+
+.items {
+  margin: 0;
+  padding: 0 0 20px;
+  list-style: none;
+}
+
+/* Специфичность (0,2,0) намеренно: в globals.css у `.imm-rail button` стоят
+   display/align-items/min-height, и без второго класса они бы победили. */
+.list .row {
+  display: flex;
+  width: 100%;
+  align-items: center;
+  gap: 12px;
+  min-height: 56px;
+  padding: 8px 0;
+  border: 0;
+  border-bottom: 1px solid var(--color-surface-hairline, rgba(255, 255, 255, 0.09));
+  background: none;
+  text-align: left;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.ordinal {
+  flex: none;
+  width: 18px;
+  font-family: var(--font-display);
+  font-size: 9px;
+  font-weight: 500;
+  letter-spacing: 0.16em;
+  color: rgba(255, 249, 242, 0.4);
+}
+
+.text {
+  display: flex;
+  flex: 1;
+  min-width: 0;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-family: var(--font-display);
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 1.2;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: rgba(255, 249, 242, 0.72);
+}
+
+.sub {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-family: var(--font-ui);
+  font-size: 11px;
+  font-weight: 500;
+  line-height: 1.2;
+  color: rgba(255, 249, 242, 0.38);
+}
+
+/* Открытая зона — акцентом комнаты, как активный пункт указателя. */
+.rowActive .ordinal,
+.rowActive .label {
+  color: var(--zl-accent, #e7c9a9);
+}
+
+.thumbs {
+  display: flex;
+  flex: none;
+  gap: 4px;
+}
+
+.thumb {
+  width: 34px;
+  height: 34px;
+  border: 1px solid var(--color-surface-hairline, rgba(255, 255, 255, 0.09));
+  border-radius: 2px;
+  background-color: var(--color-surface-fill);
+  background-size: cover;
+  background-position: center;
+}
+
+/* Пунктир кодирует «хочу», а не отсутствие фото (инвариант №3) — тот же
+   язык, что у плитки вещи и у миниатюр сводки. */
+.thumbWant {
+  border: 1px dashed var(--zl-accent, #e7c9a9);
+}
+
+.list .row:focus-visible {
+  outline: 1px dashed var(--zl-accent, #e7c9a9);
+  outline-offset: 2px;
+}
+
+@media (min-width: 1024px) {
+  .list {
+    display: none;
+  }
+}

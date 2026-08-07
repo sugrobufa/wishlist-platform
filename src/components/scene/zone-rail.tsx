@@ -2,6 +2,7 @@ import type { ReactNode } from "react";
 import type { RoomZone } from "@/config/design";
 import type { ZoneSummaryDto } from "@/server/dto/zone-summary";
 import { ZoneIndex } from "./zone-index";
+import { ZoneList } from "./zone-list";
 import s from "./zone-index.module.css";
 
 type ZoneRailProps = {
@@ -15,19 +16,34 @@ type ZoneRailProps = {
 };
 
 /**
- * Нижняя полоса интерфейса целиком: строка действий и под ней указатель зон
+ * Нижняя полоса интерфейса целиком: строка действий и под ней оглавление зон
  * (тикет 34). Отдельный компонент, потому что обе страницы комнаты — хозяйки
- * и гостя — собирают полосу одинаково, а раскладка внутри полосы (две строки
- * в 116 px) держится на классах модуля указателя.
+ * и гостя — собирают полосу одинаково.
  *
- * Серверный: указатель — единственная клиентская часть, и он свою границу
- * объявляет сам.
+ * ОГЛАВЛЕНИЕ ДВУХ ВИДОВ (тикет 66). На десктопе — горизонтальный указатель со
+ * сводкой по наведению (`ZoneIndex`, турн 17a). На телефоне — вертикальный
+ * список под комнатой (`ZoneList`): он занимает пустоту, которая оставалась
+ * ниже кадра, и показывает все зоны сразу, включая 33, что в покое стоят за
+ * правым краем окна.
+ *
+ * Рисуются ОБА, лишний гасится медиа-запросом своего модуля. `display: none`
+ * убирает узел и из дерева доступности — двойного обхода у читалки не будет,
+ * а разводить их условием в JS нельзя: страница серверная и ширины не знает.
+ *
+ * Серверный: клиентские границы объявляют оглавления сами.
  */
 export function ZoneRail({ zones, zonesOff, summaries, viewer, accent, children }: ZoneRailProps) {
   return (
     <div className={s.stack}>
       <div className="imm-row">{children}</div>
       <ZoneIndex
+        zones={zones}
+        zonesOff={zonesOff}
+        summaries={summaries}
+        viewer={viewer}
+        accent={accent}
+      />
+      <ZoneList
         zones={zones}
         zonesOff={zonesOff}
         summaries={summaries}

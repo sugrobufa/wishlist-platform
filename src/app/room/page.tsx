@@ -97,6 +97,11 @@ export default async function RoomPage() {
       style={
         {
           "--imm-gutter": `${immersiveLayout.phone.gap}px`,
+          // Высота кадра на телефоне — та же формула, что у сцены
+          // (scene.module.css → --band-h). Она нужна соседнему слою: с тикета
+          // 66 нижняя полоса начинается ровно под комнатой. Пропорция берётся
+          // из контракта, руками не набивается.
+          "--imm-scene-h": `min(calc(100vw / (${immersiveLayout.phone.ar})), 100dvh)`,
           ...(preset ? { "--room-image": `url(${roomImageUrl(preset.base)})` } : {}),
         } as CSSProperties
       }

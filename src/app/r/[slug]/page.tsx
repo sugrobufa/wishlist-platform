@@ -162,6 +162,10 @@ export default async function GuestRoomPage({ params }: Params) {
       style={
         {
           "--imm-gutter": `${immersiveLayout.phone.gap}px`,
+          // Высота кадра на телефоне — соседнему слою: нижняя полоса
+          // начинается ровно под комнатой (тикет 66, та же формула, что
+          // у сцены). Пропорция из контракта.
+          "--imm-scene-h": `min(calc(100vw / (${immersiveLayout.phone.ar})), 100dvh)`,
           "--room-image": `url(${roomImageUrl(preset.base)})`,
         } as CSSProperties
       }

@@ -92,7 +92,10 @@ describe("числа 25a в CSS", () => {
     const zoneIndexCss = read("../src/components/scene/zone-index.module.css");
     const globalsCss = read("../src/app/globals.css");
 
-    expect(globalsCss).toMatch(/\.imm-rail-bottom \{\s*bottom: var\(--imm-tab-bar\);/u);
+    // Телефонная ветка: полоса встаёт под комнату и над баром (тикеты 65, 66).
+    expect(globalsCss).toMatch(
+      /\.imm-rail-bottom \{\s*top: var\(--imm-scene-h\);\s*bottom: var\(--imm-tab-bar\);/u,
+    );
     expect(globalsCss).toMatch(/\.imm-rail-bottom \{[^}]*align-items: flex-end;/u);
     expect(zoneIndexCss).not.toContain("margin-bottom: 18px;");
     expect(zoneIndexCss).toContain("gap: 4px;");
