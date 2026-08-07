@@ -237,7 +237,9 @@
     "poolWho1": "{a} is in",
     "poolWho2": "{a} and {b} are in",
     "poolWhoMany": "{a}, {b} and {rest} more are in",
-    "poolWhoYou": "you, {a} and {rest} more"
+    "poolWhoYou": "you, {a} and {rest} more",
+    "errOwn": "This is your own room — you cannot gift to yourself. Guests see it exactly like this",
+    "errGone": "This item is gone — reload the page"
   },
   "MyBookings": {
     "overline": "Guest",

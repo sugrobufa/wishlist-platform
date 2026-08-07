@@ -21,6 +21,12 @@ import { createPortal } from "react-dom";
 import { useTranslations } from "next-intl";
 import { ShopLink } from "@/components/zone/shop-link";
 import { useGuestBooking } from "./booking-context";
+import {
+  bookingErrorKey,
+  marksItemTaken,
+  BOOKING_ERROR_MESSAGE,
+  type BookingErrorKey,
+} from "./booking-errors";
 import { GiftTag } from "./gift-tag";
 import { RoomOffer } from "./room-offer";
 import s from "./booking-dialog.module.css";
@@ -34,14 +40,13 @@ type BookingDialogProps = {
 };
 
 type Phase = "form" | "busy" | "done";
-type ErrorKey = "taken" | "rate" | "validation" | "generic" | null;
 
 export function BookingDialog({ item, ownerName, accent, onClose }: BookingDialogProps) {
   const t = useTranslations("Booking");
   const tShop = useTranslations("Shop");
   const { markBooked, markTaken } = useGuestBooking();
   const [phase, setPhase] = useState<Phase>("form");
-  const [error, setError] = useState<ErrorKey>(null);
+  const [error, setError] = useState<BookingErrorKey | null>(null);
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [mode, setMode] = useState<"QUIET" | "SIGNED">("QUIET");
@@ -76,18 +81,19 @@ export function BookingDialog({ item, ownerName, accent, onClose }: BookingDialo
         return;
       }
       setPhase("form");
-      if (response.status === 409) {
-        // Кто-то успел раньше — вещь честно помечаем занятой.
-        markTaken(item.id);
-        setError("taken");
-      } else if (response.status === 429) {
-        setError("rate");
-      } else if (response.status === 400) {
-        setError("validation");
-      } else {
-        setError("generic");
+      // Код из тела точнее статуса: 409 несут и «занято», и «вещь не „хочу"».
+      let code: string | null = null;
+      try {
+        const payload = (await response.json()) as { error?: { code?: string } };
+        code = payload.error?.code ?? null;
+      } catch {
+        // Тело не JSON (прокси, 502) — разбор упадёт на статус.
       }
+      const key = bookingErrorKey(code, response.status);
+      if (marksItemTaken(key)) markTaken(item.id);
+      setError(key);
     } catch {
+      // Сеть не дошла вовсе — тут кода нет и быть не может.
       setPhase("form");
       setError("generic");
     }
@@ -201,15 +207,7 @@ export function BookingDialog({ item, ownerName, accent, onClose }: BookingDialo
 
             {error && (
               <p className={s.error} role="alert">
-                {t(
-                  error === "taken"
-                    ? "errTaken"
-                    : error === "rate"
-                      ? "errRate"
-                      : error === "validation"
-                        ? "errValidation"
-                        : "errGeneric",
-                )}
+                {t(BOOKING_ERROR_MESSAGE[error])}
               </p>
             )}
 

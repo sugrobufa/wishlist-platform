@@ -471,6 +471,14 @@ describe("словарь и дизайн-пакет", () => {
       "AddItem.back",
       "AddItem.backToRoom",
       "AddItem.saveHint",
+      // Тикет 76: два новых отказа брони. Пакет знает `errTaken`/`errRate`/
+      // `errValidation`/`errGeneric`, а этих двух у него нет — оба про случаи,
+      // которых доска не рисовала. `errOwn` — владелец открыл СВОЮ комнату по
+      // гостевой ссылке (он на приёмке 07.08 в это и упёрся, получив безымянный
+      // отказ); `errGone` — вещь пропала между показом и нажатием. Написаны по
+      // памятке: говорим, ЧТО случилось, и что делать дальше.
+      "Booking.errGone",
+      "Booking.errOwn",
       "Booking.offerBody",
       "Booking.offerDateHint",
       "Booking.offerDateLabel",
