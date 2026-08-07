@@ -484,5 +484,20 @@
     "toList": "As a list",
     "toRoom": "To the room",
     "viewAria": "How to view the room"
+  },
+  "ZoneList": {
+    "sortAria": "Item order",
+    "sortDate": "by date",
+    "sortPrice": "by price",
+    "sortHidden": "hidden",
+    "select": "Select",
+    "selectDone": "Done",
+    "selectAria": "Select “{title}”",
+    "counts": "{total, plural, one {# item} other {# items}}",
+    "selected": "{count} selected",
+    "cancel": "Cancel",
+    "hideMany": "Hide {count, plural, one {# item} other {# items}}",
+    "freeOnly": "free only",
+    "emptyFree": "No gifts left unclaimed in this room"
   }
 }

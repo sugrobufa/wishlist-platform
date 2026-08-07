@@ -4,7 +4,8 @@ import { notFound } from "next/navigation";
 import { getGuestRoom } from "@/server/services/guest-room";
 import { rooms, zoneInfo } from "@/config/design";
 import { visibleZones } from "@/components/scene/zones";
-import { RoomListView, type RoomListGroup } from "@/components/room-list/room-list-view";
+import { type RoomListGroup } from "@/components/room-list/room-list-view";
+import { GuestRoomList } from "./guest-room-list";
 
 type Params = { params: Promise<{ slug: string }> };
 
@@ -80,7 +81,12 @@ export default async function GuestRoomAsListPage({ params }: Params) {
 
         {/* Заголовок группы у гостя — просто заголовок: своего экрана зоны
             у него нет, и вести ссылке некуда. */}
-        <RoomListView groups={groups} accent={preset.accent} roomHref={back} />
+        <GuestRoomList
+          slug={room.nick ?? room.shareSlug}
+          groups={groups}
+          accent={preset.accent}
+          roomHref={back}
+        />
       </div>
     </main>
   );

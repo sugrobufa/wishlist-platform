@@ -42,6 +42,13 @@ export type RoomListViewProps = {
    * экрана зоны нет, и заголовок остаётся просто заголовком.
    */
   zoneHref?: (key: string) => string;
+  /**
+   * Вещи комнаты с чужой бронью — приходит ТОЛЬКО у гостя (тикет 74, 29b):
+   * с ним появляется переключатель «только свободные». Хозяйке этот набор не
+   * передаётся и передан быть не может — инвариант №1 (тихая бронь) запрещает
+   * ей знать, что именно забрано; у неё есть один счётчик по комнате.
+   */
+  takenIds?: ReadonlySet<string>;
 };
 
 type Filter = "all" | "want" | "love";
@@ -64,24 +71,42 @@ function formatPrice(item: ZoneGridItem, locale: string): string | null {
   }
 }
 
-export function RoomListView({ groups, accent, roomHref, zoneHref }: RoomListViewProps) {
+export function RoomListView({
+  groups,
+  accent,
+  roomHref,
+  zoneHref,
+  takenIds,
+}: RoomListViewProps) {
   const t = useTranslations("RoomList");
   const tGrid = useTranslations("ZoneGrid");
+  const tZone = useTranslations("ZoneList");
   const locale = useLocale();
+  const [freeOnly, setFreeOnly] = useState(false);
   // «Хочу» по умолчанию и первым (тикет 78) — то же правило, что во вкладках
   // зоны: список затевался, чтобы выбрать подарок, а не листать витрину.
   const [filter, setFilter] = useState<Filter>("want");
 
   const shown = useMemo(() => {
-    if (filter === "all") return groups.filter((group) => group.items.length > 0);
+    // «Только свободные» — фильтр по ОТСУТСТВИЮ брони, поверх вкладки.
+    // Свободным может быть только «хочу»: «люблю» уже своё, дарить нечего.
+    const free = (items: ZoneGridItem[]) =>
+      freeOnly && takenIds
+        ? items.filter((item) => item.state === "WANT" && !takenIds.has(item.id))
+        : items;
+    if (filter === "all") {
+      return groups
+        .map((group) => ({ ...group, items: free(group.items) }))
+        .filter((group) => group.items.length > 0);
+    }
     const want = filter === "want";
     return groups
       .map((group) => ({
         ...group,
-        items: group.items.filter((item) => (item.state === "WANT") === want),
+        items: free(group.items.filter((item) => (item.state === "WANT") === want)),
       }))
       .filter((group) => group.items.length > 0);
-  }, [groups, filter]);
+  }, [groups, filter, freeOnly, takenIds]);
 
   const total = useMemo(() => shown.reduce((sum, group) => sum + group.items.length, 0), [shown]);
 
@@ -118,10 +143,25 @@ export function RoomListView({ groups, accent, roomHref, zoneHref }: RoomListVie
             {label}
           </button>
         ))}
+        {/* «Только свободные» (турн 29b-guest): отдельный переключатель, а не
+            четвёртая вкладка — он ортогонален «Хочу/Люблю» и складывается с
+            ними. Гостю знать о бронях можно: инвариант №1 закрывает их от
+            ХОЗЯЙКИ, и набор занятых сюда приходит только на её половине
+            отсутствующим. */}
+        {takenIds && (
+          <button
+            type="button"
+            aria-pressed={freeOnly}
+            className={freeOnly ? `pressable ${s.filter} ${s.filterOn}` : `pressable ${s.filter}`}
+            onClick={() => setFreeOnly((value) => !value)}
+          >
+            {tZone("freeOnly")}
+          </button>
+        )}
       </div>
 
       {total === 0 ? (
-        <p className={s.empty}>{t("empty")}</p>
+        <p className={s.empty}>{freeOnly ? tZone("emptyFree") : t("empty")}</p>
       ) : (
         shown.map((group) => (
           <section key={group.key} className={s.group}>

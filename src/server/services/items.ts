@@ -367,6 +367,32 @@ export async function setItemHidden(userId: string, itemId: string, hidden: bool
 }
 
 /**
+ * Массовое скрытие/показ (тикет 74, турн 29b): хозяйка выбирает несколько
+ * вещей галочками и прячет их одной кнопкой.
+ *
+ * ХОДИТ ТОЙ ЖЕ ДОРОГОЙ, что и одиночное скрытие, — циклом по `setItemHidden`,
+ * а не своим update. Это требование тикета, и оно не про красоту: при скрытии
+ * сервис ОБЯЗАН снять активную бронь (`releaseBookingForItem`, контракт
+ * тикета 09). Свой batch-update молча оставил бы брони висеть — ровно та
+ * «дыра до тикета 13», которую однажды уже чинили.
+ *
+ * Чужая вещь роняет всю операцию: `requireOwnItem` внутри бросает, и наверх
+ * уходит `ItemMutationError`. Полумер тут быть не должно — хозяйка нажала
+ * «Скрыть 3 вещи» и вправе считать, что спрятаны либо три, либо ни одной.
+ */
+export async function setItemsHidden(
+  userId: string,
+  itemIds: readonly string[],
+  hidden: boolean,
+): Promise<number> {
+  const ids = z.array(z.string().min(1)).min(1).max(200).parse(itemIds);
+  for (const id of ids) {
+    await setItemHidden(userId, id, hidden);
+  }
+  return ids.length;
+}
+
+/**
  * Удалить вещь навсегда (подтверждение — на клиенте). Бронь снимается явно
  * ДО удаления (контракт тикета 09: честнее и дешевле, чем полагаться на
  * каскад молча), затем строка удаляется; PriceSnapshot уходит каскадом.

@@ -640,6 +640,24 @@ describe("словарь и дизайн-пакет", () => {
       "TabBar.room",
       "TabBar.settings",
       "TabBar.tabsAria",
+      // Экран зоны списком (тикет 74, турн 29b): чипы порядка, выбор вещей,
+      // массовое скрытие и гостевой фильтр «только свободные». Слова с доски
+      // 29b дословно («по дате», «по цене», «скрытые», «Скрыть 2 вещи»,
+      // «только свободные»); в messages-ru.json пакета этого экрана нет —
+      // словарь собирали до турна 29.
+      "ZoneList.cancel",
+      "ZoneList.counts",
+      "ZoneList.emptyFree",
+      "ZoneList.freeOnly",
+      "ZoneList.hideMany",
+      "ZoneList.select",
+      "ZoneList.selectAria",
+      "ZoneList.selectDone",
+      "ZoneList.selected",
+      "ZoneList.sortAria",
+      "ZoneList.sortDate",
+      "ZoneList.sortHidden",
+      "ZoneList.sortPrice",
     ]);
   });
 });

@@ -26,4 +26,10 @@ export type ZoneGridItem = {
   giverName?: string | null;
   receivedAt?: string | null;
   hidden?: boolean;
+  /**
+   * Когда вещь заведена — для чипа «по дате» на экране зоны (тикет 74, 29b).
+   * Приходит из обоих DTO (owner и guest) и в виде не участвует: сортировка
+   * пользуется им, плитка — нет.
+   */
+  createdAt?: string;
 };

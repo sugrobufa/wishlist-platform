@@ -484,5 +484,20 @@
     "toList": "Списком",
     "toRoom": "В комнату",
     "viewAria": "Как смотреть комнату"
+  },
+  "ZoneList": {
+    "sortAria": "Порядок вещей",
+    "sortDate": "по дате",
+    "sortPrice": "по цене",
+    "sortHidden": "скрытые",
+    "select": "Выбрать",
+    "selectDone": "Готово",
+    "selectAria": "Выбрать «{title}»",
+    "counts": "{total, plural, one {# вещь} few {# вещи} many {# вещей} other {# вещи}}",
+    "selected": "выбрано {count}",
+    "cancel": "Отмена",
+    "hideMany": "Скрыть {count, plural, one {# вещь} few {# вещи} many {# вещей} other {# вещи}}",
+    "freeOnly": "только свободные",
+    "emptyFree": "Свободных подарков в этой комнате не осталось"
   }
 }

@@ -13,6 +13,7 @@ import {
   deleteItem,
   selfFulfill,
   setItemHidden,
+  setItemsHidden,
   toggleHall,
   updateItem,
 } from "@/server/services/items";
@@ -37,6 +38,28 @@ export async function setItemHiddenAction(itemId: string, hidden: boolean): Prom
   } catch (error) {
     if (error instanceof ItemMutationError) return { error: "NOT_FOUND" };
     if (error instanceof ZodError) return { error: "GENERIC" };
+    throw error;
+  }
+  return undefined;
+}
+
+/**
+ * Скрыть несколько вещей разом (тикет 74). Идёт через тот же `setItemHidden`,
+ * что и одиночное скрытие, — значит брони снимаются, а не повисают.
+ */
+export async function setItemsHiddenAction(
+  itemIds: string[],
+  hidden: boolean,
+): Promise<ItemActionResult> {
+  const session = await auth();
+  const userId = await getSessionUserId(session?.user);
+  if (!userId) return { error: "AUTH" };
+
+  try {
+    await setItemsHidden(userId, itemIds.map(String), Boolean(hidden));
+  } catch (error) {
+    if (error instanceof ItemMutationError) return { error: "NOT_FOUND" };
+    if (error instanceof ZodError) return { error: "VALIDATION" };
     throw error;
   }
   return undefined;
