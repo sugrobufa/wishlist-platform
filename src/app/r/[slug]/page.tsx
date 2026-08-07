@@ -220,8 +220,12 @@ export default async function GuestRoomPage({ params }: Params) {
                     этот заход, иначе кэш страницы обещал бы уже занятое. */}
                 <FreeGifts count={room.freeGiftCount} accent={preset.accent} />
                 {/* Честная строка (турн 12b): человек имеет право знать, что
-                    его не считают и не заставят заводить аккаунт. */}
-                <p className="flex items-center gap-1.5 text-xs text-text-faint">
+                    его не считают и не заставят заводить аккаунт.
+                    ТОЛЬКО НА ДЕСКТОПЕ (тикет 77): на телефоне владелец назвал
+                    её лишней на первом экране — там и так три строки над
+                    комнатой. Обещание не выброшено, оно переехало туда, где
+                    работает: в лист брони, прямо над полем имени. */}
+                <p className="imm-desktop-only flex items-center gap-1.5 text-xs text-text-faint">
                   {/* Замок — канон 25a «Приватность» (тикет 52): наш и был
                       теми же путями, только контур 1.8 против канонных 1.7. */}
                   <IconLock size={13} className="flex-none" />
@@ -241,8 +245,25 @@ export default async function GuestRoomPage({ params }: Params) {
               summaries={room.summariesByZone}
               viewer="guest"
               accent={preset.accent}
+              below={
+                // Призыв собрать свою комнату — ПОД оглавлением (тикет 77).
+                // Прошёл зоны — получил предложение; так он и читается, и ни
+                // с чем не сталкивается.
+                <>
+                  <p className="min-w-0 text-xs text-text-muted">{t("ctaHint")}</p>
+                  <Link
+                    href="/"
+                    className="pressable flex-none text-sm font-semibold"
+                    style={{ color: preset.accent }}
+                  >
+                    {t("cta")} →
+                  </Link>
+                </>
+              }
             >
-              <p className="min-w-0 text-xs text-text-muted">{t("ctaHint")}</p>
+              {/* Строка НАД оглавлением держит только короткие ссылки: по
+                  центру этой же полосы висит подсказка «коснись зоны», и
+                  длинному тексту тут места нет (тикет 77). */}
               <div className="imm-actions">
                 {/* Второй вход в то же содержимое (тикет 67): гость, который
                     пришёл выбрать подарок за минуту, смотрит вещи списком. */}
@@ -254,13 +275,6 @@ export default async function GuestRoomPage({ params }: Params) {
                 </Link>
                 {/* «Мои брони · N» — появляется после клиентского fetch, если cookie непуст. */}
                 <MyBookingsLink />
-                <Link
-                  href="/"
-                  className="pressable text-sm font-semibold"
-                  style={{ color: preset.accent }}
-                >
-                  {t("cta")} →
-                </Link>
               </div>
             </ZoneRail>
           </footer>

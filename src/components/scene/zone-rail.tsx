@@ -13,6 +13,17 @@ type ZoneRailProps = {
   accent: string;
   /** Действия полосы — «Добавить вещь», «поделиться», призыв гостю. */
   children: ReactNode;
+  /**
+   * Что стоит ПОД оглавлением зон, а не над ним (тикет 77). Нужно гостю:
+   * его призыв «Понравилось? Собрать свою →» — длинная строка, и в узкой
+   * полосе над списком она сталкивалась с подсказкой «коснись зоны», которая
+   * висит там же по центру. Под списком она читается естественнее: сначала
+   * человек прошёл зоны, потом ему предлагают собрать такую же.
+   *
+   * На десктопе полоса — лента в 116 px, оглавление в ней горизонтальное,
+   * и «под списком» означает «в той же ленте ниже»: там места хватает обоим.
+   */
+  below?: ReactNode;
 };
 
 /**
@@ -32,7 +43,15 @@ type ZoneRailProps = {
  *
  * Серверный: клиентские границы объявляют оглавления сами.
  */
-export function ZoneRail({ zones, zonesOff, summaries, viewer, accent, children }: ZoneRailProps) {
+export function ZoneRail({
+  zones,
+  zonesOff,
+  summaries,
+  viewer,
+  accent,
+  children,
+  below,
+}: ZoneRailProps) {
   return (
     <div className={s.stack}>
       <div className="imm-row">{children}</div>
@@ -50,6 +69,7 @@ export function ZoneRail({ zones, zonesOff, summaries, viewer, accent, children 
         viewer={viewer}
         accent={accent}
       />
+      {below && <div className={s.below}>{below}</div>}
     </div>
   );
 }

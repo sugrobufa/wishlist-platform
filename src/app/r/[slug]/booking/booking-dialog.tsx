@@ -44,6 +44,9 @@ type Phase = "form" | "busy" | "done";
 export function BookingDialog({ item, ownerName, accent, onClose }: BookingDialogProps) {
   const t = useTranslations("Booking");
   const tShop = useTranslations("Shop");
+  // Строка приватности живёт в словаре комнаты гостя (турн 12b) и там же
+  // и остаётся: тикет 77 сменил ей МЕСТО НА ЭКРАНЕ, а не владельца.
+  const tGuest = useTranslations("GuestRoom");
   const { markBooked, markTaken } = useGuestBooking();
   const [phase, setPhase] = useState<Phase>("form");
   const [error, setError] = useState<BookingErrorKey | null>(null);
@@ -149,6 +152,13 @@ export function BookingDialog({ item, ownerName, accent, onClose }: BookingDialo
             </h2>
 
             {shopBlock}
+
+            {/* «Регистрация не нужна · {имя} не узнает, кто смотрел» (турн 12b).
+                Стояло на первом экране комнаты; тикет 77 убрал его оттуда с
+                телефона как лишнее и перенёс СЮДА — в момент, когда человек
+                как раз печатает своё имя и вправе знать, что за этим не
+                последует аккаунта. */}
+            <p className={s.privacy}>{tGuest("noSignup", { name: ownerName })}</p>
 
             <div className={s.field}>
               <label className={s.fieldLabel} htmlFor={`${titleId}-name`}>
