@@ -95,7 +95,13 @@ export default async function ZoneListPage({ params }: Params) {
             демо-вещей у неё не будет, а пустые вкладки под карточкой копилки
             — шум (тикет 44). */}
         {(zone.key !== MONEY_ZONE_KEY || items.length > 0) && (
-          <OwnerZoneGrid items={items} accent={preset.accent} ink={preset.ink} zoneKey={zone.key} />
+          <OwnerZoneGrid
+            items={items}
+            accent={preset.accent}
+            ink={preset.ink}
+            zoneKey={zone.key}
+            pool={zone.pool}
+          />
         )}
 
         {/* Добавить вещь прямо в эту зону (полировка 16): ?zone=…

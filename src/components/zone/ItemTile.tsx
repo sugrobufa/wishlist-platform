@@ -5,6 +5,7 @@
 // tile-appearance.ts под тестом). Демо-призрак — полупрозрачность и бейдж «пример».
 import type { CSSProperties, ReactNode } from "react";
 import { useLocale, useTranslations } from "next-intl";
+import { PoolIcon } from "@/components/pool-icons";
 import { ShopLink } from "./shop-link";
 import { tileAppearance } from "./tile-appearance";
 import type { ZoneGridItem } from "./types";
@@ -16,6 +17,8 @@ type ItemTileProps = {
   staggerIndex: number;
   /** Опциональный слот действия (тикет 08): бирка «Подарить» / «занято» у гостя. */
   action?: ReactNode;
+  /** Пул ЗОНЫ — значок вместо буквы у вещи без фото (тикет 82). */
+  pool?: string | null;
 };
 
 /** Цена «хочу» для подписи: "14 900 ₽". Деньги в DTO — строка Decimal. */
@@ -36,10 +39,10 @@ function formatPrice(item: ZoneGridItem, locale: string): string | null {
   }
 }
 
-export function ItemTile({ item, staggerIndex, action }: ItemTileProps) {
+export function ItemTile({ item, staggerIndex, action, pool }: ItemTileProps) {
   const t = useTranslations("ZoneGrid");
   const locale = useLocale();
-  const look = tileAppearance(item);
+  const look = tileAppearance(item, pool);
 
   // Подпись под названием: у «хочу» цена; у «люблю» — «люблю» либо
   // «Подарен в {год} · {даритель}» (cardCopy из items.json).
@@ -75,8 +78,16 @@ export function ItemTile({ item, staggerIndex, action }: ItemTileProps) {
             aria-hidden
           />
         )}
-        {/* Плитка без фотографии — буквой названия, а не чёрной дырой
-            (тикет 68). Читалке она не нужна: название стоит подписью ниже. */}
+        {/* Плитка без фотографии — знаком ЗОНЫ, а не чёрной дырой (тикеты 68
+            и 82). Значок точнее буквы: «Подарок маме» даёт бессмысленную «П»,
+            а зона всегда знает свою категорию. Где значка нет (`money`) —
+            остаётся буква. Читалке ни то ни другое не нужно: название стоит
+            подписью ниже. */}
+        {look.poolIcon && (
+          <span className={s.monogram} aria-hidden>
+            <PoolIcon pool={look.poolIcon} />
+          </span>
+        )}
         {look.monogram && (
           <span className={s.monogram} aria-hidden>
             {look.monogram}

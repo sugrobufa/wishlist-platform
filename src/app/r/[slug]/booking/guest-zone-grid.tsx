@@ -22,9 +22,11 @@ type GuestZoneGridProps = {
   ink: string;
   /** Имя хозяйки — «для {имя}» на бирке (имя получателя над надписью, турн 22). */
   ownerName: string;
+  /** Пул зоны — значок вместо буквы у вещи без фото (тикет 82). */
+  pool?: string | null;
 };
 
-export function GuestZoneGrid({ items, accent, ink, ownerName }: GuestZoneGridProps) {
+export function GuestZoneGrid({ items, accent, ink, ownerName, pool }: GuestZoneGridProps) {
   const t = useTranslations("Booking");
   const { taken, mine } = useGuestBooking();
   const [bookingItem, setBookingItem] = useState<ZoneGridItem | null>(null);
@@ -59,6 +61,7 @@ export function GuestZoneGrid({ items, accent, ink, ownerName }: GuestZoneGridPr
         ink={ink}
         enterDelay="scene"
         renderItemAction={renderItemAction}
+        pool={pool}
       />
       {bookingItem && (
         <BookingDialog

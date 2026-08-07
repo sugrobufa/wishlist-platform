@@ -51,6 +51,7 @@ export default async function GuestRoomAsListPage({ params }: Params) {
     groups.push({
       key: zone.key,
       label: zoneInfo(zone.key)?.label ?? zone.label,
+      pool: zone.pool,
       items,
     });
   }

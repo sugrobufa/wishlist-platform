@@ -271,7 +271,9 @@ async function buildZoneContent(
       const beyondSheet = Math.max(0, summary.count - SHEET_TILES);
       const node = (
         <div key={zone.key}>
-          {showGrid && <ZoneGrid items={items} accent={preset.accent} ink={preset.ink} />}
+          {showGrid && (
+            <ZoneGrid items={items} accent={preset.accent} ink={preset.ink} pool={zone.pool} />
+          )}
           {/* Оба перехода — тихие пилюли акцентом комнаты (тикет 86): текст
               со стрелкой владелец на приёмке 07.08 прочитал как подпись, а не
               как кнопку. */}

@@ -22,7 +22,7 @@ export type IconProps = {
   style?: CSSProperties;
 };
 
-function Icon24({
+export function Icon24({
   size = 24,
   strokeWidth = 1.7,
   className,

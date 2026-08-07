@@ -153,6 +153,7 @@ export default async function GuestRoomPage({ params }: Params) {
         accent={preset.accent}
         ink={preset.ink}
         ownerName={ownerName}
+        pool={preset.zones.find((zone) => zone.key === zoneKey)?.pool}
       />,
     ]),
   );

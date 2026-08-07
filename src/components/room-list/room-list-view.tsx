@@ -18,6 +18,7 @@
 import { useMemo, useState } from "react";
 import Link from "next/link";
 import { useLocale, useTranslations } from "next-intl";
+import { PoolIcon } from "@/components/pool-icons";
 import { tileAppearance } from "@/components/zone/tile-appearance";
 import type { ZoneGridItem } from "@/components/zone/types";
 import s from "./room-list.module.css";
@@ -27,6 +28,8 @@ export type RoomListGroup = {
   key: string;
   label: string;
   items: ZoneGridItem[];
+  /** Пул зоны — значок вместо буквы у вещи без фото (тикет 82). */
+  pool?: string | null;
 };
 
 export type RoomListViewProps = {
@@ -134,7 +137,7 @@ export function RoomListView({ groups, accent, roomHref, zoneHref }: RoomListVie
             </h2>
             <ul className={s.rows}>
               {group.items.map((item) => {
-                const look = tileAppearance(item);
+                const look = tileAppearance(item, group.pool);
                 const price = item.state === "WANT" ? formatPrice(item, locale) : null;
                 return (
                   <li key={item.id} className={s.row}>
@@ -145,9 +148,15 @@ export function RoomListView({ groups, accent, roomHref, zoneHref }: RoomListVie
                       }
                       aria-hidden
                     >
-                      {/* Буква названия вместо чёрной дыры — тот же приём, что
-                          на плитке (тикет 68). Инвариант №3 не затронут: буква
-                          ходит с отсутствием фото, пунктир — с «хочу». */}
+                      {/* Значок ЗОНЫ вместо чёрной дыры — тот же приём, что
+                          на плитке (тикеты 68 и 82); где значка нет, остаётся
+                          буква. Инвариант №3 не затронут: оба знака ходят с
+                          отсутствием фото, пунктир — с «хочу». */}
+                      {look.poolIcon && (
+                        <span className={s.monogram}>
+                          <PoolIcon pool={look.poolIcon} />
+                        </span>
+                      )}
                       {look.monogram && <span className={s.monogram}>{look.monogram}</span>}
                     </div>
                     <div className={s.body}>

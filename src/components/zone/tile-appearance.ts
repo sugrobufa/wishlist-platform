@@ -1,3 +1,5 @@
+import { hasPoolIcon } from "@/components/pool-icons";
+
 // Классификатор вида плитки — чистая функция, отдельно от JSX, чтобы
 // инвариант №3 (CLAUDE.md) был закреплён юнит-тестом:
 // ПУНКТИР КОДИРУЕТ СОСТОЯНИЕ «ХОЧУ», А НЕ ОТСУТСТВИЕ ФОТО.
@@ -23,9 +25,17 @@ export type TileAppearance = {
   ghost: boolean;
   /**
    * Буква названия на серой заливке — та же техническая пометка «фото нет»,
-   * что и сама заливка, только видимая (тикет 68). null, когда фото есть.
+   * что и сама заливка, только видимая (тикет 68). null, когда фото есть
+   * ИЛИ когда вместо буквы встал значок пула.
    */
   monogram: string | null;
+  /**
+   * Значок пула ЗОНЫ на серой заливке (тикет 82) — точнее буквы: «Подарок
+   * маме» даёт бессмысленную «П», а зона всегда знает свою категорию.
+   * null, когда фото есть или у пула значка нет (`money`, зона без пула) —
+   * тогда работает буква.
+   */
+  poolIcon: string | null;
 };
 
 /**
@@ -38,17 +48,27 @@ function firstLetter(title: string): string | null {
   return letter ? letter.toLocaleUpperCase("ru") : null;
 }
 
-export function tileAppearance(item: TileItemLike): TileAppearance {
+/**
+ * @param pool ключ пула ЗОНЫ, в которой лежит вещь (`rooms.json` → zone.pool).
+ *   Свойство зоны, а не вещи, поэтому приходит отдельным доводом, а не полем
+ *   DTO. Без него всё работает по-старому: остаётся буква.
+ */
+export function tileAppearance(item: TileItemLike, pool?: string | null): TileAppearance {
   const dashed = item.state === "WANT";
   const greyFill = item.photoUrl === null;
+  // Значок пула — точнее буквы, но есть не у всякого пула (`money` своего
+  // знака не имеет вовсе). Буква остаётся запасным путём, а не наследством.
+  const poolIcon = greyFill && hasPoolIcon(pool) ? pool : null;
   return {
     dashed,
     accentBar: dashed,
     greyFill,
     ghost: item.isDemo,
-    // ИНВАРИАНТ №3 НЕ ЗАТРОНУТ: буква приходит вместе с серой заливкой, то
-    // есть кодирует ровно «фотографии нет», как заливка и кодировала. Пунктир
-    // по-прежнему говорит «хочу» и ставится независимо — их пары в коде нет.
-    monogram: greyFill ? firstLetter(item.title) : null,
+    // ИНВАРИАНТ №3 НЕ ЗАТРОНУТ: и буква, и значок приходят вместе с серой
+    // заливкой, то есть кодируют ровно «фотографии нет», как заливка и
+    // кодировала. Пунктир по-прежнему говорит «хочу» и ставится независимо —
+    // их пары в коде нет.
+    monogram: greyFill && poolIcon === null ? firstLetter(item.title) : null,
+    poolIcon,
   };
 }

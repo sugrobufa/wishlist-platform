@@ -153,6 +153,12 @@
   user-select: none;
 }
 
+/* Значок пула — в слоте буквы и её же тоном (тикет 82). */
+.monogram svg {
+  width: 42cqw;
+  height: 42cqw;
+}
+
 .body {
   display: flex;
   min-width: 0;

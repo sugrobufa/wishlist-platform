@@ -29,12 +29,14 @@ type OwnerZoneGridProps = {
   ink: string;
   /** Ключ зоны — из него собирается адрес карточки вещи (тикет 39). */
   zoneKey: string;
+  /** Пул зоны — значок вместо буквы у вещи без фото (тикет 82). */
+  pool?: string | null;
 };
 
 /** Двухшаговые подтверждения: удаление и необратимое «уже моё». */
 type Confirming = { id: string; kind: "delete" | "own" };
 
-export function OwnerZoneGrid({ items, accent, ink, zoneKey }: OwnerZoneGridProps) {
+export function OwnerZoneGrid({ items, accent, ink, zoneKey, pool }: OwnerZoneGridProps) {
   const t = useTranslations("Settings");
   const router = useRouter();
   const [confirming, setConfirming] = useState<Confirming | null>(null);
@@ -162,6 +164,7 @@ export function OwnerZoneGrid({ items, accent, ink, zoneKey }: OwnerZoneGridProp
         ink={ink}
         enterDelay="none"
         renderItemAction={renderItemAction}
+        pool={pool}
       />
     </>
   );

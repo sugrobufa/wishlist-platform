@@ -58,6 +58,12 @@ export type ZoneGridProps = {
    * «бирка» — ровно одно действие «подарить» в режиме гостя (турн 22).
    */
   renderItemAction?: (item: ZoneGridItem) => ReactNode;
+  /**
+   * Ключ пула ЗОНЫ (rooms.json → zone.pool): у вещи без фотографии вместо
+   * буквы встаёт значок этого пула (тикет 82). Свойство зоны, а не вещи,
+   * поэтому приходит пропом сетки, а не полем DTO.
+   */
+  pool?: string | null;
 };
 
 type Tab = "LOVE" | "WANT";
@@ -69,6 +75,7 @@ export function ZoneGrid({
   enterDelay = "scene",
   className,
   renderItemAction,
+  pool,
 }: ZoneGridProps) {
   const t = useTranslations("ZoneGrid");
   const baseId = useId();
@@ -160,6 +167,7 @@ export function ZoneGrid({
                 item={item}
                 staggerIndex={Math.min(index, STAGGER_CAP)}
                 action={renderItemAction?.(item)}
+                pool={pool}
               />
             ))}
           </ul>

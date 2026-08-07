@@ -82,6 +82,50 @@ describe("буква вместо отсутствующего фото", () => 
     }
   });
 
+  // --- Значок пула зоны (тикет 82) -----------------------------------------
+
+  it("нет фото + зона со значком → значок вместо буквы", () => {
+    const look = tileAppearance(make({ title: "Подарок маме" }), "travel");
+    expect(look.poolIcon).toBe("travel");
+    // Буква уступает место: два знака в одном слоте — это уже спор.
+    expect(look.monogram).toBeNull();
+  });
+
+  it("есть фото → значка нет, как и буквы: место занято настоящим кадром", () => {
+    expect(tileAppearance(make({ photoUrl: PHOTO }), "travel").poolIcon).toBeNull();
+  });
+
+  it("зона без своего значка → возвращается буква", () => {
+    // `money` значка не имеет — такого пула в пакете нет вовсе.
+    const money = tileAppearance(make({ title: "Мечта" }), "money");
+    expect(money.poolIcon).toBeNull();
+    expect(money.monogram).toBe("М");
+    // Пул вообще не передали (список без зоны) — то же самое.
+    const none = tileAppearance(make({ title: "Мечта" }));
+    expect(none.poolIcon).toBeNull();
+    expect(none.monogram).toBe("М");
+  });
+
+  it("ИНВАРИАНТ №3: значок ходит с отсутствием фото, а не с «хочу»", () => {
+    for (const state of ["LOVE", "WANT"] as const) {
+      for (const photoUrl of [null, PHOTO]) {
+        const look = tileAppearance(make({ state, photoUrl }), "books");
+        expect(look.poolIcon !== null).toBe(look.greyFill);
+        expect(look.poolIcon !== null).toBe(photoUrl === null);
+        // Пунктир по-прежнему говорит только про состояние.
+        expect(look.dashed).toBe(state === "WANT");
+      }
+    }
+  });
+
+  it("в слоте заглушки всегда ровно один знак — либо значок, либо буква", () => {
+    for (const pool of [null, "money", "travel", "jewel"]) {
+      const look = tileAppearance(make({ title: "Что-то" }), pool);
+      const marks = [look.poolIcon, look.monogram].filter((mark) => mark !== null).length;
+      expect(marks, `pool=${pool}`).toBe(1);
+    }
+  });
+
   it("пустое или пробельное название буквы не даёт — рисовать нечего", () => {
     expect(tileAppearance(make({ title: "" })).monogram).toBeNull();
     expect(tileAppearance(make({ title: "   " })).monogram).toBeNull();

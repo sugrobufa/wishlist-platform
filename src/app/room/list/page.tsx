@@ -56,6 +56,7 @@ export default async function RoomAsListPage() {
     groups.push({
       key: zone.key,
       label: zoneInfo(zone.key)?.label ?? zone.label,
+      pool: zone.pool,
       items: rows.map(itemForOwner),
     });
   }
