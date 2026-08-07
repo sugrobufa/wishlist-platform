@@ -71,11 +71,11 @@ export const demoPools: Record<string, readonly DemoSeed[]> = {
   // видно оба состояния». Предметных кадров мужского ухода в пакете нет —
   // все пять честно без фото (серая заливка, а не чужая картинка).
   grooming: [
-    WANT("Станок и лезвия", 6_400),
-    WANT("Триммер для бороды", 11_900),
-    LOVE("Масло для бороды"),
-    WANT("Кожаный несессер", 9_200),
-    LOVE("Одеколон, 100 мл"),
+    WANT("Станок и лезвия", 6_400, "refs/p-razor.jpg"),
+    WANT("Триммер для бороды", 11_900, "refs/p-trimmer.jpg"),
+    LOVE("Масло для бороды", "refs/p-beard-oil.jpg"),
+    WANT("Кожаный несессер", 9_200, "refs/p-dopp.jpg"),
+    LOVE("Одеколон, 100 мл", "refs/p-cologne.jpg"),
   ],
   bags: [
     LOVE("Тоут из кожи", "refs/p-tote.jpg"),
@@ -115,28 +115,31 @@ export const demoPools: Record<string, readonly DemoSeed[]> = {
     WANT("Фитнес-браслет", 16_000),
   ],
   gaming: [
-    LOVE("Ретро-приставка"),
-    LOVE("Второй геймпад"),
-    WANT("Игра года", 5_400),
-    WANT("Игровое кресло", 54_000),
+    LOVE("Ретро-приставка", "refs/p-console.jpg"),
+    LOVE("Второй геймпад", "refs/p-gamepad.jpg"),
+    WANT("Игра года", 5_400, "refs/p-game-box.jpg"),
+    WANT("Игровое кресло", 54_000, "refs/p-gaming-chair.jpg"),
   ],
   books: [
-    LOVE("Монография о свете"),
-    LOVE("Сборник рассказов Довлатова"),
-    WANT("Лампа для чтения", 9_600),
-    WANT("Подписка на книги", 1_900),
+    LOVE("Монография о свете", "refs/p-artbook.jpg"),
+    LOVE("Сборник рассказов Довлатова", "refs/p-paperback.jpg"),
+    WANT("Лампа для чтения", 9_600, "refs/p-reading-lamp.jpg"),
+    WANT("Подписка на книги", 1_900, "refs/p-book-sub.jpg"),
   ],
+  // Шесть впечатлений сняты СИМВОЛОМ, а не событием (задание 09): плитка
+  // 160 px, на ней читается один предмет. Конверт с сургучом вместо пейзажа
+  // Тбилиси, тиснёный лавр вместо зала филармонии, камера вместо съёмки.
   events: [
-    LOVE("Абонемент в филармонию"),
-    LOVE("Карта музеев"),
-    WANT("Билеты в оперу", 9_400),
-    WANT("Фотосессия", 18_000),
+    LOVE("Абонемент в филармонию", "refs/p-philharmonic.jpg"),
+    LOVE("Карта музеев", "refs/p-museum-card.jpg"),
+    WANT("Билеты в оперу", 9_400, "refs/p-opera-tickets.jpg"),
+    WANT("Фотосессия", 18_000, "refs/p-photoshoot.jpg"),
   ],
   travel: [
-    LOVE("Чемодан 55 см"),
-    LOVE("Дорожная подушка"),
-    WANT("Три дня в Тбилиси", 34_000),
-    WANT("Поход в Дагестан", 48_000),
+    LOVE("Чемодан 55 см", "refs/p-suitcase.jpg"),
+    LOVE("Дорожная подушка", "refs/p-travel-pillow.jpg"),
+    WANT("Три дня в Тбилиси", 34_000, "refs/p-tbilisi.jpg"),
+    WANT("Поход в Дагестан", 48_000, "refs/p-hike.jpg"),
   ],
   home: [
     LOVE("Керамика ручной работы", "refs/p-ceramic.jpg"),
