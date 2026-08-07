@@ -3,10 +3,8 @@ import { notFound, redirect } from "next/navigation";
 import {
   attemptQuickLogin,
   isFreshRequested,
-  isSeedRequested,
   QUICK_LOGIN_FRESH_PARAM,
   QUICK_LOGIN_KEY_PARAM,
-  QUICK_LOGIN_SEED_PARAM,
 } from "@/server/quick-login";
 
 // Служебный экран: не кэшируется, не индексируется, в интерфейсе штатного
@@ -23,9 +21,13 @@ export const metadata: Metadata = { robots: { index: false, follow: false } };
  * старая закладка `?key=…` продолжает работать (обратная совместимость).
  *
  * Три адреса, одна дорога:
- *   /dev-login          → вход → /room
+ *   /dev-login          → вход + посев пустых зон комнаты → /room
  *   /dev-login?fresh=1  → вход + сброс комнаты владельца → /onboarding
- *   /dev-login?seed=1   → вход + посев комнаты владельца вещами → /room
+ *   /dev-login?seed=1   → то же, что голый /dev-login (тикет 70)
+ *
+ * Посев идёт при КАЖДОМ входе (тикет 70): прежде он ждал `?seed=1`, и стенд
+ * из-за этого стоял с пустыми зонами — владелец входит обычной ссылкой.
+ * Параметр остался рабочим ради старых закладок и больше ничего не включает.
  *
  * Любой отказ — 404 через notFound(): выключенный флаг, кривая настройка и
  * неверный ключ выглядят снаружи одинаково, и по ответу нельзя понять,
@@ -44,16 +46,20 @@ export default async function DevLoginPage({
   }>;
 }) {
   const params = await searchParams;
-  // Страница читает РОВНО три параметра — ключ, «заново» и «наполнить». Ни
-  // почты, ни «кого стереть/наполнить» здесь нет и быть не может: это берётся
-  // из окружения.
+  // Страница читает два параметра — ключ и «заново». Третий, `?seed=1`,
+  // остался в типе ради старых закладок, но ни на что не влияет: наполнение
+  // безусловно (тикет 70). Ни почты, ни «кого стереть/наполнить» здесь нет и
+  // быть не может: это берётся из окружения.
   const raw = params[QUICK_LOGIN_KEY_PARAM];
   const key = Array.isArray(raw) ? raw[0] : raw;
 
   const outcome = await attemptQuickLogin({
     key,
     fresh: isFreshRequested(params[QUICK_LOGIN_FRESH_PARAM]),
-    seed: isSeedRequested(params[QUICK_LOGIN_SEED_PARAM]),
+    // Посев — ВСЕГДА (тикет 70), а не по `?seed=1`. Он идемпотентен: зона с
+    // вещами пропускается целиком, и у полной комнаты вся работа — тринадцать
+    // `count` и ноль записей. Заведённое руками не трогается.
+    seed: true,
   });
   if (!outcome.ok) notFound();
 

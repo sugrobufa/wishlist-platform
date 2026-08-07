@@ -185,7 +185,10 @@ describe("защита посева — ровно та же, что у сбро
     expect(await prisma.item.count({ where: { roomId: stranger.room.id } })).toBe(0);
   });
 
-  it("без ?seed=1 обычный вход комнату не наполняет", async () => {
+  it("сервис без флага не сеет — выключатель на месте", async () => {
+    // Решение «сеять» принимает страница входа (тикет 70), сервис остаётся
+    // механизмом с явным флагом: позвать его без посева можно, и это нужно
+    // всем, кому незачем ходить в S3 на каждом входе.
     const owner = await createUserWithRoom(OWNER_EMAIL);
 
     const result = await attemptQuickLogin({ env: goodEnv() });
@@ -194,6 +197,32 @@ describe("защита посева — ровно та же, что у сбро
     if (!result.ok) return;
     expect(result.seed).toBeNull();
     expect(await prisma.item.count({ where: { roomId: owner.room.id } })).toBe(0);
+  });
+
+  it("голый /dev-login наполняет комнату — без всякого параметра (тикет 70)", async () => {
+    // Причина замечания 4 приёмки 07.08: посев ждал `?seed=1`, владелец входил
+    // обычной ссылкой, и на стенде все тринадцать зон стояли пустыми —
+    // с демо-призраками вместо вещей.
+    vi.spyOn(console, "info").mockImplementation(() => undefined);
+    const owner = await createUserWithRoom(OWNER_EMAIL);
+    setProcessEnv(goodEnv());
+
+    await expectRedirect(openPage());
+
+    expect(await prisma.item.count({ where: { roomId: owner.room.id } })).toBeGreaterThan(0);
+  });
+
+  it("повторный вход в наполненную комнату дублей не плодит", async () => {
+    vi.spyOn(console, "info").mockImplementation(() => undefined);
+    const owner = await createUserWithRoom(OWNER_EMAIL);
+    setProcessEnv(goodEnv());
+
+    await expectRedirect(openPage());
+    const afterFirst = await prisma.item.count({ where: { roomId: owner.room.id } });
+    await expectRedirect(openPage());
+
+    expect(afterFirst).toBeGreaterThan(0);
+    expect(await prisma.item.count({ where: { roomId: owner.room.id } })).toBe(afterFirst);
   });
 
   it("пользователя ещё нет — не отказ, а честное «нечего наполнять»", async () => {
