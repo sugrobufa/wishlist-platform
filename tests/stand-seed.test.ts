@@ -232,12 +232,18 @@ describe("защита посева — ровно та же, что у сбро
   });
 
   it("комнаты ещё нет (онбординг не пройден) — тоже ничего не создаётся", async () => {
-    await prisma.user.create({ data: { email: OWNER_EMAIL } });
+    const user = await prisma.user.create({ data: { email: OWNER_EMAIL } });
 
     const result = await seedStandRoom(OWNER_EMAIL, spyStorage());
 
     expect(result).toMatchObject({ userFound: true, roomFound: false, itemsCreated: 0 });
-    expect(await prisma.item.count()).toBe(await prisma.item.count()); // ничего не создано
+    // Комнаты нет — значит вещам не к чему привязаться, и появиться им негде.
+    // Прежде здесь стоял ГЛОБАЛЬНЫЙ `item.count()`, сравниваемый сам с собой:
+    // проверка ничего не утверждала и при этом шаталась — соседние файлы тестов
+    // идут по той же БД параллельно и меняли число между двумя запросами
+    // (упало 07.08 на 37 против 38). Считаем то, что относится к делу.
+    expect(await prisma.room.count({ where: { userId: user.id } })).toBe(0);
+    expect(await prisma.item.count({ where: { room: { userId: user.id } } })).toBe(0);
   });
 });
 
