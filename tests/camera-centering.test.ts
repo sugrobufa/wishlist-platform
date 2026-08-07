@@ -474,14 +474,18 @@ describe("краевые зоны: сколько пустоты открыва�
     expect(phone.left).toBeCloseTo(23.1, 1);
     expect(phone.right).toBeCloseTo(16.1, 1);
     expect(phone.top).toBeCloseTo(7.2, 1);
-    expect(phone.bottom).toBeCloseTo(27.5, 1);
+    // 24.7 вместо 27.5: худшей по нижней пустоте была `bold/anything`,
+    // свешивавшаяся за нижний край кадра. Тикет 81 поставил её на предмет.
+    expect(phone.bottom).toBeCloseTo(24.7, 1);
 
     const desktop = worst("desktop");
     expect(desktop.clean).toBe(48);
     expect(desktop.left).toBeCloseTo(30.5, 1);
     expect(desktop.right).toBeCloseTo(34.7, 1);
     expect(desktop.top).toBeCloseTo(7.2, 1);
-    expect(desktop.bottom).toBeCloseTo(29.7, 1);
+    // 25.9 вместо 29.7 — та же причина, что на телефоне: худшей по нижней
+    // пустоте была `bold/anything`, и тикет 81 поставил её на предмет.
+    expect(desktop.bottom).toBeCloseTo(25.9, 1);
   });
 
   it("зона целиком на экране — кроме высоких шкафов, где формула считает по ширине", () => {

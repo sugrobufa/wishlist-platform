@@ -1131,7 +1131,10 @@ describe("все 130 зон достижимы: кадром или указат
     // подарочных коробок (низ 338 → 320), и на этом окне зона перестала
     // доставать до нижней полосы.
     expect(touched({ w: 1024, h: 768 })).toHaveLength(27);
-    expect(touched({ w: 1280, h: 1024 })).toHaveLength(5);
+    // 4 вместо 5: тикет 81 переразметил `bold/anything` — она была во всю
+    // ширину кадра и свешивалась за его нижний край, а стала рамкой по
+    // предмету и до полос больше не достаёт.
+    expect(touched({ w: 1280, h: 1024 })).toHaveLength(4);
 
     // ЦЕЛИКОМ под полосой почти везде лежит только `study/money`. Исключений
     // два: на 1280×720 нижняя полоса накрывает ещё и `cream/anything` (долг из
@@ -1208,18 +1211,24 @@ describe("все 130 зон достижимы: кадром или указат
     // саму обувь (x 4 → 87) и целиком вошёл в окно. Сумма 130 не сдвинулась:
     // 71 + 26 + 33.
     const whole = allZones.filter(({ rect }) => zoneInsideViewport(rect, "phone"));
-    expect(whole).toHaveLength(71);
+    // Тикет 81 перевёл ещё две зоны из «краем» в «целиком»: `gamer/anything`
+    // (x 0 → 12) и `bold/anything` (была во всю ширину кадра, 269 единиц).
+    // Сумма 130 не сдвинулась: 73 + 24 + 33.
+    expect(whole).toHaveLength(73);
     const partial = allZones.filter(
       ({ id, rect }) => !zoneInsideViewport(rect, "phone") && !BEYOND_PHONE_WINDOW.includes(id),
     );
-    expect(partial).toHaveLength(26);
+    expect(partial).toHaveLength(24);
     expect(whole.length + partial.length + BEYOND_PHONE_WINDOW.length).toBe(130);
     // Левый свес — обратная сторона той же смены координат: кадр стоит в сцене
     // со сдвигом −12, поэтому зона у левого края кадра (x < 12) уходит под
     // левый край окна. Их 14, и все они срезаются, а не пропадают.
     // Было 15: тикет 75 увёл `study/sneakers` с панели на обувь (x 4 → 87),
     // и свешиваться ему стало нечем.
-    expect(allZones.filter(({ rect }) => rect.x < -scene.phone.image.x)).toHaveLength(14);
+    // Было 14: тикет 81 увёл `gamer/anything` от левого края (x 0 → 12),
+    // и свешиваться ей стало нечем. Осталось 12... плюс `bold/anything`,
+    // которая тоже начиналась с нуля.
+    expect(allZones.filter(({ rect }) => rect.x < -scene.phone.image.x)).toHaveLength(12);
   });
 });
 

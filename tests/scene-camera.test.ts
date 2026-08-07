@@ -168,7 +168,10 @@ describe("наезд камеры (формула motion.json → openZone)", ()
     // 18 px — конверты `gamer/money` и `sport/money`: до ADR-0008 зона денег
     // не рендерилась, и самой узкой показываемой зоной была 25 px.
     expect(Math.min(...widths)).toBe(18);
-    expect(Math.max(...widths)).toBe(269);
+    // 194 вместо 269: самой широкой зоной продукта была `bold/anything`,
+    // размеченная во всю ширину кадра. Тикет 81 поставил её на предмет
+    // (180 → после обрезки по соседям), и рекорд ширины перешёл другой зоне.
+    expect(Math.max(...widths)).toBe(194);
     const narrow = zoneCameraScale({ x: 0, y: 0, w: 25, h: 22 }, "phone");
     const wide = zoneCameraScale({ x: 0, y: 0, w: 269, h: 40 }, "phone");
     expect(narrow).toBeGreaterThan(cameraScale.phone);

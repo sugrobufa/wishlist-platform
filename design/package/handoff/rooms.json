@@ -829,7 +829,8 @@
           "reshoot": true,
           "notClamped": true,
           "eyeChecked": true,
-          "accepted": false
+          "accepted": false,
+          "remapNote": "НЕ ПЕРЕРАЗМЕЧЕНА (тикет 81). Дизайн прав: жест происходит выше прямоугольника, у малого кейса (его предложение {262,205,125,110}, против него 1.83 против наших 0.52). Но подняться туда нельзя — там стоит jewelry, и целиком его предложение легло бы на неё 2254 px², плюс music 385, perfume 220, money 198. Обрезка до куска без пересечений даёт 0.65: она срезает ровно ту полосу, где жест. Значит вопрос не к travel, а к jewelry — та же болезнь, что у sneakers в study и loft (тикет 75). До её разбора кадр не подключается."
         },
         {
           "key": "books",
@@ -1325,10 +1326,10 @@
           "label": "Что угодно",
           "pool": "anything",
           "rect": {
-            "x": 0,
-            "y": 267,
-            "w": 269,
-            "h": 85
+            "x": 75,
+            "y": 265,
+            "w": 180,
+            "h": 68
           },
           "openFrame": null,
           "openVerb": null,
@@ -1337,7 +1338,15 @@
           "reshoot": true,
           "notClamped": true,
           "eyeChecked": true,
-          "accepted": false
+          "accepted": false,
+          "rectOld": {
+            "x": 0,
+            "y": 267,
+            "w": 269,
+            "h": 85
+          },
+          "remappedRound": 14,
+          "remapNote": "Стоял во всю ширину кадра (269 единиц) и захватывал соседние зоны и пол; жест — распускающийся бант на розовой коробке (диагноз дизайна, раунд 14: против нашего ректа 1.59, против его 2.87). Взят его {75,248,180,85}, обрезанный до куска без пересечений: целиком он лёг бы на bags 1936 px² и beauty 952. bloomAR пересчитан по формуле пакета."
         },
         {
           "key": "jewelry",
@@ -1948,19 +1957,27 @@
           "label": "Что угодно",
           "pool": "anything",
           "rect": {
+            "x": 12,
+            "y": 239,
+            "w": 102,
+            "h": 97
+          },
+          "openFrame": null,
+          "openVerb": null,
+          "bloomAR": 61,
+          "bloomRot": 0,
+          "reshoot": true,
+          "notClamped": true,
+          "eyeChecked": true,
+          "accepted": false,
+          "rectOld": {
             "x": 0,
             "y": 241,
             "w": 114,
             "h": 95
           },
-          "openFrame": null,
-          "openVerb": null,
-          "bloomAR": 70,
-          "bloomRot": 0,
-          "reshoot": true,
-          "notClamped": true,
-          "eyeChecked": true,
-          "accepted": false
+          "remappedRound": 14,
+          "remapNote": "Прямоугольник не доставал до верха стопки, где раскрывается крафтовая коробка (диагноз дизайна, раунд 14: против нашего ректа 2.28, против его 3.46). Взят его {0,220,114,116}, обрезанный: целиком он лёг бы на sneakers 1368 px² и вышел за левый край окна на 1392 px² (x=0 при окне в покое с 12). bloomAR пересчитан по формуле пакета."
         },
         {
           "key": "gaming",
@@ -2936,18 +2953,26 @@
           "pool": "anything",
           "rect": {
             "x": 72,
-            "y": 259,
-            "w": 141,
-            "h": 79
+            "y": 260,
+            "w": 53,
+            "h": 75
           },
           "openFrame": null,
           "openVerb": null,
-          "bloomAR": 104,
+          "bloomAR": 41,
           "bloomRot": 0,
           "reshoot": true,
           "notClamped": true,
           "eyeChecked": true,
-          "accepted": false
+          "accepted": false,
+          "rectOld": {
+            "x": 72,
+            "y": 259,
+            "w": 141,
+            "h": 79
+          },
+          "remappedRound": 14,
+          "remapNote": "Стоял на полу и на чужих коробках; жест — крышка чёрной коробки с лентой (диагноз дизайна, раунд 14: против нашего ректа 1.30, против его 3.37). Взят его {45,260,80,75}, обрезанный: целиком он лёг бы на travel 864 px², а travel только что получил запас под крышку тикетом 75 и двигаться обратно не может. bloomAR пересчитан по формуле пакета."
         },
         {
           "key": "sneakers",

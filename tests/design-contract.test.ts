@@ -172,7 +172,10 @@ describe("design handoff contract", () => {
     // обновился). В реестр долга bloomAR никто из них НЕ попал, и он остался
     // 44: всем шести пятно пересчитано по формуле пакета вместе с
     // прямоугольником.
-    expect(allZones.filter(({ zone }) => zone.rectOld)).toHaveLength(57);
+    // Тикет 81 добавил три: `bold/anything`, `gamer/anything`, `loft/anything`
+    // переразмечены по диагнозу дизайна раунда 14 (жест вне нашего ректа),
+    // обрезанному до куска без пересечений. 57 стало 60.
+    expect(allZones.filter(({ zone }) => zone.rectOld)).toHaveLength(60);
   });
 
   it("каждая зона лежит в границах КАДРА 630×351, а не окна 430", () => {
@@ -193,7 +196,9 @@ describe("design handoff contract", () => {
     // и две зоны нижнего ряда свешиваются ровно на этот пиксель. Факт пакета,
     // а не промах разметки, — поэтому он записан числом, а не допуском.
     const overhang = allZones.filter(({ zone }) => zone.rect.y + zone.rect.h > img.h);
-    expect(overhang.map((z) => z.id)).toEqual(["bold/anything", "bold/travel"]);
+    // Свешивалась и `bold/anything`; тикет 81 переразметил её по предмету
+    // (была во всю ширину кадра, 269 единиц) — свешиваться перестала.
+    expect(overhang.map((z) => z.id)).toEqual(["bold/travel"]);
     for (const { id, zone } of allZones) {
       expect(zone.rect.y + zone.rect.h, `${id} нижний край`).toBeLessThanOrEqual(
         roomsContract.scene.phone.h,
