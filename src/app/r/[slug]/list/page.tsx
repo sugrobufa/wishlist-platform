@@ -6,10 +6,11 @@ import { rooms, zoneInfo } from "@/config/design";
 import { visibleZones } from "@/components/scene/zones";
 import { RoomListView, type RoomListGroup } from "@/components/room-list/room-list-view";
 
-export const metadata: Metadata = { robots: { index: false, follow: false } };
-
 type Params = { params: Promise<{ slug: string }> };
 
+// Только generateMetadata: рядом с ним `export const metadata` Next запрещает
+// («cannot be exported at the same time»), и сборка падает. Типы и линт этого
+// не ловят — ловит только `next build`.
 export async function generateMetadata(): Promise<Metadata> {
   const t = await getTranslations("RoomList");
   // Комната гостя не индексируется (инвариант №7) — как и сама /r/{slug}.
