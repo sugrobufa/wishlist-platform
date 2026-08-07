@@ -217,6 +217,15 @@ export function isFreshRequested(raw: string | string[] | undefined): boolean {
   return isFlagRequested(raw);
 }
 
+/**
+ * Просили ли показать отчёт посева вместо входа (?report=1, тикет 70).
+ * Диагностика стенда: посев возвращает подробный разбор, а страница его
+ * выбрасывала — редирект уводил, логи контейнера с рабочего места не видны.
+ */
+export function isReportRequested(raw: string | string[] | undefined): boolean {
+  return isFlagRequested(raw);
+}
+
 /** Просили ли наполнить комнату (?seed=1, тикет 61). */
 export function isSeedRequested(raw: string | string[] | undefined): boolean {
   return isFlagRequested(raw);

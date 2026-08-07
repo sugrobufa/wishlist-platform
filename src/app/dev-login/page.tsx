@@ -3,6 +3,7 @@ import { notFound, redirect } from "next/navigation";
 import {
   attemptQuickLogin,
   isFreshRequested,
+  isReportRequested,
   QUICK_LOGIN_FRESH_PARAM,
   QUICK_LOGIN_KEY_PARAM,
 } from "@/server/quick-login";
@@ -20,10 +21,17 @@ export const metadata: Metadata = { robots: { index: false, follow: false } };
  * вопросов. Форма с полем для ключа исчезла вместе с обязательностью ключа;
  * старая закладка `?key=…` продолжает работать (обратная совместимость).
  *
- * Три адреса, одна дорога:
+ * Четыре адреса, одна дорога:
  *   /dev-login          → вход + посев пустых зон комнаты → /room
  *   /dev-login?fresh=1  → вход + сброс комнаты владельца → /onboarding
  *   /dev-login?seed=1   → то же, что голый /dev-login (тикет 70)
+ *   /dev-login?report=1 → отчёт посева текстом, БЕЗ входа и без редиректа
+ *
+ * ОТЧЁТ ЗАВЕДЁН, ПОТОМУ ЧТО ПОСЕВ МОЛЧИТ (07.08). Он возвращает подробный
+ * разбор — нашёлся ли пользователь, нашлась ли комната, что создано в каждой
+ * зоне и почему зона пропущена, — и всё это уходило в никуда: страница
+ * редиректит, а логи контейнера с рабочего места не видны. Час ушёл на
+ * догадки о том, что механизм сообщает сам. Больше так не гадаем.
  *
  * Посев идёт при КАЖДОМ входе (тикет 70): прежде он ждал `?seed=1`, и стенд
  * из-за этого стоял с пустыми зонами — владелец входит обычной ссылкой.
@@ -43,6 +51,7 @@ export default async function DevLoginPage({
     key?: string | string[];
     fresh?: string | string[];
     seed?: string | string[];
+    report?: string | string[];
   }>;
 }) {
   const params = await searchParams;
@@ -62,6 +71,22 @@ export default async function DevLoginPage({
     seed: true,
   });
   if (!outcome.ok) notFound();
+
+  // Отчёт вместо редиректа. Секретов в нём нет: ключи зон, имена пулов и
+  // счётчики — ни почты, ни ключа, ни адресов хранилища. Выданный токен
+  // остаётся неиспользованным и протухает сам; ради одной диагностики это
+  // дешевле, чем менять порядок операций в attemptQuickLogin (он намеренно
+  // выпускает токен последним).
+  if (isReportRequested(params.report)) {
+    return (
+      <main style={{ padding: 24, fontFamily: "ui-monospace, monospace", fontSize: 13 }}>
+        <h1 style={{ fontSize: 15, marginBottom: 12 }}>Отчёт посева стенда</h1>
+        <pre style={{ whiteSpace: "pre-wrap", lineHeight: 1.5 }}>
+          {JSON.stringify(outcome.seed, null, 2)}
+        </pre>
+      </main>
+    );
+  }
 
   // Дальше всё делает Auth.js: гасит токен, заводит сессию, ставит cookie и
   // уводит в /room (а после сброса — сразу в /onboarding).
