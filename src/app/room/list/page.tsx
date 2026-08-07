@@ -1,5 +1,4 @@
 import type { Metadata } from "next";
-import Link from "next/link";
 import { getTranslations } from "next-intl/server";
 import { notFound, redirect } from "next/navigation";
 import { auth } from "@/server/auth";
@@ -61,20 +60,33 @@ export default async function RoomAsListPage() {
     });
   }
 
+  // Счётчики шапки — как на 29a, но ДВА числа из трёх. Третье, «N забраны»,
+  // владелец решил не ставить (приёмка 07.08): комната остаётся единственным
+  // местом счётчика забранных во всём продукте, и правило проще сторожить,
+  // пока место одно. Расхождение с доской осознанное.
+  const items = groups.reduce((sum, group) => sum + group.items.length, 0);
+  const wants = groups.reduce(
+    (sum, group) => sum + group.items.filter((item) => item.state === "WANT").length,
+    0,
+  );
+  const tGrid = await getTranslations("ZoneGrid");
+
   return (
     <main className="min-h-screen pb-[calc(var(--imm-tab-bar)+30px)]">
       <div className="mx-auto w-full max-w-3xl px-5 lg:px-0">
         <header className="pb-2 pt-6 lg:pt-10">
-          <Link href="/room" className="pressable text-xs font-semibold text-text-strong">
-            ← {t("toRoom")}
-          </Link>
-          <h1 className="display mt-5 text-3xl lg:text-4xl">{t("title")}</h1>
-          <p className="mt-2 text-sm text-text-muted">{t("subtitle")}</p>
+          <h1 className="display text-3xl lg:text-4xl">{t("title")}</h1>
+          {items > 0 && (
+            <p className="overline mt-2 text-text-muted">
+              {tGrid("zoneCounts", { total: items, want: wants })}
+            </p>
+          )}
         </header>
 
         <RoomListView
           groups={groups}
           accent={preset.accent}
+          roomHref="/room"
           zoneHref={(key) => `/room/zone/${key}`}
         />
       </div>

@@ -472,7 +472,7 @@
     "tabsAria": "Tabs"
   },
   "RoomList": {
-    "title": "The whole room as a list",
+    "title": "My room",
     "subtitle": "Everything at once — no walking around",
     "filterAria": "What to show",
     "filterAll": "All",
@@ -480,6 +480,7 @@
     "filterLove": "Loved",
     "empty": "Nothing here yet",
     "toList": "As a list",
-    "toRoom": "To the room"
+    "toRoom": "To the room",
+    "viewAria": "How to view the room"
   }
 }

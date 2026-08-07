@@ -1,33 +1,77 @@
-/* Вся комната списком (тикет 67).
+/* Вся комната списком — турн 29a (тикеты 67 и 73).
  *
- * Собрано из уже существующего языка: вкладки — как переключатель «Люблю /
- * Хочу» в сетке зоны (турн 8), заголовок группы — как подпись зоны в
- * оглавлении (Archivo uppercase с разрядкой), плитки — те же `ItemTile`.
- * Своей типографики экран не заводит: его макета в пакете нет, и придумывать
- * второй язык до отрисовки было бы работой в мусор. */
+ * Строка, а не плитка: экран затевался ради взгляда, и строка отдаёт название,
+ * состояние и цену сразу, тогда как плитка прячет цену под картинку.
+ *
+ * Числа сняты с кадра 29a и переведены в его же пропорции: миниатюра 72,
+ * скругление 12, шаг строки 16, чип состояния — пилюля с волосяной обводкой.
+ * Типографика — та же, что в остальном продукте (display у заголовков групп,
+ * ui у строк); своего языка экран не заводит. */
 
+/* --- Переключатель «Комната / Список» ------------------------------------ */
+
+.segmented {
+  display: inline-flex;
+  gap: 2px;
+  margin: 20px 0 0;
+  padding: 3px;
+  border-radius: var(--radius-pill, 100px);
+  background: rgba(255, 249, 242, 0.06);
+}
+
+.segment {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 38px;
+  padding: 0 22px;
+  border-radius: var(--radius-pill, 100px);
+  font: 500 13px/1 var(--font-ui);
+  color: var(--color-text-muted);
+  text-decoration: none;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.segmentOn {
+  background: rgba(255, 249, 242, 0.1);
+  color: var(--color-text-strong);
+  font-weight: 600;
+}
+
+/* --- Фильтр --------------------------------------------------------------- */
+
+/* На 29a фильтр нарисован ЗНАЧКОМ-ползунками в углу. Значок, за которым ничего
+ * не открывается, был бы обманом, а рисовать выпадающую панель ради трёх
+ * положений — дороже пользы. Взяли форму соседнего экрана той же доски: 29b
+ * показывает фильтры зоны пилюлями («по дате ↓», «по цене», «скрытые»). Язык
+ * тот же, положения видны без нажатия. */
 .filters {
   display: flex;
-  gap: 4px;
-  margin: 18px 0 4px;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 14px 0 0;
 }
 
 .filter {
-  padding: 7px 13px;
-  border: 0;
-  border-radius: 2px;
+  min-height: 34px;
+  padding: 0 15px;
+  border: 1px solid rgba(255, 249, 242, 0.12);
+  border-radius: var(--radius-pill, 100px);
   background: none;
-  font: 500 11.5px/1 var(--font-ui);
-  color: var(--color-text-faint);
+  font: 500 12.5px/1 var(--font-ui);
+  color: var(--color-text-muted);
   cursor: pointer;
   -webkit-tap-highlight-color: transparent;
 }
 
 .filterOn {
-  font-weight: 600;
-  color: var(--color-surface-app-ground, #0b0806);
+  border-color: transparent;
   background: var(--rl-accent, #e7c9a9);
+  color: var(--color-surface-app-ground, #0b0806);
+  font-weight: 600;
 }
+
+/* --- Группа зоны ---------------------------------------------------------- */
 
 .group {
   margin-top: 26px;
@@ -36,8 +80,8 @@
 .groupHead {
   display: flex;
   align-items: baseline;
-  gap: 8px;
-  margin: 0;
+  gap: 7px;
+  margin: 0 0 6px;
   font-family: var(--font-display);
   font-size: 11px;
   font-weight: 600;
@@ -55,13 +99,93 @@
   color: rgba(255, 249, 242, 0.38);
 }
 
-.grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(104px, 1fr));
-  gap: 12px 10px;
-  margin: 12px 0 0;
+/* --- Строка вещи ---------------------------------------------------------- */
+
+.rows {
+  margin: 0;
   padding: 0;
   list-style: none;
+}
+
+.row {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 10px 0;
+  border-top: 1px solid var(--color-surface-hairline, rgba(255, 255, 255, 0.09));
+}
+
+.thumb {
+  position: relative;
+  flex: none;
+  width: 72px;
+  height: 72px;
+  border-radius: 12px;
+  border: 1px solid var(--color-surface-hairline, rgba(255, 255, 255, 0.09));
+  background-color: var(--color-surface-fill);
+  background-size: cover;
+  background-position: center;
+  overflow: hidden;
+  /* Мера для буквы-заглушки: миниатюра фиксированная, но пусть считает от себя,
+     как это делает плитка зоны. */
+  container-type: inline-size;
+}
+
+/* «Хочу» — пунктир акцентом. Кодирует СОСТОЯНИЕ, не отсутствие фото
+   (инвариант №3): тот же язык, что у плитки в зоне. */
+.thumbWant {
+  border: 1px dashed var(--rl-accent, #e7c9a9);
+  background-color: rgba(255, 255, 255, 0.04);
+}
+
+.monogram {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: var(--font-display);
+  font-size: 34cqw;
+  font-weight: 500;
+  line-height: 1;
+  color: var(--rl-accent, #e7c9a9);
+  opacity: 0.22;
+  user-select: none;
+}
+
+.body {
+  display: flex;
+  min-width: 0;
+  flex: 1;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 7px;
+}
+
+.title {
+  margin: 0;
+  font: 600 15px/1.25 var(--font-ui);
+  color: var(--color-text-strong);
+}
+
+.chip {
+  padding: 4px 10px;
+  border: 1px solid rgba(255, 249, 242, 0.16);
+  border-radius: var(--radius-pill, 100px);
+  font: 500 11px/1 var(--font-ui);
+  color: var(--color-text-muted);
+}
+
+.chipWant {
+  border: 1px dashed var(--rl-accent, #e7c9a9);
+  color: var(--rl-accent, #e7c9a9);
+}
+
+.price {
+  flex: none;
+  font: 600 14px/1 var(--font-ui);
+  color: var(--color-text-strong);
+  white-space: nowrap;
 }
 
 .empty {

@@ -1,23 +1,24 @@
 "use client";
 
-// Вся комната списком (тикет 67, приёмка 07.08).
+// Вся комната списком (тикет 67, приведено к турну 29a тикетом 73).
 //
-// ЗАЧЕМ. Сегодня к вещи ведёт единственная дорога: сцена → зона → лист. Кто
-// пришёл по ссылке выбрать подарок за минуту, вынужден играть в комнату.
-// Владелец: «новое представление, где просто список всех вещей — для тех, кто
-// не готов и не хочет гулять по комнате».
+// ЗАЧЕМ. К вещи вела единственная дорога: сцена → зона → лист. Кто пришёл по
+// ссылке выбрать подарок за минуту, был вынужден играть в комнату. Владелец:
+// «новое представление, где просто список всех вещей — для тех, кто не готов
+// и не хочет гулять по комнате».
 //
-// ЧТО ЭТО НЕ ЗАМЕНЯЕТ. Сцену. Список — второй вход в то же содержимое, и
-// переключатель стоит рядом с комнатой, а не вместо неё.
+// ПОЧЕМУ СТРОКА, А НЕ ПЛИТКА. Тикет 67 собрал экран без макета — его тогда не
+// было — и взял сетку плиток из зоны. Турн 29a рисует строки, и это верно по
+// сути задачи: строка отдаёт название, состояние и цену одним взглядом, а
+// плитка прячет цену под картинку. Ради взгляда экран и затевался.
 //
-// ЧЕГО ЗДЕСЬ НЕТ. Демо-призраков: они существуют, чтобы объяснить язык ЗОНЫ в
-// сцене, а в плоском перечне читались бы как чужие вещи (фильтр — на сервере,
-// в странице). Своих правил видимости: что показать, уже решили DTO-слой и
-// сервис гостя — здесь только раскладка.
+// ЧЕГО ЗДЕСЬ НЕТ. Демо-призраков: они объясняют язык ЗОНЫ в сцене, а в плоском
+// перечне читались бы как чужие вещи (фильтр — на сервере, в странице). Своих
+// правил видимости: что показать, решили DTO-слой и сервис гостя.
 import { useMemo, useState } from "react";
 import Link from "next/link";
-import { useTranslations } from "next-intl";
-import { ItemTile } from "@/components/zone/ItemTile";
+import { useLocale, useTranslations } from "next-intl";
+import { tileAppearance } from "@/components/zone/tile-appearance";
 import type { ZoneGridItem } from "@/components/zone/types";
 import s from "./room-list.module.css";
 
@@ -31,6 +32,8 @@ export type RoomListGroup = {
 export type RoomListViewProps = {
   groups: RoomListGroup[];
   accent: string;
+  /** Куда ведёт «Комната» в переключателе: сцена хозяйки или гостя. */
+  roomHref: string;
   /**
    * Куда ведёт заголовок группы. У хозяйки — её экран зоны; у гостя своего
    * экрана зоны нет, и заголовок остаётся просто заголовком.
@@ -40,8 +43,28 @@ export type RoomListViewProps = {
 
 type Filter = "all" | "want" | "love";
 
-export function RoomListView({ groups, accent, zoneHref }: RoomListViewProps) {
+/** Цена строкой: "14 900 ₽". Деньги в DTO — строка Decimal (CLAUDE.md). */
+function formatPrice(item: ZoneGridItem, locale: string): string | null {
+  if (item.price == null) return null;
+  const value = Number(item.price);
+  if (!Number.isFinite(value)) return null;
+  try {
+    return new Intl.NumberFormat(locale, {
+      style: "currency",
+      currency: item.currency ?? "RUB",
+      minimumFractionDigits: 0,
+      maximumFractionDigits: 2,
+    }).format(value);
+  } catch {
+    // Неизвестный код валюты — показываем как есть, не падаем.
+    return `${item.price} ${item.currency ?? ""}`.trim();
+  }
+}
+
+export function RoomListView({ groups, accent, roomHref, zoneHref }: RoomListViewProps) {
   const t = useTranslations("RoomList");
+  const tGrid = useTranslations("ZoneGrid");
+  const locale = useLocale();
   const [filter, setFilter] = useState<Filter>("all");
 
   const shown = useMemo(() => {
@@ -65,6 +88,17 @@ export function RoomListView({ groups, accent, zoneHref }: RoomListViewProps) {
 
   return (
     <div style={{ "--rl-accent": accent } as React.CSSProperties}>
+      {/* Переключатель «Комната / Список» (29a): список не заменяет сцену, он
+          стоит рядом с ней, и вернуться должно быть так же дёшево, как уйти. */}
+      <div className={s.segmented} role="group" aria-label={t("viewAria")}>
+        <Link href={roomHref} className={`pressable ${s.segment}`}>
+          {t("toRoom")}
+        </Link>
+        <span className={`${s.segment} ${s.segmentOn}`} aria-current="page">
+          {t("toList")}
+        </span>
+      </div>
+
       <div className={s.filters} role="group" aria-label={t("filterAria")}>
         {filters.map(([key, label]) => (
           <button
@@ -94,12 +128,36 @@ export function RoomListView({ groups, accent, zoneHref }: RoomListViewProps) {
               ) : (
                 group.label
               )}
-              <span className={s.groupCount}>{group.items.length}</span>
+              <span className={s.groupCount}>·{group.items.length}</span>
             </h2>
-            <ul className={s.grid}>
-              {group.items.map((item, index) => (
-                <ItemTile key={item.id} item={item} staggerIndex={index} />
-              ))}
+            <ul className={s.rows}>
+              {group.items.map((item) => {
+                const look = tileAppearance(item);
+                const price = item.state === "WANT" ? formatPrice(item, locale) : null;
+                return (
+                  <li key={item.id} className={s.row}>
+                    <div
+                      className={look.dashed ? `${s.thumb} ${s.thumbWant}` : s.thumb}
+                      style={
+                        item.photoUrl ? { backgroundImage: `url(${item.photoUrl})` } : undefined
+                      }
+                      aria-hidden
+                    >
+                      {/* Буква названия вместо чёрной дыры — тот же приём, что
+                          на плитке (тикет 68). Инвариант №3 не затронут: буква
+                          ходит с отсутствием фото, пунктир — с «хочу». */}
+                      {look.monogram && <span className={s.monogram}>{look.monogram}</span>}
+                    </div>
+                    <div className={s.body}>
+                      <p className={s.title}>{item.title}</p>
+                      <span className={item.state === "WANT" ? `${s.chip} ${s.chipWant}` : s.chip}>
+                        {item.state === "WANT" ? tGrid("tabWant") : tGrid("loveCaption")}
+                      </span>
+                    </div>
+                    {price && <span className={s.price}>{price}</span>}
+                  </li>
+                );
+              })}
             </ul>
           </section>
         ))

@@ -1,5 +1,4 @@
 import type { Metadata } from "next";
-import Link from "next/link";
 import { getTranslations } from "next-intl/server";
 import { notFound } from "next/navigation";
 import { getGuestRoom } from "@/server/services/guest-room";
@@ -55,20 +54,31 @@ export default async function GuestRoomAsListPage({ params }: Params) {
     });
   }
 
+  // Шапка гостя говорит именем хозяйки, а не «Моя комната»: это её комната,
+  // и на 29a-guest подпись такая же. Счётчик забранных гостю не показывается
+  // никогда и ни в каком виде (инвариант №1) — здесь его нет и не было.
+  const items = groups.reduce((sum, group) => sum + group.items.length, 0);
+  const wants = groups.reduce(
+    (sum, group) => sum + group.items.filter((item) => item.state === "WANT").length,
+    0,
+  );
+  const tGrid = await getTranslations("ZoneGrid");
+
   return (
     <main className="min-h-screen pb-16">
       <div className="mx-auto w-full max-w-3xl px-5 lg:px-0">
         <header className="pb-2 pt-6 lg:pt-10">
-          <Link href={back} className="pressable text-xs font-semibold text-text-strong">
-            ← {t("toRoom")}
-          </Link>
-          <h1 className="display mt-5 text-3xl lg:text-4xl">{t("title")}</h1>
-          <p className="mt-2 text-sm text-text-muted">{t("subtitle")}</p>
+          <h1 className="display text-3xl lg:text-4xl">{room.ownerName ?? t("title")}</h1>
+          {items > 0 && (
+            <p className="overline mt-2 text-text-muted">
+              {tGrid("zoneCounts", { total: items, want: wants })}
+            </p>
+          )}
         </header>
 
         {/* Заголовок группы у гостя — просто заголовок: своего экрана зоны
             у него нет, и вести ссылке некуда. */}
-        <RoomListView groups={groups} accent={preset.accent} />
+        <RoomListView groups={groups} accent={preset.accent} roomHref={back} />
       </div>
     </main>
   );
