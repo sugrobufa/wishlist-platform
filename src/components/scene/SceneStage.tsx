@@ -452,6 +452,30 @@ export function SceneStage({ preset, zonesOff, zoneContent, className }: SceneSt
                         className={s.frame}
                         style={{ backgroundImage: `url(${roomImageUrl(preset.base)})` }}
                       />
+                      {/* Кадры «открыто» — СОСЕДИ базового кадра, а не слой над
+                          камерой (тикет 80). Прежде стопка стояла снаружи всей
+                          камеры: при наезде комната ехала, а раскрытие нет, да
+                          и кадрировано оно было иначе (`cover` в окне против
+                          растяжки кадра 630 на 146.5% ширины). Кроссфейд двух
+                          РАЗНЫХ кропов и давал полосу по кромке с кусками
+                          соседних предметов. Теперь обе фотографии живут в
+                          одном узле дыхания, одной геометрией. */}
+                      {zones
+                        .filter((zone) => zone.openFrame && openedEver.has(zone.key))
+                        .map((zone) => (
+                          <div
+                            key={zone.key}
+                            aria-hidden
+                            className={
+                              zoomedIn && zone.key === activeKey
+                                ? `${s.openFrame} ${s.openFrameOn}`
+                                : s.openFrame
+                            }
+                            style={{
+                              backgroundImage: `url(${roomImageUrl(zone.openFrame as string)})`,
+                            }}
+                          />
+                        ))}
                       {/* Отклик светом лежит ВНУТРИ дыхания, рядом с кадром:
                           он едет с камерой и дышит с фотографией, то есть
                           приклеен к предмету, а не к экрану. Ключ — номер
@@ -485,19 +509,6 @@ export function SceneStage({ preset, zonesOff, zoneContent, className }: SceneSt
           </div>
         </div>
 
-        {/* Кадры «открыто» лежат стопкой над камерой, активный — к единице. */}
-        {zones
-          .filter((zone) => zone.openFrame && openedEver.has(zone.key))
-          .map((zone) => (
-            <div
-              key={zone.key}
-              aria-hidden
-              className={
-                zoomedIn && zone.key === activeKey ? `${s.openFrame} ${s.openFrameOn}` : s.openFrame
-              }
-              style={{ backgroundImage: `url(${roomImageUrl(zone.openFrame as string)})` }}
-            />
-          ))}
 
         <div className={s.scrim} aria-hidden />
         {/* Радиальная вуаль гасит периферию; клик по ней — выход. */}
