@@ -1,0 +1,55 @@
+{
+ "note": "Только изменённые поля, как просили. Координаты — кадр 630×351.",
+ "rooms": {
+  "warm": {
+   "travel": {
+    "openFrame": "o-warm-travel.jpg",
+    "frameMethod": "nano_banana_pro, role:image edit от refs-2x/warm/v4-warm.jpg (sha256 40fbf7597797f942…), 16:9",
+    "eyeNote": "чемоданов 2/2; шляпа с крышки честно переехала на ковёр рядом; плед и лента на месте"
+   }
+  },
+  "emerald": {
+   "travel": {
+    "openFrame": "o-emerald-travel.jpg",
+    "frameMethod": "nano_banana_pro, role:image edit от refs-2x/emerald/v4-emerald.jpg (sha256 6ad69cfc2ee22bd3…), 16:9",
+    "eyeNote": "чемоданов 2/2; часы и шарф переехали с крышки на нижний чемодан; вещи в открытом верхнем видны"
+   }
+  },
+  "cottage": {
+   "travel": {
+    "openFrame": "o-cottage-travel.jpg",
+    "frameMethod": "nano_banana_pro, role:image edit от refs-2x/cottage/v4-cottage.jpg (sha256 5b5c5930bb0862eb…), 16:9",
+    "eyeNote": "корзина 1/1, крышка открыта, клетчатая подкладка; одеяло у правого бока корзины, кожаная сумка на месте"
+   }
+  },
+  "lux": {
+   "travel": {
+    "openFrame": "o-lux-travel.jpg",
+    "frameMethod": "nano_banana_pro, role:image edit от refs-2x/lux/v4-lux.jpg (sha256 baa095cb78c493a6…), 16:9",
+    "eyeNote": "кейсов 2/2; крышка малого откинута, бордовый шёлк свисает по фронту — он и дал порог внутри прямоугольника; большой сундук закрыт, портфолио на месте"
+   }
+  },
+  "study": {
+   "travel": {
+    "rectProposal": {
+     "x": 0,
+     "y": 235,
+     "w": 88,
+     "h": 62
+    },
+    "rectWhy": "жест возможен только у ВЕРХНЕГО сундука (нижний не открыть — на нём стоит верхний), а его крышка и проём живут y≈235–295; контрактный rect {6,276,80,62} стоит на нижнем. Кадр по контрактному ректу не наберёт порога никогда. Камера на крышке переедет, как шляпа у warm"
+   }
+  },
+  "loft": {
+   "travel": {
+    "rectProposal": {
+     "x": 0,
+     "y": 238,
+     "w": 80,
+     "h": 70
+    },
+    "rectWhy": "крышка верхней коробки живёт y≈240–258, контрактный rect {8,272,59,64} — целиком на фронте, который при открытии не меняется. Сдвигать коробку вперёд модель отказывается (2 попытки)"
+   }
+  }
+ }
+}
