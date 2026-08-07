@@ -20,7 +20,7 @@ import { SceneStage } from "@/components/scene/SceneStage";
 import { immersiveLayout } from "@/components/scene/immersive-layout";
 import { ZoneIndexProvider } from "@/components/scene/zone-index-context";
 import { ZoneRail } from "@/components/scene/zone-rail";
-import { RoomTabDrawer } from "@/components/tab-bar/room-tab-drawer";
+import { TabBar } from "@/components/tab-bar/tab-bar";
 import { visibleZones } from "@/components/scene/zones";
 import { SHEET_TILES, ZoneGrid } from "@/components/zone/ZoneGrid";
 import { zoneDisplayItems } from "@/components/zone/zone-display-items";
@@ -144,8 +144,11 @@ export default async function RoomPage() {
               )}
             </div>
 
-            {/* Служебные ссылки (тикеты 10, 11, 13) — тихим тоном, в углу полосы. */}
-            <nav className="imm-area-actions">
+            {/* Служебные ссылки (тикеты 10, 11, 13) — тихим тоном, в углу
+                полосы. ТОЛЬКО НА ДЕСКТОПЕ (тикет 65): на телефоне те же три
+                пункта стоят в постоянном баре внизу, и владелец на приёмке
+                попросил убрать слова с кадра. */}
+            <nav className="imm-area-actions imm-desktop-only">
               <Link
                 href="/connections"
                 className="pressable text-xs font-semibold text-text-muted hover:text-text-strong"
@@ -178,10 +181,12 @@ export default async function RoomPage() {
             accent={accent}
           >
             {/* Вход в добавление вещи (полировка 16). «Полоса света» — главная
-                кнопка везде (турн 22), здесь тихого размера. */}
+                кнопка везде (турн 22), здесь тихого размера. ТОЛЬКО НА
+                ДЕСКТОПЕ (тикет 65): на телефоне в добавление ведёт кружок «＋»
+                посреди постоянного бара — тот же маршрут /room/add. */}
             <Link
               href="/room/add"
-              className="pressable border-b-2 px-4 text-sm font-semibold text-text-primary"
+              className="pressable imm-desktop-only border-b-2 px-4 text-sm font-semibold text-text-primary"
               style={{ borderColor: accent, boxShadow: `0 4px 18px -3px ${accent}6B` }}
             >
               {t("addItem")} →
@@ -193,10 +198,12 @@ export default async function RoomPage() {
         </div>
       </ZoneIndexProvider>
 
-      {/* Таб-бар над комнатой (тикет 52, турн 25a): планка в жёлобе нижней
-          полосы, по тяге вверх — шторка. Оба слоя — оверлеи, раскладку сцены
-          и полос они не двигают (immersive-layout остаётся как был). */}
-      <RoomTabDrawer accent={accent} ink={preset?.ink ?? "#241A0E"} />
+      {/* Постоянный таб-бар на телефоне (тикет 65, приёмка 07.08): «поднимаем
+          снизу всегда видимый нижний сайд-бар — базовая подготовка для будущей
+          вёрстки приложения». Оверлей: раскладку сцены не двигает
+          (immersive-layout как был), нижняя полоса встаёт над ним сама.
+          На десктопе бара нет — там те же ссылки стоят строкой в шапке. */}
+      <TabBar active="room" accent={accent} ink={preset?.ink ?? "#241A0E"} phoneOnly />
     </main>
   );
 }

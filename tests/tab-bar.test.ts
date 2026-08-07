@@ -5,13 +5,15 @@ import { describe, it, expect } from "vitest";
 import tokensJson from "@design/tokens.json";
 import { ADD_HREF, TAB_HREF, TAB_KEYS, TAB_SLOTS } from "../src/components/tab-bar/tabs";
 
-// Таб-бар (тикет 52) — контракт турна 25a, записанный числами и путями.
+// Таб-бар (тикет 52; переработан тикетом 65) — контракт, записанный числами и
+// путями.
 //
-// Три состояния из макета: планка 112×4 в жёлобе (в комнате), шторка 96 px
-// с рядом вкладок 78 px (по тяге), постоянный 86 px (в списках). Сама
-// раскладка рисуется CSS-модулем; здесь сверяются его числа с доской и
-// с tokens.json — разъедутся, упадёт тут, а не на глазах владельца.
-// Тот же приём, что у tests/immersive-layout.test.ts с --band-ar-min.
+// Состояний в макете 25a было три: планка 112×4 в жёлобе комнаты, шторка 96 px
+// по тяге пальцем и постоянный бар 86 px в списках. Приёмка 07.08 оставила
+// одно — постоянный бар, теперь и в комнате тоже. Сама раскладка рисуется
+// CSS-модулем; здесь сверяются его числа с доской и с tokens.json — разъедутся,
+// упадёт тут, а не на глазах владельца. Тот же приём, что у
+// tests/immersive-layout.test.ts с --band-ar-min.
 
 const read = (relative: string) =>
   readFileSync(fileURLToPath(new URL(relative, import.meta.url)), "utf8");
@@ -20,7 +22,9 @@ const css = read("../src/components/tab-bar/tab-bar.module.css");
 const icons = read("../src/components/icons.tsx");
 
 const tokens = tokensJson as unknown as {
-  layout: { phoneImmersive: { tabBar: number; hitTargetMin: number } };
+  layout: {
+    phoneImmersive: { tabBar: number; hitTargetMin: number; railBottom: number };
+  };
 };
 
 describe("вкладки и маршруты", () => {
@@ -50,58 +54,64 @@ describe("числа 25a в CSS", () => {
     expect(css).toContain("height: var(--imm-tab-bar, 86px);");
   });
 
-  it("планка, шторка и тяга — дословно с доски", () => {
-    // «Одна планка 112×4… Тянуть вверх» · «Высота 86, иконка 22. В шторке 78
-    // и 21» · «Тяга 96 px за 240 ms, обратно 200».
-    for (const line of [
-      "--tb-strip-w: 112px;",
-      "--tb-strip-h: 4px;",
-      "--tb-strip-bottom: 14px;",
-      "--tb-strip-tap: 18px;",
-      "--tb-sheet-h: 96px;",
-      "--tb-sheet-row-h: 78px;",
-      "--tb-sheet-handle-w: 36px;",
-      "--tb-pull-open-ms: 240ms;",
-      "--tb-pull-close-ms: 200ms;",
+  it("планки, шторки и жеста тяги в модуле не осталось (тикет 65)", () => {
+    // Владелец просил всегда видимый бар, а вытянутая шторка на его же
+    // скриншоте наезжала на кнопку добавления, значок «поделиться» и указатель
+    // зон. Держать жест выключенным нельзя: он стоил тикету 55 отдельной
+    // правки прицела. Ловим и числа, и имена классов — вернётся любое,
+    // упадёт здесь.
+    for (const dead of [
+      "--tb-strip-w",
+      "--tb-strip-h",
+      "--tb-strip-bottom",
+      "--tb-strip-tap",
+      "--tb-sheet-h",
+      "--tb-sheet-row-h",
+      "--tb-sheet-handle-w",
+      "--tb-pull-open-ms",
+      "--tb-pull-close-ms",
+      ".strip",
+      ".sheet",
+      ".handle",
+      ".backdrop",
     ]) {
-      expect(css, line).toContain(line);
+      expect(css, dead).not.toContain(dead);
     }
-    // Кривая — интерфейсный out из motion.json, не самодельная.
+    // Кривая остаётся: интерфейсный out из motion.json, не самодельная.
     expect(css).toContain("--tb-ease: cubic-bezier(0.23, 1, 0.32, 1);");
   });
 
-  it("жёлоб разведён с указателем зон: у планки свои 18 px, у пунктов — 44 (тикет 55)", () => {
-    // Долг тикета 52 закрыт: ручка планки больше не срезает цели центральных
-    // пунктов указателя. Числа живут в трёх файлах, их сверка — здесь.
+  it("нижняя полоса комнаты стоит НАД баром, жёлоб возвращён указателю (тикет 65)", () => {
+    // Бар fixed высотой 86 и контента не двигает — полоса поднимается сама.
+    // Прежде она отдавала планке нижние 18 px (тикет 55); планки нет —
+    // отступа тоже.
     //
     // Бюджет нижней полосы (116, tokens.json → phoneImmersive.railBottom):
-    //   1 свободный + 44 действия + 4 шаг + 1 линия + 4 воздух + 44 пункты
-    //   + 18 планке = 116. Пункты кончаются в 18 px от низа экрана, зона
-    //   нажатия планки — нижние 18: пересечения ноль. Бар 112×4 стоит где
-    //   стоял (bottom 14, как в 25a): 14 + 4 = 18 — верхняя кромка бара
-    //   на границе своей зоны нажатия.
+    //   44 действия + 4 шаг + 1 линия + 4 воздух + 44 пункты = 97,
+    //   свободные 19 уходят воздухом наверх (стопка прижата к низу).
     const zoneIndexCss = read("../src/components/scene/zone-index.module.css");
     const globalsCss = read("../src/app/globals.css");
 
-    // Планка: высота зоны нажатия — из своей переменной, не из прежних 26.
-    expect(css).toContain("height: var(--tb-strip-tap);");
-    expect(css).not.toContain("height: 26px;");
-
-    // Указатель: стопка полосы отдаёт планке ровно её 18 и прижата к низу.
-    expect(zoneIndexCss).toContain("margin-bottom: 18px;");
+    expect(globalsCss).toMatch(/\.imm-rail-bottom \{\s*bottom: var\(--imm-tab-bar\);/u);
+    expect(globalsCss).toMatch(/\.imm-rail-bottom \{[^}]*align-items: flex-end;/u);
+    expect(zoneIndexCss).not.toContain("margin-bottom: 18px;");
     expect(zoneIndexCss).toContain("gap: 4px;");
     expect(zoneIndexCss).toContain("padding-top: 4px;");
-    expect(globalsCss).toMatch(/\.imm-rail-bottom \{[^}]*align-items: flex-end;/u);
 
-    // Арифметика жёлоба: две цели по 44, шаг, линия, воздух и планка — в 116.
+    // Арифметика полосы: две цели по 44, шаг, линия и воздух — в 116.
     const railBottom = 116;
     const stack = 44 + 4 + 1 + 4 + 44;
-    const stripTap = 18;
-    const stripBottom = 14;
-    const stripBar = 4;
-    expect(stack + stripTap).toBeLessThanOrEqual(railBottom);
-    // Бар планки лежит внутри своей зоны нажатия, впритык к её верху.
-    expect(stripBottom + stripBar).toBe(stripTap);
+    expect(stack).toBeLessThanOrEqual(railBottom);
+    expect(railBottom).toBe(tokens.layout.phoneImmersive.railBottom);
+  });
+
+  it("порог «только телефон» — тот же 1024, что у всей раскладки комнаты", () => {
+    // Второго порога в продукте не заводится: правило бара — точное
+    // дополнение десктопной ветки globals.css.
+    const globalsCss = read("../src/app/globals.css");
+    expect(css).toMatch(/@media \(min-width: 1024px\) \{\s*\.barPhoneOnly \{\s*display: none;/u);
+    expect(globalsCss).toContain("@media not all and (min-width: 1024px)");
+    expect(globalsCss).toMatch(/\.imm-rail \.imm-desktop-only \{\s*display: none;/u);
   });
 
   it("цель нажатия вкладки — не меньше контрактных 44", () => {

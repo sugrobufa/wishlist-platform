@@ -5,37 +5,32 @@ import s from "./tab-bar.module.css";
 
 export type SlotLabels = Record<SlotKey, string>;
 
+/** Иконка вкладки в постоянном баре (25a). */
+const ICON_SIZE = 22;
+
+/** Плюс в кружке «Добавить» — на единицу тише вкладок, как в 25a. */
+const ADD_ICON_SIZE = 19;
+
 type TabSlotsProps = {
   /** Какая вкладка подсвечена акцентом; активность — только цветом (25a). */
   active: TabKey;
   labels: SlotLabels;
-  /** Иконка вкладки: 21 в шторке, 22 в постоянном (25a). */
-  iconSize: number;
-  /** Плюс в кружке «Добавить»: 18 в шторке, 19 в постоянном. */
-  addIconSize: number;
-  /** Шторка закрывается по переходу — постоянному бару колбэк не нужен. */
-  onNavigate?: () => void;
 };
 
 /**
- * Пять мест таб-бара — одна разметка для шторки и постоянного состояния,
- * различия (размер иконки, шаги) приезжают пропами и классом контейнера.
- * Файл серверный по умолчанию; из шторки импортируется в клиентскую границу.
+ * Пять мест таб-бара. Прежде размеры приезжали пропами: у бара и у шторки они
+ * различались на единицу (22/21 и 19/18). Шторки не стало (тикет 65) —
+ * остались два числа контракта, и они живут здесь константами.
  */
-export function TabSlots({ active, labels, iconSize, addIconSize, onNavigate }: TabSlotsProps) {
+export function TabSlots({ active, labels }: TabSlotsProps) {
   return (
     <>
       {TAB_SLOTS.map((slot) => {
         if (slot === "add") {
           return (
-            <Link
-              key={slot}
-              href={ADD_HREF}
-              className={`pressable ${s.slot} ${s.slotAdd}`}
-              onClick={onNavigate}
-            >
+            <Link key={slot} href={ADD_HREF} className={`pressable ${s.slot} ${s.slotAdd}`}>
               <span className={s.addBadge}>
-                <IconPlus size={addIconSize} strokeWidth={2.1} />
+                <IconPlus size={ADD_ICON_SIZE} strokeWidth={2.1} />
               </span>
               {labels.add}
             </Link>
@@ -48,9 +43,8 @@ export function TabSlots({ active, labels, iconSize, addIconSize, onNavigate }: 
             href={TAB_HREF[slot]}
             aria-current={isActive ? "page" : undefined}
             className={isActive ? `pressable ${s.slot} ${s.slotActive}` : `pressable ${s.slot}`}
-            onClick={onNavigate}
           >
-            <SlotIcon slot={slot} active={isActive} size={iconSize} />
+            <SlotIcon slot={slot} active={isActive} size={ICON_SIZE} />
             {labels[slot]}
           </Link>
         );

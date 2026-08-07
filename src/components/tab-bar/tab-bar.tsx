@@ -5,34 +5,46 @@ import type { TabKey } from "./tabs";
 import s from "./tab-bar.module.css";
 
 /**
- * Таб-бар «в списках — постоянный» (турн 25a, состояние 3): высота 86
- * (tokens.json → phoneImmersive.tabBar), иконка 22, активная вкладка — только
- * цветом акцента комнаты. Стоит на экранах-вкладках (Друзья, Сокровищница,
- * Настройки); в комнате вместо него живёт шторка (room-tab-drawer.tsx).
+ * Постоянный таб-бар (турн 25a, состояние 3): высота 86 (tokens.json →
+ * phoneImmersive.tabBar), иконка 22, активная вкладка — только цветом акцента
+ * комнаты. Стоит на экранах-вкладках (Друзья, Сокровищница, Настройки) и —
+ * с приёмки 07.08 (тикет 65) — в самой комнате на телефоне.
+ *
+ * Прежде в комнате жила шторка: планка 112×4, которую надо было вытянуть
+ * пальцем. Владелец на приёмке попросил «всегда видимый нижний бар — базовая
+ * подготовка для будущего приложения», и заодно это сняло наложение шторки на
+ * кнопку добавления, значок «поделиться» и указатель зон. Состояния 1 и 2
+ * турна 25a вместе с `room-tab-drawer.tsx` удалены.
  *
  * Страница под баром обязана оставить себе нижний отступ
  * `pb-[calc(var(--imm-tab-bar)+30px)]` — бар fixed и контента не двигает.
+ * Комната считает то же самое своей нижней полосой (globals.css).
+ *
+ * @param phoneOnly бар исчезает на десктопе. Нужен комнате: там на широком
+ *        экране навигация живёт строкой в шапке, и второй ряд тех же ссылок
+ *        внизу был бы дублем. Экраны-списки шапки не имеют — им бар нужен на
+ *        обеих раскладках, и они этот флаг не ставят.
  */
 export async function TabBar({
   active,
   accent,
   ink,
+  phoneOnly = false,
 }: {
   active: TabKey;
   accent: string;
   ink: string;
+  phoneOnly?: boolean;
 }) {
   const t = await getTranslations("TabBar");
   return (
     <nav
       aria-label={t("tabsAria")}
-      className={`${s.numbers} ${s.bar}`}
+      className={phoneOnly ? `${s.numbers} ${s.bar} ${s.barPhoneOnly}` : `${s.numbers} ${s.bar}`}
       style={{ "--tb-accent": accent, "--tb-ink": ink } as CSSProperties}
     >
       <TabSlots
         active={active}
-        iconSize={22}
-        addIconSize={19}
         labels={{
           room: t("room"),
           connections: t("connections"),
