@@ -175,7 +175,13 @@ describe("design handoff contract", () => {
     // Тикет 81 добавил три: `bold/anything`, `gamer/anything`, `loft/anything`
     // переразмечены по диагнозу дизайна раунда 14 (жест вне нашего ректа),
     // обрезанному до куска без пересечений. 57 стало 60.
-    expect(allZones.filter(({ zone }) => zone.rectOld)).toHaveLength(60);
+    // Тикет 81-2 добавил пять: `gamer/sneakers` (стоял на пустом проёме ниши,
+    // переставлен на обувь), `lux/jewelry` (стоял на голой столешнице),
+    // `lux/money` (наполовину на зеркальном отражении бокса), `lux/music`
+    // (objectAbsent, ужата, чтобы уступить полосу крышке кейса) и `lux/travel`
+    // (поднят на раскрытый кейс). `gamer/anything` переразмечен вторично —
+    // `rectOld` у него уже был. 60 стало 65.
+    expect(allZones.filter(({ zone }) => zone.rectOld)).toHaveLength(65);
   });
 
   it("каждая зона лежит в границах КАДРА 630×351, а не окна 430", () => {
@@ -268,8 +274,12 @@ describe("кадры «открыто» (openFrame — единственный 
     // cottage/anything, lux/anything, study/anything) и loft/travel из
     // раунда 15. Все сняты от НАШИХ баз 2800×1563 — первая партия, где база
     // не спорит; два приняты глазами ниже порога 3.0 решением владельца.
-    expect(withFrame).toHaveLength(17);
-    expect(accepted).toHaveLength(17);
+    // Тикет 81-2 прибавил восьмой из партии раунда 14 — `lux/travel`: кадр был
+    // честным с самого начала, но мерился против прямоугольника, который стоял
+    // НИЖЕ жеста (0.93). После переразметки соседей (jewelry, money, music)
+    // и подъёма самого travel на раскрытый кейс — 3.31. 17 стало 18.
+    expect(withFrame).toHaveLength(18);
+    expect(accepted).toHaveLength(18);
     expect(absent).toHaveLength(8);
     expect(withFrame.map((z) => z.id).sort()).toEqual(
       [
@@ -289,6 +299,7 @@ describe("кадры «открыто» (openFrame — единственный 
         "cottage/travel",
         "emerald/travel",
         "lux/anything",
+        "lux/travel",
         "study/anything",
         "warm/travel",
         // Раунд 15.
@@ -358,8 +369,9 @@ describe("кадры «открыто» (openFrame — единственный 
       byRound[zone.frameRound ?? "r3"] = (byRound[zone.frameRound ?? "r3"] ?? 0) + 1;
     // 5 раунда 3 (без поля), 1 раунда 7, 4 партии 2 раунда 8.
     // 5 раунда 3 (без поля), 1 раунда 7, 4 партии 2 раунда 8,
-    // 6 раунда 14 и 1 раунда 15 (тикет 81).
-    expect(byRound).toEqual({ r3: 5, "7": 1, "8": 4, "14": 6, "15": 1 });
+    // 6 раунда 14 и 1 раунда 15 (тикет 81), плюс седьмой раунда 14 —
+    // `lux/travel` подключён тикетом 81-2 после переразметки соседей.
+    expect(byRound).toEqual({ r3: 5, "7": 1, "8": 4, "14": 7, "15": 1 });
     const round3 = withFrame.filter(({ zone }) => zone.frameRound === undefined);
     expect(round3).toHaveLength(5);
     for (const { id, zone } of round3) {
@@ -411,7 +423,10 @@ describe("кадры «открыто» (openFrame — единственный 
     const reshoot = allZones.filter(({ zone }) => zone.reshoot);
     // Раунды 14–15 вернули семь зон из «переснять» в «принято»: 112 → 105,
     // 10 → 17. Сумма по-прежнему 130.
-    expect([accepted.length, reshoot.length, absent.length]).toEqual([17, 105, 8]);
+    // Тикет 81-2 вернул восьмую — `lux/travel`: 105 → 104, 17 → 18. `lux/jewelry`
+    // осталась в «переснять», хотя предмета в интерьере нет: перевод в
+    // objectAbsent скрыл бы зону вместе с вещами, это решение владельца.
+    expect([accepted.length, reshoot.length, absent.length]).toEqual([18, 104, 8]);
     const doubled = allZones.filter(
       ({ zone }) => [zone.accepted, zone.reshoot, zone.objectAbsent].filter(Boolean).length > 1,
     );
@@ -467,11 +482,12 @@ describe("кадры «открыто» (openFrame — единственный 
     // `warm/travel` и `loft/travel` сняты от наших баз и приняты. Прежде оно
     // держалось не как запрет, а как факт — у этих комнат просто не было ни
     // одного честного кадра. Теперь есть, и вычитать больше нечего.
-    expect(withFrame).toHaveLength(17);
+    // Тикет 81-2 добавил `lux/travel`: 17 → 18.
+    expect(withFrame).toHaveLength(18);
     const connected = rooms.flatMap((room) =>
       room.zones.filter((zone) => zone.openFrame).map((zone) => `${room.id}/${zone.key}`),
     );
-    expect(connected).toHaveLength(17);
+    expect(connected).toHaveLength(18);
     expect(connected.filter((id) => id.startsWith("warm/") || id.startsWith("loft/")).sort()).toEqual(
       ["loft/travel", "warm/travel"],
     );
@@ -693,7 +709,8 @@ describe("кадры «открыто» (openFrame — единственный 
     // Раунды 14–15 (тикет 81) добавили семь кадров сверх обеих историй —
     // они снимались от НАШИХ баз, а не от пакета, и в снимок аудита 49 не
     // входят по построению. Поэтому арифметика теперь трёхчленная.
-    const OUR_BASE_ROUNDS = 7;
+    // Тикет 81-2 добавил восьмой — `lux/travel` из той же партии раунда 14.
+    const OUR_BASE_ROUNDS = 8;
     expect(withFrame.length).toBe(check.honest + latestConnected - 1 + OUR_BASE_ROUNDS);
     // (−1: travel был честным у аудита И заменён партией 2 — не двойной счёт.)
     expect(check.substitution + check.contentLost + check.nothingHappened + check.honest).toBe(30);
