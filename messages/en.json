@@ -470,5 +470,16 @@
     "hall": "Treasure room",
     "settings": "Settings",
     "tabsAria": "Tabs"
+  },
+  "RoomList": {
+    "title": "The whole room as a list",
+    "subtitle": "Everything at once — no walking around",
+    "filterAria": "What to show",
+    "filterAll": "All",
+    "filterWant": "Wishes",
+    "filterLove": "Loved",
+    "empty": "Nothing here yet",
+    "toList": "As a list",
+    "toRoom": "To the room"
   }
 }

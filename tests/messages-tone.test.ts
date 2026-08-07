@@ -454,6 +454,15 @@ describe("словарь и дизайн-пакет", () => {
     // до ответа — имя страницы /settings («Настройки», как Settings.title).
     // `TabBar.tabsAria` — имя полосы для читалки, слов такого экрана в
     // словаре пакета нет.
+    //
+    // `RoomList.*` — «вся комната списком» (тикет 67, приёмка 07.08): второй
+    // вход в то же содержимое для тех, кто не хочет гулять по комнате. Экрана
+    // на доске НЕТ вовсе — он заказан письмом design/DESIGN-BRIEF-10.md,
+    // вместе с «зоной списком» из турна 19b. Слова написаны по памятке тона:
+    // «Хочу» и «Люблю» — те же, что во вкладках сетки зоны (пакет их знает),
+    // «Все» — третье положение того же переключателя; «Здесь пока пусто» —
+    // формула пустого состояния из памятки. Приедет отрисовка — сверим и
+    // заменим на дословные.
     const own = [...ru.keys()].filter((key) => !handoff.has(key)).sort();
     expect(own).toEqual([
       "AddItem.back",
@@ -549,6 +558,15 @@ describe("словарь и дизайн-пакет", () => {
       "Onboarding.occasionStep",
       "Onboarding.occasionSubtitle",
       "Onboarding.occasionTitle",
+      "RoomList.empty",
+      "RoomList.filterAll",
+      "RoomList.filterAria",
+      "RoomList.filterLove",
+      "RoomList.filterWant",
+      "RoomList.subtitle",
+      "RoomList.title",
+      "RoomList.toList",
+      "RoomList.toRoom",
       "Scene.indexAria",
       "Scene.summaryBrands",
       "Scene.summaryCountsGuest",

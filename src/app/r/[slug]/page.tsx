@@ -120,6 +120,7 @@ export default async function GuestRoomPage({ params }: Params) {
   if (!preset) notFound();
 
   const t = await getTranslations("GuestRoom");
+  const tList = await getTranslations("RoomList");
   const ownerName = room.ownerName ?? t("ownerFallback");
 
   // Приветствие холодному гостю (тикет 38, турн 12b): три тихие строки над
@@ -243,6 +244,14 @@ export default async function GuestRoomPage({ params }: Params) {
             >
               <p className="min-w-0 text-xs text-text-muted">{t("ctaHint")}</p>
               <div className="imm-actions">
+                {/* Второй вход в то же содержимое (тикет 67): гость, который
+                    пришёл выбрать подарок за минуту, смотрит вещи списком. */}
+                <Link
+                  href={`/r/${room.nick ?? room.shareSlug}/list`}
+                  className="pressable text-xs font-semibold text-text-muted hover:text-text-strong"
+                >
+                  {tList("toList")} →
+                </Link>
                 {/* «Мои брони · N» — появляется после клиентского fetch, если cookie непуст. */}
                 <MyBookingsLink />
                 <Link

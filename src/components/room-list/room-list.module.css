@@ -1,0 +1,71 @@
+/* Вся комната списком (тикет 67).
+ *
+ * Собрано из уже существующего языка: вкладки — как переключатель «Люблю /
+ * Хочу» в сетке зоны (турн 8), заголовок группы — как подпись зоны в
+ * оглавлении (Archivo uppercase с разрядкой), плитки — те же `ItemTile`.
+ * Своей типографики экран не заводит: его макета в пакете нет, и придумывать
+ * второй язык до отрисовки было бы работой в мусор. */
+
+.filters {
+  display: flex;
+  gap: 4px;
+  margin: 18px 0 4px;
+}
+
+.filter {
+  padding: 7px 13px;
+  border: 0;
+  border-radius: 2px;
+  background: none;
+  font: 500 11.5px/1 var(--font-ui);
+  color: var(--color-text-faint);
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.filterOn {
+  font-weight: 600;
+  color: var(--color-surface-app-ground, #0b0806);
+  background: var(--rl-accent, #e7c9a9);
+}
+
+.group {
+  margin-top: 26px;
+}
+
+.groupHead {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: rgba(255, 249, 242, 0.72);
+}
+
+.groupCount {
+  font-family: var(--font-ui);
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0;
+  text-transform: none;
+  color: rgba(255, 249, 242, 0.38);
+}
+
+.grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(104px, 1fr));
+  gap: 12px 10px;
+  margin: 12px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.empty {
+  margin: 32px 0;
+  font: 500 13px/1.5 var(--font-ui);
+  color: var(--color-text-muted);
+}

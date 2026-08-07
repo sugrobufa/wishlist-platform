@@ -51,6 +51,7 @@ export default async function RoomPage() {
   if (!room) redirect("/onboarding");
 
   const t = await getTranslations("Room");
+  const tList = await getTranslations("RoomList");
   const preset = rooms.find((candidate) => candidate.id === room.preset);
   // Красивый адрес с ником, когда он занят (тикет 13); короткий код
   // продолжает работать редиректом.
@@ -196,9 +197,20 @@ export default async function RoomPage() {
             >
               {t("addItem")} →
             </Link>
-            {/* Вместо карточки с адресом — один значок (тикет 24). Сам адрес
-                живёт в «Настройках», рядом с ником, которым его и меняют. */}
-            <ShareButton path={sharePath} accent={accent} />
+            <div className="imm-actions">
+              {/* Вместо карточки с адресом — один значок (тикет 24). Сам адрес
+                  живёт в «Настройках», рядом с ником, которым его и меняют. */}
+              <ShareButton path={sharePath} accent={accent} />
+              {/* Второй вход в то же содержимое (тикет 67): кто не хочет гулять
+                  по комнате, смотрит все вещи списком. Сцену не заменяет —
+                  стоит рядом с ней. */}
+              <Link
+                href="/room/list"
+                className="pressable text-xs font-semibold text-text-muted hover:text-text-strong"
+              >
+                {tList("toList")} →
+              </Link>
+            </div>
           </ZoneRail>
         </div>
       </ZoneIndexProvider>
