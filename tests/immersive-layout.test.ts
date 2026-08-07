@@ -1015,11 +1015,16 @@ describe("все 130 зон достижимы: кадром или указат
       );
     };
     expect(touchedTop(PHONE)).toHaveLength(75);
-    expect(touchedTop({ w: 390, h: 844 })).toHaveLength(91);
+    // 92, а не 91: тикет 75 поднял `loft/sneakers` с пола на саму обувь
+    // (y 222 → 196), и на этом экране зона въехала под вуаль.
+    expect(touchedTop({ w: 390, h: 844 })).toHaveLength(92);
     // 98, а не 97: раунд 11 поднял `cottage/music` с сундука на проигрыватель
     // (y 238 → 217), и на этом экране зона въехала под вуаль.
     expect(touchedTop({ w: 375, h: 667 })).toHaveLength(98);
-    expect(touchedTop({ w: 360, h: 640 })).toHaveLength(103);
+    // 102, а не 103: тикет 75 опустил `study/sneakers` с деревянной панели на
+    // обувную полку (y 215 → 232), и на самом коротком экране зона из-под
+    // вуали вышла.
+    expect(touchedTop({ w: 360, h: 640 })).toHaveLength(102);
 
     // НИЖНЯЯ ПОЛОСА КАДРА НЕ КАСАЕТСЯ ВОВСЕ — и это тоже требование, а не
     // случайность: кадр кончается на 352 при полосе, начинающейся на 816
@@ -1070,7 +1075,9 @@ describe("все 130 зон достижимы: кадром или указат
           bottom(zoneOnScreen(rect, "phone", screen)) <= clearBand("phone", screen).top + EPS,
       ).length;
     expect(swallowedAt({ w: 430, h: 745 })).toBe(35);
-    expect(swallowedAt({ w: 390, h: 844 })).toBe(55);
+    // 56, а не 55: тикет 75 подрезал `loft/fashion` по рейлу с одеждой
+    // (низ 214 → 191), и на этом экране зона утонула под вуаль целиком.
+    expect(swallowedAt({ w: 390, h: 844 })).toBe(56);
     expect(swallowedAt({ w: 375, h: 667 })).toBe(66);
     expect(swallowedAt({ w: 360, h: 640 })).toBe(77);
     for (const { id, roomId, key, rect } of swallowed) {
@@ -1120,7 +1127,10 @@ describe("все 130 зон достижимы: кадром или указат
     };
     expect(touched({ w: 1920, h: 1080 })).toHaveLength(32);
     expect(touched(DESKTOP)).toHaveLength(40);
-    expect(touched({ w: 1024, h: 768 })).toHaveLength(28);
+    // 27, а не 28: тикет 75 переставил `study/anything` с пола на стопку
+    // подарочных коробок (низ 338 → 320), и на этом окне зона перестала
+    // доставать до нижней полосы.
+    expect(touched({ w: 1024, h: 768 })).toHaveLength(27);
     expect(touched({ w: 1280, h: 1024 })).toHaveLength(5);
 
     // ЦЕЛИКОМ под полосой почти везде лежит только `study/money`. Исключений
@@ -1192,18 +1202,24 @@ describe("все 130 зон достижимы: кадром или указат
     // «целиком»: `study/travel` (x 6 → 12) и `loft/travel` (x 8 → 12) при
     // переразметке на верхний сундук встали ровно на левую кромку окна в покое —
     // требование «x ≥ 12» из тикета и есть причина, по которой замены дизайна
-    // (обе с x = 0) не взяли. Сумма 130 не сдвинулась: 70 + 27 + 33.
+    // (обе с x = 0) не взяли.
+    //
+    // Тикет 75 перевёл третью: `study/sneakers` уехал с деревянной панели на
+    // саму обувь (x 4 → 87) и целиком вошёл в окно. Сумма 130 не сдвинулась:
+    // 71 + 26 + 33.
     const whole = allZones.filter(({ rect }) => zoneInsideViewport(rect, "phone"));
-    expect(whole).toHaveLength(70);
+    expect(whole).toHaveLength(71);
     const partial = allZones.filter(
       ({ id, rect }) => !zoneInsideViewport(rect, "phone") && !BEYOND_PHONE_WINDOW.includes(id),
     );
-    expect(partial).toHaveLength(27);
+    expect(partial).toHaveLength(26);
     expect(whole.length + partial.length + BEYOND_PHONE_WINDOW.length).toBe(130);
     // Левый свес — обратная сторона той же смены координат: кадр стоит в сцене
     // со сдвигом −12, поэтому зона у левого края кадра (x < 12) уходит под
-    // левый край окна. Их 15, и все они срезаются, а не пропадают.
-    expect(allZones.filter(({ rect }) => rect.x < -scene.phone.image.x)).toHaveLength(15);
+    // левый край окна. Их 14, и все они срезаются, а не пропадают.
+    // Было 15: тикет 75 увёл `study/sneakers` с панели на обувь (x 4 → 87),
+    // и свешиваться ему стало нечем.
+    expect(allZones.filter(({ rect }) => rect.x < -scene.phone.image.x)).toHaveLength(14);
   });
 });
 

@@ -461,15 +461,23 @@ describe("краевые зоны: сколько пустоты открыва�
     // (Десктоп 42 → 48: та же причина, и разница та же шестёрка зон.
     // Тикет 53: новый рект `cream/events` у верхней кромки центруется с
     // пустотой сверху — чистых на десктопе стало 47.)
+    // Тикет 75: чистых стало 63 на телефоне и 48 на десктопе. Прибавились те,
+    // что ушли от левого края кадра при переразметке по предмету:
+    // `study/sneakers` с деревянной панели на обувную полку (x 4 → 87) и
+    // `study/anything` с пола на стопку подарочных коробок (x 89 → 166).
+    // На десктопе прибавилась только вторая — `sneakers` там был чистым и до
+    // переезда: окно шире, и его левый край зону не обнажал.
+    // Пределы пустоты по всем четырём сторонам не сдвинулись ни на десятую:
+    // худшие зоны прежние.
     const phone = worst("phone");
-    expect(phone.clean).toBe(61);
+    expect(phone.clean).toBe(63);
     expect(phone.left).toBeCloseTo(23.1, 1);
     expect(phone.right).toBeCloseTo(16.1, 1);
     expect(phone.top).toBeCloseTo(7.2, 1);
     expect(phone.bottom).toBeCloseTo(27.5, 1);
 
     const desktop = worst("desktop");
-    expect(desktop.clean).toBe(47);
+    expect(desktop.clean).toBe(48);
     expect(desktop.left).toBeCloseTo(30.5, 1);
     expect(desktop.right).toBeCloseTo(34.7, 1);
     expect(desktop.top).toBeCloseTo(7.2, 1);

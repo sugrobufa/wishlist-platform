@@ -166,10 +166,13 @@ describe("design handoff contract", () => {
     // 49 зон раундов 4–5 плюс cream/money и cream/beauty раунда 8 (у
     // cream/events rectOld был и раньше — раунд 5, теперь хранит прямоугольник,
     // снятый раундом 8). Раунд 11 добавил ещё две — `study/travel` и
-    // `loft/travel` (тикет 63): 51 стало 53. В реестр долга bloomAR они НЕ
-    // попали и он остался 44 — обеим пятно пересчитано по формуле пакета
-    // (study 75 → 67, loft 53 → 97) вместе с прямоугольником.
-    expect(allZones.filter(({ zone }) => zone.rectOld)).toHaveLength(53);
+    // `loft/travel` (тикет 63): 51 стало 53. Раунд 13 (тикет 75) добавил
+    // четыре — `study/sneakers`, `study/anything`, `loft/sneakers`,
+    // `loft/fashion`: 53 стало 57 (у двух зон travel rectOld уже был и просто
+    // обновился). В реестр долга bloomAR никто из них НЕ попал, и он остался
+    // 44: всем шести пятно пересчитано по формуле пакета вместе с
+    // прямоугольником.
+    expect(allZones.filter(({ zone }) => zone.rectOld)).toHaveLength(57);
   });
 
   it("каждая зона лежит в границах КАДРА 630×351, а не окна 430", () => {
@@ -951,7 +954,28 @@ describe("флаги проверки: notClamped / eyeChecked / wrongTarget", (
     // нами по оригиналам 4k — его замены съедали зону обуви и уезжали в x=0.
     expect(remapped.filter(({ zone }) => zone.remappedRound === 11).map((z) => z.id)).toEqual([
       "cottage/music",
+    ]);
+    // Раунд 13 (тикет 75) — тоже наша находка. `study/travel` и `loft/travel`
+    // переехали сюда из раунда 11: раунд 11 поставил их на ВЕРХНИЙ сундук
+    // (коробку), но поднять верх рамки под откидывающуюся крышку было некуда —
+    // сверху сидел `sneakers`, размеченный не по обуви, а по деревянной панели
+    // и крышке самого сундука. Раунд 13 переставил `sneakers` на четыре пары
+    // и отдал освободившееся место `travel`.
+    //
+    // Следом пришлось подвинуть соседей, иначе рамки пересеклись бы:
+    // `study/anything` стоял на полу и краем задевал подарочные коробки —
+    // переставлен на них; `loft/fashion` свисал на 23 единицы ниже одежды и
+    // лежал на верхе обуви — подрезан по рейлу.
+    //
+    // Замену дизайна (раунд 13, `changed-fields.json`) НЕ взяли: это те же
+    // числа, что отклонили в раунде 11, — x=0 при окне с 12 и до 1092 px²
+    // поверх соседних зон. Разбор — .scratch/acceptance-2026-08-07/issues/75.
+    expect(remapped.filter(({ zone }) => zone.remappedRound === 13).map((z) => z.id)).toEqual([
+      "study/anything",
+      "study/sneakers",
       "study/travel",
+      "loft/fashion",
+      "loft/sneakers",
       "loft/travel",
     ]);
     for (const { id, zone } of remapped) {
