@@ -80,33 +80,53 @@ describe("светом отвечают ровно те зоны, у котор�
     }
   });
 
-  it("кадр «открыто» есть у десяти зон продукта — им поведение не меняем", () => {
+  it("кадр «открыто» есть у семнадцати зон продукта — им поведение не меняем", () => {
     const framed = all.filter(({ zone }) => !zoneWakesWithLight(zone));
-    expect(framed.map(({ room, zone }) => `${room}/${zone.key}`).sort()).toEqual([
-      "cream/anything",
-      "cream/flowers",
-      "cream/home",
-      "cream/travel",
-      "gamer/travel",
-      "sport/anything",
-      "sport/sneakers",
-      "sport/travel",
-      "study/events",
-      "study/sport",
-    ]);
+    // Раунды 14–15 (тикет 81) добавили семь: первая партия, снятая от НАШИХ
+    // баз 2800×1563. Двум комнатам, warm и loft, кадр достался впервые —
+    // прежде запрет ADR-0005 закрывал их целиком, и он снят точечно, по
+    // `frameRound`, а не с комнаты (src/config/design.ts).
+    expect(framed.map(({ room, zone }) => `${room}/${zone.key}`).sort()).toEqual(
+      [
+        "cream/anything",
+        "cream/flowers",
+        "cream/home",
+        "cream/travel",
+        "gamer/travel",
+        "sport/anything",
+        "sport/sneakers",
+        "sport/travel",
+        "study/events",
+        "study/sport",
+        "cottage/anything",
+        "cottage/travel",
+        "emerald/travel",
+        "loft/travel",
+        "lux/anything",
+        "study/anything",
+        "warm/travel",
+      ].sort(),
+    );
   });
 
   it("свет достаётся всем остальным — тем самым мёртвым зонам из тикета", () => {
     const waking = all.filter(({ zone }) => zoneWakesWithLight(zone));
-    // 122 показанные зоны продукта (CLAUDE.md, инвариант 9) минус 10 с кадром.
+    // 122 показанные зоны продукта (CLAUDE.md, инвариант 9) минус 17 с кадром
+    // (было 10 — раунды 14–15 добавили семь, тикет 81).
     expect(all.length).toBe(122);
-    expect(waking.length).toBe(112);
+    expect(waking.length).toBe(105);
   });
 
   it("комната без единого кадра оживает целиком, комната с кадрами — частями", () => {
     const cottage = rooms.find((room) => room.id === "cottage");
     const cream = rooms.find((room) => room.id === "cream");
-    expect(cottage?.zones.every(zoneWakesWithLight)).toBe(true);
+    // «Загородный дом» получил два кадра раундом 14 — целиком светом он
+    // больше не оживает. Комната без единого кадра теперь `bold`.
+    const bold = rooms.find((room) => room.id === "bold");
+    expect(bold?.zones.every(zoneWakesWithLight)).toBe(true);
+    expect(cottage?.zones.filter(zoneWakesWithLight)).toHaveLength(
+      (cottage?.zones.length ?? 0) - 2,
+    );
     expect(cream?.zones.filter(zoneWakesWithLight)).toHaveLength(9);
   });
 

@@ -258,11 +258,17 @@ describe("кадры «открыто» (openFrame — единственный 
     // глазами) → 10 (партия 2 «Кремовой»: +4, из них travel — замена кадра
     // раунда 3, гасившего банку-копилку). Флаг и данные совпадают, потому что
     // и то и другое ставит наше измерение, а не пакет.
-    expect(withFrame).toHaveLength(10);
-    expect(accepted).toHaveLength(10);
+    // Раунды 14–15 (тикет 81) прибавили семь: 10 → 17. Шесть из партии
+    // раунда 14 (warm/travel, emerald/travel, cottage/travel,
+    // cottage/anything, lux/anything, study/anything) и loft/travel из
+    // раунда 15. Все сняты от НАШИХ баз 2800×1563 — первая партия, где база
+    // не спорит; два приняты глазами ниже порога 3.0 решением владельца.
+    expect(withFrame).toHaveLength(17);
+    expect(accepted).toHaveLength(17);
     expect(absent).toHaveLength(8);
     expect(withFrame.map((z) => z.id).sort()).toEqual(
       [
+        // Раунды 3–8: пять комнат.
         "cream/anything",
         "cream/flowers",
         "cream/home",
@@ -273,6 +279,15 @@ describe("кадры «открыто» (openFrame — единственный 
         "sport/travel",
         "study/events",
         "study/sport",
+        // Раунд 14 — первая партия от наших баз (тикет 81).
+        "cottage/anything",
+        "cottage/travel",
+        "emerald/travel",
+        "lux/anything",
+        "study/anything",
+        "warm/travel",
+        // Раунд 15.
+        "loft/travel",
       ].sort(),
     );
   });
@@ -294,12 +309,10 @@ describe("кадры «открыто» (openFrame — единственный 
     // отчётом прежнего прогона (`C:/Wishlist/masters-4k/audit.json`) — числа
     // совпали до третьего знака, то есть дело не в пересжатии кадров.
     const dropped = allZones.filter(({ zone }) => zone.reshootReason?.includes("тикет 46"));
-    expect(dropped.map((z) => z.id)).toEqual([
-      "warm/jewelry",
-      "warm/travel",
-      "cottage/jewelry",
-      "cottage/travel",
-    ]);
+    // Было четыре; двум из них (`warm/travel`, `cottage/travel`) раунд 14
+    // привёз честный кадр, и вердикт тикета 46 у них перезаписан приёмкой —
+    // актуальная причина у зоны ровно одна. Остались две.
+    expect(dropped.map((z) => z.id)).toEqual(["warm/jewelry", "cottage/jewelry"]);
     for (const { id, zone } of dropped) {
       expect(zone.openFrame ?? null, `${id}`).toBeNull();
       expect(zone.reshoot, `${id}: ушли в очередь на пересъёмку`).toBe(true);
@@ -339,7 +352,9 @@ describe("кадры «открыто» (openFrame — единственный 
     for (const { zone } of withFrame)
       byRound[zone.frameRound ?? "r3"] = (byRound[zone.frameRound ?? "r3"] ?? 0) + 1;
     // 5 раунда 3 (без поля), 1 раунда 7, 4 партии 2 раунда 8.
-    expect(byRound).toEqual({ r3: 5, "7": 1, "8": 4 });
+    // 5 раунда 3 (без поля), 1 раунда 7, 4 партии 2 раунда 8,
+    // 6 раунда 14 и 1 раунда 15 (тикет 81).
+    expect(byRound).toEqual({ r3: 5, "7": 1, "8": 4, "14": 6, "15": 1 });
     const round3 = withFrame.filter(({ zone }) => zone.frameRound === undefined);
     expect(round3).toHaveLength(5);
     for (const { id, zone } of round3) {
@@ -389,7 +404,9 @@ describe("кадры «открыто» (openFrame — единственный 
     // Тикет 49 передвинул 23 зоны из «принято» в «переснять»: 92 → 115;
     // партия 2 «Кремовой» вернула четыре обратно: 115 → 112.
     const reshoot = allZones.filter(({ zone }) => zone.reshoot);
-    expect([accepted.length, reshoot.length, absent.length]).toEqual([10, 112, 8]);
+    // Раунды 14–15 вернули семь зон из «переснять» в «принято»: 112 → 105,
+    // 10 → 17. Сумма по-прежнему 130.
+    expect([accepted.length, reshoot.length, absent.length]).toEqual([17, 105, 8]);
     const doubled = allZones.filter(
       ({ zone }) => [zone.accepted, zone.reshoot, zone.objectAbsent].filter(Boolean).length > 1,
     );
@@ -441,13 +458,18 @@ describe("кадры «открыто» (openFrame — единственный 
     // сняла приёмка 49: конверт там подменён шкатулкой с украшениями. Правило
     // про `warm`/`loft` осталось в силе и сторожится ниже — просто вычитать
     // ему больше нечего.
-    expect(withFrame).toHaveLength(10);
+    // ПРАВИЛО «У warm И loft КАДРОВ НЕТ» ОТМЕНЕНО раундами 14–15 (тикет 81):
+    // `warm/travel` и `loft/travel` сняты от наших баз и приняты. Прежде оно
+    // держалось не как запрет, а как факт — у этих комнат просто не было ни
+    // одного честного кадра. Теперь есть, и вычитать больше нечего.
+    expect(withFrame).toHaveLength(17);
     const connected = rooms.flatMap((room) =>
       room.zones.filter((zone) => zone.openFrame).map((zone) => `${room.id}/${zone.key}`),
     );
-    expect(connected).toHaveLength(10);
-    expect(connected.filter((id) => id.startsWith("warm/") || id.startsWith("loft/"))).toEqual([]);
-    expect(withFrame.filter(({ room }) => !["warm", "loft"].includes(room.id))).toHaveLength(10);
+    expect(connected).toHaveLength(17);
+    expect(connected.filter((id) => id.startsWith("warm/") || id.startsWith("loft/")).sort()).toEqual(
+      ["loft/travel", "warm/travel"],
+    );
     for (const room of rooms) {
       for (const zone of room.zones) {
         if (!zone.openFrame) continue;
@@ -481,11 +503,16 @@ describe("кадры «открыто» (openFrame — единственный 
     // `cream/bags`, `cream/anything`) причина с тех пор ПЕРЕЗАПИСАНА приёмкой
     // партии раунда 8 (тикет 53, блок ниже) — актуальный вердикт у зоны ровно
     // один. Здесь остаются 19 неперемеренных.
+    // Было 19; двум из них (`cottage/anything`, `lux/anything`) раунд 14 привёз
+    // честный кадр, и вердикт тикета 49 у них перезаписан приёмкой — актуальная
+    // причина у зоны ровно одна. Осталось 17.
     const dropped = allZones.filter(({ zone }) => zone.reshootReason?.includes("тикет 49"));
-    expect(dropped).toHaveLength(19);
+    expect(dropped).toHaveLength(17);
     const byClass = (klass: string) =>
       dropped.filter(({ zone }) => zone.reshootReason?.startsWith(klass)).map((z) => z.id);
-    expect(byClass("подмена")).toHaveLength(15);
+    // Было 15; `cottage/anything` и `lux/anything` ушли — раунд 14 дал им
+    // честный кадр, и старый вердикт «подмена» перезаписан приёмкой.
+    expect(byClass("подмена")).toHaveLength(13);
     expect(byClass("пропажа")).toEqual(["gamer/fashion", "sport/fashion"]);
     expect(byClass("действия нет")).toEqual(["emerald/bags", "bold/bags"]);
     for (const { id, zone } of dropped) {
@@ -658,7 +685,11 @@ describe("кадры «открыто» (openFrame — единственный 
     const latestConnected = (
       raw as unknown as { round8: { latest: { connected: number } } }
     ).round8.latest.connected;
-    expect(withFrame.length).toBe(check.honest + latestConnected - 1);
+    // Раунды 14–15 (тикет 81) добавили семь кадров сверх обеих историй —
+    // они снимались от НАШИХ баз, а не от пакета, и в снимок аудита 49 не
+    // входят по построению. Поэтому арифметика теперь трёхчленная.
+    const OUR_BASE_ROUNDS = 7;
+    expect(withFrame.length).toBe(check.honest + latestConnected - 1 + OUR_BASE_ROUNDS);
     // (−1: travel был честным у аудита И заменён партией 2 — не двойной счёт.)
     expect(check.substitution + check.contentLost + check.nothingHappened + check.honest).toBe(30);
     expect(check.ringMax).toBe(0.09);

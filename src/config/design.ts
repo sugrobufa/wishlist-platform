@@ -316,8 +316,26 @@ export function framePath(ref: string): string {
  * `roomsContract.rooms`; он нужен тестам контракта и сверке прямоугольников,
  * но не рендеру.
  */
+/**
+ * С какого раунда кадры «открыто» снимались ОТ НАШИХ БАЗ (тикет 81).
+ *
+ * Запрет `ROOMS_WITHOUT_ACCEPTED_FRAMES` стоял на комнатах, чей базовый кадр
+ * в ПАКЕТЕ разошёлся с нашим (warm 0.0727, loft 0.0685): кроссфейд между
+ * кадрами разных комплектов — это «вся комната поплыла».
+ *
+ * К кадру, снятому от нашей базы, это рассуждение не относится по построению:
+ * пара «наша база ↔ этот кадр» согласована, потому что вторая половина пары
+ * из первой и сделана. Раунд 14 был затеян ровно ради этого — дизайну
+ * отправили восемь баз 2800×1563 с хэшами, и он сверил их до съёмки.
+ *
+ * Поэтому запрет снимается не с комнаты целиком, а с конкретных кадров: у
+ * `warm/travel` и `loft/travel` `frameRound` 14 и 15. Остальные зоны этих
+ * комнат кадров по-прежнему не получают — там снимать пока нечего.
+ */
+const OUR_BASE_FROM_ROUND = 14;
+
 export const rooms: Room[] = roomsContract.rooms.map((room) => {
-  const framesAccepted = !ROOMS_WITHOUT_ACCEPTED_FRAMES.includes(room.id);
+  const roomFramesAccepted = !ROOMS_WITHOUT_ACCEPTED_FRAMES.includes(room.id);
   return {
     ...room,
     base: framePath(room.base),
@@ -325,7 +343,11 @@ export const rooms: Room[] = roomsContract.rooms.map((room) => {
       .filter((zone) => zoneHasCatalogEntry(zone.key) && !zoneHiddenByProduct(room.id, zone.key))
       .map((zone) => ({
         ...zone,
-        openFrame: zone.openFrame && framesAccepted ? framePath(zone.openFrame) : null,
+        openFrame:
+          zone.openFrame &&
+          (roomFramesAccepted || (zone.frameRound ?? 0) >= OUR_BASE_FROM_ROUND)
+            ? framePath(zone.openFrame)
+            : null,
       })),
   };
 });

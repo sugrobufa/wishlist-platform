@@ -544,15 +544,15 @@
             "w": 157,
             "h": 109
           },
-          "openFrame": null,
-          "openVerb": null,
+          "openFrame": "refs-2x/warm/o-warm-travel.jpg",
+          "openVerb": "чемодан раскрывается",
           "bloomAR": 84,
           "bloomRot": 0,
-          "accepted": false,
+          "accepted": true,
           "notClamped": true,
           "eyeChecked": true,
-          "reshoot": true,
-          "reshootReason": "порог не пройден (тикет 46): своя 0.0832, фон 0.0295, отн 2.82 при пороге 3"
+          "frameRound": 14,
+          "eyeNote": "Раунд 14, отношение 3.02 (порог 3.0), снят нашей базой 2800×1563 (sha сверен), приёмка scripts/check-drop.mjs. стопка чемоданов, верхний открыт, клетчатая подкладка; шляпа честно съехала с крышки вниз. Порог взят."
         },
         {
           "key": "books",
@@ -717,15 +717,15 @@
             "w": 101,
             "h": 164
           },
-          "openFrame": null,
-          "openVerb": null,
+          "openFrame": "refs-2x/lux/o-lux-anything.jpg",
+          "openVerb": "сундук раскрывается",
           "bloomAR": 36,
           "bloomRot": 0,
-          "accepted": false,
+          "accepted": true,
           "notClamped": true,
           "eyeChecked": true,
-          "reshoot": true,
-          "reshootReason": "подмена (тикет 49, смотрел глазами): чёрная лаковая коробка на хромированном пуфе заменена стопкой стёганых кофров. Кольцо вокруг зоны 0.0583 при границе 0.09"
+          "frameRound": 14,
+          "eyeNote": "Раунд 14, отношение 4.03 (порог 3.0), снят нашей базой 2800×1563 (sha сверен), приёмка scripts/check-drop.mjs. сундук в базе уже открыт, поэтому жест сделан СОДЕРЖИМЫМ: внутри появился бордовый бархат. Лучший результат партии — отсюда правило «если предмет уже открыт, жест — содержимое, а не крышка»."
         },
         {
           "key": "beauty",
@@ -1151,14 +1151,15 @@
             "w": 146,
             "h": 102
           },
-          "openFrame": null,
-          "openVerb": null,
+          "openFrame": "refs-2x/emerald/o-emerald-travel.jpg",
+          "openVerb": "чемодан раскрывается",
           "bloomAR": 83,
           "bloomRot": 0,
-          "reshoot": true,
           "notClamped": true,
           "eyeChecked": true,
-          "accepted": false
+          "accepted": true,
+          "frameRound": 14,
+          "eyeNote": "Раунд 14, отношение 2.96 (порог 3.0), снят нашей базой 2800×1563 (sha сверен), приёмка scripts/check-drop.mjs. верхний чемодан открыт, содержимое читается, шарф и часы переехали с крышки на нижний. ПРИНЯТ ГЛАЗАМИ ниже порога 3.0 — решение владельца 07.08: разница 2.96 против 3.0 означает не слабый жест, а чуть сильнее подрисованный фон комнаты."
         },
         {
           "key": "books",
@@ -1641,14 +1642,15 @@
             "w": 103,
             "h": 95
           },
-          "openFrame": null,
-          "openVerb": null,
+          "openFrame": "refs-2x/cottage/o-cottage-anything.jpg",
+          "openVerb": "коробка раскрывается",
           "bloomAR": 63,
           "bloomRot": 0,
-          "reshoot": true,
           "notClamped": true,
           "eyeChecked": true,
-          "accepted": false
+          "accepted": true,
+          "frameRound": 14,
+          "eyeNote": "Раунд 14, отношение 3.31 (порог 3.0), снят нашей базой 2800×1563 (sha сверен), приёмка scripts/check-drop.mjs. клапаны крафтовой коробки разошлись, внутри белая ткань; веточка лаванды на месте. Порог взят."
         },
         {
           "key": "beauty",
@@ -1771,15 +1773,15 @@
             "w": 160,
             "h": 111
           },
-          "openFrame": null,
-          "openVerb": null,
+          "openFrame": "refs-2x/cottage/o-cottage-travel.jpg",
+          "openVerb": "корзина раскрывается",
           "bloomAR": 84,
           "bloomRot": 0,
-          "accepted": false,
+          "accepted": true,
           "notClamped": true,
           "eyeChecked": true,
-          "reshoot": true,
-          "reshootReason": "порог не пройден (тикет 46): своя 0.1404, фон 0.0945, отн 1.48 при пороге 3"
+          "frameRound": 14,
+          "eyeNote": "Раунд 14, отношение 2.77 (порог 3.0), снят нашей базой 2800×1563 (sha сверен), приёмка scripts/check-drop.mjs. крышка корзины откинута, видна клетчатая розовая подкладка; плед и кожаная сумка на месте. ПРИНЯТ ГЛАЗАМИ ниже порога 3.0 — решение владельца 07.08."
         },
         {
           "key": "books",
@@ -2598,15 +2600,13 @@
             "w": 84,
             "h": 90
           },
-          "openFrame": null,
-          "openVerb": null,
+          "openFrame": "refs-2x/study/o-study-anything.jpg",
+          "openVerb": "коробка раскрывается",
           "bloomAR": 54,
           "bloomRot": 0,
-          "accepted": false,
+          "accepted": true,
           "notClamped": true,
           "eyeChecked": true,
-          "reshoot": true,
-          "reshootReason": "подмена (тикет 49, смотрел глазами): стопка зелёных коробок на пуфе заменена большим дорожным кофром с рубашками. Кольцо вокруг зоны 0.1235 при границе 0.09",
           "rectOld": {
             "x": 89,
             "y": 253,
@@ -2614,7 +2614,9 @@
             "h": 85
           },
           "remapNote": "Стоял на полу, на кромке обувной полки и лишь краем задевал подарочные коробки (x 89…224). После переезда sneakers на обувь рамки пересеклись бы, и зона переразмечена по своему предмету: стопка из трёх коробок, x 166…250, y 230…320. проверено глазами по вырезкам .scratch/acceptance-2026-08-07/rects/study-proposal.jpg. bloomAR по формуле пакета 92 → 54.",
-          "remappedRound": 13
+          "remappedRound": 13,
+          "frameRound": 14,
+          "eyeNote": "Раунд 14, отношение 3.44 (порог 3.0), снят нашей базой 2800×1563 (sha сверен), приёмка scripts/check-drop.mjs. крышка верхней зелёной коробки откинута, внутри белая ткань. Снят против СТАРОГО прямоугольника, а против нового (тикет 75) даёт 3.44 против 2.36 — жест ровно там, куда мы переставили рамку."
         },
         {
           "key": "sneakers",
@@ -3154,12 +3156,11 @@
             "w": 60,
             "h": 50
           },
-          "openFrame": null,
-          "openVerb": null,
+          "openFrame": "refs-2x/loft/o-loft-travel.jpg",
+          "openVerb": "коробка раскрывается",
           "bloomAR": 70,
           "bloomRot": 0,
           "placedBy": "composition",
-          "reshoot": true,
           "notClamped": true,
           "eyeChecked": true,
           "rectOld": {
@@ -3170,7 +3171,9 @@
           },
           "remappedRound": 13,
           "remapNote": "Верх поднят с 254 до 242 — тикет 75. Прежняя рамка начиналась ровно на крышке верхней коробки, и клапанам некуда было откидываться: сверху стоял sneakers. После его переразметки освободились 12 единиц запаса. Низ 292 не менялся — линия, где коробка садится на нижнюю. Правый край упёрт в anything (72), шире не растём. проверено глазами по вырезкам .scratch/acceptance-2026-08-07/rects/loft-proposal.jpg. bloomAR по формуле пакета 97 → 70.",
-          "accepted": false
+          "accepted": true,
+          "frameRound": 15,
+          "eyeNote": "Раунд 15, отношение 4.74 (порог 3.0), снят нашей базой 2800×1563 (sha сверен), приёмка scripts/check-drop.mjs. клапаны верхней коробки вверх, внутри белая бумага. Транспортный лейбл переехал с крышки на переднюю грань — это переезд вещи с крышки, как шляпа у warm, а не подмена. Снят против ректа тикета 75."
         },
         {
           "key": "money",
