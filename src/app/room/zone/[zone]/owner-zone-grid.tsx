@@ -11,6 +11,7 @@ import { useMemo, useState, useTransition, type CSSProperties, type ReactNode } 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
+import { IconCheck } from "@/components/icons";
 import { ZoneGrid } from "@/components/zone/ZoneGrid";
 import type { ZoneGridItem } from "@/components/zone/types";
 import {
@@ -142,7 +143,11 @@ export function OwnerZoneGrid({ items, accent, ink, zoneKey, pool }: OwnerZoneGr
           className="pressable btn-quiet mt-1"
           style={on ? ({ "--pill-accent": accent } as CSSProperties) : undefined}
         >
-          {on ? "✓" : "○"}
+          {/* Знак — канонический IconCheck, а не глиф-галочка из шрифта: глифов
+              в интерфейсе не бывает (tokens.json → icons, тест tab-bar).
+              Невыбранное состояние — пустой кружок, нарисованный рамкой самой
+              пилюли, поэтому знака там нет вовсе. */}
+          {on ? <IconCheck size={14} strokeWidth={2.4} /> : <span className="block h-3.5 w-3.5" />}
         </button>
       );
     }
