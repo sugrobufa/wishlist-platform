@@ -34,6 +34,23 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
   adapter: PrismaAdapter(prisma),
   session: { strategy: "database" },
   providers,
+  events: {
+    /**
+     * «Укрепление» аккаунта (тикет 94, доска Б8): привязали второй способ —
+     * записали его в `User.secondAuth`. Поле лежало в схеме с первой миграции
+     * и не писалось нигде; писателем стало ровно одно место — вот это.
+     *
+     * Почта в укрепление не идёт: она и есть основной вход, «вторым способом»
+     * для неё быть нечем.
+     */
+    async linkAccount({ user, account }) {
+      if (account.provider === "nodemailer" || !user.id) return;
+      await prisma.user.update({
+        where: { id: user.id },
+        data: { secondAuth: { provider: account.provider, sub: account.providerAccountId } },
+      });
+    },
+  },
   pages: {
     signIn: "/signin",
     // Сырой экран Auth.js «Verification error» человеку не показываем:

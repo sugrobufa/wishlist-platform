@@ -24,6 +24,11 @@ model User {
   avatarKey     String? // S3
   locale        String    @default("ru")
   secondAuth    Json? // «укрепление» перед первым шером: { provider, sub }
+  // Когда просили укрепить аккаунт (тикет 94). Просим РОВНО ОДИН раз, перед
+  // первым шером: «терять ещё нечего — значит и привязывать незачем» (доска
+  // Б8). Отказ — тоже ответ, и он тоже пишется сюда: повторная просьба
+  // превратилась бы в уговоры.
+  hardenAskedAt DateTime?
   createdAt     DateTime  @default(now())
 
   accounts     Account[]

@@ -6,6 +6,7 @@ import { redirect } from "next/navigation";
 import { auth } from "@/server/auth";
 import { getOwnerProfile, getRoomForUser, getSessionUserId } from "@/server/services/rooms";
 import { listZoneItems } from "@/server/services/items";
+import { getHardenState, shouldAskToHarden } from "@/server/services/harden";
 import { ownerTakenTotal } from "@/server/services/goal";
 import { occasionBannerVisible } from "@/server/services/occasions";
 import { itemForOwner } from "@/server/dto/items";
@@ -56,6 +57,20 @@ export default async function RoomPage() {
   // Красивый адрес с ником, когда он занят (тикет 13); короткий код
   // продолжает работать редиректом.
   const sharePath = `/r/${room.nick ?? room.shareSlug}`;
+
+  // Просьба укрепить аккаунт перед ПЕРВЫМ шером (тикет 94, доска Б8).
+  // Решает сервер: просим, только когда есть что предложить, ещё не привязано
+  // и мы ещё не спрашивали. Кнопка шера просьбу только показывает.
+  const hardenState = await getHardenState(userId);
+  const harden =
+    hardenState !== null &&
+    shouldAskToHarden({
+      providers: hardenState.available,
+      secondAuth: hardenState.secondAuth,
+      askedAt: hardenState.asked ? new Date() : null,
+    })
+      ? { providers: hardenState.available }
+      : null;
 
   // Счётчик «N вещей уже забраны» (тикет 09) — ЕДИНСТВЕННОЕ, что хозяйка
   // знает о бронях до праздника (инвариант №1). Страница force-dynamic,
@@ -211,7 +226,7 @@ export default async function RoomPage() {
                 места нет: тикет 73 поставил рядом «Списком →», и подсказка
                 легла прямо на неё (приёмка 07.08). Адрес комнаты живёт в
                 «Настройках», рядом с ником, которым его и меняют (тикет 24). */}
-            <ShareButton path={sharePath} accent={accent} />
+            <ShareButton path={sharePath} accent={accent} harden={harden} />
           </ZoneRail>
         </div>
       </ZoneIndexProvider>

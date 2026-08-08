@@ -3,6 +3,12 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useTranslations } from "next-intl";
 import { IconShare } from "@/components/icons";
+import { linkSecondAuthAction, markHardenAskedAction } from "./harden-actions";
+
+/** Имя провайдера человеку: «Google», а не «google». Список из env, не из URL. */
+function providerLabel(provider: string): string {
+  return provider.charAt(0).toUpperCase() + provider.slice(1);
+}
 
 /** Сколько живёт подтверждение с адресом (тикет 24: «короткое подтверждение»). */
 const CONFIRM_MS = 5000;
@@ -38,9 +44,25 @@ async function copyToClipboard(url: string): Promise<void> {
  * Постоянно на экране адрес не нужен — он живёт в «Настройках», рядом с
  * ником, которым его и меняют.
  */
-export function ShareButton({ path, accent }: { path: string; accent: string }) {
+export function ShareButton({
+  path,
+  accent,
+  harden,
+}: {
+  path: string;
+  accent: string;
+  /**
+   * Просьба укрепить аккаунт перед ПЕРВЫМ шером (тикет 94, доска Б8).
+   * `null` — не просим: либо уже спрашивали, либо второй способ уже привязан,
+   * либо в сборке его нет вовсе. Решение принимает сервер
+   * (services/harden.shouldAskToHarden), кнопка его только показывает.
+   */
+  harden?: { providers: string[] } | null;
+}) {
   const t = useTranslations("Room");
   const [copied, setCopied] = useState(false);
+  /** Просьба открыта: шер ждёт ответа, но уйти без ответа можно всегда. */
+  const [asking, setAsking] = useState(false);
   const timerRef = useRef<number | null>(null);
 
   useEffect(
@@ -73,8 +95,48 @@ export function ShareButton({ path, accent }: { path: string; accent: string }) 
     }, CONFIRM_MS);
   }, [path]);
 
+  const ask = harden != null && harden.providers.length > 0;
+
+  /** Ответ получен — записываем его и отдаём ссылку, как и просили. */
+  const shareAnyway = useCallback(async () => {
+    setAsking(false);
+    void markHardenAskedAction();
+    await share();
+  }, [share]);
+
   return (
     <span className="relative inline-flex">
+      {/* Просьба укрепить аккаунт — ровно перед первым шером и ровно один раз
+          (доска Б8: «тот же экран на входе был бы бюрократией — терять ещё
+          нечего»). Отказ разрешён и запоминается: второй раз не спросим. */}
+      {asking && (
+        <span className="absolute right-0 bottom-[calc(100%+10px)] flex w-[min(340px,84vw)] flex-col gap-2 border border-surface-hairline bg-surface-overlay-ground p-4 text-left">
+          <span className="overline" style={{ color: accent }}>
+            {t("hardenOverline")}
+          </span>
+          <span className="text-xs leading-snug text-text-muted">{t("hardenBody")}</span>
+          <span className="mt-1 flex flex-col gap-2">
+            {harden?.providers.map((provider) => (
+              <button
+                key={provider}
+                type="button"
+                onClick={() => void linkSecondAuthAction(provider)}
+                className="pressable border border-surface-hairline-strong px-3 py-2 text-xs font-semibold text-text-strong"
+              >
+                {t("hardenLink", { provider: providerLabel(provider) })}
+              </button>
+            ))}
+            <button
+              type="button"
+              onClick={() => void shareAnyway()}
+              className="pressable text-xs font-semibold text-text-muted hover:text-text-strong"
+            >
+              {t("hardenSkip")}
+            </button>
+          </span>
+        </span>
+      )}
+
       {/* Подтверждение висит НАД полосой и нажатие не перехватывает: зона под
           ним остаётся нажимаемой всё время, пока оно видно. */}
       {copied && (
@@ -92,7 +154,7 @@ export function ShareButton({ path, accent }: { path: string; accent: string }) 
       )}
       <button
         type="button"
-        onClick={() => void share()}
+        onClick={() => (ask && !asking ? setAsking(true) : void share())}
         aria-label={t("copy")}
         className="pressable justify-center rounded-full border border-surface-hairline-strong text-text-strong"
         style={{ width: "var(--hit-target-min)", height: "var(--hit-target-min)" }}

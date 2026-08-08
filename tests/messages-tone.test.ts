@@ -647,6 +647,15 @@ describe("словарь и дизайн-пакет", () => {
       "Onboarding.occasionStep",
       "Onboarding.occasionSubtitle",
       "Onboarding.occasionTitle",
+      // Тикет 94 (доска Б8, турн 13b): просьба укрепить аккаунт перед первым
+      // шером. С доски дословно «Комнату теперь есть чем терять» и
+      // «Поделиться без этого» — отказ разрешён и на доске тоже. Остальное по
+      // памятке: словами этого экрана дизайн не занимался, в messages-ru.json
+      // его нет.
+      "Room.hardenBody",
+      "Room.hardenLink",
+      "Room.hardenOverline",
+      "Room.hardenSkip",
       "RoomList.empty",
       "RoomList.filterAll",
       "RoomList.filterAria",
@@ -669,6 +678,16 @@ describe("словарь и дизайн-пакет", () => {
       "Scene.summaryFreeSome",
       "Scene.summaryMore",
       "Scene.summaryPrice",
+      // Раздел «Вход и доступ» (тикет 94): доска 13b рисовала «Способы войти —
+      // основной вход · подтверждён / резервный вход · не добавлены», отсюда
+      // и подписи. Пояснение под ними наше: доска объясняла это картинкой.
+      "Settings.accessHint",
+      "Settings.accessOverline",
+      "Settings.accessPrimaryConfirmed",
+      "Settings.accessPrimaryUnconfirmed",
+      "Settings.accessSecond",
+      "Settings.accessSecondLinked",
+      "Settings.accessSecondNone",
       "Settings.hallFriendsHint",
       "Settings.hallGiverHint",
       "Settings.hallGiverLabel",

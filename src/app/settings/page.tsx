@@ -14,7 +14,9 @@ import { TabBar } from "@/components/tab-bar/tab-bar";
 import { signOutAction } from "./actions";
 import { DELETE_ACCOUNT_PHRASE } from "@/server/services/account";
 import { hallSettingsOf } from "@/server/dto/hall";
+import { getHardenState } from "@/server/services/harden";
 import {
+  AccessSection,
   DataSection,
   DemoGhostsSection,
   HallSection,
@@ -74,6 +76,8 @@ export default async function SettingsPage() {
   const occasionDate = room.occasionDate ? room.occasionDate.toISOString().slice(0, 10) : null;
   // Настройки зала славы (тикет 35) — форма клиента совпадает с DTO зала.
   const hallSettings: HallSettingsView = hallSettingsOf(room);
+  // Чем держится комната: почта основного входа и второй способ (тикет 94).
+  const harden = await getHardenState(userId);
 
   return (
     // Нижний отступ освобождает место постоянному таб-бару (86 px, фикс).
@@ -102,6 +106,16 @@ export default async function SettingsPage() {
         <OccasionSection occasionDate={occasionDate} accent={accent} />
         <HallSection settings={hallSettings} accent={accent} />
         <DemoGhostsSection off={room.demoGhostsOff} accent={accent} />
+
+        {/* «Вход и доступ» (тикет 94): чем держится комната — вопрос, на
+            который человеку до этого никто не отвечал. */}
+        {harden !== null && (
+          <AccessSection
+            email={harden.email}
+            emailConfirmed={harden.emailConfirmed}
+            secondAuth={harden.secondAuth}
+          />
+        )}
 
         {/* Выход — тихий, в самом низу; signOut из @/server/auth (тикет 01). */}
         <section className="flex items-center justify-between border border-surface-hairline bg-surface-fill p-5">

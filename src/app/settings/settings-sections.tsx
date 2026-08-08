@@ -757,6 +757,53 @@ export function HallSection({
   );
 }
 
+// ---------- Вход и доступ (тикет 94, доска Б8 · турн 13b) ----------
+
+/**
+ * «Способы войти» — честный ответ на вопрос, которого человеку до этого никто
+ * не задавал: чем вообще держится его комната. Она держится ОДНОЙ почтой, и
+ * доска права — сказать это надо, потому что «уйдёт — теряет комнату,
+ * историю подарков и сокровищницу».
+ *
+ * Раздел только показывает. Привязка живёт там, где она уместна по доске, —
+ * в просьбе перед первым шером; отдельной кнопки «привязать» здесь нет, пока
+ * второй способ вообще не подключён в сборке.
+ */
+export function AccessSection({
+  email,
+  emailConfirmed,
+  secondAuth,
+}: {
+  email: string;
+  emailConfirmed: boolean;
+  secondAuth: { provider: string } | null;
+}) {
+  const t = useTranslations("Settings");
+  return (
+    <Section overline={t("accessOverline")}>
+      <div className="flex flex-col gap-2 text-sm">
+        <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
+          <span className="font-mono text-text-primary">{email}</span>
+          <span className="text-xs text-text-muted">
+            {emailConfirmed ? t("accessPrimaryConfirmed") : t("accessPrimaryUnconfirmed")}
+          </span>
+        </div>
+        <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
+          <span className="text-text-muted">{t("accessSecond")}</span>
+          <span className="text-xs text-text-muted">
+            {secondAuth === null
+              ? t("accessSecondNone")
+              : t("accessSecondLinked", {
+                  provider: secondAuth.provider.charAt(0).toUpperCase() + secondAuth.provider.slice(1),
+                })}
+          </span>
+        </div>
+      </div>
+      <p className="text-xs leading-relaxed text-text-faint">{t("accessHint")}</p>
+    </Section>
+  );
+}
+
 // ---------- Данные: экспорт и удаление аккаунта (тикет 14, GDPR) ----------
 
 // Красный опасной зоны — приглушённый, в тон тёплой палитре: тихий тон
