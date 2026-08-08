@@ -38,10 +38,20 @@ export type RoomListViewProps = {
   /** Куда ведёт «Комната» в переключателе: сцена хозяйки или гостя. */
   roomHref: string;
   /**
-   * Куда ведёт заголовок группы. У хозяйки — её экран зоны; у гостя своего
-   * экрана зоны нет, и заголовок остаётся просто заголовком.
+   * Куда ведёт заголовок группы: НАЧАЛО адреса, к которому дописывается ключ
+   * зоны. У хозяйки — её экран зоны, у гостя своего экрана зоны нет, и
+   * заголовок остаётся просто заголовком.
+   *
+   * ПОЧЕМУ СТРОКА, А НЕ ФУНКЦИЯ (тикет 101). Здесь была функция
+   * `(key) => \`/room/zone/${key}\``, и страница хозяйки — серверная —
+   * передавала её в этот клиентский компонент. Через границу RSC функции не
+   * ходят: «Functions cannot be passed directly to Client Components». Экран
+   * падал с 500 с самого тикета 67 и молчал ровно до тех пор, пока владелец
+   * не нажал на кнопку «Списком» — прежде она была тихой стрелочной ссылкой,
+   * и на неё не попадали. Ни `next build`, ни typecheck такого не ловят: это
+   * ошибка времени выполнения.
    */
-  zoneHref?: (key: string) => string;
+  zoneHrefBase?: string;
   /**
    * Вещи комнаты с чужой бронью — приходит ТОЛЬКО у гостя (тикет 74, 29b):
    * с ним появляется переключатель «только свободные». Хозяйке этот набор не
@@ -75,7 +85,7 @@ export function RoomListView({
   groups,
   accent,
   roomHref,
-  zoneHref,
+  zoneHrefBase,
   takenIds,
 }: RoomListViewProps) {
   const t = useTranslations("RoomList");
@@ -166,8 +176,8 @@ export function RoomListView({
         shown.map((group) => (
           <section key={group.key} className={s.group}>
             <h2 className={s.groupHead}>
-              {zoneHref ? (
-                <Link href={zoneHref(group.key)} className="pressable">
+              {zoneHrefBase ? (
+                <Link href={`${zoneHrefBase}${group.key}`} className="pressable">
                   {group.label}
                 </Link>
               ) : (

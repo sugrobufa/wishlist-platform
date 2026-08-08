@@ -88,7 +88,7 @@ export default async function RoomAsListPage() {
           groups={groups}
           accent={preset.accent}
           roomHref="/room"
-          zoneHref={(key) => `/room/zone/${key}`}
+          zoneHrefBase="/room/zone/"
         />
       </div>
 
