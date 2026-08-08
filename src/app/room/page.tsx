@@ -139,6 +139,10 @@ export default async function RoomPage() {
             preset={preset}
             zonesOff={room.zonesOff}
             zoneContent={zones?.content}
+            // Комната сама едет от края до края (тикет 103, решение владельца):
+            // на телефоне это единственное, что говорит «кадр шире окна».
+            // До этого проезд был только у гостя.
+            drift
             // Свет и время суток комнаты (тикет 96) — грейдинг поверх кадра.
             timeOfDay={asTimeOfDay(room.timeOfDay)}
             lightColor={asLightColor(room.lightColor)}
