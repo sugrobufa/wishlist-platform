@@ -13,6 +13,7 @@ import {
   newAvatarKey,
   setDemoGhostsOff,
   setHallSettings,
+  setLightSettings,
   setOccasionDate,
   setOwnerAvatar,
   setRoomNick,
@@ -20,6 +21,7 @@ import {
   setZoneSet,
   updateDisplayName,
   type HallSettingsInput,
+  type LightSettingsInput,
 } from "@/server/services/rooms";
 import { presignPut } from "@/server/s3";
 
@@ -160,6 +162,16 @@ export async function setDemoGhostsAction(off: boolean): Promise<SettingsResult>
  */
 export async function setHallSettingsAction(input: HallSettingsInput): Promise<SettingsResult> {
   return runForOwner((userId) => setHallSettings(userId, input));
+}
+
+// ---------- Свет и время суток (тикет 96) ----------
+
+/**
+ * Сохранить свет комнаты. Сохраняется по одному нажатию, без кнопки «ОК»:
+ * ручка меняет картинку на глазах, и подтверждать тут нечего.
+ */
+export async function setLightSettingsAction(input: LightSettingsInput): Promise<SettingsResult> {
+  return runForOwner((userId) => setLightSettings(userId, input));
 }
 
 // ---------- Выход ----------

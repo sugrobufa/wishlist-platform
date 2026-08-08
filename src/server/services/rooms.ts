@@ -10,6 +10,7 @@ import { prisma } from "@/server/db";
 import { rooms as roomPresets } from "@/config/design";
 import { roomCacheTag } from "@/server/services/items";
 import { itemPhotoUrl } from "@/server/dto/items";
+import { LIGHT_COLORS, TIMES_OF_DAY } from "@/components/scene/grading";
 
 // ---------- Валидация входов (Zod) ----------
 
@@ -405,6 +406,43 @@ export async function setHallSettings(
       ...(parsed.totalShown === undefined ? {} : { hallTotalShown: parsed.totalShown }),
       ...(parsed.giverShown === undefined ? {} : { hallGiverShown: parsed.giverShown }),
       ...(parsed.roundPrices === undefined ? {} : { hallRoundPrices: parsed.roundPrices }),
+    },
+  });
+  revalidateRoom(room.id);
+  return updated;
+}
+
+// ---------- Свет и время суток (тикет 96, доска Б6) ----------
+
+/**
+ * Две последние ручки персонализации. Значения — только из словаря сцены:
+ * строка из браузера в комнату не попадает, а мусорное положение читается
+ * как родное (`asTimeOfDay`/`asLightColor`), поэтому старая запись экран не
+ * ломает.
+ *
+ * Ревалидирует комнату тем же тегом: свет виден ГОСТЮ (он смотрит выбор
+ * хозяйки), а гостевая страница кэшируется.
+ */
+export const lightSettingsSchema = z
+  .object({
+    timeOfDay: z.enum(TIMES_OF_DAY).optional(),
+    lightColor: z.enum(LIGHT_COLORS).optional(),
+  })
+  .strict();
+
+export type LightSettingsInput = z.infer<typeof lightSettingsSchema>;
+
+export async function setLightSettings(
+  userId: string,
+  input: LightSettingsInput,
+): Promise<Room> {
+  const parsed = lightSettingsSchema.parse(input);
+  const room = await requireRoom(userId);
+  const updated = await prisma.room.update({
+    where: { id: room.id },
+    data: {
+      ...(parsed.timeOfDay === undefined ? {} : { timeOfDay: parsed.timeOfDay }),
+      ...(parsed.lightColor === undefined ? {} : { lightColor: parsed.lightColor }),
     },
   });
   revalidateRoom(room.id);

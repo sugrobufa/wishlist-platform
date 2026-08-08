@@ -79,6 +79,12 @@ export type GuestRoomView = {
    * быть не может; почему это безопасно, написано у `countFreeGifts`.
    */
   freeGiftCount: number;
+  /**
+   * Свет комнаты, который выбрала ХОЗЯЙКА (тикет 96). Своей ручки у гостя нет
+   * и не будет: он смотрит её комнату, а не настраивает свою.
+   */
+  timeOfDay: string;
+  lightColor: string;
 };
 
 /**
@@ -147,6 +153,8 @@ export async function getGuestRoom(slug: string): Promise<GuestRoomView | null> 
       room.id,
       visible.map((zone) => zone.key),
     ),
+    timeOfDay: room.timeOfDay,
+    lightColor: room.lightColor,
   };
 }
 

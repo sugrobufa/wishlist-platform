@@ -8,6 +8,7 @@ import { getGuestRoom } from "@/server/services/guest-room";
 import { rooms } from "@/config/design";
 import { roomImageUrl } from "@/app/rooms/room-image";
 import { SceneStage } from "@/components/scene/SceneStage";
+import { asLightColor, asTimeOfDay } from "@/components/scene/grading";
 import { immersiveLayout } from "@/components/scene/immersive-layout";
 import { ZoneIndexProvider } from "@/components/scene/zone-index-context";
 import { ZoneRail } from "@/components/scene/zone-rail";
@@ -202,6 +203,10 @@ export default async function GuestRoomPage({ params }: Params) {
             zonesOff={room.zonesOff}
             zoneContent={zoneContent}
             drift
+            // Гость видит свет, который выбрала ХОЗЯЙКА (тикет 96): своей
+            // ручки у него нет и не будет — это её комната.
+            timeOfDay={asTimeOfDay(room.timeOfDay)}
+            lightColor={asLightColor(room.lightColor)}
           />
 
           <header className="imm-rail imm-rail-top">

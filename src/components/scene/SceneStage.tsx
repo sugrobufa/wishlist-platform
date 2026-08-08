@@ -29,6 +29,16 @@ import {
   wakeScore,
   zoneWakesWithLight,
 } from "./zone-marker";
+import {
+  bloomTint,
+  effectiveLightness,
+  gradingFilter,
+  gradingLayers,
+  NATIVE_LIGHT_COLOR,
+  NATIVE_TIME_OF_DAY,
+  type LightColor,
+  type TimeOfDay,
+} from "./grading";
 import { ZoneHotspot } from "./zone-hotspot";
 import { ZonePanel } from "./zone-panel";
 import { useSceneZoneIndex } from "./zone-index-context";
@@ -59,6 +69,13 @@ export type SceneStageProps = {
    * «вздох» — своя комната ей знакома, и постоянное движение будет мешать.
    */
   drift?: boolean;
+  /**
+   * Свет и время суток комнаты (тикет 96). Кадр НЕ перегенерируется —
+   * это грейдинг-слой поверх фотографии; родные положения дают identity.
+   * Гость получает то же, что выбрала хозяйка: числа приезжают из комнаты.
+   */
+  timeOfDay?: TimeOfDay;
+  lightColor?: LightColor;
   className?: string;
 };
 
@@ -157,6 +174,8 @@ export function SceneStage({
   zonesOff,
   zoneContent,
   drift = false,
+  timeOfDay = NATIVE_TIME_OF_DAY,
+  lightColor = NATIVE_LIGHT_COLOR,
   className,
 }: SceneStageProps) {
   const t = useTranslations("Scene");
@@ -426,15 +445,24 @@ export function SceneStage({
   // здесь и приезжают числом: `calc()` из tokens.css объявлен в `:root` и
   // переопределить его сменой --room-lightness ниже по дереву нельзя
   // (разбор — zone-marker.ts → markerWeights).
+  //
+  // Время суток входит в это число (тикет 96): в ночной комнате метка обязана
+  // светить сильнее, иначе она гаснет вместе с интерьером. Цвет света на веса
+  // НЕ влияет — только на тон свечения.
   const styleVars = useMemo(() => {
-    const weights = markerWeights(preset.roomLightness);
+    const lightness = effectiveLightness(preset.roomLightness, timeOfDay);
+    const weights = markerWeights(lightness);
     return {
       ...BASE_VARS,
-      "--accent": preset.accent,
-      "--room-lightness": `${preset.roomLightness}`,
+      "--accent": bloomTint(lightColor, preset.accent),
+      "--room-lightness": `${lightness}`,
       "--zone-bloom-weight": `${weights.bloom}`,
+      "--grade-filter": gradingFilter(timeOfDay, lightColor),
     } as React.CSSProperties;
-  }, [preset.accent, preset.roomLightness]);
+  }, [preset.accent, preset.roomLightness, timeOfDay, lightColor]);
+
+  /** Слои грейдинга: по одному на ручку, каждый со своим блендом. */
+  const grades = useMemo(() => gradingLayers(timeOfDay, lightColor), [timeOfDay, lightColor]);
 
   // Подписи под названием зоны здесь больше нет (тикет 59). Стояли две, и обе
   // говорили не человеку, а нам: `openVerb` («чемодан раскрывается») описывает,
@@ -490,6 +518,18 @@ export function SceneStage({
                             }}
                           />
                         ))}
+                      {/* Грейдинг времени суток и цвета света (тикет 96):
+                          слой ПОВЕРХ фотографий и ПОД откликом света —
+                          тонируется интерьер, а не свечение метки, у которого
+                          свой тон (bloomTint). Кадры при этом не тронуты. */}
+                      {grades.map((grade) => (
+                        <div
+                          key={grade.overlay}
+                          aria-hidden
+                          className={s.grade}
+                          style={{ background: grade.overlay, mixBlendMode: grade.blend }}
+                        />
+                      ))}
                       {/* Отклик светом лежит ВНУТРИ дыхания, рядом с кадром:
                           он едет с камерой и дышит с фотографией, то есть
                           приклеен к предмету, а не к экрану. Ключ — номер

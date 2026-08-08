@@ -15,9 +15,11 @@ import { signOutAction } from "./actions";
 import { DELETE_ACCOUNT_PHRASE } from "@/server/services/account";
 import { hallSettingsOf } from "@/server/dto/hall";
 import { getHardenState } from "@/server/services/harden";
+import { asLightColor, asTimeOfDay } from "@/components/scene/grading";
 import {
   AccessSection,
   DataSection,
+  LightSection,
   DemoGhostsSection,
   HallSection,
   NickSection,
@@ -102,6 +104,16 @@ export default async function SettingsPage() {
           zoneSet={zoneSet}
           accent={accent}
         />
+        {/* Свет и время суток (тикет 96) — между интерьером и набором зон,
+            как просит доска: это продолжение выбора комнаты. */}
+        {preset && (
+          <LightSection
+            roomImage={roomImageUrl(preset.base)}
+            timeOfDay={asTimeOfDay(room.timeOfDay)}
+            lightColor={asLightColor(room.lightColor)}
+            accent={accent}
+          />
+        )}
         <ZonesSection zones={zones} zonesOff={room.zonesOff} accent={accent} />
         <OccasionSection occasionDate={occasionDate} accent={accent} />
         <HallSection settings={hallSettings} accent={accent} />

@@ -9,11 +9,19 @@ import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { IconCheck } from "@/components/icons";
 import {
+  gradingFilter,
+  LIGHT_COLORS,
+  TIMES_OF_DAY,
+  type LightColor,
+  type TimeOfDay,
+} from "@/components/scene/grading";
+import {
   changePresetAction,
   presignAvatarAction,
   saveAvatarAction,
   setDemoGhostsAction,
   setHallSettingsAction,
+  setLightSettingsAction,
   setNickAction,
   setOccasionDateAction,
   setZoneSetAction,
@@ -752,6 +760,106 @@ export function HallSection({
       <LightButton accent={accent} busy={busy} onClick={() => run(() => setHallSettingsAction(draft))}>
         {busy ? t("saving") : saved ? t("saved") : t("save")}
       </LightButton>
+      {error && <p className="text-sm text-text-muted">{t(errorKey(error))}</p>}
+    </Section>
+  );
+}
+
+// ---------- Свет и время суток (тикет 96, доска Б6 · турн 11e) ----------
+
+/**
+ * Две последние ручки персонализации: «если у всех одинаковая комната,
+ * метафора умирает». Плитка каждого положения показывает СВОЮ комнату с
+ * применённым рецептом — выбирают не по названию, а по картинке.
+ *
+ * Кнопки «Сохранить» здесь нет: ручка меняет комнату на глазах, и
+ * подтверждать нечего. Сохраняется по нажатию, гость увидит выбор хозяйки.
+ */
+export function LightSection({
+  roomImage,
+  timeOfDay,
+  lightColor,
+  accent,
+}: {
+  roomImage: string;
+  timeOfDay: TimeOfDay;
+  lightColor: LightColor;
+  accent: string;
+}) {
+  const t = useTranslations("Settings");
+  const { busy, error, run } = useSettingsAction();
+  // Оптимистично: картинка обязана меняться в момент нажатия, иначе выбор
+  // «по картинке» превращается в выбор вслепую с задержкой сервера.
+  const [tod, setTod] = useState(timeOfDay);
+  const [color, setColor] = useState(lightColor);
+
+  const tile = (previewTod: TimeOfDay, previewColor: LightColor) => ({
+    backgroundImage: `url(${roomImage})`,
+    filter: gradingFilter(previewTod, previewColor),
+  });
+
+  return (
+    <Section overline={t("lightOverline")}>
+      <p className="text-xs leading-relaxed text-text-faint">{t("lightHint")}</p>
+
+      <p className="overline text-text-muted">{t("todLabel")}</p>
+      <div className="grid grid-cols-4 gap-2">
+        {TIMES_OF_DAY.map((option) => (
+          <button
+            key={option}
+            type="button"
+            disabled={busy}
+            aria-pressed={tod === option}
+            onClick={() => {
+              setTod(option);
+              run(() => setLightSettingsAction({ timeOfDay: option }));
+            }}
+            className="pressable flex flex-col gap-1.5 disabled:opacity-60"
+          >
+            <span
+              className="block h-14 w-full bg-cover bg-center"
+              style={tile(option, color)}
+              aria-hidden
+            />
+            <span
+              className="text-[10px] font-semibold"
+              style={{ color: tod === option ? accent : undefined }}
+            >
+              {t(`tod_${option}`)}
+            </span>
+          </button>
+        ))}
+      </div>
+
+      <p className="overline mt-1 text-text-muted">{t("lightColorLabel")}</p>
+      <div className="grid grid-cols-3 gap-2">
+        {LIGHT_COLORS.map((option) => (
+          <button
+            key={option}
+            type="button"
+            disabled={busy}
+            aria-pressed={color === option}
+            onClick={() => {
+              setColor(option);
+              run(() => setLightSettingsAction({ lightColor: option }));
+            }}
+            className="pressable flex flex-col gap-1.5 disabled:opacity-60"
+          >
+            <span
+              className="block h-14 w-full bg-cover bg-center"
+              style={tile(tod, option)}
+              aria-hidden
+            />
+            <span
+              className="text-[10px] font-semibold"
+              style={{ color: color === option ? accent : undefined }}
+            >
+              {t(`light_${option}`)}
+            </span>
+          </button>
+        ))}
+      </div>
+
       {error && <p className="text-sm text-text-muted">{t(errorKey(error))}</p>}
     </Section>
   );

@@ -18,6 +18,7 @@ import {
 import { MONEY_ZONE_KEY, rooms, type Room, type RoomZone } from "@/config/design";
 import { roomImageUrl } from "@/app/rooms/room-image";
 import { SceneStage } from "@/components/scene/SceneStage";
+import { asLightColor, asTimeOfDay } from "@/components/scene/grading";
 import { immersiveLayout } from "@/components/scene/immersive-layout";
 import { ZoneIndexProvider } from "@/components/scene/zone-index-context";
 import { ZoneRail } from "@/components/scene/zone-rail";
@@ -134,7 +135,14 @@ export default async function RoomPage() {
           какая зона подсвечена и какая открыта. */}
       <ZoneIndexProvider>
         {preset && (
-          <SceneStage preset={preset} zonesOff={room.zonesOff} zoneContent={zones?.content} />
+          <SceneStage
+            preset={preset}
+            zonesOff={room.zonesOff}
+            zoneContent={zones?.content}
+            // Свет и время суток комнаты (тикет 96) — грейдинг поверх кадра.
+            timeOfDay={asTimeOfDay(room.timeOfDay)}
+            lightColor={asLightColor(room.lightColor)}
+          />
         )}
 
         <header className="imm-rail imm-rail-top">

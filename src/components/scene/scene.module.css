@@ -214,7 +214,24 @@
   height: var(--frame-h);
   background-size: 100% 100%;
   background-repeat: no-repeat;
+  /* Время суток и цвет света (тикет 96): фильтр на самой фотографии. Файл
+   * кадра при этом неприкосновенен — тонирует показ, а не картинку. */
+  filter: var(--grade-filter, none);
+  transition: filter 400ms cubic-bezier(0.23, 1, 0.32, 1);
 }
+
+/* Градиенты грейдинга — по слою на ручку, каждый со своим блендом. Лежат
+ * между фотографиями и откликом света: тонируется интерьер, а не свечение. */
+.grade {
+  position: absolute;
+  left: var(--frame-l);
+  top: var(--frame-t);
+  width: var(--frame-w);
+  height: var(--frame-h);
+  pointer-events: none;
+  transition: opacity 400ms cubic-bezier(0.23, 1, 0.32, 1);
+}
+
 
 /* --- Отклик предмета светом (тикет 64) ---------------------------------- */
 
@@ -295,6 +312,9 @@
   height: var(--frame-h);
   background-size: 100% 100%;
   background-repeat: no-repeat;
+  /* Кадр раскрытия — та же фотография комнаты, значит и грейдинг тот же:
+   * иначе при открытии зоны свет прыгал бы (тикет 96). */
+  filter: var(--grade-filter, none);
   opacity: 0;
   transition: opacity var(--frame-ms) var(--ease-out);
   pointer-events: none;
@@ -1166,6 +1186,13 @@
   .panelBody {
     animation-duration: var(--reduced-ms), var(--reduced-ms);
     animation-delay: 0ms, 0ms;
+  }
+
+  /* Свет и время суток (тикет 96): кроссфейд грейдинга выключен — смена
+   * положения происходит мгновенно, как просит спецификация. */
+  .frame,
+  .grade {
+    transition: none;
   }
 }
 
