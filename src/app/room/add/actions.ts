@@ -77,15 +77,18 @@ export type CreateItemResult = {
  * Сохранение вещи (турн 8). Успех не возвращается — уводим redirect'ом
  * в зону, где вещь уже видна (демо-призраки зоны исчезают сами: сетка
  * тикета 03 показывает их только пока в зоне нет ни одной своей вещи).
+ * Заводили с витрины (?hall=1, тикет 89) — возвращаем на витрину: человек
+ * должен увидеть результат там, откуда пришёл, а не в зоне.
  */
 export async function createItemAction(input: unknown): Promise<CreateItemResult | undefined> {
   const session = await auth();
   const userId = await getSessionUserId(session?.user);
   if (!userId) redirect("/signin");
 
-  let zone: string;
+  let created: { zone: string; inHall: boolean };
   try {
-    zone = (await createItem(userId, input)).zone;
+    const item = await createItem(userId, input);
+    created = { zone: item.zone, inHall: item.inHall };
   } catch (error) {
     if (error instanceof ZodError) return { error: "VALIDATION" };
     if (error instanceof CreateItemError) {
@@ -94,5 +97,5 @@ export async function createItemAction(input: unknown): Promise<CreateItemResult
     throw error;
   }
 
-  redirect(`/room/zone/${zone}`);
+  redirect(created.inHall ? "/room/hall" : `/room/zone/${created.zone}`);
 }

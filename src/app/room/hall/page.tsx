@@ -96,6 +96,17 @@ export default async function HallPage() {
       </div>
 
       <div className="mx-auto w-full max-w-3xl px-5 pt-8 lg:px-0">
+        {/* Дорога в сокровищницу прямая (тикет 89): дорогие вещи бывают у
+            человека и до первого подарка, вести их через зону — четыре шага
+            в двух экранах. ?hall=1 ставит «люблю» молча и кладёт на витрину. */}
+        <Link
+          href="/room/add?hall=1"
+          className="pressable mb-6 inline-block text-xs font-semibold"
+          style={{ color: accent }}
+        >
+          + {t("add")}
+        </Link>
+
         {items.length > 0 ? (
           <HallShowcase items={items} accent={accent} />
         ) : (

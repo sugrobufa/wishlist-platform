@@ -84,6 +84,12 @@ type AddItemFlowProps = {
   initialZone: string;
   /** true — зону выбрал пользователь ссылкой ?zone=…; подсказка парсера её не двигает. */
   zonePreselected?: boolean;
+  /**
+   * Пришли с витрины сокровищницы (?hall=1, тикет 89): вещь сразу «люблю» и
+   * сразу на витрине. Шага «что это для тебя» нет — выбор состояния владелец
+   * велел не показывать вовсе: то, что кладут в сокровищницу, уже своё.
+   */
+  toHall?: boolean;
   /** Куда уводит выход из карточки: зона, из которой пришли, или комната. */
   exitHref: string;
   /** Базовый кадр комнаты — из него режется кроп выбора состояния (тикет 27). */
@@ -97,6 +103,7 @@ export function AddItemFlow({
   zones,
   initialZone,
   zonePreselected = false,
+  toHall = false,
   exitHref,
   roomImage,
   accent,
@@ -105,7 +112,9 @@ export function AddItemFlow({
   const t = useTranslations("AddItem");
   const router = useRouter();
 
-  const [state, setState] = useState<ItemState | null>(null);
+  // С витрины экран начинается сразу с формы «люблю»: состояние выбрано за
+  // человека, потому что другого у сокровищницы не бывает (тикет 89).
+  const [state, setState] = useState<ItemState | null>(toHall ? "LOVE" : null);
   /**
    * Что выбрано на шаге 1. Живёт отдельно от `state`: «← Назад» возвращает к
    * вопросу, и панель обязана помнить ответ — иначе состояний «выбрано» и
@@ -354,6 +363,9 @@ export function AddItemFlow({
     return {
       state: "LOVE" as const,
       ...common,
+      // Заводили с витрины — вещь встаёт на неё сразу (тикет 89). Ключ есть
+      // только у LOVE: у «хочу» его в схеме нет вовсе.
+      ...(toHall ? { inHall: true } : {}),
       ...(loveKind === "gift"
         ? {
             giverName: giverName.trim() || undefined,
@@ -489,20 +501,23 @@ export function AddItemFlow({
       {/* Два пути назад: к вопросу «что это для тебя» (введённое остаётся —
           компонент не размонтируется) и совсем из карточки. */}
       <nav className={s.nav}>
-        <button type="button" onClick={() => setState(null)} className={`pressable ${s.navLink}`}>
-          ← {t("back")}
-        </button>
+        {/* С витрины возвращаться некуда: шага «что это для тебя» не было. */}
+        {!toHall && (
+          <button type="button" onClick={() => setState(null)} className={`pressable ${s.navLink}`}>
+            ← {t("back")}
+          </button>
+        )}
         <Link href={exitHref} className={`pressable ${s.navLink} ${s.navExit}`}>
-          {t("backToRoom")}
+          {toHall ? t("backToHall") : t("backToRoom")}
         </Link>
       </nav>
 
       <p className="overline mt-6 text-text-muted">{t("overline")}</p>
       <h1 className="display mt-3 text-3xl md:text-4xl">
-        {state === "WANT" ? t("wantLabel") : t("loveLabel")}
+        {toHall ? t("hallLabel") : state === "WANT" ? t("wantLabel") : t("loveLabel")}
       </h1>
       <p className="mt-2 text-sm text-text-muted">
-        {state === "WANT" ? t("wantHint") : t("loveHint")}
+        {toHall ? t("hallHint") : state === "WANT" ? t("wantHint") : t("loveHint")}
       </p>
 
       <form onSubmit={(event) => void onSubmit(event)} className="mt-8 flex flex-col gap-5">

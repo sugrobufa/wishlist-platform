@@ -177,6 +177,27 @@ export function hallTotals(
     .sort((a, b) => new Prisma.Decimal(b.amount).comparedTo(new Prisma.Decimal(a.amount)));
 }
 
+// ---------- Кого сокровищница показывает наблюдателям (тикет 89) ----------
+
+/**
+ * Видна ли вещь сокровищницы НАБЛЮДАТЕЛЮ — всем, кроме самой хозяйки.
+ *
+ * Единственное место, где живёт этот фильтр. До тикета 89 он стоял прямо в
+ * выборке `listHallItems`, а та обслуживает страницу ХОЗЯЙКИ: глазок,
+ * написанный «в лоб», прятал бы вещь и от неё — вернуть её было бы нечем.
+ * Поэтому выборка хозяйки фильтр потеряла, а он переехал сюда, к ответу
+ * наблюдателю: строка «последнее в сокровищнице» в «Друзьях»
+ * (services/connections.ts) и будущий гостевой зал (тикет 93).
+ *
+ * Три условия, и все три — про вещь, а не про цену: у цены свои правила
+ * (`guestSeesHallItemPrice`), смешивать их нельзя.
+ */
+export function hallItemShownToObservers(
+  item: Pick<Item, "state" | "inHall" | "hiddenFromHall">,
+): boolean {
+  return item.state === "LOVE" && item.inHall && !item.hiddenFromHall;
+}
+
 // ---------- Витрина глазами хозяйки ----------
 
 /**
@@ -199,6 +220,11 @@ export type HallItemDto = {
   rounded: boolean;
   /** Кому адресована цена: значок «кто видит цену». */
   priceAudience: HallPriceAudience;
+  /**
+   * Вещь скрыта глазком (тикет 89): у хозяйки она на витрине остаётся, но
+   * приглушённой — наблюдатели её не видят. Про ВЕЩЬ, не про цену.
+   */
+  hiddenFromObservers: boolean;
 };
 
 /** Цена вещи как показать её хозяйке: округление + признак «около». */
@@ -236,5 +262,6 @@ export function hallItemForOwner(
     priceAudience: hallItemPriceHidden(item.priceVisibility)
       ? "ITEM"
       : settings.priceVisibility,
+    hiddenFromObservers: item.hiddenFromHall,
   };
 }

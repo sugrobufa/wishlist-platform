@@ -7,12 +7,21 @@
 // Стоимость (тикет 35, турн 12d): цена подарка + значок с подписью, кто её
 // видит, и тихое «скрыть цену» у отдельной вещи. Хозяйке цена видна всегда
 // (ADR-0004) — значок говорит про ОСТАЛЬНЫХ, а не про неё.
+//
+// Три действия вместо одного (тикет 89, замечание владельца «странная механика
+// убирания вещей»). Раньше кнопка была одна — «Убрать с витрины», и по подписи
+// нельзя было понять, что вещь никуда не делась, а вернулась в свою зону:
+//   глазок  — прячет вещь от ГОСТЕЙ, у хозяйки она остаётся приглушённой;
+//   убрать  — вещь уезжает в свою зону, вернуть можно оттуда;
+//   удалить — насовсем и из комнаты, поэтому с предупреждением (два шага,
+//             тот же приём, что на экране зоны).
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { useLocale, useTranslations } from "next-intl";
-import { toggleHallAction } from "@/app/room/zone/[zone]/actions";
+import { deleteItemAction, toggleHallAction } from "@/app/room/zone/[zone]/actions";
+import { IconEye, IconEyeOff } from "@/components/icons";
 import type { HallItemDto } from "@/server/dto/hall";
-import { setHallPriceHiddenAction } from "./actions";
+import { setHallHiddenAction, setHallPriceHiddenAction } from "./actions";
 import { formatHallMoney } from "./money";
 import { PriceSeenBadge } from "./price-seen-badge";
 import s from "./hall.module.css";
@@ -37,6 +46,8 @@ export function HallShowcase({ items, accent }: { items: HallItemView[]; accent:
   const router = useRouter();
   const [busyId, setBusyId] = useState<string | null>(null);
   const [failed, setFailed] = useState(false);
+  /** Вещь, у которой «Удалить» превратилось в вопрос (двухшаговое согласие). */
+  const [confirmingId, setConfirmingId] = useState<string | null>(null);
   const [, startTransition] = useTransition();
 
   function run(itemId: string, action: () => Promise<{ error?: string } | undefined>) {
@@ -45,6 +56,7 @@ export function HallShowcase({ items, accent }: { items: HallItemView[]; accent:
     startTransition(async () => {
       const result = await action();
       setBusyId(null);
+      setConfirmingId(null);
       if (result?.error) {
         setFailed(true);
         return;
@@ -60,8 +72,9 @@ export function HallShowcase({ items, accent }: { items: HallItemView[]; accent:
         {items.map((item) => {
           const hiddenPrice = item.priceAudience === "ITEM";
           const busy = busyId === item.id;
+          const hidden = item.hiddenFromObservers;
           return (
-            <li key={item.id}>
+            <li key={item.id} className={hidden ? s.dimmed : undefined}>
               <div className={s.showcase}>
                 <div
                   className={item.photoUrl ? s.spin : `${s.spin} ${s.spinEmpty}`}
@@ -73,6 +86,14 @@ export function HallShowcase({ items, accent }: { items: HallItemView[]; accent:
               <p className="mt-3 truncate text-[13px] font-semibold text-text-primary">
                 {item.title}
               </p>
+
+              {/* Скрытая вещь остаётся у хозяйки на витрине — иначе снять
+                  скрытие было бы нечем; подпись говорит, кто её не видит. */}
+              {hidden && (
+                <p className={`overline mt-1.5 text-text-faint ${s.hiddenNote}`}>
+                  {t("hiddenBadge")}
+                </p>
+              )}
 
               {/* Цена и значок «кто её видит» — рядом всегда, чтобы хозяйке
                   не приходилось лезть в настройки, чтобы вспомнить (12d). */}
@@ -93,32 +114,80 @@ export function HallShowcase({ items, accent }: { items: HallItemView[]; accent:
                 {caption(item, t)}
               </p>
 
-              <div className="mt-2 flex flex-wrap items-center gap-3">
-                {item.price !== null && (
+              {/* «Удалить» спрашивает до действия: вещь уходит из комнаты
+                  насовсем, а не только с витрины (тикет 89). */}
+              {confirmingId === item.id ? (
+                <div className="mt-2 flex flex-wrap items-center gap-3 text-xs">
+                  <span className="text-text-muted">{t("deleteConfirm")}</span>
                   <button
                     type="button"
                     disabled={busy}
-                    onClick={() =>
-                      run(item.id, () => setHallPriceHiddenAction(item.id, !hiddenPrice))
-                    }
+                    onClick={() => run(item.id, () => deleteItemAction(item.id))}
+                    className="pressable font-semibold text-text-strong disabled:opacity-60"
+                  >
+                    {t("deleteYes")}
+                  </button>
+                  <button
+                    type="button"
+                    disabled={busy}
+                    onClick={() => setConfirmingId(null)}
+                    className="pressable font-semibold text-text-muted disabled:opacity-60"
+                  >
+                    {t("deleteNo")}
+                  </button>
+                </div>
+              ) : (
+                <div className="mt-2 flex flex-wrap items-center gap-3">
+                  {/* Глазок — про ВЕЩЬ; «Скрыть цену» рядом — про цену.
+                      Две настройки не смешиваются (инвариант №8). */}
+                  <button
+                    type="button"
+                    disabled={busy}
+                    aria-pressed={hidden}
+                    onClick={() => run(item.id, () => setHallHiddenAction(item.id, !hidden))}
+                    className="pressable inline-flex items-center gap-1.5 text-xs font-semibold text-text-muted hover:text-text-strong disabled:opacity-60"
+                  >
+                    {hidden ? <IconEyeOff size={14} /> : <IconEye size={14} />}
+                    {hidden ? t("show") : t("hide")}
+                  </button>
+                  {item.price !== null && (
+                    <button
+                      type="button"
+                      disabled={busy}
+                      onClick={() =>
+                        run(item.id, () => setHallPriceHiddenAction(item.id, !hiddenPrice))
+                      }
+                      className="pressable text-xs font-semibold text-text-muted hover:text-text-strong disabled:opacity-60"
+                    >
+                      {hiddenPrice ? t("priceShow") : t("priceHide")}
+                    </button>
+                  )}
+                  <button
+                    type="button"
+                    disabled={busy}
+                    onClick={() => run(item.id, () => toggleHallAction(item.id, false))}
                     className="pressable text-xs font-semibold text-text-muted hover:text-text-strong disabled:opacity-60"
                   >
-                    {hiddenPrice ? t("priceShow") : t("priceHide")}
+                    {t("remove")}
                   </button>
-                )}
-                <button
-                  type="button"
-                  disabled={busy}
-                  onClick={() => run(item.id, () => toggleHallAction(item.id, false))}
-                  className="pressable text-xs font-semibold text-text-muted hover:text-text-strong disabled:opacity-60"
-                >
-                  {t("remove")}
-                </button>
-              </div>
+                  <button
+                    type="button"
+                    disabled={busy}
+                    onClick={() => setConfirmingId(item.id)}
+                    className="pressable text-xs font-semibold text-text-muted hover:text-text-strong disabled:opacity-60"
+                  >
+                    {t("delete")}
+                  </button>
+                </div>
+              )}
             </li>
           );
         })}
       </ul>
+
+      {/* Одна строка на всю витрину вместо подписи под каждой кнопкой: три
+          действия похожи на вид и расходятся по последствиям. */}
+      <p className="mt-6 max-w-xl text-xs leading-relaxed text-text-faint">{t("actionsHint")}</p>
     </div>
   );
 }

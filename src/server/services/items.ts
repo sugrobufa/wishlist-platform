@@ -185,6 +185,13 @@ export const createItemInputSchema = z
       /** Год «подарен в …»; в БД пишется как receivedAt (полдень UTC 1 января —
        * год не съезжает ни в одном реальном часовом поясе). */
       receivedYear: receivedYearSchema,
+      /**
+       * «Сразу в сокровищницу» (тикет 89): вещь заводят с витрины, а не из
+       * зоны. Ключ есть ТОЛЬКО у LOVE — у «хочу» его нет вовсе, и Zod
+       * отбросит его молча: «хочу» в сокровищнице не живёт (toggleHall →
+       * NOT_LOVE). Зону вещь всё равно занимает: витрина зоне не замена.
+       */
+      inHall: z.boolean().default(false),
     }),
   ])
   // «Родилась из ссылки» без ссылки не бывает: source=URL требует url.
@@ -282,6 +289,7 @@ export async function createItem(userId: string, input: unknown): Promise<Item> 
             giverName: data.giverName ?? null,
             receivedAt:
               data.receivedYear == null ? null : new Date(Date.UTC(data.receivedYear, 0, 1, 12)),
+            inHall: data.inHall,
           }),
     },
   });
@@ -605,14 +613,46 @@ export async function setHallPriceHidden(
 }
 
 /**
- * Витрина зала славы: вещи LOVE с inHall и БЕЗ hiddenFromHall — ровно два
- * фильтра (тест tests/hall.test.ts). hidden (спрятанная от гостей) хозяйку
- * не ограничивает — /room/hall её страница; гостевой зал — не Phase 1.
+ * Скрыть вещь сокровищницы ОТ НАБЛЮДАТЕЛЕЙ — глазок на витрине (тикет 89).
+ * До него колонка `hiddenFromHall` писалась только в false (сбросом в
+ * toggleHall): механика была в данных и в чтении, а нажать было не на что.
+ *
+ * Это НЕ «скрыть цену» (`setHallPriceHidden`) и НЕ «убрать из сокровищницы»
+ * (`toggleHall`): вещь остаётся на витрине ХОЗЯЙКИ приглушённой — иначе
+ * вернуть её было бы нечем, — и просто пропадает у наблюдателей
+ * (`hallItemShownToObservers`, dto/hall.ts). Обратимо тем же глазком.
+ */
+export async function setHiddenFromHall(
+  userId: string,
+  itemId: string,
+  hidden: boolean,
+): Promise<Item> {
+  const wantHidden = z.boolean().parse(hidden);
+  const item = await requireOwnItem(userId, itemId);
+  if (item.state !== "LOVE") {
+    throw new ItemMutationError("NOT_LOVE", "в сокровищнице живут только вещи «люблю»");
+  }
+
+  const updated = await prisma.item.update({
+    where: { id: item.id },
+    data: { hiddenFromHall: wantHidden },
+  });
+  revalidateRoom(item.roomId);
+  return updated;
+}
+
+/**
+ * Витрина сокровищницы ГЛАЗАМИ ХОЗЯЙКИ: вещи LOVE с inHall — один фильтр
+ * (тест tests/hall.test.ts). `hiddenFromHall` здесь НЕ фильтруется с тикета
+ * 89: /room/hall — её собственная страница, и спрятанная глазком вещь обязана
+ * остаться на ней (приглушённой), иначе снять скрытие было бы нечем. Фильтр
+ * наблюдателя живёт в `hallItemShownToObservers` (dto/hall.ts).
+ * `hidden` (спрятанная от гостей) хозяйку тоже не ограничивает.
  * Порядок: свежеподаренные выше (receivedAt desc, без даты — в конец).
  */
 export async function listHallItems(roomId: string): Promise<Item[]> {
   const items = await prisma.item.findMany({
-    where: { roomId: idSchema.parse(roomId), state: "LOVE", inHall: true, hiddenFromHall: false },
+    where: { roomId: idSchema.parse(roomId), state: "LOVE", inHall: true },
   });
   return items.sort((a, b) => {
     const at = a.receivedAt?.getTime() ?? -1;

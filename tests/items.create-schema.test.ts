@@ -84,6 +84,21 @@ describe("createItemInputSchema — LOVE", () => {
     expect("desire" in parsed).toBe(false);
   });
 
+  it("inHall: дефолт false, «сразу в сокровищницу» — только у LOVE (тикет 89)", () => {
+    const plain = createItemInputSchema.parse(loveInput());
+    if (plain.state !== "LOVE") throw new Error("unreachable");
+    expect(plain.inHall).toBe(false);
+
+    const treasure = createItemInputSchema.parse(loveInput({ inHall: true }));
+    if (treasure.state !== "LOVE") throw new Error("unreachable");
+    expect(treasure.inHall).toBe(true);
+
+    // У «хочу» такого ключа в схеме нет — он отбрасывается ДО записи, и
+    // «хочу» в сокровищнице не оказывается (toggleHall тоже отвечает NOT_LOVE).
+    const want = createItemInputSchema.parse(wantInput({ inHall: true }));
+    expect(want).not.toHaveProperty("inHall");
+  });
+
   it("даритель+год: год не раньше 1900 и не из будущего", () => {
     const year = new Date().getFullYear();
     const parsed = createItemInputSchema.parse(

@@ -15,15 +15,21 @@ export async function generateMetadata(): Promise<Metadata> {
   return { title: t("overline"), robots: { index: false, follow: false } };
 }
 
-type SearchParams = { searchParams: Promise<{ zone?: string }> };
+type SearchParams = { searchParams: Promise<{ zone?: string; hall?: string }> };
 
 /**
  * Добавление вещи (тикет 04, турн 8). Страница тонкая: собирает видимые
  * зоны комнаты с подписями из zones.json и отдаёт клиентскому флоу;
  * ?zone=… предвыбирает зону (невидимые ключи молча игнорируются).
+ *
+ * ?hall=1 — пришли с витрины сокровищницы (тикет 89): вещь по определению уже
+ * своя, поэтому вопрос «люблю или хочу» не задаётся вовсе (решение владельца
+ * 08.08.2026: «хочу» в сокровищнице не надо). Зону всё равно спрашиваем —
+ * витрина зоне не замена, а слой поверх.
  */
 export default async function AddItemPage({ searchParams }: SearchParams) {
-  const { zone: zoneParam } = await searchParams;
+  const { zone: zoneParam, hall: hallParam } = await searchParams;
+  const toHall = hallParam === "1";
 
   const session = await auth();
   if (!session?.user) redirect("/signin");
@@ -53,9 +59,11 @@ export default async function AddItemPage({ searchParams }: SearchParams) {
       initialZone={initialZone}
       // Пришли «добавить в эту зону» (?zone=…) — подсказка парсера зону не двигает.
       zonePreselected={preselected !== undefined}
-      // Выход из карточки ведёт туда, откуда пришли: со страницы зоны (?zone=…)
-      // обратно в неё, иначе в комнату (приёмка п.1).
-      exitHref={preselected ? `/room/zone/${preselected}` : "/room"}
+      toHall={toHall}
+      // Выход из карточки ведёт туда, откуда пришли: с витрины (?hall=1) на
+      // витрину, со страницы зоны (?zone=…) обратно в неё, иначе в комнату
+      // (приёмка п.1).
+      exitHref={toHall ? "/room/hall" : preselected ? `/room/zone/${preselected}` : "/room"}
       roomImage={roomImageUrl(preset.base)}
       accent={preset.accent}
       ink={preset.ink}

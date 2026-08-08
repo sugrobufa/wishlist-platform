@@ -33,6 +33,7 @@ import {
   recordVisitBySlug,
 } from "../src/server/services/connections";
 import { BookingError, bookItem } from "../src/server/services/bookings";
+import { setHiddenFromHall } from "../src/server/services/items";
 import { closeOccasion, receiveGift } from "../src/server/services/occasions";
 import { POST as bookRoute } from "../src/app/api/v1/items/[id]/book/route";
 import { POST as visitRoute } from "../src/app/api/v1/rooms/[slug]/visit/route";
@@ -453,6 +454,31 @@ describe("listConnections — DTO без email, происхождение по 
       type: "gift",
       received: 2,
       lastTitle: second.title,
+    });
+  });
+
+  it("глазок на витрине гасит «она в сокровищнице» у друга (тикет 89)", async () => {
+    const owner = await createOwnerWithRoom();
+    const giver = await createOwnerWithRoom("Катя");
+    const gifted = await giftFlow(owner, giver.user.id);
+
+    // Друг — наблюдатель: пока вещь на витрине открыто, строка про неё есть.
+    const before = await listConnections(owner.user.id);
+    expect(before.find((row) => row.displayName === "Катя")?.origin).toMatchObject({
+      type: "gift",
+      lastTitle: gifted.title,
+      lastInHall: true,
+    });
+
+    await setHiddenFromHall(owner.user.id, gifted.id, true);
+
+    // Название подарка остаётся (оно из истории связи), а «в сокровищнице» —
+    // молчит: наблюдатель вещи больше не видит.
+    const after = await listConnections(owner.user.id);
+    expect(after.find((row) => row.displayName === "Катя")?.origin).toMatchObject({
+      type: "gift",
+      lastTitle: gifted.title,
+      lastInHall: false,
     });
   });
 

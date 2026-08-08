@@ -26,6 +26,18 @@
   background: var(--color-surface-fill);
 }
 
+/* Скрытая глазком вещь (тикет 89): у хозяйки остаётся на витрине, но гаснет —
+ * «её не видят гости». Кнопки и сама подпись про скрытие приглушению не
+ * подлежат: первыми снимают скрытие, вторая объясняет, почему вещь погасла. */
+.dimmed .showcase,
+.dimmed p {
+  opacity: 0.45;
+}
+
+.dimmed p.hiddenNote {
+  opacity: 1;
+}
+
 .vignette {
   position: absolute;
   inset: 0;

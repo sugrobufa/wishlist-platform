@@ -19,6 +19,7 @@ import { Prisma, type Connection, type ConnectionKind } from "@prisma/client";
 import { z } from "zod";
 import { prisma } from "@/server/db";
 import { itemPhotoUrl } from "@/server/dto/items";
+import { hallItemShownToObservers } from "@/server/dto/hall";
 
 const idSchema = z.string().min(1).max(64);
 
@@ -387,9 +388,10 @@ export async function listConnections(
         received,
         given,
         lastTitle: history.lastGiftTitle ?? lastItem?.title ?? null,
-        lastInHall: lastItem
-          ? lastItem.state === "LOVE" && lastItem.inHall && !lastItem.hiddenFromHall
-          : false,
+        // Друг — наблюдатель: строка «последнее в сокровищнице» обязана
+        // замолчать, как только вещь спрятана глазком (тикет 89). Условие
+        // одно на всех наблюдателей — dto/hall.hallItemShownToObservers.
+        lastInHall: lastItem ? hallItemShownToObservers(lastItem) : false,
       };
     } else if (visits > 0 || row.origin === "visit" || row.kind === "VIEWED") {
       origin = { type: "visit", visits: Math.max(visits, 1) };
