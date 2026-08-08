@@ -20,6 +20,8 @@ import { z } from "zod";
 import { prisma } from "@/server/db";
 import { itemPhotoUrl } from "@/server/dto/items";
 import { hallItemShownToObservers } from "@/server/dto/hall";
+import { rooms as roomPresets } from "@/config/design";
+import { countFreeGiftsByRoom } from "@/server/services/guest-room";
 
 const idSchema = z.string().min(1).max(64);
 
@@ -305,12 +307,45 @@ export type ConnectionRowDto = {
   /** ISO последнего события (подарок/визит/рождение) — для «N дней назад». */
   lastAt: string;
   createdAt: string;
+  /**
+   * Комната собеседника — ТОЛЬКО если человек в ней уже был (тикет 95,
+   * решение владельца 08.08). Ссылка на комнату и есть ключ доступа: показать
+   * кадр чужой комнаты тому, кому её не давали, значит раздать ключ
+   * (инвариант №7). Был — значит ссылку давали, и мы ничего нового не
+   * открываем. Не был — здесь `null`, и строка остаётся строкой.
+   */
+  room: ConnectionRoomDto | null;
+};
+
+/** Комната друга в ленте: кадр, отсчёт до праздника и «сколько свободно». */
+export type ConnectionRoomDto = {
+  /** Канонический адрес: ник, если занят, иначе короткий код. */
+  slug: string;
+  /** id пресета — кадр и акцент страница берёт из конфига. */
+  preset: string;
+  /** Календарный день `YYYY-MM-DD` или null. Гостю он и так виден в комнате. */
+  occasionDate: string | null;
+  /**
+   * «N можно подарить» — вещи «хочу» без брони среди видимых. Ровно то же
+   * число, что гость видит, открыв комнату (services/guest-room): ни имён,
+   * ни вещей, и обратного — «сколько уже забрали» — не существует
+   * (инвариант №1).
+   */
+  freeGifts: number;
 };
 
 // Из собеседника наружу — только имя и аватар: ни email, ни id (allowlist,
 // под тестом). Сторону строки различаем по скалярам aUserId/bUserId.
 const personSelect = {
-  select: { displayName: true, name: true, avatarKey: true },
+  select: {
+    displayName: true,
+    name: true,
+    avatarKey: true,
+    // Комната собеседника (тикет 95) — отдаётся наружу НЕ всегда, а только
+    // тому, кто в ней уже был; решает `roomForVisitor` ниже. Здесь только
+    // чтение полей, которые гость и так видит, открыв комнату по ссылке.
+    room: { select: { id: true, preset: true, shareSlug: true, nick: true, occasionDate: true, zonesOff: true } },
+  },
 } as const;
 
 /** Последний ISO из имеющихся дат (createdAt — всегда есть). */
@@ -362,6 +397,16 @@ export async function listConnections(
     : [];
   const itemById = new Map(giftItems.map((item) => [item.id, item]));
 
+  // Комнаты, куда человек ХОДИЛ, — только у них будет карточка с кадром
+  // (тикет 95). Считаем «сколько свободно» одним запросом на весь список.
+  const visitedRooms = rows.flatMap((row) => {
+    const meIsA = row.aUserId === id;
+    const other = meIsA ? row.b : row.a;
+    if (!other.room || myVisitsToTheirRoom(readHistory(row.history), meIsA) === 0) return [];
+    return [{ roomId: other.room.id, zoneKeys: visibleRoomZoneKeys(other.room) }];
+  });
+  const freeByRoom = await countFreeGiftsByRoom(visitedRooms);
+
   const result = rows.map((row) => {
     const meIsA = row.aUserId === id;
     const other = meIsA ? row.b : row.a;
@@ -412,8 +457,37 @@ export async function listConnections(
         history.lastVisitByBAt,
       ),
       createdAt: row.createdAt.toISOString(),
+      room:
+        other.room && myVisitsToTheirRoom(history, meIsA) > 0
+          ? {
+              slug: other.room.nick ?? other.room.shareSlug,
+              preset: other.room.preset,
+              occasionDate:
+                other.room.occasionDate === null
+                  ? null
+                  : other.room.occasionDate.toISOString().slice(0, 10),
+              freeGifts: freeByRoom.get(other.room.id) ?? 0,
+            }
+          : null,
     } satisfies ConnectionRowDto;
   });
 
   return result.sort((a, b) => (a.lastAt < b.lastAt ? 1 : a.lastAt > b.lastAt ? -1 : 0));
+}
+
+/**
+ * Сколько раз Я заходил(а) в ЕГО комнату — зеркало счётчика «смотрел(а) у
+ * меня». Счётчики history направленные: `visitsByA` — визиты стороны a в
+ * комнату b, `visitsByB` — наоборот. Ошибиться стороной здесь дорого: это и
+ * есть проверка права видеть чужую комнату.
+ */
+function myVisitsToTheirRoom(history: ConnectionHistory, meIsA: boolean): number {
+  return (meIsA ? history.visitsByA : history.visitsByB) ?? 0;
+}
+
+/** Видимые зоны комнаты: пресет минус выключенные (инвариант №5). */
+function visibleRoomZoneKeys(room: { preset: string; zonesOff: string[] }): string[] {
+  const preset = roomPresets.find((candidate) => candidate.id === room.preset);
+  const off = new Set(room.zonesOff);
+  return (preset?.zones ?? []).filter((zone) => !off.has(zone.key)).map((zone) => zone.key);
 }

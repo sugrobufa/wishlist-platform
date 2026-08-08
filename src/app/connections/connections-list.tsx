@@ -5,10 +5,15 @@
 // здесь только фильтр по kind и сборка подписи происхождения из структуры
 // origin (все строки — через next-intl, CLAUDE.md). Никаких форм и мутаций:
 // связи не добавляются руками (инвариант №4).
-import { useMemo, useState } from "react";
+import { useMemo, useState, type CSSProperties } from "react";
+import Link from "next/link";
 import { useFormatter, useTranslations } from "next-intl";
 import { IconPerson } from "@/components/icons";
+import { rooms } from "@/config/design";
+import { roomImageUrl } from "@/app/rooms/room-image";
 import type { ConnectionOriginDto, ConnectionRowDto } from "@/server/services/connections";
+import { countdownShown, orderFeed, urgent, type FeedRow } from "./feed-order";
+import s from "./feed.module.css";
 
 type Filter = "ALL" | "MUTUAL" | "FOLLOW" | "VIEWED";
 
@@ -41,6 +46,71 @@ function Avatar({ url }: { url: string | null }) {
   );
 }
 
+/**
+ * Карточка друга (тикет 95, доска Б7 · турн 11e): живой кадр её комнаты,
+ * имя, отсчёт до праздника и «сколько ещё можно подарить».
+ *
+ * Кадр показывается только тем, кто в этой комнате уже был, — решение о
+ * приватности принято на сервере (`ConnectionRowDto.room === null` у
+ * остальных), здесь только показ. Ближайшая карточка выше ростом: экран
+ * должен сам говорить, что пора действовать.
+ *
+ * Свет комнаты друг выбирает сам (`lightAndTime`, тикет 96) — когда грейдинг
+ * появится, он ляжет на этот же кадр и трогать карточку не придётся.
+ */
+function FeedCard({ item, tall }: { item: FeedRow; tall: boolean }) {
+  const t = useTranslations("Connections");
+  const format = useFormatter();
+  const { row, daysLeft } = item;
+  const room = row.room;
+  if (room === null) return null;
+
+  const preset = rooms.find((candidate) => candidate.id === room.preset);
+  const accent = preset?.accent ?? "#E7C9A9";
+
+  return (
+    <Link
+      href={`/r/${room.slug}`}
+      className={`pressable ${s.card} ${tall ? s.cardTall : ""}`}
+      style={
+        {
+          "--feed-accent": accent,
+          ...(preset ? { "--feed-image": `url(${roomImageUrl(preset.base)})` } : {}),
+        } as CSSProperties
+      }
+    >
+      <span className={s.frame} aria-hidden />
+      <span className={s.veil} aria-hidden />
+
+      {/* Чип срока — единственное, что торопит. Точка пульсирует, только
+          когда праздник совсем близко. */}
+      {daysLeft !== null && (
+        <span className={s.chip}>
+          <span
+            className={`${s.dot} ${urgent(daysLeft) ? s.dotUrgent : ""}`}
+            aria-hidden
+          />
+          {countdownShown(daysLeft)
+            ? daysLeft === 0
+              ? t("feedToday")
+              : t("feedInDays", { days: daysLeft })
+            : format.dateTime(new Date(`${room.occasionDate}T12:00:00.000Z`), {
+                day: "numeric",
+                month: "long",
+              })}
+        </span>
+      )}
+
+      <span className={s.body}>
+        <span className={s.name}>{row.displayName ?? t("nameFallback")}</span>
+        {/* Счётчик гостевой: сколько ЕЩЁ можно подарить. Обратного числа —
+            сколько уже забрали — не существует (инвариант №1). */}
+        <span className={s.sub}>{t("feedFree", { count: room.freeGifts })}</span>
+      </span>
+    </Link>
+  );
+}
+
 export function ConnectionsList({ rows, accent, ink, now }: ConnectionsListProps) {
   const t = useTranslations("Connections");
   const format = useFormatter();
@@ -50,6 +120,10 @@ export function ConnectionsList({ rows, accent, ink, now }: ConnectionsListProps
     () => (filter === "ALL" ? rows : rows.filter((row) => row.kind === filter)),
     [rows, filter],
   );
+
+  // Порядок ленты считается ЗДЕСЬ, при рендере: «через сколько дней» —
+  // свойство сегодняшнего дня, а не связи (feed-order.ts).
+  const { upcoming, rest } = useMemo(() => orderFeed(visible, new Date(now)), [visible, now]);
 
   /** Строка под именем ВСЕГДА объясняет, откуда связь (README турн 21). */
   function originLabel(origin: ConnectionOriginDto): string {
@@ -100,9 +174,41 @@ export function ConnectionsList({ rows, accent, ink, now }: ConnectionsListProps
         })}
       </div>
 
+      {/* Лента (тикет 95): у кого праздник ближе — тот выше, и у самого
+          ближнего карточка крупнее. Кадр комнаты показывается ТОЛЬКО тем,
+          кто в ней уже был (решение владельца 08.08): ссылка на комнату и
+          есть ключ доступа. */}
+      {upcoming.length > 0 && (
+        <ul className="mt-4 flex flex-col gap-3">
+          {upcoming.map((item, index) => (
+            <li key={item.row.id}>
+              <FeedCard item={item} tall={index === 0} />
+            </li>
+          ))}
+        </ul>
+      )}
+
+      {upcoming.length > 0 && rest.length > 0 && (
+        <p className="overline mt-6 mb-1 text-text-faint">{t("feedNoDate")}</p>
+      )}
+
+      {rest.length > 0 && (
+        <ul className="mt-4 flex flex-col gap-3">
+          {rest
+            .filter((item) => item.row.room !== null)
+            .map((item) => (
+              <li key={item.row.id}>
+                <FeedCard item={item} tall={false} />
+              </li>
+            ))}
+        </ul>
+      )}
+
       {visible.length > 0 ? (
         <ul className="mt-4 flex flex-col gap-px bg-surface-hairline">
-          {visible.map((row) => (
+          {rest
+            .filter((item) => item.row.room === null)
+            .map(({ row }) => (
             <li
               key={row.id}
               className={`flex items-center gap-3 bg-surface-app-ground py-3.5 ${

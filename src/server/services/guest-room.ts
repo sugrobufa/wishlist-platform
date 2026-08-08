@@ -210,21 +210,43 @@ export async function findRoomBySlug(slug: string) {
  * описанное — полностраничный ISR самой /r/{slug} (revalidate 300).
  */
 async function countFreeGifts(roomId: string, visibleZoneKeys: string[]): Promise<number> {
-  if (visibleZoneKeys.length === 0) return 0;
-  return prisma.item.count({
+  const byRoom = await countFreeGiftsByRoom([{ roomId, zoneKeys: visibleZoneKeys }]);
+  return byRoom.get(roomId) ?? 0;
+}
+
+/**
+ * То же «свободно», но сразу по нескольким комнатам и ОДНИМ запросом — лента
+ * друзей (тикет 95) показывает это число у каждой карточки.
+ *
+ * Определение «свободного» живёт здесь и только здесь: разъедься оно на два
+ * места, и первая же забытая проверка сделала бы из числа обещание подарков,
+ * которых на экране нет. Комната без видимых зон в запрос не попадает вовсе.
+ */
+export async function countFreeGiftsByRoom(
+  rooms: ReadonlyArray<{ roomId: string; zoneKeys: readonly string[] }>,
+): Promise<Map<string, number>> {
+  const asked = rooms.filter((room) => room.zoneKeys.length > 0);
+  const counts = new Map<string, number>(rooms.map((room) => [room.roomId, 0]));
+  if (asked.length === 0) return counts;
+
+  const free = await prisma.item.groupBy({
+    by: ["roomId"],
     where: {
-      roomId,
-      state: "WANT",
       // Те же два фильтра, что прячут вещь от гостя (инвариант №5): считаем
-      // только то, что он видит своими глазами, — иначе число обещало бы
-      // подарки, которых на экране нет.
+      // только то, что он видит своими глазами. Зоны — по каждой комнате свои,
+      // поэтому пары «комната + её видимые зоны» идут через OR.
+      state: "WANT",
       hidden: false,
-      zone: { in: visibleZoneKeys },
       // Демо-призраки в БД не живут — в счёт не попадают и выдуманных
       // подарков не обещают.
       booking: { is: null },
+      OR: asked.map((room) => ({ roomId: room.roomId, zone: { in: [...room.zoneKeys] } })),
     },
+    _count: { _all: true },
   });
+
+  for (const row of free) counts.set(row.roomId, row._count._all);
+  return counts;
 }
 
 /** Что лежит в кэше комнаты: вещи по зонам и сводка по каждой зоне. */

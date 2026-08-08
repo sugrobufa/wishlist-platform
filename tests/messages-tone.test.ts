@@ -544,6 +544,13 @@ describe("словарь и дизайн-пакет", () => {
       // временный вордмарк входа (Archivo) и тайтлы /signin, когда приедет
       // SVG-логотип дизайнера — замена в одном месте.
       "Brand.name",
+      // Тикет 95 (доска Б7, турн 11e): лента друзей по близости праздника.
+      // Отсчёт до праздника и «сколько ещё можно подарить» — смысл с доски,
+      // словами этого экрана дизайн не занимался.
+      "Connections.feedFree",
+      "Connections.feedInDays",
+      "Connections.feedNoDate",
+      "Connections.feedToday",
       "Goal.amountLabel",
       "Goal.badge",
       "Goal.cancel",

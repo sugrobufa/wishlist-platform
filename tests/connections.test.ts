@@ -457,6 +457,59 @@ describe("listConnections — DTO без email, происхождение по 
     });
   });
 
+  it("комната друга отдаётся ТОЛЬКО тому, кто в ней был (тикет 95)", async () => {
+    const owner = await createOwnerWithRoom();
+    // Она заходила ко мне — но я у неё не был: адрес её комнаты мне не
+    // положен, ссылка и есть ключ доступа (инвариант №7).
+    const watcher = await createOwnerWithRoom("Смотрела");
+    await recordVisit(watcher.user.id, owner.user.id);
+
+    const oneWay = await listConnections(owner.user.id);
+    expect(oneWay.find((r) => r.displayName === "Смотрела")?.room).toBeNull();
+
+    // Теперь я захожу к ней — карточка появляется.
+    await recordVisit(owner.user.id, watcher.user.id);
+    await prisma.room.update({
+      where: { id: watcher.room.id },
+      data: { occasionDate: new Date("2026-09-01T00:00:00.000Z") },
+    });
+
+    const bothWays = await listConnections(owner.user.id);
+    const hers = bothWays.find((r) => r.displayName === "Смотрела")?.room;
+    expect(hers).not.toBeNull();
+    expect(hers?.slug).toBe(watcher.room.shareSlug);
+    expect(hers?.preset).toBe("cream");
+    expect(hers?.occasionDate).toBe("2026-09-01");
+    // Свободных подарков у неё нет — «всё разобрали», а не выдуманное число.
+    expect(hers?.freeGifts).toBe(0);
+
+    // И ни один ключ комнаты не уехал наружу помимо разрешённых.
+    expect(Object.keys(hers ?? {}).sort()).toEqual([
+      "freeGifts",
+      "occasionDate",
+      "preset",
+      "slug",
+    ]);
+  });
+
+  it("«N можно подарить» считает только то, что гость и так видит", async () => {
+    const owner = await createOwnerWithRoom();
+    const friend = await createOwnerWithRoom("Подруга");
+    await recordVisit(owner.user.id, friend.user.id);
+
+    await createWantItem(friend.room.id, "Свободная");
+    const hidden = await createWantItem(friend.room.id, "Спрятанная");
+    await prisma.item.update({ where: { id: hidden.id }, data: { hidden: true } });
+    const booked = await createWantItem(friend.room.id, "Занятая");
+    await bookItem({ itemId: booked.id, name: "Кто-то" });
+    const offZone = await createWantItem(friend.room.id, "В выключенной зоне");
+    await prisma.item.update({ where: { id: offZone.id }, data: { zone: "perfume" } });
+    await prisma.room.update({ where: { id: friend.room.id }, data: { zonesOff: ["perfume"] } });
+
+    const rows = await listConnections(owner.user.id);
+    expect(rows.find((r) => r.displayName === "Подруга")?.room?.freeGifts).toBe(1);
+  });
+
   it("глазок на витрине гасит «она в сокровищнице» у друга (тикет 89)", async () => {
     const owner = await createOwnerWithRoom();
     const giver = await createOwnerWithRoom("Катя");
@@ -500,7 +553,11 @@ describe("listConnections — DTO без email, происхождение по 
         "kind",
         "lastAt",
         "origin",
+        // Комната друга (тикет 95) — ключ есть всегда, значение только у тех,
+        // в чьей комнате человек был; здесь ни разу, поэтому null.
+        "room",
       ]);
+      expect(row.room).toBeNull();
     }
     const serialized = JSON.stringify(rows);
     expect(serialized).not.toMatch(/@|email|connections\.test/i);

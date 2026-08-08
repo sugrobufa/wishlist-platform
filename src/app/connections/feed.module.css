@@ -1,0 +1,104 @@
+/* Лента друзей (тикет 95, доска Б7 · турн 11e, task15.json → friendsFeed).
+ * Карточка — живой кадр комнаты друга под вуалью, поверх имя и срок.
+ * Высоты из спецификации: ближайшая 300, остальные 150. */
+
+.card {
+  position: relative;
+  display: block;
+  overflow: hidden;
+  height: 150px;
+  width: 100%;
+  background: var(--color-surface-fill);
+}
+
+.cardTall {
+  height: 300px;
+}
+
+/* Кадр берётся с запасом и стоит по верхней трети: интерьер читается лучше,
+ * чем по центру, где у большинства комнат пол. */
+.frame {
+  position: absolute;
+  inset: 0;
+  background-image: var(--feed-image);
+  background-size: cover;
+  background-position: 50% 38%;
+}
+
+/* Вуаль снизу — под текст; сверху кадр остаётся почти чистым. */
+.veil {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(0deg, rgba(11, 8, 6, 0.86), rgba(11, 8, 6, 0.06) 62%);
+}
+
+.body {
+  position: absolute;
+  right: 16px;
+  bottom: 14px;
+  left: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.name {
+  font-family: var(--font-display), sans-serif;
+  font-weight: 900;
+  font-size: 26px;
+  line-height: 1.05;
+  color: rgba(255, 249, 242, 0.96);
+}
+
+.sub {
+  font-size: 12px;
+  line-height: 1.35;
+  color: rgba(255, 249, 242, 0.72);
+}
+
+/* Чип срока — тёмное стекло, как в спецификации. */
+.chip {
+  position: absolute;
+  top: 12px;
+  left: 16px;
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 6px 11px;
+  background: rgba(11, 8, 6, 0.72);
+  backdrop-filter: blur(10px);
+  font-size: 11px;
+  font-weight: 600;
+  color: rgba(255, 249, 242, 0.92);
+}
+
+.dot {
+  display: block;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--feed-accent);
+}
+
+/* Пульс только у совсем близкого праздника — иначе торопит вся лента разом. */
+.dotUrgent {
+  animation: feedPulse 5.2s ease-in-out infinite;
+}
+
+@keyframes feedPulse {
+  0%,
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.45;
+    transform: scale(0.82);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .dotUrgent {
+    animation: none;
+  }
+}
