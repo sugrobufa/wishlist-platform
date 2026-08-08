@@ -283,8 +283,14 @@ describe("кадры «открыто» (openFrame — единственный 
     // нашему заданию 13: жест СОДЕРЖИМЫМ (бумага разошлась, виден плед), а не
     // крышкой, которую два прежних дубля двигали впустую. Наш замер 2.94 —
     // порог не взят, принят глазами по той же планке, что 2.77 и 2.96.
-    expect(withFrame).toHaveLength(19);
-    expect(accepted).toHaveLength(19);
+    // Раунд 17 (задание 14) прибавил ТРИ: `gamer/anything` чистым прогоном
+    // (наш замер 4.61 — кадр раунда 14 этой зоны мы отклонили ошибочно, вывод
+    // делался по мелкой вырезке), `loft/anything` и `bold/anything` —
+    // СБОРКАМИ «наша база + прямоугольник жеста». Сборка раскрыта дизайном и
+    // подтверждена замером: у `bold` все двенадцать соседей расходятся на
+    // 0.0015–0.0031, то есть вне прямоугольника это наша база байт-в-байт.
+    expect(withFrame).toHaveLength(22);
+    expect(accepted).toHaveLength(22);
     expect(absent).toHaveLength(8);
     expect(withFrame.map((z) => z.id).sort()).toEqual(
       [
@@ -311,6 +317,10 @@ describe("кадры «открыто» (openFrame — единственный 
         "loft/travel",
         // Раунд 16.
         "warm/anything",
+        // Раунд 17 — две из трёх собраны из нашей базы и прямоугольника жеста.
+        "bold/anything",
+        "gamer/anything",
+        "loft/anything",
       ].sort(),
     );
   });
@@ -378,8 +388,8 @@ describe("кадры «открыто» (openFrame — единственный 
     // 5 раунда 3 (без поля), 1 раунда 7, 4 партии 2 раунда 8,
     // 6 раунда 14 и 1 раунда 15 (тикет 81), плюс седьмой раунда 14 —
     // `lux/travel` подключён тикетом 81-2 после переразметки соседей,
-    // и 1 раунда 16 — `warm/anything` (тикет 87).
-    expect(byRound).toEqual({ r3: 5, "7": 1, "8": 4, "14": 7, "15": 1, "16": 1 });
+    // и 1 раунда 16 — `warm/anything` (тикет 87), и 3 раунда 17 (тикет 90).
+    expect(byRound).toEqual({ r3: 5, "7": 1, "8": 4, "14": 7, "15": 1, "16": 1, "17": 3 });
     const round3 = withFrame.filter(({ zone }) => zone.frameRound === undefined);
     expect(round3).toHaveLength(5);
     for (const { id, zone } of round3) {
@@ -438,7 +448,8 @@ describe("кадры «открыто» (openFrame — единственный 
     // «починит» её в objectAbsent, восемь превратятся в девять и тест упадёт
     // здесь — это и есть сторож решения.
     // Раунд 16 вернул девятую — `warm/anything`: 104 → 103, 18 → 19.
-    expect([accepted.length, reshoot.length, absent.length]).toEqual([19, 103, 8]);
+    // Раунд 17 вернул ещё три: 103 → 100, 19 → 22.
+    expect([accepted.length, reshoot.length, absent.length]).toEqual([22, 100, 8]);
     const doubled = allZones.filter(
       ({ zone }) => [zone.accepted, zone.reshoot, zone.objectAbsent].filter(Boolean).length > 1,
     );
@@ -495,14 +506,14 @@ describe("кадры «открыто» (openFrame — единственный 
     // держалось не как запрет, а как факт — у этих комнат просто не было ни
     // одного честного кадра. Теперь есть, и вычитать больше нечего.
     // Тикет 81-2 добавил `lux/travel`: 17 → 18; раунд 16 — `warm/anything`,
-    // второй кадр комнаты warm: 18 → 19.
-    expect(withFrame).toHaveLength(19);
+    // второй кадр комнаты warm: 18 → 19; раунд 17 — три коробки: 19 → 22.
+    expect(withFrame).toHaveLength(22);
     const connected = rooms.flatMap((room) =>
       room.zones.filter((zone) => zone.openFrame).map((zone) => `${room.id}/${zone.key}`),
     );
-    expect(connected).toHaveLength(19);
+    expect(connected).toHaveLength(22);
     expect(connected.filter((id) => id.startsWith("warm/") || id.startsWith("loft/")).sort()).toEqual(
-      ["loft/travel", "warm/anything", "warm/travel"],
+      ["loft/anything", "loft/travel", "warm/anything", "warm/travel"],
     );
     for (const room of rooms) {
       for (const zone of room.zones) {
@@ -723,8 +734,8 @@ describe("кадры «открыто» (openFrame — единственный 
     // они снимались от НАШИХ баз, а не от пакета, и в снимок аудита 49 не
     // входят по построению. Поэтому арифметика теперь трёхчленная.
     // Тикет 81-2 добавил восьмой — `lux/travel` из той же партии раунда 14,
-    // раунд 16 девятый — `warm/anything`.
-    const OUR_BASE_ROUNDS = 9;
+    // раунд 16 девятый — `warm/anything`, раунд 17 добавил три коробки.
+    const OUR_BASE_ROUNDS = 12;
     expect(withFrame.length).toBe(check.honest + latestConnected - 1 + OUR_BASE_ROUNDS);
     // (−1: travel был честным у аудита И заменён партией 2 — не двойной счёт.)
     expect(check.substitution + check.contentLost + check.nothingHappened + check.honest).toBe(30);

@@ -80,7 +80,7 @@ describe("светом отвечают ровно те зоны, у котор�
     }
   });
 
-  it("кадр «открыто» есть у девятнадцати зон продукта — им поведение не меняем", () => {
+  it("кадр «открыто» есть у двадцати двух зон продукта — им поведение не меняем", () => {
     const framed = all.filter(({ zone }) => !zoneWakesWithLight(zone));
     // Раунды 14–15 (тикет 81) добавили семь: первая партия, снятая от НАШИХ
     // баз 2800×1563. Двум комнатам, warm и loft, кадр достался впервые —
@@ -110,6 +110,10 @@ describe("светом отвечают ровно те зоны, у котор�
         "warm/travel",
         // Девятнадцатая — раунд 16, тикет 87: пересъёмка жестом содержимого.
         "warm/anything",
+        // Раунд 17 (тикет 90): три коробки, две из них собраны из нашей базы.
+        "bold/anything",
+        "gamer/anything",
+        "loft/anything",
       ].sort(),
     );
   });
@@ -119,18 +123,23 @@ describe("светом отвечают ровно те зоны, у котор�
     // 122 показанные зоны продукта (CLAUDE.md, инвариант 9) минус 18 с кадром
     // (было 10 — раунды 14–15 добавили семь, тикет 81; восемнадцатый,
     // `lux/travel`, подключён тикетом 81-2 после переразметки соседей,
-    // девятнадцатый — `warm/anything` раунда 16).
+    // девятнадцатый — `warm/anything` раунда 16, ещё три — раунд 17).
     expect(all.length).toBe(122);
-    expect(waking.length).toBe(103);
+    expect(waking.length).toBe(100);
   });
 
   it("комната без единого кадра оживает целиком, комната с кадрами — частями", () => {
     const cottage = rooms.find((room) => room.id === "cottage");
     const cream = rooms.find((room) => room.id === "cream");
     // «Загородный дом» получил два кадра раундом 14 — целиком светом он
-    // больше не оживает. Комната без единого кадра теперь `bold`.
+    // больше не оживает. Комната без единого кадра была `bold` — раунд 17
+    // (тикет 90) дал кадр и ей, и теперь комнат без единого кадра НЕТ ВОВСЕ:
+    // все десять оживают частями. Это и был смысл конвейера — держим числом.
     const bold = rooms.find((room) => room.id === "bold");
-    expect(bold?.zones.every(zoneWakesWithLight)).toBe(true);
+    expect(bold?.zones.filter(zoneWakesWithLight)).toHaveLength(
+      (bold?.zones.length ?? 0) - 1,
+    );
+    expect(rooms.every((room) => room.zones.some((zone) => zone.openFrame))).toBe(true);
     expect(cottage?.zones.filter(zoneWakesWithLight)).toHaveLength(
       (cottage?.zones.length ?? 0) - 2,
     );
