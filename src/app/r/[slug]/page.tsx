@@ -121,7 +121,17 @@ export default async function GuestRoomPage({ params }: Params) {
 
   const t = await getTranslations("GuestRoom");
   const tList = await getTranslations("RoomList");
+  const tHall = await getTranslations("Hall");
   const ownerName = room.ownerName ?? t("ownerFallback");
+
+  // Ссылка на витрину (тикет 93) — только когда витрине есть что показать:
+  // звать гостя в пустую комнату-в-комнате незачем. Считается по уже отданным
+  // вещам, своего запроса не заводим; `inHall` у гостя значит «видна в
+  // сокровищнице» и уже учитывает глазок хозяйки (тикет 89). Демо-призраки
+  // отброшены: витрина показывает только настоящие вещи.
+  const hasHall = Object.values(room.itemsByZone).some((items) =>
+    items.some((item) => item.state === "LOVE" && !item.isDemo && item.inHall),
+  );
 
   // Приветствие холодному гостю (тикет 38, турн 12b): три тихие строки над
   // сценой. Первое, что человек видит, — всё ещё чужая комната; приветствие
@@ -273,6 +283,16 @@ export default async function GuestRoomPage({ params }: Params) {
                     >
                       {tList("toList")}
                     </Link>
+                    {/* Витрина хозяйки (тикет 93, доска А5): не «что подарить»,
+                        а «кто она» — вещи, которые у неё уже есть. */}
+                    {hasHall && (
+                      <Link
+                        href={`/r/${room.nick ?? room.shareSlug}/hall`}
+                        className="pressable btn-quiet"
+                      >
+                        {tHall("toHall")}
+                      </Link>
+                    )}
                     {/* «Мои брони · N» — появляется после клиентского fetch,
                         если cookie непуст. */}
                     <MyBookingsLink />

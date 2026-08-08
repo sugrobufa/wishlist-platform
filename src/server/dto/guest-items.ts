@@ -31,7 +31,7 @@
 //   он не показывается ни адресом, ни доменом (инвариант №6).
 import type { Item } from "@prisma/client";
 import { itemPhotoUrl, type PriceVisibilityDto } from "@/server/dto/items";
-import { guestSeesHallItemPrice } from "@/server/dto/hall";
+import { guestSeesHallItemPrice, hallItemShownToObservers } from "@/server/dto/hall";
 import type { DemoGhostDto } from "@/config/demo-pools";
 
 /** Общие поля обеих форм вещи глазами гостя. */
@@ -187,7 +187,10 @@ export function itemForGuest(item: Item, hall?: GuestHallContext): GuestItemDto 
     state: "LOVE",
     giverName: item.giverName,
     receivedAt: item.receivedAt === null ? null : item.receivedAt.toISOString(),
-    inHall: item.inHall,
+    // У ГОСТЯ это поле значит «видна в сокровищнице», а не «положена в неё»:
+    // с тикета 89 хозяйка прячет вещь с витрины глазком, и `item.inHall`
+    // в одиночку врал бы (тикет 93). Условие одно на всех наблюдателей.
+    inHall: hallItemShownToObservers(item),
   };
   // Цена подарка — только по настройке зала славы и только у вещи, которой
   // цену не скрыли отдельно (ADR-0004). Ключей нет вовсе, когда нельзя.

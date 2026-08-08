@@ -12,7 +12,8 @@ import { rooms } from "@/config/design";
 import { TabBar } from "@/components/tab-bar/tab-bar";
 import { HallShowcase } from "./hall-showcase";
 import { formatHallMoney } from "./money";
-import s from "./hall.module.css";
+// Партитура витрины общая с гостевой (тикет 93) — живёт в components/hall.
+import s from "@/components/hall/hall.module.css";
 
 export const dynamic = "force-dynamic";
 

@@ -25,7 +25,7 @@ import type { HallItemDto } from "@/server/dto/hall";
 import { setHallHiddenAction, setHallPriceHiddenAction } from "./actions";
 import { formatHallMoney } from "./money";
 import { PriceSeenBadge } from "./price-seen-badge";
-import s from "./hall.module.css";
+import s from "@/components/hall/hall.module.css";
 
 export type HallItemView = HallItemDto;
 

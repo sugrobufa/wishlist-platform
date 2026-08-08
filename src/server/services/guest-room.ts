@@ -93,23 +93,7 @@ export type GuestRoomView = {
  * поэтому порядок безопасен.
  */
 export async function getGuestRoom(slug: string): Promise<GuestRoomView | null> {
-  const parsedSlug = slugSchema.safeParse(slug);
-  if (!parsedSlug.success) return null;
-
-  // Строка комнаты читается свежей на каждый ВЫЗОВ сервиса (дёшево:
-  // unique-индексы) — preset/zonesOff/demoGhostsOff/имя не зависят от кэша
-  // вещей. С полностраничным ISR (полировка 16) вызов случается при каждой
-  // регенерации /r/{slug}, а регенерацию мутации хозяйки заказывают сами —
-  // revalidateTag(room-{id}); свежесть для гостя от этого не страдает.
-  const room =
-    (await prisma.room.findUnique({
-      where: { nick: parsedSlug.data },
-      include: ownerSelect,
-    })) ??
-    (await prisma.room.findUnique({
-      where: { shareSlug: parsedSlug.data },
-      include: ownerSelect,
-    }));
+  const room = await findRoomBySlug(slug);
   if (!room) return null;
 
   const preset = roomPresets.find((candidate) => candidate.id === room.preset);
@@ -164,6 +148,33 @@ export async function getGuestRoom(slug: string): Promise<GuestRoomView | null> 
       visible.map((zone) => zone.key),
     ),
   };
+}
+
+/**
+ * Комната по адресу из ссылки — общий вход обоих гостевых чтений (комната и
+ * витрина, тикет 93). Строка читается свежей на каждый ВЫЗОВ сервиса (дёшево:
+ * unique-индексы) — preset/zonesOff/demoGhostsOff/имя не зависят от кэша
+ * вещей. С полностраничным ISR (полировка 16) вызов случается при каждой
+ * регенерации /r/{slug}, а регенерацию мутации хозяйки заказывают сами —
+ * revalidateTag(room-{id}); свежесть для гостя от этого не страдает.
+ *
+ * Порядок «сначала ник, потом код» значим и безопасен: ник, совпадающий с
+ * чужим кодом, не выдаётся (services/rooms.setRoomNick).
+ */
+export async function findRoomBySlug(slug: string) {
+  const parsedSlug = slugSchema.safeParse(slug);
+  if (!parsedSlug.success) return null;
+
+  return (
+    (await prisma.room.findUnique({
+      where: { nick: parsedSlug.data },
+      include: ownerSelect,
+    })) ??
+    (await prisma.room.findUnique({
+      where: { shareSlug: parsedSlug.data },
+      include: ownerSelect,
+    }))
+  );
 }
 
 /**

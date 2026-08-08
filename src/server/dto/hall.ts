@@ -277,3 +277,76 @@ export function hallItemForOwner(
     hiddenFromObservers: item.hiddenFromHall,
   };
 }
+
+// ---------- Витрина глазами гостя (тикет 93) ----------
+
+/**
+ * Вещь витрины для ГОСТЯ. Отдельная форма, а не хозяйкина с флажком: у
+ * хозяйки цена видна всегда (ADR-0004), и ослаблять её форму ради гостя
+ * нельзя. Здесь наоборот — цены нет КЛЮЧОМ, пока настройка зала её не
+ * откроет, ровно как в `itemForGuest` (инвариант №8).
+ *
+ * Чего в форме нет вовсе: `priceAudience` (значок «кто видит цену» — разговор
+ * хозяйки с собой), `hiddenFromObservers` (вещь, которую гость не видит, до
+ * него не доезжает) и `zone` с `id` под правку. Следов броней тут нет по
+ * построению — вещи «люблю» уже подарены, но и ключа такого в форме не
+ * существует (инвариант №1).
+ */
+export type HallGuestItemDto = {
+  id: string;
+  title: string;
+  photoUrl: string | null;
+  /** null, когда хозяйка выключила «Кто подарил». */
+  giverName: string | null;
+  receivedYear: string | null;
+  /** Заметка-цитата хозяйки (тикет 92) — текст о вещи, своей настройки нет. */
+  note: string | null;
+  /** Ключа нет вовсе, когда настройка зала цену не открывает. */
+  price?: string | null;
+  currency?: string | null;
+  /** Цена показана округлённой — подпись «около …». */
+  rounded: boolean;
+};
+
+/**
+ * Сериализация вещи витрины гостю. Фильтр «показывать ли эту вещь вообще»
+ * живёт в `hallItemShownToObservers` и отрабатывает ДО этой функции — сюда
+ * скрытое приходить не должно, но и придя, наружу ничего не унесёт: ключей
+ * `inHall`/`hiddenFromHall` в форме нет.
+ */
+export function hallItemForGuest(
+  item: Item,
+  settings: HallSettings,
+  photoUrl: string | null,
+): HallGuestItemDto {
+  const dto: HallGuestItemDto = {
+    id: item.id,
+    title: item.title,
+    photoUrl,
+    giverName: settings.giverShown ? item.giverName : null,
+    receivedYear: item.receivedAt ? String(item.receivedAt.getUTCFullYear()) : null,
+    note: item.note?.trim() ? item.note.trim() : null,
+    rounded: false,
+  };
+
+  if (guestSeesHallItemPrice(settings.priceVisibility, item.priceVisibility)) {
+    const shown = ownerPrice(item.price, settings.roundPrices);
+    dto.price = shown.price;
+    dto.currency = shown.price === null ? null : (item.currency ?? "RUB");
+    dto.rounded = shown.rounded;
+  }
+  return dto;
+}
+
+/**
+ * Цены, по которым складывается сумма ВИТРИНЫ ГОСТЯ: только те, что он и так
+ * видит. Считать по всем — значит выдать в сумме цены, закрытые настройкой.
+ */
+export function hallGuestPriced(
+  items: readonly Item[],
+  settings: HallSettings,
+): Array<{ price: Decimal | null; currency: string | null }> {
+  return items
+    .filter((item) => guestSeesHallItemPrice(settings.priceVisibility, item.priceVisibility))
+    .map((item) => ({ price: item.price, currency: item.currency }));
+}

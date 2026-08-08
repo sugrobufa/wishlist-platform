@@ -613,6 +613,12 @@ describe("словарь и дизайн-пакет", () => {
       // заметку там, где её видно, было нельзя. Словами витрины дизайн не
       // занимался: в messages-ru.json у раздела всего одиннадцать ключей.
       "Hall.edit",
+      // Тикет 93 (доска А5): витрина глазами гостя. Экрана в пакете нет —
+      // словарь собирали, когда гостевого маршрута не существовало вовсе.
+      // Заголовок говорит именем хозяйки: гость пришёл смотреть на неё.
+      "Hall.guestBack",
+      "Hall.guestEmpty",
+      "Hall.guestTitle",
       "Hall.hiddenBadge",
       "Hall.hide",
       "Hall.noteAdd",
@@ -627,6 +633,7 @@ describe("словарь и дизайн-пакет", () => {
       "Hall.seenME",
       "Hall.seenNONE",
       "Hall.show",
+      "Hall.toHall",
       "Hall.total",
       "Hall.totalRounded",
       "Onboarding.emailNote",
