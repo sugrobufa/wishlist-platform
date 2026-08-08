@@ -1,7 +1,15 @@
 "use client";
 
-// Сетка зоны глазами ХОЗЯЙКИ (тикеты 13 и 10): та же ZoneGrid тикета 03, но
-// со слотом действия — тихое меню вещи. У «хочу»: «Уже моё» (ручной переход
+// Зона глазами ХОЗЯЙКИ — СТРОКАМИ (турн 29b, тикет 88): миниатюра, название,
+// чип состояния, цена, кружок выбора слева. Прежде здесь была сетка плиток
+// (тикет 03); строка отдаёт название, состояние и цену одним взглядом, а
+// плитка прячет цену под картинку — ради взгляда экран и затевался (тот же
+// довод, что у экрана «вся комната списком», турн 29a).
+//
+// Плитки никуда не делись: ими живут панель зоны в сцене и гостевой вид.
+// Строки — вид ЭТОГО экрана, а не замена `ZoneGrid`.
+//
+// Меню вещи (тикеты 13 и 10) переехало в строку целиком. У «хочу»: «Уже моё» (ручной переход
 // в «люблю» — необратим, двухшаговое подтверждение), «Спрятать», «Удалить».
 // У «люблю»: «В зал славы / Убрать из зала», «Спрятать», «Удалить».
 // Слот заполняется только у своих вещей: у демо-призраков меню нет — они не
@@ -10,9 +18,11 @@
 import { useMemo, useState, useTransition, type CSSProperties, type ReactNode } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useTranslations } from "next-intl";
+import { useLocale, useTranslations } from "next-intl";
 import { IconCheck } from "@/components/icons";
-import { ZoneGrid } from "@/components/zone/ZoneGrid";
+import { PoolIcon } from "@/components/pool-icons";
+import { tileAppearance } from "@/components/zone/tile-appearance";
+import rl from "@/components/room-list/room-list.module.css";
 import type { ZoneGridItem } from "@/components/zone/types";
 import {
   deleteItemAction,
@@ -28,7 +38,12 @@ type OwnerGridItem = ZoneGridItem & { inHall?: boolean };
 type OwnerZoneGridProps = {
   items: OwnerGridItem[];
   accent: string;
-  ink: string;
+  /**
+   * ink комнаты экрану больше не нужен: с переходом на строки (тикет 88)
+   * активной вкладки, где текст ложился на акцент, здесь не осталось. Проп
+   * оставлен в контракте, чтобы страница не переписывалась ради одной строки.
+   */
+  ink?: string;
   /** Ключ зоны — из него собирается адрес карточки вещи (тикет 39). */
   zoneKey: string;
   /** Пул зоны — значок вместо буквы у вещи без фото (тикет 82). */
@@ -38,12 +53,31 @@ type OwnerZoneGridProps = {
 /** Двухшаговые подтверждения: удаление и необратимое «уже моё». */
 type Confirming = { id: string; kind: "delete" | "own" };
 
+/** Цена строкой: «14 900 ₽». Деньги в DTO — строка Decimal (CLAUDE.md). */
+function formatPrice(item: ZoneGridItem, locale: string): string | null {
+  if (item.state !== "WANT" || item.price == null) return null;
+  const value = Number(item.price);
+  if (!Number.isFinite(value)) return null;
+  try {
+    return new Intl.NumberFormat(locale, {
+      style: "currency",
+      currency: item.currency ?? "RUB",
+      minimumFractionDigits: 0,
+      maximumFractionDigits: 2,
+    }).format(value);
+  } catch {
+    return `${item.price} ${item.currency ?? ""}`.trim();
+  }
+}
+
 /** Чипы порядка из турна 29b. `hidden` — не порядок, а фильтр, чип общий. */
 type Sort = "date" | "price" | "hidden";
 
-export function OwnerZoneGrid({ items, accent, ink, zoneKey, pool }: OwnerZoneGridProps) {
+export function OwnerZoneGrid({ items, accent, zoneKey, pool }: OwnerZoneGridProps) {
   const t = useTranslations("Settings");
   const tl = useTranslations("ZoneList");
+  const tg = useTranslations("ZoneGrid");
+  const locale = useLocale();
   const router = useRouter();
   const [confirming, setConfirming] = useState<Confirming | null>(null);
   const [busyId, setBusyId] = useState<string | null>(null);
@@ -130,27 +164,6 @@ export function OwnerZoneGrid({ items, accent, ink, zoneKey, pool }: OwnerZoneGr
 
   const renderItemAction = (item: ZoneGridItem): ReactNode => {
     if (item.isDemo) return null;
-    // Режим выбора: вместо меню — кружок-галочка (турн 29b). Меню и выбор
-    // в одной строке спорили бы за нажатие.
-    if (picking) {
-      const on = picked.has(item.id);
-      return (
-        <button
-          type="button"
-          aria-pressed={on}
-          aria-label={tl("selectAria", { title: item.title })}
-          onClick={() => togglePicked(item.id)}
-          className="pressable btn-quiet mt-1"
-          style={on ? ({ "--pill-accent": accent } as CSSProperties) : undefined}
-        >
-          {/* Знак — канонический IconCheck, а не глиф-галочка из шрифта: глифов
-              в интерфейсе не бывает (tokens.json → icons, тест tab-bar).
-              Невыбранное состояние — пустой кружок, нарисованный рамкой самой
-              пилюли, поэтому знака там нет вовсе. */}
-          {on ? <IconCheck size={14} strokeWidth={2.4} /> : <span className="block h-3.5 w-3.5" />}
-        </button>
-      );
-    }
     const busy = busyId === item.id;
     // Каст честный: сюда приходят те же объекты, что в items (OwnerGridItem).
     const inHall = (item as OwnerGridItem).inHall === true;
@@ -288,14 +301,61 @@ export function OwnerZoneGrid({ items, accent, ink, zoneKey, pool }: OwnerZoneGr
         </button>
       </div>
 
-      <ZoneGrid
-        items={shown}
-        accent={accent}
-        ink={ink}
-        enterDelay="none"
-        renderItemAction={renderItemAction}
-        pool={pool}
-      />
+      {/* СТРОКИ 29b. Вид взят у экрана «вся комната списком» (29a) — там он
+          уже отрисован и проверен, второй раз рисовать незачем. */}
+      <ul className={rl.rows} style={{ "--rl-accent": accent } as CSSProperties}>
+        {shown.map((item) => {
+          const look = tileAppearance(item, pool);
+          const price = formatPrice(item, locale);
+          const on = picked.has(item.id);
+          return (
+            <li key={item.id} className={rl.row}>
+              {/* Кружок выбора СЛЕВА — как на макете. У демо-призрака его нет:
+                  его не спрятать, он не в БД. */}
+              {picking && !item.isDemo && (
+                <button
+                  type="button"
+                  aria-pressed={on}
+                  aria-label={tl("selectAria", { title: item.title })}
+                  onClick={() => togglePicked(item.id)}
+                  className="pressable btn-quiet flex-none"
+                  style={on ? ({ "--pill-accent": accent } as CSSProperties) : undefined}
+                >
+                  {on ? (
+                    <IconCheck size={14} strokeWidth={2.4} />
+                  ) : (
+                    <span className="block h-3.5 w-3.5" />
+                  )}
+                </button>
+              )}
+              <div
+                className={look.dashed ? `${rl.thumb} ${rl.thumbWant}` : rl.thumb}
+                style={item.photoUrl ? { backgroundImage: `url(${item.photoUrl})` } : undefined}
+                aria-hidden
+              >
+                {look.poolIcon && (
+                  <span className={rl.monogram}>
+                    <PoolIcon pool={look.poolIcon} />
+                  </span>
+                )}
+                {look.monogram && <span className={rl.monogram}>{look.monogram}</span>}
+              </div>
+              <div className={rl.body}>
+                <p className={rl.title}>{item.title}</p>
+                <span className={item.state === "WANT" ? `${rl.chip} ${rl.chipWant}` : rl.chip}>
+                  {item.state === "WANT" ? tg("tabWant") : tg("loveCaption")}
+                </span>
+                {/* Меню вещи — под строкой, чтобы не спорить с ценой справа. */}
+                {!picking && renderItemAction(item)}
+              </div>
+              {price && <span className={rl.price}>{price}</span>}
+            </li>
+          );
+        })}
+      </ul>
+      {shown.length === 0 && (
+        <p className="text-sm text-text-muted">{tg(sort === "hidden" ? "emptyLove" : "emptyWant")}</p>
+      )}
 
       {/* Нижняя панель действия: счёт стоит прямо в подписи кнопки (29b). */}
       {picking && pickedHere > 0 && (
