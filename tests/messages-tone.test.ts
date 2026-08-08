@@ -611,6 +611,9 @@ describe("словарь и дизайн-пакет", () => {
       "Hall.add",
       "Hall.delete",
       "Hall.deleteConfirm",
+      // Пояснение под вопросом (раунд 19): отвечает на страх «удалением я
+      // сотру и историю подарка» — не сотрёт, друг остаётся в «Друзьях».
+      "Hall.deleteConfirmBody",
       "Hall.deleteNo",
       "Hall.deleteYes",
       // Тикет 92 (доска Б22): заметка хозяйки цитатой прямо на витрине —
@@ -625,6 +628,8 @@ describe("словарь и дизайн-пакет", () => {
       // Заголовок говорит именем хозяйки: гость пришёл смотреть на неё.
       "Hall.guestBack",
       "Hall.guestEmpty",
+      // «Всё здесь уже дома» — дословно из поставки раунда 19.
+      "Hall.guestSubtitle",
       "Hall.guestTitle",
       "Hall.hiddenBadge",
       "Hall.hide",
@@ -634,6 +639,9 @@ describe("словарь и дизайн-пакет", () => {
       "Hall.priceHide",
       "Hall.priceSeenAria",
       "Hall.priceShow",
+      // «вернётся в свою зону — в „{зона}“» из поставки раунда 19: подсказка
+      // называет зону по имени, и «убрать» перестаёт путаться с «удалить».
+      "Hall.removeHint",
       "Hall.seenALL",
       "Hall.seenFRIENDS",
       "Hall.seenITEM",

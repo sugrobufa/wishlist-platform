@@ -193,19 +193,24 @@ describe("getGuestHall — цена по настройке зала (инвар
 });
 
 describe("getGuestHall — «Кто подарил», «около» и заметка", () => {
-  it("тумблер «Кто подарил» прячет имя, но вещь остаётся подарком", async () => {
+  it("ИМЕНИ ДАРИТЕЛЯ ГОСТЮ НЕТ НИ ПРИ КАКОМ ТУМБЛЕРЕ (раунд 19)", async () => {
     const { user, room } = await createRoom();
     await createLove(room.id, "Браслет", {
       giverName: "мама",
       receivedAt: new Date("2025-03-14T12:00:00Z"),
     });
 
-    expect((await getGuestHall(room.shareSlug))?.items[0]?.giverName).toBe("мама");
-
-    await setHallSettings(user.id, { giverShown: false });
-    const hidden = (await getGuestHall(room.shareSlug))?.items[0];
-    expect(hidden?.giverName).toBeNull();
-    expect(hidden?.receivedYear).toBe("2025"); // год подарка остаётся
+    // Тумблер «Кто подарил» решает, видит ли имя ХОЗЯЙКА на своей витрине.
+    // Распространить его на гостей — назвать третьего человека людям, которым
+    // он себя не называл. Ключа нет вовсе, ни при включённом, ни при
+    // выключенном.
+    for (const giverShown of [true, false]) {
+      await setHallSettings(user.id, { giverShown });
+      const item = (await getGuestHall(room.shareSlug))?.items[0];
+      expect(item).not.toHaveProperty("giverName");
+      expect(JSON.stringify(item)).not.toContain("мама");
+      expect(item?.receivedYear).toBe("2025"); // год про вещь, а не про человека
+    }
   });
 
   it("«Округлять цены» даёт «около» и помечает признаком rounded", async () => {

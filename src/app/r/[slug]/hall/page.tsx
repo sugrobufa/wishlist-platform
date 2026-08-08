@@ -72,6 +72,9 @@ export default async function GuestHallPage({ params }: Params) {
           <h1 className="display mt-3 text-3xl lg:text-4xl">
             {hall.ownerName === null ? t("title") : t("guestTitle", { name: hall.ownerName })}
           </h1>
+          {/* «Всё здесь уже дома» (раунд 19): гость сразу понимает, что тут
+              не выбирают подарок — тут смотрят на человека. */}
+          <p className="mt-1.5 text-xs text-text-muted">{t("guestSubtitle")}</p>
           {hall.items.length > 0 && (
             <p className="overline mt-2.5 text-text-muted">
               {t("count", { count: hall.items.length })}
@@ -111,8 +114,12 @@ export default async function GuestHallPage({ params }: Params) {
                   </p>
                 )}
 
+                {/* Подпись гостю — только год: имени дарителя здесь нет и
+                    быть не может (раунд 19, см. dto/hall.HallGuestItemDto). */}
                 <p className="mt-1.5 text-[10.5px] font-medium" style={{ color: accent }}>
-                  {caption(item, t)}
+                  {item.receivedYear === null
+                    ? t("captionMine")
+                    : t("captionYear", { year: item.receivedYear })}
                 </p>
 
                 {/* Заметка хозяйки (тикет 92) — то, ради чего доска и звала
@@ -131,17 +138,6 @@ export default async function GuestHallPage({ params }: Params) {
   );
 }
 
-type Translator = (key: string, values?: Record<string, string | number>) => string;
-
-/** Подпись витрины — та же, что у хозяйки: «Подарен в {год} · {имя}». */
-function caption(
-  item: { receivedYear: string | null; giverName: string | null },
-  t: Translator,
-): string {
-  if (item.receivedYear && item.giverName) {
-    return t("captionYearGiver", { year: item.receivedYear, giver: item.giverName });
-  }
-  if (item.giverName) return t("captionGiver", { giver: item.giverName });
-  if (item.receivedYear) return t("captionYear", { year: item.receivedYear });
-  return t("captionMine");
-}
+// Своей сборки подписи здесь больше нет: гостю показывается только год, и
+// разветвлять нечего. Хозяйкина `caption` (с именем дарителя) живёт в
+// hall-showcase.tsx и сюда не переезжает — это и была ошибка тикета 93.

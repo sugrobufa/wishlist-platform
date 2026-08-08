@@ -21,6 +21,7 @@ import { useRouter } from "next/navigation";
 import { useLocale, useTranslations } from "next-intl";
 import { deleteItemAction, toggleHallAction } from "@/app/room/zone/[zone]/actions";
 import { IconEye, IconEyeOff } from "@/components/icons";
+import { zoneInfo } from "@/config/design";
 import type { HallItemDto } from "@/server/dto/hall";
 import { setHallHiddenAction, setHallPriceHiddenAction } from "./actions";
 import { formatHallMoney } from "./money";
@@ -28,6 +29,11 @@ import { PriceSeenBadge } from "./price-seen-badge";
 import s from "@/components/hall/hall.module.css";
 
 export type HallItemView = HallItemDto;
+
+/** Человеческое имя зоны из zones.json — для подсказки «вернётся в „{зона}“». */
+function zoneLabel(zone: string): string {
+  return zoneInfo(zone)?.label ?? zone;
+}
 
 type Translator = (key: string, values?: Record<string, string | number>) => string;
 
@@ -128,24 +134,30 @@ export function HallShowcase({ items, accent }: { items: HallItemView[]; accent:
               {/* «Удалить» спрашивает до действия: вещь уходит из комнаты
                   насовсем, а не только с витрины (тикет 89). */}
               {confirmingId === item.id ? (
-                <div className="mt-2 flex flex-wrap items-center gap-3 text-xs">
-                  <span className="text-text-muted">{t("deleteConfirm")}</span>
-                  <button
-                    type="button"
-                    disabled={busy}
-                    onClick={() => run(item.id, () => deleteItemAction(item.id))}
-                    className="pressable font-semibold text-text-strong disabled:opacity-60"
-                  >
-                    {t("deleteYes")}
-                  </button>
-                  <button
-                    type="button"
-                    disabled={busy}
-                    onClick={() => setConfirmingId(null)}
-                    className="pressable font-semibold text-text-muted disabled:opacity-60"
-                  >
-                    {t("deleteNo")}
-                  </button>
+                // Безопасный выход — главный (раунд 19): «Оставить» стоит
+                // первой и заметной, удаление уходит тихой строкой. И вопрос
+                // отвечает на страх: история подарка удалением не стирается.
+                <div className="mt-2 flex flex-col gap-2 text-xs">
+                  <span className="font-semibold text-text-strong">{t("deleteConfirm")}</span>
+                  <span className="leading-snug text-text-muted">{t("deleteConfirmBody")}</span>
+                  <div className="flex flex-wrap items-center gap-3">
+                    <button
+                      type="button"
+                      disabled={busy}
+                      onClick={() => setConfirmingId(null)}
+                      className="pressable border border-surface-hairline-strong px-3 py-1.5 font-semibold text-text-strong disabled:opacity-60"
+                    >
+                      {t("deleteNo")}
+                    </button>
+                    <button
+                      type="button"
+                      disabled={busy}
+                      onClick={() => run(item.id, () => deleteItemAction(item.id))}
+                      className="pressable font-semibold text-text-muted hover:text-text-strong disabled:opacity-60"
+                    >
+                      {t("deleteYes")}
+                    </button>
+                  </div>
                 </div>
               ) : (
                 <div className="mt-2 flex flex-wrap items-center gap-3">
@@ -182,9 +194,12 @@ export function HallShowcase({ items, accent }: { items: HallItemView[]; accent:
                       {hiddenPrice ? t("priceShow") : t("priceHide")}
                     </button>
                   )}
+                  {/* Подсказка называет зону по имени (раунд 19): «убрать» и
+                      «удалить» перестают быть похожими на слух. */}
                   <button
                     type="button"
                     disabled={busy}
+                    title={t("removeHint", { zone: zoneLabel(item.zone) })}
                     onClick={() => run(item.id, () => toggleHallAction(item.id, false))}
                     className="pressable text-xs font-semibold text-text-muted hover:text-text-strong disabled:opacity-60"
                   >

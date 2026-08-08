@@ -291,13 +291,18 @@ export function hallItemForOwner(
  * него не доезжает) и `zone` с `id` под правку. Следов броней тут нет по
  * построению — вещи «люблю» уже подарены, но и ключа такого в форме не
  * существует (инвариант №1).
+ *
+ * **ИМЕНИ ДАРИТЕЛЯ ТУТ НЕТ И БЫТЬ НЕ МОЖЕТ** (раунд 19, найдено дизайном в
+ * нашей сборке — и справедливо). Тумблер «Кто подарил» решает, видит ли имя
+ * ХОЗЯЙКА на своей витрине; распространить его на гостей значит назвать
+ * третьего человека людям, которым он себя не называл. Даритель открывается
+ * ровно один раз и ровно одной хозяйке — экран «что подарили» (инвариант №2).
+ * Год остаётся: он про вещь, а не про человека.
  */
 export type HallGuestItemDto = {
   id: string;
   title: string;
   photoUrl: string | null;
-  /** null, когда хозяйка выключила «Кто подарил». */
-  giverName: string | null;
   receivedYear: string | null;
   /** Заметка-цитата хозяйки (тикет 92) — текст о вещи, своей настройки нет. */
   note: string | null;
@@ -323,7 +328,6 @@ export function hallItemForGuest(
     id: item.id,
     title: item.title,
     photoUrl,
-    giverName: settings.giverShown ? item.giverName : null,
     receivedYear: item.receivedAt ? String(item.receivedAt.getUTCFullYear()) : null,
     note: item.note?.trim() ? item.note.trim() : null,
     rounded: false,
