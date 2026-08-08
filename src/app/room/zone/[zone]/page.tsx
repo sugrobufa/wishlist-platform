@@ -56,7 +56,7 @@ export default async function ZoneListPage({ params }: Params) {
 
   const rows = await listZoneItems(room.id, zone.key);
   const own = rows.map(itemForOwner);
-  const items = zoneDisplayItems(own, zone.key, zone.pool, room.demoGhostsOff);
+  const items = zoneDisplayItems(own);
 
   // Живые счётчики своих вещей вместо счётчика-заглушки пакета (полировка 16):
   // формат тот же, что в zones.json («N вещей · M в подарок»), числа настоящие.

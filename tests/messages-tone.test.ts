@@ -671,6 +671,7 @@ describe("словарь и дизайн-пакет", () => {
       "Room.hardenLink",
       "Room.hardenOverline",
       "Room.hardenSkip",
+      "Room.sharePlaque",
       "RoomList.empty",
       "RoomList.filterAll",
       "RoomList.filterAria",
@@ -681,6 +682,9 @@ describe("словарь и дизайн-пакет", () => {
       "RoomList.toList",
       "RoomList.toRoom",
       "RoomList.viewAria",
+      // Пустая комната гаснет (тикет 104): подпись обещает, что свет
+      // включится сам, и заменяет «коснись зоны» — касаться нечего.
+      "Scene.emptyRoom",
       "Scene.indexAria",
       "Scene.summaryBrands",
       "Scene.summaryCountsGuest",

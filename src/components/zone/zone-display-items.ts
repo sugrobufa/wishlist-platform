@@ -1,16 +1,17 @@
-// Что показывает зона хозяйки: свои вещи, а при их отсутствии — демо-призраки
-// пула (гриллинг №4), ЕСЛИ хозяйка не убрала примеры скопом (Room.demoGhostsOff,
-// тикет 13). Чистая функция — общая для /room и /room/zone/[zone] и под
-// unit-тестом (гость решает то же самое в services/guest-room по своим DTO).
-import { demoGhostsFor, type DemoGhostDto } from "@/config/demo-pools";
+// Что показывает зона хозяйки: ТОЛЬКО её собственные вещи.
+//
+// ДЕМО-ПРИЗРАКОВ БОЛЬШЕ НЕТ (тикет 104, решение владельца 09.08.2026 вслед за
+// вердиктом дизайна). Пустые зоны заполнялись чужими вещами с пометкой
+// «пример — замени на своё»; довод дизайна принят: пунктирный контур у нас
+// кодирует состояние «хочу» (инвариант №3), и на чужом примере он читается
+// как чужое желание. Пустоту теперь держит темнота и пунктирные места —
+// один язык вместо двух.
+//
+// Функция оставлена (а не выкинута вместе с вызовами) намеренно: это
+// единственное место, где решается состав плиток зоны, и вернуть сюда что-то
+// вместо призраков — одна правка в одном файле. Чистая, под unit-тестом.
 import type { OwnerItemDto } from "@/server/dto/items";
 
-export function zoneDisplayItems(
-  own: OwnerItemDto[],
-  zoneKey: string,
-  poolKey: string,
-  demoGhostsOff: boolean,
-): Array<OwnerItemDto | DemoGhostDto> {
-  if (own.length > 0 || demoGhostsOff) return own;
-  return demoGhostsFor(zoneKey, poolKey);
+export function zoneDisplayItems(own: OwnerItemDto[]): OwnerItemDto[] {
+  return own;
 }

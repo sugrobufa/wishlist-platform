@@ -19,7 +19,6 @@ import {
   changePresetAction,
   presignAvatarAction,
   saveAvatarAction,
-  setDemoGhostsAction,
   setHallSettingsAction,
   setLightSettingsAction,
   setNickAction,
@@ -1028,18 +1027,3 @@ export function DataSection({ deletePhrase, accent }: { deletePhrase: string; ac
 }
 
 // ---------- Демо-призраки ----------
-
-export function DemoGhostsSection({ off, accent }: { off: boolean; accent: string }) {
-  const t = useTranslations("Settings");
-  const { busy, error, run } = useSettingsAction();
-
-  return (
-    <Section overline={t("demoOverline")}>
-      <p className="text-sm text-text-muted">{t("demoHint")}</p>
-      <LightButton accent={accent} busy={busy} onClick={() => run(() => setDemoGhostsAction(!off))}>
-        {busy ? t("saving") : off ? t("demoToggleOn") : t("demoToggleOff")}
-      </LightButton>
-      {error && <p className="text-sm text-text-muted">{t(errorKey(error))}</p>}
-    </Section>
-  );
-}

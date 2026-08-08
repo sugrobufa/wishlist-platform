@@ -32,10 +32,10 @@ import {
 import {
   bloomTint,
   effectiveLightness,
-  gradingFilter,
-  gradingLayers,
   NATIVE_LIGHT_COLOR,
   NATIVE_TIME_OF_DAY,
+  sceneFilter,
+  sceneLayers,
   type LightColor,
   type TimeOfDay,
 } from "./grading";
@@ -81,6 +81,12 @@ export type SceneStageProps = {
    */
   timeOfDay?: TimeOfDay;
   lightColor?: LightColor;
+  /**
+   * В комнате нет ни одной вещи (тикет 104): сцена гаснет и подписывается
+   * «свет включится, когда появятся вещи». Прежде пустоту закрывали чужие
+   * вещи-примеры — владелец решил 09.08.2026, что это темнота, а не призраки.
+   */
+  empty?: boolean;
   className?: string;
 };
 
@@ -181,6 +187,7 @@ export function SceneStage({
   drift = false,
   timeOfDay = NATIVE_TIME_OF_DAY,
   lightColor = NATIVE_LIGHT_COLOR,
+  empty = false,
   className,
 }: SceneStageProps) {
   const t = useTranslations("Scene");
@@ -462,12 +469,15 @@ export function SceneStage({
       "--accent": bloomTint(lightColor, preset.accent),
       "--room-lightness": `${lightness}`,
       "--zone-bloom-weight": `${weights.bloom}`,
-      "--grade-filter": gradingFilter(timeOfDay, lightColor),
+      "--grade-filter": sceneFilter(timeOfDay, lightColor, empty),
     } as React.CSSProperties;
-  }, [preset.accent, preset.roomLightness, timeOfDay, lightColor]);
+  }, [preset.accent, preset.roomLightness, timeOfDay, lightColor, empty]);
 
   /** Слои грейдинга: по одному на ручку, каждый со своим блендом. */
-  const grades = useMemo(() => gradingLayers(timeOfDay, lightColor), [timeOfDay, lightColor]);
+  const grades = useMemo(
+    () => sceneLayers(timeOfDay, lightColor, empty),
+    [timeOfDay, lightColor, empty],
+  );
 
   // Подписи под названием зоны здесь больше нет (тикет 59). Стояли две, и обе
   // говорили не человеку, а нам: `openVerb` («чемодан раскрывается») описывает,
@@ -646,7 +656,9 @@ export function SceneStage({
           scene.module.css → .hint, одна формула на оба вида; планка таб-бара
           живёт ниже, у самого края (bottom 14), и они не толкаются. */}
       <div className={zoomedIn ? `${s.hint} ${s.hintHidden}` : s.hint} aria-hidden>
-        <span className={s.hintPill}>{t("hint")}</span>
+        {/* В пустой комнате подсказка «коснись зоны» врёт: касаться нечего.
+            Вместо неё — обещание, что свет включится сам (тикет 104). */}
+        <span className={s.hintPill}>{empty ? t("emptyRoom") : t("hint")}</span>
       </div>
 
       {/* Акцент и ink комнаты панель передаёт дальше карточке копилки

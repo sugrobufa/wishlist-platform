@@ -127,6 +127,34 @@ export function gradingLayers(tod: TimeOfDay, color: LightColor): GradeLayer[] {
   );
 }
 
+/**
+ * Пустая комната — ТЕМНОТА, а не чужие вещи-примеры (тикет 104, решение
+ * владельца 09.08.2026 вслед за вердиктом дизайна: пунктирный контур кодирует
+ * «хочу», и на чужом примере читается как чужое желание).
+ *
+ * Числа — `task15.json → emptyStates.emptyRoom.scene`. Это тот же механизм,
+ * что у времени суток: фильтр на кадре плюс вуаль сверху. Кадр не тронут —
+ * свет включится сам, как только появится первая вещь.
+ */
+export const EMPTY_ROOM_FILTER = "brightness(.42) saturate(.72)";
+export const EMPTY_ROOM_VEIL: GradeLayer = {
+  overlay: "linear-gradient(0deg,rgba(11,8,6,.78),rgba(11,8,6,.1) 52%)",
+  blend: "multiply",
+};
+
+/** Фильтр кадра с учётом пустоты комнаты: темнота копится поверх грейдинга. */
+export function sceneFilter(tod: TimeOfDay, color: LightColor, empty: boolean): string {
+  const graded = gradingFilter(tod, color);
+  if (!empty) return graded;
+  return graded === "none" ? EMPTY_ROOM_FILTER : `${graded} ${EMPTY_ROOM_FILTER}`;
+}
+
+/** Слои сцены: грейдинг плюс вуаль пустоты последней (она поверх всего). */
+export function sceneLayers(tod: TimeOfDay, color: LightColor, empty: boolean): GradeLayer[] {
+  const layers = gradingLayers(tod, color);
+  return empty ? [...layers, EMPTY_ROOM_VEIL] : layers;
+}
+
 /** Тон свечения метки зоны: тёплый берёт акцент комнаты, остальные — свой. */
 export function bloomTint(color: LightColor, accent: string): string {
   if (color === "white") return "#EDEAE4";

@@ -16,6 +16,10 @@ import {
   effectiveLightness,
   gradingFilter,
   gradingLayers,
+  EMPTY_ROOM_FILTER,
+  EMPTY_ROOM_VEIL,
+  sceneFilter,
+  sceneLayers,
   LIGHT_COLORS,
   NATIVE_LIGHT_COLOR,
   NATIVE_TIME_OF_DAY,
@@ -92,6 +96,26 @@ describe("светлота и метки зон", () => {
     expect(bloomTint("warm", cream.accent)).toBe(cream.accent);
     expect(bloomTint("white", cream.accent)).toBe("#EDEAE4");
     expect(bloomTint("candle", cream.accent)).toBe("#E8A96B");
+  });
+});
+
+describe("пустая комната — темнота (тикет 104)", () => {
+  it("к родным положениям темнота приходит одна, без «none» в строке", () => {
+    expect(sceneFilter("day", "warm", true)).toBe(EMPTY_ROOM_FILTER);
+    expect(sceneFilter("day", "warm", false)).toBe("none");
+  });
+
+  it("к выбранному свету темнота ДОБАВЛЯЕТСЯ, а не заменяет его", () => {
+    expect(sceneFilter("night", "warm", true)).toBe(
+      `brightness(.52) saturate(.7) ${EMPTY_ROOM_FILTER}`,
+    );
+  });
+
+  it("вуаль пустоты кладётся ПОСЛЕДНИМ слоем — поверх грейдинга", () => {
+    const layers = sceneLayers("night", "candle", true);
+    expect(layers).toHaveLength(3);
+    expect(layers[2]).toEqual(EMPTY_ROOM_VEIL);
+    expect(sceneLayers("night", "candle", false)).toHaveLength(2);
   });
 });
 

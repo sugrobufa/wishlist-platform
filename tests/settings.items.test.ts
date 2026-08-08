@@ -1,7 +1,7 @@
 // Тикет 13, вещи и призраки: setItemHidden ОБЯЗАН снимать бронь (контракт
 // тикета 09, перекрёстно с ownerTakenCount), deleteItem снимает бронь и вещь,
 // zonesOff НЕ рвёт брони (решение зафиксировано тестом), demoGhostsOff гасит
-// демо-призраков и у хозяйки (zoneDisplayItems), и у гостя (getGuestRoom).
+// отсутствие демо-призраков и у хозяйки (zoneDisplayItems), и у гостя.
 // Плюс (тикет 39): спрятанная вещь не попадает в счётчик шапки зоны.
 import "dotenv/config";
 import { randomUUID } from "node:crypto";
@@ -9,7 +9,7 @@ import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import { prisma } from "../src/server/db";
 import { deleteItem, listZoneItems, setItemHidden } from "../src/server/services/items";
 import { bookItem, ownerTakenCount } from "../src/server/services/bookings";
-import { setDemoGhostsOff, setZoneOff } from "../src/server/services/rooms";
+import { setZoneOff } from "../src/server/services/rooms";
 import { getGuestRoom } from "../src/server/services/guest-room";
 import { zoneDisplayItems } from "../src/components/zone/zone-display-items";
 import type { OwnerItemDto } from "../src/server/dto/items";
@@ -241,55 +241,35 @@ describe("setZoneOff — брони НЕ рвутся (решение тикет
   });
 });
 
-// ---------- Демо-призраки: тумблер «Убрать примеры» ----------
+// ---------- Пустые зоны: призраков больше нет (тикет 104) ----------
 
-describe("demoGhostsOff — призраки гаснут и у хозяйки, и у гостя", () => {
-  it("гость: до тумблера пустые зоны полны призраков, после — честно пустые", async () => {
-    const { user, room } = await createOwnerWithRoom();
+describe("демо-призраков нет ни у хозяйки, ни у гостя", () => {
+  it("гость: пустая зона приезжает ПУСТОЙ, а не полной чужих вещей", async () => {
+    const { room } = await createOwnerWithRoom();
 
-    const before = await getGuestRoom(room.shareSlug);
+    const view = await getGuestRoom(room.shareSlug);
     // Зона «Просто деньги» ключа не получает, пока в ней нет своих вещей
-    // (тикет 44): пула демо-вещей у неё нет и не будет — призрак
-    // «пример: 3 000 ₽» обещал бы перевод, которого в продукте не существует
-    // (PRD §12а). Её пустоту заполняет карточка копилки на мечту.
-    expect(before?.itemsByZone.money).toBeUndefined();
-    const zonesBefore = Object.values(before?.itemsByZone ?? {});
-    expect(zonesBefore.length).toBeGreaterThan(0);
-    expect(zonesBefore.every((items) => items.length > 0)).toBe(true);
-    expect(
-      zonesBefore.flat().every((item) => item.isDemo && item.id.startsWith("demo:")),
-    ).toBe(true);
-
-    await setDemoGhostsOff(user.id, true);
-
-    const after = await getGuestRoom(room.shareSlug);
-    const zonesAfter = Object.values(after?.itemsByZone ?? {});
-    expect(zonesAfter.length).toBe(zonesBefore.length); // зоны на месте, исчезли только примеры
-    expect(zonesAfter.every((items) => items.length === 0)).toBe(true);
+    // (тикет 44): её пустоту заполняет карточка копилки на мечту.
+    expect(view?.itemsByZone.money).toBeUndefined();
+    const zones = Object.values(view?.itemsByZone ?? {});
+    expect(zones.length).toBeGreaterThan(0); // зоны на месте
+    expect(zones.every((items) => items.length === 0)).toBe(true);
+    // Ни одной выдуманной вещи в выдаче: их id начинались с «demo:».
+    expect(JSON.stringify(view?.itemsByZone)).not.toContain("demo:");
   });
 
-  it("гость: свои вещи выдаются и при выключенных примерах; тумблер обратим", async () => {
-    const { user, room } = await createOwnerWithRoom();
+  it("гость: свои вещи выдаются, соседние зоны остаются пустыми", async () => {
+    const { room } = await createOwnerWithRoom();
     const item = await createWantItem(room.id, "jewelry");
-    await setDemoGhostsOff(user.id, true);
 
     const view = await getGuestRoom(room.shareSlug);
     expect(view?.itemsByZone.jewelry?.map((i) => i.id)).toEqual([item.id]);
     expect(view?.itemsByZone.beauty).toEqual([]);
-
-    await setDemoGhostsOff(user.id, false);
-    const back = await getGuestRoom(room.shareSlug);
-    expect(back?.itemsByZone.beauty?.length).toBeGreaterThan(0); // призраки вернулись
   });
 
-  it("хозяйка: zoneDisplayItems (общий шов страниц /room и /room/zone) гасит призраков", () => {
-    // Пустая зона: без тумблера — призраки пула, с тумблером — честная пустота.
-    const ghosts = zoneDisplayItems([], "jewelry", "jewel", false);
-    expect(ghosts.length).toBeGreaterThan(0);
-    expect(ghosts.every((item) => item.isDemo)).toBe(true);
-    expect(zoneDisplayItems([], "jewelry", "jewel", true)).toEqual([]);
+  it("хозяйка: zoneDisplayItems отдаёт ровно свои вещи и ничего больше", () => {
+    expect(zoneDisplayItems([])).toEqual([]);
 
-    // Своя вещь вытесняет призраков при любом положении тумблера.
     const own: OwnerItemDto[] = [
       {
         id: "own-1",
@@ -306,7 +286,6 @@ describe("demoGhostsOff — призраки гаснут и у хозяйки, 
         inHall: false,
       },
     ];
-    expect(zoneDisplayItems(own, "jewelry", "jewel", false)).toEqual(own);
-    expect(zoneDisplayItems(own, "jewelry", "jewel", true)).toEqual(own);
+    expect(zoneDisplayItems(own)).toEqual(own);
   });
 });

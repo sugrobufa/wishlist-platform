@@ -75,6 +75,7 @@
     "overline": "Your room",
     "settingsLink": "Settings",
     "takenCount": "{count, plural, one {# item already taken} other {# items already taken}}",
+    "sharePlaque": "Better to hand out the link once there are at least five items",
     "shareOverline": "Room address",
     "hardenOverline": "Now there is something to lose",
     "hardenBody": "The room rests on a single email. Lose access to that inbox and you lose the room, the gift history and the treasure room. A second way in fixes that",
@@ -90,6 +91,7 @@
   },
   "Scene": {
     "hint": "tap a zone to step closer",
+    "emptyRoom": "the light comes on when items arrive",
     "zoneAria": "Zone “{label}” — step closer",
     "back": "Step back",
     "itemsSoon": "This zone's items will appear here in an upcoming update.",

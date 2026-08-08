@@ -384,3 +384,33 @@ body {
     height: var(--imm-d-bottom-veil);
   }
 }
+
+/* Плашка «ссылку лучше отдавать от пяти вещей» (тикет 104, решение владельца
+   09.08; числа — task15.json → emptyStates.sharePlaque). Стоит НАД постоянным
+   таб-баром и уходит с пятой вещью. Не перехватывает нажатия: это подсказка,
+   а не действие. */
+.imm-share-plaque {
+  position: fixed;
+  right: 20px;
+  bottom: calc(var(--imm-tab-bar) + 18px);
+  left: 20px;
+  z-index: 5;
+  padding: 13px 15px;
+  border: 1px solid rgba(255, 255, 255, 0.09);
+  background: rgba(255, 255, 255, 0.03);
+  backdrop-filter: blur(8px);
+  color: rgba(255, 249, 242, 0.62);
+  font-size: 12px;
+  line-height: 1.45;
+  pointer-events: none;
+}
+
+@media (min-width: 1024px) {
+  /* На десктопе постоянного бара нет — плашка встаёт к нижнему краю сама. */
+  .imm-share-plaque {
+    right: auto;
+    bottom: 24px;
+    left: 24px;
+    max-width: 420px;
+  }
+}

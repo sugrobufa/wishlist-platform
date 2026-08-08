@@ -5,18 +5,16 @@
 // - выключенные зоны (Room.zonesOff) выбрасываются целиком ПОСЛЕ кэша по
 //   свежей строке комнаты на каждом чтении — даже устаревший кэш вещей не
 //   покажет гостю выключенную зону;
-// - демо-призраки достаются зонам, пустым в глазах гостя: выдача — чистая
-//   функция видимых гостю данных, наличие спрятанных вещей картинку не
-//   меняет (нет побочного канала «в этой зоне что-то спрятано»).
+// - демо-призраков больше нет (тикет 104): пустая зона стоит пустой, пустоту
+//   держит темнота. Выдача остаётся чистой функцией видимых гостю данных —
+//   побочного канала «в этой зоне что-то спрятано» не появилось.
 import { unstable_cache } from "next/cache";
 import type { Prisma } from "@prisma/client";
 import { z } from "zod";
 import { prisma } from "@/server/db";
 import { MONEY_ZONE_KEY, rooms as roomPresets } from "@/config/design";
 import { visibleZones } from "@/components/scene/zones";
-import { demoGhostsFor } from "@/config/demo-pools";
 import {
-  ghostForGuest,
   itemForGuest,
   type GuestHallContext,
   type GuestItemDto,
@@ -53,15 +51,14 @@ export type GuestRoomView = {
   /** Маленький аватар хозяйки в шапке (раздача /media) — если загружен. */
   ownerAvatarUrl: string | null;
   /**
-   * Вещи по видимым зонам (порядок зон — rooms.json). Зона, пустая в глазах
-   * гостя, наполнена демо-призраками пула — комната новичка не мёртвая
-   * (если хозяйка не выключила примеры: Room.demoGhostsOff).
+   * Вещи по видимым зонам (порядок зон — rooms.json). Пустая зона так и
+   * приезжает пустой (тикет 104).
    */
   itemsByZone: Record<string, GuestItemDto[]>;
   /**
    * Сводка по каждой видимой зоне для указателя зон (тикет 34): счётчики,
    * миниатюры, вилка цен и марки — уже по правилам dto/zone-summary.ts.
-   * Демо-призраки в неё не входят: пустая зона в сводке честно пуста.
+   * У пустой зоны сводка пуста.
    */
   summariesByZone: Record<string, ZoneSummaryDto>;
   /**
@@ -109,8 +106,6 @@ export async function getGuestRoom(slug: string): Promise<GuestRoomView | null> 
 
   // Выключенные зоны исчезают целиком (инвариант №5) — фильтр по свежему
   // zonesOff поверх кэша, тем же visibleZones, что прячет мебель в сцене.
-  // Демо-призраки — по свежему demoGhostsOff (тикет 13): «Убрать примеры»
-  // действует немедленно, кэш вещей тут ни при чём.
   const itemsByZone: Record<string, GuestItemDto[]> = {};
   const summariesByZone: Record<string, ZoneSummaryDto> = {};
   const visible = visibleZones(preset.zones, room.zonesOff);
@@ -126,12 +121,10 @@ export async function getGuestRoom(slug: string): Promise<GuestRoomView | null> 
       summariesByZone[zone.key] = cached.summariesByZone[zone.key] ?? emptyZoneSummary(zone.key);
       continue;
     }
-    itemsByZone[zone.key] =
-      own.length > 0 || room.demoGhostsOff
-        ? own
-        : demoGhostsFor(zone.key, zone.pool).map(ghostForGuest);
-    // Сводка считается по СВОИМ вещам: призраки в неё не входят, поэтому у
-    // пустой зоны она пуста — числа по выдуманным вещам читались бы как свои.
+    // Демо-призраков больше нет (тикет 104): пустая зона стоит пустой, и
+    // пустоту держит темнота, а не чужие вещи с пометкой «пример».
+    itemsByZone[zone.key] = own;
+    // Сводка считается по СВОИМ вещам — у пустой зоны она пуста.
     summariesByZone[zone.key] = cached.summariesByZone[zone.key] ?? emptyZoneSummary(zone.key);
   }
 
@@ -161,7 +154,7 @@ export async function getGuestRoom(slug: string): Promise<GuestRoomView | null> 
 /**
  * Комната по адресу из ссылки — общий вход обоих гостевых чтений (комната и
  * витрина, тикет 93). Строка читается свежей на каждый ВЫЗОВ сервиса (дёшево:
- * unique-индексы) — preset/zonesOff/demoGhostsOff/имя не зависят от кэша
+ * unique-индексы) — preset/zonesOff/имя не зависят от кэша
  * вещей. С полностраничным ISR (полировка 16) вызов случается при каждой
  * регенерации /r/{slug}, а регенерацию мутации хозяйки заказывают сами —
  * revalidateTag(room-{id}); свежесть для гостя от этого не страдает.

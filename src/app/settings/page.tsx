@@ -20,7 +20,6 @@ import {
   AccessSection,
   DataSection,
   LightSection,
-  DemoGhostsSection,
   HallSection,
   NickSection,
   OccasionSection,
@@ -117,7 +116,11 @@ export default async function SettingsPage() {
         <ZonesSection zones={zones} zonesOff={room.zonesOff} accent={accent} />
         <OccasionSection occasionDate={occasionDate} accent={accent} />
         <HallSection settings={hallSettings} accent={accent} />
-        <DemoGhostsSection off={room.demoGhostsOff} accent={accent} />
+        {/* Секции «Примеры» здесь больше нет (тикет 104): демо-призраки
+            сняты целиком, и тумблеру «Убрать примеры» стало нечего убирать.
+            Колонка `Room.demoGhostsOff` оставлена в схеме — сносить её
+            отдельной миграцией нечего ради, и она хранит прежний выбор
+            человека, если призраки когда-нибудь вернутся. */}
 
         {/* «Вход и доступ» (тикет 94): чем держится комната — вопрос, на
             который человеку до этого никто не отвечал. */}

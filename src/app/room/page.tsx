@@ -29,11 +29,17 @@ import { zoneDisplayItems } from "@/components/zone/zone-display-items";
 import { ShareButton } from "./share-button";
 
 export const dynamic = "force-dynamic";
+
+/**
+ * С какого числа вещей комната готова к шеру (task15.json → emptyStates).
+ * Не запрет: ссылка работает всегда, меняется только приоритет подсказки.
+ */
+export const SHARE_READY_ITEMS = 5;
 export const metadata: Metadata = { robots: { index: false, follow: false } };
 
 /**
  * Комната хозяйки — живая сцена (тикет 02) с сеткой вещей в открытой зоне
- * (тикет 03): вкладки «Люблю»/«Хочу», демо-призраки в зонах без своих вещей.
+ * (тикет 03): вкладки «Люблю»/«Хочу». Пустые зоны стоят пустыми (тикет 104).
  *
  * Раскладка «во весь экран» (тикет 24): страница не листается и не собрана
  * стопкой. Слоями снизу вверх — размытый кадр комнаты на весь экран, сцена с
@@ -90,10 +96,14 @@ export default async function RoomPage() {
   // Сетки вещей для панелей зон и сводки для указателя зон (тикет 34) —
   // одним проходом по зонам: вещи из БД читаются один раз.
   const zones = preset
-    ? await buildZoneContent(room.id, preset, room.zonesOff, room.demoGhostsOff)
+    ? await buildZoneContent(room.id, preset, room.zonesOff)
     : undefined;
 
   const accent = preset?.accent ?? "#E7C9A9";
+  // Сколько своих вещей в комнате: 0 — сцена гаснет (тикет 104), меньше пяти
+  // — над таб-баром висит тихая плашка «ссылку лучше отдавать от пяти вещей»
+  // (решение владельца 09.08, task15.json → emptyStates).
+  const itemCount = zones?.ownCount ?? 0;
 
   // В шапке — ИМЯ хозяйки, а не название пресета (тикет 57). Владелец с
   // телефона: «там должна быть не комната, а имя». Доска говорит то же самое:
@@ -146,6 +156,8 @@ export default async function RoomPage() {
             // Свет и время суток комнаты (тикет 96) — грейдинг поверх кадра.
             timeOfDay={asTimeOfDay(room.timeOfDay)}
             lightColor={asLightColor(room.lightColor)}
+            // Пустая комната гаснет (тикет 104): темнота вместо чужих вещей.
+            empty={itemCount === 0}
           />
         )}
 
@@ -248,6 +260,14 @@ export default async function RoomPage() {
           вёрстки приложения». Оверлей: раскладку сцены не двигает
           (immersive-layout как был), нижняя полоса встаёт над ним сама.
           На десктопе бара нет — там те же ссылки стоят строкой в шапке. */}
+      {/* «Ссылку лучше отдавать, когда наберётся хотя бы пять вещей»
+          (решение владельца 09.08, task15.json → emptyStates.sharePlaque).
+          Не запрет и не счётчик достижений: тихая строка над таб-баром,
+          которая исчезает с пятой вещью. */}
+      {itemCount < SHARE_READY_ITEMS && (
+        <p className="imm-share-plaque">{t("sharePlaque")}</p>
+      )}
+
       <TabBar active="room" accent={accent} ink={preset?.ink ?? "#241A0E"} phoneOnly />
     </main>
   );
@@ -257,19 +277,20 @@ export default async function RoomPage() {
  * Содержимое панелей зон для SceneStage (контракт тикета 02: узлы проходят
  * client-границу пропом zoneContent[zoneKey]) И сводка по каждой зоне для
  * указателя зон (тикет 34) — за один проход по зонам. Для каждой видимой
- * зоны — сетка её вещей; зоне без единой своей вещи достаются демо-призраки
- * пула (в БД не пишутся, исчезают с первой своей вещью — гриллинг №4; тумблер
- * «Убрать примеры» гасит их скопом — тикет 13, zoneDisplayItems).
- *
- * В сводку призраки НЕ идут: сетка помечает их «пример», а карточка сводки —
- * нет, и числа по выдуманным вещам читались бы как настоящие.
+ * зоны — сетка её СВОИХ вещей. Демо-призраков больше нет (тикет 104):
+ * пустоту держит темнота и пунктирные места, а не чужие вещи с пометкой
+ * «пример».
  */
 async function buildZoneContent(
   roomId: string,
   preset: Room,
   zonesOff: string[],
-  demoGhostsOff: boolean,
-): Promise<{ content: Record<string, ReactNode>; summaries: Record<string, ZoneSummaryDto> }> {
+): Promise<{
+  content: Record<string, ReactNode>;
+  summaries: Record<string, ZoneSummaryDto>;
+  /** Сколько СВОИХ вещей в комнате всего — по нему гаснет пустая (тикет 104). */
+  ownCount: number;
+}> {
   const tZone = await getTranslations("ZoneGrid");
   const tScene = await getTranslations("Scene");
   const zones = visibleZones(preset.zones, zonesOff);
@@ -279,7 +300,7 @@ async function buildZoneContent(
       const rows = await listZoneItems(roomId, zone.key);
       const own = rows.map(itemForOwner);
       const summary = zoneSummaryForOwner(zone.key, rows.map(ownerSummaryItem));
-      const items = zoneDisplayItems(own, zone.key, zone.pool, demoGhostsOff);
+      const items = zoneDisplayItems(own);
       // Зона «Просто деньги» без своих вещей сетку не показывает (тикет 44):
       // пула демо-вещей у неё нет, и пустые вкладки «Люблю · 0 / Хочу · 0»
       // под карточкой копилки были бы шумом. Ссылки остаются — вещи в этой
@@ -324,12 +345,13 @@ async function buildZoneContent(
           </div>
         </div>
       );
-      return [zone.key, node, summary] as const;
+      return [zone.key, node, summary, own.length] as const;
     }),
   );
 
   return {
     content: Object.fromEntries(entries.map(([key, node]) => [key, node])),
     summaries: Object.fromEntries(entries.map(([key, , summary]) => [key, summary])),
+    ownCount: entries.reduce((sum, [, , , count]) => sum + count, 0),
   };
 }

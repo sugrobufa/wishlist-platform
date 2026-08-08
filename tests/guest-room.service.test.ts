@@ -130,28 +130,28 @@ describe("getGuestRoom", () => {
     expect(Object.keys(view?.itemsByZone ?? {})).not.toContain("perfume");
   });
 
-  it("пустая зона наполнена демо-призраками пула — помеченными isDemo", async () => {
+  it("пустая зона приезжает ПУСТОЙ — демо-призраков больше нет (тикет 104)", async () => {
     const room = await createTestRoom();
 
     const view = await getGuestRoom(room.shareSlug);
-    const ghosts = view?.itemsByZone.jewelry ?? [];
-    expect(ghosts.length).toBeGreaterThan(0);
-    expect(ghosts.every((g) => g.isDemo)).toBe(true);
-    // Оба состояния — язык комнаты виден гостю новичка целиком.
-    expect(ghosts.some((g) => g.state === "LOVE")).toBe(true);
-    expect(ghosts.some((g) => g.state === "WANT")).toBe(true);
+    // Пустоту держит темнота, а не чужие вещи с пометкой «пример»: пунктир
+    // кодирует «хочу», и на примере читался как чужое желание.
+    expect(view?.itemsByZone.jewelry).toEqual([]);
+    expect(JSON.stringify(view)).not.toContain("demo:");
   });
 
-  it("зона, где всё спрятано, для гостя пуста → призраки (нет канала «тут что-то спрятано»)", async () => {
+  it("зона, где всё спрятано, для гостя НЕОТЛИЧИМА от пустой", async () => {
     const room = await createTestRoom();
     const secret = `спрятанное-${randomUUID()}`;
     await prisma.item.create({ data: wantItem(room.id, "bags", secret, { hidden: true }) });
 
     const view = await getGuestRoom(room.shareSlug);
-    const bags = view?.itemsByZone.bags ?? [];
-    // Выдача — чистая функция видимого гостю: как у зоны вовсе без вещей.
-    expect(bags.length).toBeGreaterThan(0);
-    expect(bags.every((g) => g.isDemo)).toBe(true);
+    // Главное здесь не «сколько вещей», а отсутствие побочного канала «тут
+    // что-то спрятано»: выдача — чистая функция видимого гостю, и зона со
+    // спрятанной вещью выглядит ровно как зона вовсе без вещей (тикет 104 —
+    // теперь обе пусты, до него обе были полны призраков).
+    expect(view?.itemsByZone.bags).toEqual([]);
+    expect(view?.itemsByZone.bags).toEqual(view?.itemsByZone.jewelry);
     expect(JSON.stringify(view)).not.toContain(secret);
   });
 
