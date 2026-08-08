@@ -208,6 +208,16 @@ export type HallItemDto = {
   id: string;
   title: string;
   photoUrl: string | null;
+  /**
+   * Зона вещи — адрес её карточки (`/room/zone/{zone}/i/{id}`). Витрина до
+   * тикета 92 никуда не вела: заметку было видно, но негде написать.
+   */
+  zone: string;
+  /**
+   * Заметка хозяйки цитатой (тикет 92, доска Б22: «Ждала её два года…»).
+   * Пустая и пробельная — это отсутствие заметки, наружу уходит null.
+   */
+  note: string | null;
   /** null, когда тумблер «Кто подарил» выключен (показ, а не раскрытие). */
   giverName: string | null;
   /** Год «Подарок {year} года» строкой — или null. */
@@ -254,6 +264,8 @@ export function hallItemForOwner(
     id: item.id,
     title: item.title,
     photoUrl,
+    zone: item.zone,
+    note: item.note?.trim() ? item.note.trim() : null,
     giverName: settings.giverShown ? item.giverName : null,
     receivedYear: item.receivedAt ? String(item.receivedAt.getUTCFullYear()) : null,
     price: shown.price,

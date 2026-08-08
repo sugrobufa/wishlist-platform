@@ -16,6 +16,7 @@
 //   удалить — насовсем и из комнаты, поэтому с предупреждением (два шага,
 //             тот же приём, что на экране зоны).
 import { useState, useTransition } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useLocale, useTranslations } from "next-intl";
 import { deleteItemAction, toggleHallAction } from "@/app/room/zone/[zone]/actions";
@@ -114,6 +115,16 @@ export function HallShowcase({ items, accent }: { items: HallItemView[]; accent:
                 {caption(item, t)}
               </p>
 
+              {/* Заметка хозяйки цитатой (тикет 92, доска Б22): «Ждала её два
+                  года…». Поле принимает 2000 знаков, доска рисует одну фразу —
+                  на плитке показываем три строки, целиком читается в карточке
+                  вещи. Кавычки живут в словаре: в английском они другие. */}
+              {item.note && (
+                <p className={`mt-2 text-xs leading-relaxed text-text-muted ${s.note}`}>
+                  {t("noteQuote", { note: item.note })}
+                </p>
+              )}
+
               {/* «Удалить» спрашивает до действия: вещь уходит из комнаты
                   насовсем, а не только с витрины (тикет 89). */}
               {confirmingId === item.id ? (
@@ -138,6 +149,15 @@ export function HallShowcase({ items, accent }: { items: HallItemView[]; accent:
                 </div>
               ) : (
                 <div className="mt-2 flex flex-wrap items-center gap-3">
+                  {/* Дорога в карточку вещи (тикет 92): до неё заметку можно
+                      было увидеть, но негде написать — с витрины не вело
+                      ничего. Подпись зовёт написать, когда заметки нет. */}
+                  <Link
+                    href={`/room/zone/${item.zone}/i/${item.id}`}
+                    className="pressable text-xs font-semibold text-text-muted hover:text-text-strong"
+                  >
+                    {item.note ? t("edit") : t("noteAdd")}
+                  </Link>
                   {/* Глазок — про ВЕЩЬ; «Скрыть цену» рядом — про цену.
                       Две настройки не смешиваются (инвариант №8). */}
                   <button

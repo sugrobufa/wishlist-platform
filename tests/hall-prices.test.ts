@@ -189,6 +189,21 @@ describe("витрина глазами хозяйки", () => {
     expect(hidden.receivedYear).toBe("2025");
   });
 
+  it("заметка едет цитатой, пробельная — это её отсутствие (тикет 92)", () => {
+    const written = hallItemForOwner(
+      dbItem({ note: "  Ждала её два года. Ношу с чем угодно  " }),
+      OPEN_HALL,
+      null,
+    );
+    expect(written.note).toBe("Ждала её два года. Ношу с чем угодно");
+    // Дорога в карточку вещи строится по зоне — до тикета 92 её в DTO не было.
+    expect(written.zone).toBe("bags");
+
+    for (const empty of [null, "", "   ", "\n\t "]) {
+      expect(hallItemForOwner(dbItem({ note: empty }), OPEN_HALL, null).note).toBeNull();
+    }
+  });
+
   it("вещь без цены не выдумывает валюту", () => {
     const view = hallItemForOwner(dbItem({ price: null, currency: null }), OPEN_HALL, null);
     expect(view.price).toBeNull();
