@@ -479,6 +479,8 @@ describe("словарь и дизайн-пакет", () => {
       // памятке: говорим, ЧТО случилось, и что делать дальше.
       "Booking.errGone",
       "Booking.errOwn",
+      // Ссылка «Подробнее» из сетки в карточку вещи гостя (тикет 91).
+      "Booking.itemMore",
       "Booking.offerBody",
       "Booking.offerDateHint",
       "Booking.offerDateLabel",
@@ -542,6 +544,19 @@ describe("словарь и дизайн-пакет", () => {
       "Goal.saving",
       "Goal.titleLabel",
       "Goal.titlePlaceholder",
+      // Карточка вещи глазами ГОСТЯ (тикет 91, доска А2 + Б24, турн 25b) —
+      // единственный экран из списка P0 доски, который до сих пор не был
+      // построен. Слова с доски 25b: хлебная крошка «Украшения · комната
+      // Милы» и замочек-обещание «Мила увидит только „одну вещь забрали"».
+      // В messages-ru.json пакета этого экрана нет: словарь собирали до 25.
+      "GuestItem.back",
+      "GuestItem.crumb",
+      "GuestItem.loveCaption",
+      "GuestItem.notFound",
+      "GuestItem.noteLabel",
+      "GuestItem.promise",
+      "GuestItem.takenHint",
+      "GuestItem.takenTitle",
       "GuestRoom.freeGifts",
       "GuestRoom.noSignup",
       "GuestRoom.occasionIn",

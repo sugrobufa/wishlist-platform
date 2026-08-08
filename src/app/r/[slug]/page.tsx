@@ -154,6 +154,7 @@ export default async function GuestRoomPage({ params }: Params) {
         ink={preset.ink}
         ownerName={ownerName}
         pool={preset.zones.find((zone) => zone.key === zoneKey)?.pool}
+        roomSlug={room.nick ?? room.shareSlug}
       />,
     ]),
   );

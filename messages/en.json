@@ -239,7 +239,8 @@
     "poolWhoMany": "{a}, {b} and {rest} more are in",
     "poolWhoYou": "you, {a} and {rest} more",
     "errOwn": "This is your own room — you cannot gift to yourself. Guests see it exactly like this",
-    "errGone": "This item is gone — reload the page"
+    "errGone": "This item is gone — reload the page",
+    "itemMore": "Details"
   },
   "MyBookings": {
     "overline": "Guest",
@@ -499,5 +500,15 @@
     "hideMany": "Hide {count, plural, one {# item} other {# items}}",
     "freeOnly": "free only",
     "emptyFree": "No gifts left unclaimed in this room"
+  },
+  "GuestItem": {
+    "back": "Back to room",
+    "crumb": "{zone} · {name}’s room",
+    "promise": "{name} will only see “one item taken” — not what, not from whom",
+    "takenTitle": "This gift is already taken",
+    "takenHint": "See what else is free",
+    "noteLabel": "From the owner",
+    "loveCaption": "Already hers — part of the room, not a gift",
+    "notFound": "No such item in this room"
   }
 }

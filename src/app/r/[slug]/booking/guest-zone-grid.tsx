@@ -8,6 +8,7 @@
 // - «занято» приезжает отдельным некэшируемым каналом (booking-context)
 //   и мержится в плитки уже на клиенте — кэш комнаты не трогаем.
 import { useState, type ReactNode } from "react";
+import Link from "next/link";
 import { useTranslations } from "next-intl";
 import { ZoneGrid } from "@/components/zone/ZoneGrid";
 import type { ZoneGridItem } from "@/components/zone/types";
@@ -24,32 +25,63 @@ type GuestZoneGridProps = {
   ownerName: string;
   /** Пул зоны — значок вместо буквы у вещи без фото (тикет 82). */
   pool?: string | null;
+  /** Адрес комнаты — из него собирается ссылка на карточку вещи (тикет 91). */
+  roomSlug: string;
 };
 
-export function GuestZoneGrid({ items, accent, ink, ownerName, pool }: GuestZoneGridProps) {
+export function GuestZoneGrid({
+  items,
+  accent,
+  ink,
+  ownerName,
+  pool,
+  roomSlug,
+}: GuestZoneGridProps) {
   const t = useTranslations("Booking");
   const { taken, mine } = useGuestBooking();
   const [bookingItem, setBookingItem] = useState<ZoneGridItem | null>(null);
 
   const renderItemAction = (item: ZoneGridItem): ReactNode => {
-    if (item.state !== "WANT" || item.isDemo) return null;
+    // Карточка вещи (тикет 91) — у ЛЮБОЙ настоящей вещи, а не только у «хочу»:
+    // рассмотреть «люблю» гостю тоже незачем запрещать, это часть комнаты.
+    // У демо-призрака карточки нет — его id ничего не значит вне рендера.
+    const card = item.isDemo ? null : (
+      <Link
+        href={`/r/${roomSlug}/i/${item.id}`}
+        className="pressable text-xs font-semibold text-text-muted hover:text-text-strong"
+      >
+        {t("itemMore")}
+      </Link>
+    );
+    if (item.state !== "WANT" || item.isDemo) return card;
     if (mine.has(item.id)) {
       return (
-        <p className={`${s.taken} ${s.mine}`} style={{ color: accent }}>
-          {t("takenByYou")}
-        </p>
+        <div className="flex flex-wrap items-center gap-3">
+          <p className={`${s.taken} ${s.mine}`} style={{ color: accent }}>
+            {t("takenByYou")}
+          </p>
+          {card}
+        </div>
       );
     }
     if (taken.has(item.id)) {
-      return <p className={s.taken}>{t("taken")}</p>;
+      return (
+        <div className="flex flex-wrap items-center gap-3">
+          <p className={s.taken}>{t("taken")}</p>
+          {card}
+        </div>
+      );
     }
     return (
-      <GiftTag
-        size="tile"
-        forName={t("tagFor", { name: ownerName })}
-        label={t("tagAction")}
-        onClick={() => setBookingItem(item)}
-      />
+      <div className="flex flex-wrap items-center gap-3">
+        <GiftTag
+          size="tile"
+          forName={t("tagFor", { name: ownerName })}
+          label={t("tagAction")}
+          onClick={() => setBookingItem(item)}
+        />
+        {card}
+      </div>
     );
   };
 
