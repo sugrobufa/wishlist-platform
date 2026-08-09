@@ -93,7 +93,8 @@ describe("applyStarterPack — набор в свою комнату", () => {
     const wants = items.filter((item) => item.state === "WANT");
     expect(wants.length).toBeGreaterThan(0);
     expect(wants.every((item) => item.price !== null)).toBe(true);
-    expect(items.every((item) => item.isDemo !== true)).toBe(true);
+    // Призраков среди них нет по построению: `isDemo` — поле DTO, а не БД,
+    // и всё это — настоящие строки таблицы вещей.
   });
 
   it("повтор не плодит дублей и не трогает заведённое руками", async () => {

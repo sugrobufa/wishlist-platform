@@ -1268,3 +1268,67 @@
     transform: var(--grid-from);
   }
 }
+
+/* НИТЬ-ПОЗИЦИЯ под сценой (тикет 102, доска 28a · task15.json →
+ * positionThread). Дорожка показывает весь кадр, сегмент — видимое окно.
+ *
+ * ДЕСКТОПА НЕТ НАМЕРЕННО: там кадр виден целиком (cover, тикет 42) — сегмент
+ * занял бы всю дорожку и врал бы о движении, которого нет. Появляется только
+ * в телефонной раскладке, ниже.
+ *
+ * Цвета — из спецификации дословно: дорожка rgba(255,249,242,.14), сегмент
+ * rgba(255,249,242,.55). Акцент здесь запрещён её же правилом (`colorRule`):
+ * беж зарезервирован за «полосой света» — главной кнопкой продукта. */
+.thread {
+  display: none;
+}
+
+@media not all and (min-width: 1024px) {
+  .thread {
+    position: absolute;
+    top: calc(var(--imm-scene-h) + 40px);
+    right: 22px;
+    left: 22px;
+    display: block;
+    height: 2px;
+    border-radius: 1px;
+    background: rgba(255, 249, 242, 0.14);
+    opacity: 1;
+    transition: opacity var(--glow-ms) var(--ease-out);
+    pointer-events: none;
+  }
+
+  /* Сегмент раскладывается в CSS, а не в JS: доля дорожки под ним и его
+     положение приходят числами (--thread-seg, --thread-at), а ширину дорожки
+     подставляет сам браузер процентами. Мерить дорожку из JS не нужно —
+     значит и на resize пересчитывать нечего.
+     Едет он ТОЙ ЖЕ переменной темпа, что кадр (--win-pan-ms/ease): палец
+     ведёт 1:1 без перехода, отпускание доезжает кривой сцены. */
+  .threadSegment {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: var(--thread-seg, 68.2540%);
+    height: 100%;
+    border-radius: inherit;
+    background: rgba(255, 249, 242, 0.55);
+    /* Едет ровно тем же приёмом, что и кадр рядом (`--win-pan`): голая
+       подстановка px в translateX, переход — теми же `--win-pan-ms/ease`.
+       Значит палец ведёт нить 1:1 без перехода, а отпускание доезжает
+       кривой сцены — без отдельной партитуры и без второго набора чисел. */
+    transform: translateX(var(--thread-x, 0px));
+    transition: transform var(--win-pan-ms, 0ms) var(--win-pan-ease, var(--ease-out));
+  }
+
+  .threadHidden {
+    opacity: 0;
+  }
+}
+
+/* Спокойный режим: нить стоит в точке покоя и не едет вовсе
+   (`positionThread.reducedMotion`). */
+@media (prefers-reduced-motion: reduce) {
+  .threadSegment {
+    transition: none;
+  }
+}

@@ -18,7 +18,13 @@
 import { useEffect, useRef } from "react";
 import { scene, sceneMotion, type RoomZone } from "@/config/design";
 import { walkScore } from "./camera";
-import { clampPan, phoneEdgeHints, phonePanRange, phonePanShiftPx } from "./immersive-layout";
+import {
+  clampPan,
+  phoneEdgeHints,
+  phonePanRange,
+  phonePanShiftPx,
+  phoneThread,
+} from "./immersive-layout";
 
 /** Порог распознавания драга: до него касание остаётся тапом по зоне. */
 const DRAG_SLOP_PX = 8;
@@ -73,10 +79,23 @@ const DRIFT_UNITS_PER_S = 23;
 const DRIFT_DELAY_MS = 1400;
 
 type UseScenePanOptions = {
-  /** Вьюпорт сцены — на нём слушатели и инлайн-переменные. */
+  /** Вьюпорт сцены — на нём слушатели жеста и от него же берётся ширина. */
   viewportRef: React.RefObject<HTMLDivElement | null>;
+  /**
+   * Куда писать инлайн-переменные пана. Это КОРЕНЬ сцены, а не вьюпорт
+   * (тикет 102): нить-позиция и подсказка лежат вне вьюпорта, и переменную
+   * соседнего узла им не унаследовать. Вьюпорт — потомок корня, для него
+   * ничего не изменилось.
+   */
+  varsRef: React.RefObject<HTMLElement | null>;
   /** Сани камеры (.panWindow) — читаются при перехвате автопроезда пальцем. */
   panWindowRef: React.RefObject<HTMLDivElement | null>;
+  /**
+   * Дорожка нити-позиции (тикет 102) — с неё берётся ширина. Меряем, а не
+   * считаем: отступы дорожки заданы в CSS, и повторять их числом в JS значило
+   * бы завести вторую правду о её ширине.
+   */
+  threadRef?: React.RefObject<HTMLDivElement | null>;
   /** Видимые зоны — для намёка на край (правило по данным, не по пикселям). */
   zones: readonly RoomZone[];
   /** Телефонная раскладка. На десктопе хук не делает ничего и не следит. */
@@ -115,7 +134,9 @@ const WALK = walkScore("phone");
 
 export function useScenePan({
   viewportRef,
+  varsRef,
   panWindowRef,
+  threadRef,
   zones,
   enabled,
   drift = false,
@@ -136,6 +157,8 @@ export function useScenePan({
   /** Дрейф остановлен навсегда: тронули сцену или открыли зону (тикет 72). */
   const driftStoppedRef = useRef(false);
   const settleTimerRef = useRef<number | null>(null);
+  /** Ширина дорожки нити в px — меряется при включении и на resize. */
+  const trackWidthRef = useRef(0);
 
   const zoomedRef = useRef(zoomed);
   const reducedRef = useRef(reducedMotion);
@@ -154,16 +177,31 @@ export function useScenePan({
   /** Записать позицию окна в DOM: сдвиг слоёв, темп, намёк на края. */
   const applyRef = useRef((pan: number, ms: number, ease?: string) => {
     const viewport = viewportRef.current;
-    if (!viewport) return;
+    const vars = varsRef.current;
+    if (!viewport || !vars) return;
     const width = viewport.getBoundingClientRect().width || scene.phone.w;
-    viewport.style.setProperty("--win-pan", `${phonePanShiftPx(pan, width)}px`);
-    viewport.style.setProperty("--win-pan-ms", `${ms}ms`);
-    if (ease) viewport.style.setProperty("--win-pan-ease", ease);
-    else viewport.style.removeProperty("--win-pan-ease");
+    vars.style.setProperty("--win-pan", `${phonePanShiftPx(pan, width)}px`);
+    vars.style.setProperty("--win-pan-ms", `${ms}ms`);
+    if (ease) vars.style.setProperty("--win-pan-ease", ease);
+    else vars.style.removeProperty("--win-pan-ease");
     // Намёк держит клампнутая позиция: резина за краем не выключает кромку.
     const hints = phoneEdgeHints(zonesRef.current, clampPan(pan));
-    viewport.style.setProperty("--edge-l", hints.left ? "1" : "0");
-    viewport.style.setProperty("--edge-r", hints.right ? "1" : "0");
+    vars.style.setProperty("--edge-l", hints.left ? "1" : "0");
+    vars.style.setProperty("--edge-r", hints.right ? "1" : "0");
+    // Нить-позиция (тикет 102) едет тем же темпом и той же переменной-приёмом,
+    // что и кадр: голая подстановка px в translateX. Ширина сегмента — процент
+    // дорожки (она не анимируется), сдвиг — пиксели: ширину дорожки задаёт CSS
+    // своими отступами, и повторять их числом в JS значило бы завести вторую
+    // правду о ней. Замер кэширован (trackWidthRef) — драг не должен просить
+    // раскладку на каждый кадр пальца.
+    // Резина за краем нити не касается — сегмент упирается в конец дорожки.
+    const thread = phoneThread(pan);
+    vars.style.setProperty("--thread-seg", `${thread.segmentPct}%`);
+    const trackWidth = trackWidthRef.current;
+    if (trackWidth > 0) {
+      const travelPx = trackWidth * (1 - thread.segmentPct / 100);
+      vars.style.setProperty("--thread-x", `${Math.round(thread.at * travelPx * 100) / 100}px`);
+    }
   });
 
   const clearIntroRef = useRef(() => {
@@ -184,13 +222,18 @@ export function useScenePan({
   useEffect(() => {
     if (!enabled) return;
     const viewport = viewportRef.current;
-    if (!viewport) return;
+    const vars = varsRef.current;
+    if (!viewport || !vars) return;
     panRef.current = 0;
     savedPanRef.current = 0;
+    trackWidthRef.current = threadRef?.current?.getBoundingClientRect().width ?? 0;
     applyRef.current(0, 0);
 
     // px пересчитываются от ширины вьюпорта — на resize сдвиг ставится заново.
-    const onResize = () => applyRef.current(panRef.current, 0);
+    const onResize = () => {
+      trackWidthRef.current = threadRef?.current?.getBoundingClientRect().width ?? 0;
+      applyRef.current(panRef.current, 0);
+    };
     window.addEventListener("resize", onResize);
 
     const clearIntro = clearIntroRef.current;
@@ -204,11 +247,19 @@ export function useScenePan({
       dragRef.current = null;
       // Уход с телефонной раскладки оставляет DOM нетронутым: десктоп не
       // должен видеть даже нулевых переменных пана.
-      for (const name of ["--win-pan", "--win-pan-ms", "--win-pan-ease", "--edge-l", "--edge-r"]) {
-        viewport.style.removeProperty(name);
+      for (const name of [
+        "--win-pan",
+        "--win-pan-ms",
+        "--win-pan-ease",
+        "--edge-l",
+        "--edge-r",
+        "--thread-seg",
+        "--thread-x",
+      ]) {
+        vars.style.removeProperty(name);
       }
     };
-  }, [enabled, presetId, viewportRef]);
+  }, [enabled, presetId, viewportRef, varsRef, threadRef]);
 
   // --- Жест: драг двигает окно, тап остаётся тапом --------------------------
   useEffect(() => {

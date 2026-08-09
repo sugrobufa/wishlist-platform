@@ -224,6 +224,10 @@ export function SceneStage({
   const hotspotRefs = useRef(new Map<string, HTMLButtonElement>());
   const restoreKeyRef = useRef<string | null>(null);
   const viewportRef = useRef<HTMLDivElement | null>(null);
+  /** Корень сцены — на нём живут инлайн-переменные пана (см. разметку ниже). */
+  const rootRef = useRef<HTMLElement | null>(null);
+  /** Дорожка нити-позиции — с неё хук берёт ширину (тикет 102). */
+  const threadRef = useRef<HTMLDivElement | null>(null);
   const hotspotsLayerRef = useRef<HTMLDivElement | null>(null);
   const nearKeyRef = useRef<string | null>(null);
   const panWindowRef = useRef<HTMLDivElement | null>(null);
@@ -326,7 +330,9 @@ export function SceneStage({
   // На десктопе (cover, кадр целиком) хук выключен и DOM не трогает.
   useScenePan({
     viewportRef,
+    varsRef: rootRef,
     panWindowRef,
+    threadRef,
     zones,
     enabled: !isDesktop,
     drift,
@@ -489,7 +495,14 @@ export function SceneStage({
   // `zoneVerb()` и поле `openVerb` НЕ трогали: это данные съёмки.
 
   return (
-    <section className={className ? `${s.stage} ${className}` : s.stage} style={styleVars}>
+    <section
+      // Переменные пана пишутся СЮДА, а не во вьюпорт (тикет 102): нить-
+      // позиция лежит вне вьюпорта, как и подсказка, и переменную соседа она
+      // не унаследует. Вьюпорт — потомок секции, ему всё видно по-прежнему.
+      ref={rootRef}
+      className={className ? `${s.stage} ${className}` : s.stage}
+      style={styleVars}
+    >
       <div ref={viewportRef} className={zoomedIn ? `${s.viewport} ${s.zoomed}` : s.viewport}>
         {/* Наезд — стопка слоёв, по слою на фазу партитуры (motion.json →
             openZone). Снаружи внутрь: сани пана окна (тикет 55) · вес назад ·
@@ -659,6 +672,22 @@ export function SceneStage({
         {/* В пустой комнате подсказка «коснись зоны» врёт: касаться нечего.
             Вместо неё — обещание, что свет включится сам (тикет 104). */}
         <span className={s.hintPill}>{empty ? t("emptyRoom") : t("hint")}</span>
+      </div>
+
+      {/* Нить-позиция (тикет 102, доска 28a): дорожка во всю ширину и сегмент
+          на ней — «столько кадра ты видишь, и вот где ты в нём». Движение
+          говорит «комната шире окна» (пан тикета 55 и дрейф 103), нить
+          отвечает на второй вопрос — «а где я сейчас».
+
+          Только телефон: на десктопе кадр виден целиком, показывать нечего
+          (scene.module.css прячет). При наезде гаснет вместе с вуалями: в
+          зоне кадр не панорамируется, и нить показывала бы неправду. */}
+      <div
+        ref={threadRef}
+        className={zoomedIn ? `${s.thread} ${s.threadHidden}` : s.thread}
+        aria-hidden
+      >
+        <span className={s.threadSegment} />
       </div>
 
       {/* Акцент и ink комнаты панель передаёт дальше карточке копилки

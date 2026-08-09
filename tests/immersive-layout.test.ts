@@ -28,6 +28,7 @@ import {
   minWindowAr,
   phoneEdgeHints,
   phonePanRange,
+  phoneThread,
   phonePanShiftPx,
   phonePanToZone,
   phoneWindowOnFrame,
@@ -1549,5 +1550,46 @@ describe("развилка контракта: почему кадр не рас
     expect(rightMost).toBeGreaterThan(DESKTOP.w);
     // Расти кадру есть куда и вширь: он растёт вместе с окном по обеим сторонам.
     expect(tall.height).toBeGreaterThan(short.height);
+  });
+});
+
+describe("нить-позиция под сценой (тикет 102, доска 28a)", () => {
+  it("сегмент — доля окна в кадре, и считается она по НАШЕЙ геометрии", () => {
+    const { segmentPct } = phoneThread(0);
+    // 430 из 630 — окно из кадра (ADR-0006). Спецификация обещает 148 px из
+    // «кадра 1120», но 1120 — ширина ДЕСКТОПНОЙ сцены из её же rooms.json;
+    // на телефоне видно две трети кадра, а не сорок процентов.
+    expect(segmentPct).toBeCloseTo((scene.phone.w / scene.phone.image.w) * 100, 3);
+    expect(segmentPct).toBeCloseTo(68.254, 2);
+    // Числа дизайна дали бы вдвое короче — проверка ровно на эту ошибку.
+    expect(segmentPct).not.toBeCloseTo((430 / 1120) * 100, 1);
+  });
+
+  it("края кадра — края дорожки, покой между ними", () => {
+    const { min, max } = phonePanRange();
+    expect(phoneThread(min).at).toBe(0);
+    expect(phoneThread(max).at).toBe(1);
+    // Покой (pan = 0) — окно 12…442, чуть правее левого края.
+    const rest = phoneThread(0).at;
+    expect(rest).toBeGreaterThan(0);
+    expect(rest).toBeLessThan(0.1);
+  });
+
+  it("резина за краем нити не касается: сегмент упирается в конец дорожки", () => {
+    const { min, max } = phonePanRange();
+    expect(phoneThread(min - 40).at).toBe(0);
+    expect(phoneThread(max + 40).at).toBe(1);
+  });
+
+  it("сегмент никогда не выезжает за дорожку", () => {
+    const { min, max } = phonePanRange();
+    const { segmentPct } = phoneThread(0);
+    for (let pan = min; pan <= max; pan += 7) {
+      const { at } = phoneThread(pan);
+      // left = at × (100% − сегмент) — правый край ровно 100% при at = 1.
+      const right = at * (100 - segmentPct) + segmentPct;
+      expect(right).toBeLessThanOrEqual(100.0001);
+      expect(at * (100 - segmentPct)).toBeGreaterThanOrEqual(-0.0001);
+    }
   });
 });
