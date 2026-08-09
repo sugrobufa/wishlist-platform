@@ -59,6 +59,27 @@ function sceneHotspot(page: Page, zoneLabel: string) {
   return page.getByRole("button", { name: `${zoneLabel} — подойти ближе`, exact: true });
 }
 
+/**
+ * Главная кнопка формы «добавить вещь».
+ *
+ * Тикет 110 раздал ей девятнадцать глаголов по зонам (`zones.json → cta`,
+ * читается `zoneCta`): «Поставить на полку» у книг, «Повесить в гардероб» у
+ * гардероба, «Поставить к пластинкам» у музыки. Прежнее «Поставить в комнату»
+ * осталось только запасным словом словаря — для зоны, глагола которой в
+ * контракте нет. Слово теперь принадлежит ЗОНЕ, а не экрану, и ждать его
+ * нельзя: любой следующий тикет дизайна снова покрасит прогон в красный.
+ *
+ * Устойчивое здесь — роль и то, что кнопка отправки в форме ровно одна
+ * (`type="submit"`; всё остальное в ней — `type="button"`). Проверка не
+ * ослаблена: это по-прежнему ровно один видимый элемент (strict mode), и
+ * нажатие обязано увести на страницу зоны. Что на кнопке стоит глагол ИМЕННО
+ * своей зоны и что он есть у всех девятнадцати — дело юнита
+ * `tests/zone-cta.test.ts`, а не прогона цикла дарения.
+ */
+function saveItemButton(page: Page) {
+  return page.locator("form").getByRole("button").and(page.locator('[type="submit"]'));
+}
+
 let mailWorker: Worker | null = null;
 let mailRedis: IORedis | null = null;
 /** Слаг комнаты хозяйки — из UI /room; нужен и перф-тесту. */
@@ -219,11 +240,19 @@ test("полный цикл дарения: хозяйка → гость → с
     await hostessPage.waitForURL(/\/onboarding/);
   });
 
-  await test.step("онбординг: набор «Все 10» → комната «Дерзкая» → дата «пока не знаю»", async () => {
+  await test.step("онбординг: набор «Все 10» → «Дерзкая» → «что хочется» мимо → дата «пока не знаю»", async () => {
     await hostessPage.getByRole("button", { name: /Всё вместе/ }).click();
     await hostessPage.getByRole("button", { name: /Дерзкая/ }).click();
     await hostessPage.getByRole("button", { name: /Дальше/ }).click();
-    // Третий шаг — дата праздника (тикет 43). Дальше по сценарию праздник
+    // Третий шаг — «что чаще всего хочется» (тикет 113, доска 34b). На
+    // комнату он не влияет вовсе: полки не переставляются и не выключаются,
+    // ответ красит только подборку «начни с готового». Поэтому пропускаем —
+    // сценарий проверяет цикл дарения, а не онбординг.
+    await expect(
+      hostessPage.getByRole("heading", { name: "Что чаще всего хочется?" }),
+    ).toBeVisible();
+    await hostessPage.getByRole("button", { name: /Пропустить/ }).click();
+    // Четвёртый шаг — дата праздника (тикет 43). Дальше по сценарию праздник
     // закрывается ВРУЧНУЮ, поэтому здесь осознанный пропуск: комната
     // заводится без даты, как и до появления шага.
     await expect(hostessPage.getByRole("heading", { name: "Когда праздник?" })).toBeVisible();
@@ -237,7 +266,7 @@ test("полный цикл дарения: хозяйка → гость → с
     await hostessPage.getByRole("button", { name: /Люблю/ }).click();
     await hostessPage.getByLabel("Название").fill(LOVE_TITLE);
     await expect(hostessPage.getByLabel("Куда в комнате")).toHaveValue("music");
-    await hostessPage.getByRole("button", { name: /Поставить в комнату/ }).click();
+    await saveItemButton(hostessPage).click();
     await hostessPage.waitForURL(/\/room\/zone\/music/);
     // Вкладок «Люблю · N» на экране зоны больше нет: тикет 88 переложил зону
     // строками по турну 29b — счётчик в шапке и чипы порядка. Проверяем то,
@@ -264,7 +293,7 @@ test("полный цикл дарения: хозяйка → гость → с
     // выдуманным CDN-адресом фикстуры.
     await hostessPage.getByRole("button", { name: "Не сохранять" }).click();
 
-    await hostessPage.getByRole("button", { name: /Поставить в комнату/ }).click();
+    await saveItemButton(hostessPage).click();
     await hostessPage.waitForURL(/\/room\/zone\/music/);
     // Вкладок нет с тикета 88 — зона показывает все вещи строками сразу.
     await expect(hostessPage.getByText(WANT_TITLE)).toBeVisible();
@@ -347,7 +376,7 @@ test("полный цикл дарения: хозяйка → гость → с
     await expect(viewedRow).toContainText("Заходил");
   });
 
-  await test.step("гость тихо бронирует: «занято тобой» и «Мои брони · 1»", async () => {
+  await test.step("гость тихо бронирует: «уже даришь ты» и «Мои подарки · 1»", async () => {
     await sceneHotspot(guestPage, "Музыка").click();
     await guestPage.getByRole("tab", { name: /Хочу · 1/ }).click();
     await guestPage.getByRole("button", { name: /Подарить$/ }).click();
@@ -369,7 +398,14 @@ test("полный цикл дарения: хозяйка → гость → с
     await expect(dialog.getByText("А когда твой день рождения?")).toHaveCount(0);
 
     await guestPage.getByRole("button", { name: "Хорошо" }).click();
-    await expect(guestPage.getByText("занято тобой")).toBeVisible();
+    // Тикет 105 (доска Б11) переписал обе подписи занятости: «занято» → «уже
+    // дарят», «занято тобой» → «уже даришь ты» — речь о подарке, а не о складе
+    // (разбор в tests/messages-tone.test.ts, OWNER_REWRITE_105). Смысл
+    // проверки тот же: на плитке своей брони стоит подпись «моей» брони
+    // (`Booking.takenByYou`), а не общее «уже дарят» и не бирка «Подарить».
+    const bookedTile = guestPage.locator("li", { hasText: WANT_TITLE });
+    await expect(bookedTile).toContainText("уже даришь ты");
+    await expect(bookedTile.getByRole("button", { name: /Подарить$/ })).toHaveCount(0);
     await expect(guestPage.getByRole("link", { name: /Мои подарки · 1/ })).toBeVisible();
   });
 
