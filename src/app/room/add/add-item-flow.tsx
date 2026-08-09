@@ -568,6 +568,13 @@ export function AddItemFlow({
               {parsing ? t("parsing") : t("fillFromUrl")}
             </button>
           </div>
+          {/* Доска В13 (турн 8a): список магазинов снимает недоверие к полю —
+              человек не знает, что вставлять, пока не увидит знакомое имя.
+              Магазины названы НЕ с потолка: ровно на этих шести страницах
+              парсер проверен фикстурами (src/server/parser/__fixtures__).
+              Доска перечисляла четыре — у нас их шесть, и «любой другой
+              сайт» тоже правда: разбор общий, а не по магазинам. */}
+          {!parseErrorKey && <p className={s.softNote}>{t("urlShops")}</p>}
           {parseErrorKey && <p className={s.parseError}>{t(parseErrorKey)}</p>}
           {!parseErrorKey && lowConfidence && <p className={s.softNote}>{t("parsedLow")}</p>}
           {duplicate && (

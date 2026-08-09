@@ -150,6 +150,11 @@ export function ShareButton({
           <span className="font-mono text-sm text-text-primary">{path}</span>
           <span className="text-xs font-semibold text-text-strong">{t("copied")}</span>
           <span className="text-xs leading-snug text-text-muted">{t("shareHint")}</span>
+          {/* Доска В5 (турн 13a): «Кто видит комнату: только по ссылке · не в
+              поиске». Строка стоит в момент шера, потому что страх появляется
+              именно здесь. Обещание не выдумано: комната закрыта от индексации
+              (инвариант №7, `robots: index: false` на всех её маршрутах). */}
+          <span className="text-[11px] leading-snug text-text-faint">{t("shareWhoSees")}</span>
         </span>
       )}
       <button

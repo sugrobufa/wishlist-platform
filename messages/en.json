@@ -69,7 +69,8 @@
     "creating": "Furnishing the room…",
     "nameLabel": "Your name",
     "nameFromBooking": "taken from your booking — you can change it",
-    "emailNote": "You sign in with {email}. No password to invent"
+    "emailNote": "You sign in with {email}. No password to invent",
+    "zonesTitle": "Zones in this room"
   },
   "Room": {
     "overline": "Your room",
@@ -87,7 +88,8 @@
     "hallLink": "Treasure room",
     "connectionsLink": "Friends",
     "occasionBanner": "The occasion has passed — open “what was gifted”",
-    "addItem": "Add an item"
+    "addItem": "Add an item",
+    "shareWhoSees": "Who sees the room: by link only · not in search"
   },
   "Scene": {
     "hint": "tap a zone to step closer",
@@ -208,7 +210,8 @@
     "errZone": "This zone is not in the room right now",
     "errNoRoom": "Furnish the room first",
     "errAuth": "Session expired — sign in again",
-    "errGeneric": "Could not save — try again"
+    "errGeneric": "Could not save — try again",
+    "urlShops": "Gold Apple · Wildberries · Ozon · Lamoda · DNS · Yandex Market — and any other site"
   },
   "Booking": {
     "tagFor": "for {name}",
@@ -388,7 +391,8 @@
     "errValidation": "Check the field — the format is off",
     "errAvatarType": "A photo is needed: JPG, PNG, WebP or HEIC",
     "errAvatarSize": "The file is over 5 MB — pick a lighter one",
-    "errGeneric": "Something went wrong — try again"
+    "errGeneric": "Something went wrong — try again",
+    "zoneItemCount": "{count, plural, one {# thing} other {# things}}"
   },
   "DataSection": {
     "overline": "Your data",
@@ -451,7 +455,8 @@
     "originVisits": "{count, plural, one {Viewed · # visit} other {Viewed · # visits}}",
     "originLink": "Born from an open link",
     "empty": "Friends appear from gifts and open links — nothing to add by hand",
-    "emptyFiltered": "Nobody in this list yet"
+    "emptyFiltered": "Nobody in this list yet",
+    "emptyShare": "Share the room link"
   },
   "Hall": {
     "title": "Treasure room",

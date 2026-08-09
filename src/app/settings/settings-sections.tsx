@@ -483,7 +483,8 @@ export function ZonesSection({
   zonesOff,
   accent,
 }: {
-  zones: Array<{ key: string; label: string }>;
+  /** Зоны текущего пресета со счётчиком своих вещей (доска В2). */
+  zones: Array<{ key: string; label: string; count: number }>;
   zonesOff: string[];
   accent: string;
 }) {
@@ -544,7 +545,21 @@ export function ZonesSection({
                   <IconCheck size={12} strokeWidth={3.2} style={{ color: "#0B0806" }} />
                 )}
               </span>
-              {pending ? "…" : zone.label}
+              {pending ? (
+                "…"
+              ) : (
+                <span className="min-w-0">
+                  <span className="block truncate">{zone.label}</span>
+                  {/* «· 31» под подписью, а не строкой рядом: плитка узкая
+                      (две колонки на телефоне), и число, приписанное сбоку,
+                      обрезало бы длинные ярлыки вроде «Красота и уход». */}
+                  {zone.count > 0 && (
+                    <span className="mt-0.5 block text-[10.5px] font-medium text-text-faint">
+                      {t("zoneItemCount", { count: zone.count })}
+                    </span>
+                  )}
+                </span>
+              )}
             </button>
           );
         })}

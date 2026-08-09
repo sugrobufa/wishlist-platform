@@ -92,6 +92,17 @@ export default async function ConnectionsPage() {
           consent.length === 0 && (
             <div className="max-w-md border border-dashed border-surface-hairline p-5">
               <p className="text-sm leading-relaxed text-text-muted">{t("empty")}</p>
+              {/* Доска В8 (турн 20a): в пустых связях мало объяснить — надо
+                  предложить действие. Друзья рождаются из открытой ссылки,
+                  значит единственный ход отсюда — отдать её. Ведём на комнату,
+                  где кнопка шера и живёт: второй такой кнопки не заводим. */}
+              <Link
+                href="/room"
+                className="pressable mt-4 inline-block border-b-2 px-5 py-2.5 text-[13px] font-semibold text-text-primary"
+                style={{ borderColor: accent, boxShadow: `0 4px 18px -3px ${accent}6B` }}
+              >
+                {t("emptyShare")} →
+              </Link>
             </div>
           )
         )}

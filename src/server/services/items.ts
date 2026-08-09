@@ -38,6 +38,24 @@ export async function listZoneItems(roomId: string, zoneKey: string): Promise<It
  * новые выше; группа «хочу» — desire ↓ (без desire — в конец), затем новые
  * выше. Экспортирован для guest-room (тикет 07 держал дубль — полировка 16).
  */
+/**
+ * Сколько СВОИХ вещей в каждой зоне комнаты — одним запросом (доска В2,
+ * турн 11e: «Красота и уход · 31»). Нужен настройкам: выключая полку,
+ * человек должен видеть, сколько на ней стоит.
+ *
+ * Считаются ВСЕ вещи зоны, включая спрятанные: это счётчик хозяйки, а не
+ * гостевой (у гостя своё число — `guest-room`, там фильтр на чтении).
+ * Зоны без вещей в карте отсутствуют — вызывающий читает их как ноль.
+ */
+export async function countItemsByZone(roomId: string): Promise<Map<string, number>> {
+  const rows = await prisma.item.groupBy({
+    by: ["zone"],
+    where: { roomId: z.string().min(1).max(64).parse(roomId) },
+    _count: { _all: true },
+  });
+  return new Map(rows.map((row) => [row.zone, row._count._all]));
+}
+
 export function compareZoneItems(a: Item, b: Item): number {
   if (a.state !== b.state) return a.state === "LOVE" ? -1 : 1;
   if (a.state === "WANT") {

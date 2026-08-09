@@ -14,6 +14,7 @@ import { TabBar } from "@/components/tab-bar/tab-bar";
 import { signOutAction } from "./actions";
 import { DELETE_ACCOUNT_PHRASE } from "@/server/services/account";
 import { hallSettingsOf } from "@/server/dto/hall";
+import { countItemsByZone } from "@/server/services/items";
 import { getHardenState } from "@/server/services/harden";
 import { asLightColor, asTimeOfDay } from "@/components/scene/grading";
 import {
@@ -67,10 +68,15 @@ export default async function SettingsPage() {
     imageUrl: roomImageUrl(candidate.base),
   }));
 
-  // Чекбокс-плитки — зоны ТЕКУЩЕГО пресета (подписи из zones.json).
+  // Чекбокс-плитки — зоны ТЕКУЩЕГО пресета (подписи из zones.json) со
+  // счётчиком своих вещей (доска В2, турн 11e: «Красота и уход · 31»).
+  // Число живое и одним запросом: выключая полку, человек должен видеть,
+  // сколько на ней стоит, — это и есть цена решения.
+  const countByZone = await countItemsByZone(room.id);
   const zones = (preset?.zones ?? []).map((zone) => ({
     key: zone.key,
     label: zoneInfo(zone.key)?.label ?? zone.label,
+    count: countByZone.get(zone.key) ?? 0,
   }));
 
   const zoneSet = room.zoneSet === "F" || room.zoneSet === "M" ? room.zoneSet : "ALL";

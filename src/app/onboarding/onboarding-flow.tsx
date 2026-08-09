@@ -14,7 +14,12 @@ export type PresetCard = {
   accent: string;
   ink: string;
   imageUrl: string;
+  /** Подписи зон этой комнаты — для строки «Зоны этой комнаты» (доска В3). */
+  zoneLabels: string[];
 };
+
+/** Сколько зон называем словами; остальные — «+5» (форма доски). */
+const ZONES_SHOWN = 5;
 
 type ZoneSet = "F" | "M" | "ALL";
 
@@ -229,6 +234,25 @@ export function OnboardingFlow({
             );
           })}
         </div>
+
+        {/* «Зоны этой комнаты · Украшения · Парфюм … +5» (доска В3, турн 14a).
+            Появляется у ВЫБРАННОЙ комнаты: список под каждой из десяти плиток
+            превратил бы сетку в простыню, а вопрос «что там внутри» возникает
+            ровно про ту, на которую человек уже нажал. */}
+        {selected && selected.zoneLabels.length > 0 && (
+          <div className="mt-4">
+            <p className="overline text-text-faint">{t("zonesTitle")}</p>
+            <p className="mt-1.5 text-[13px] leading-relaxed text-text-body">
+              {selected.zoneLabels.slice(0, ZONES_SHOWN).join(" · ")}
+              {selected.zoneLabels.length > ZONES_SHOWN && (
+                <span className="text-text-faint">
+                  {" "}
+                  +{selected.zoneLabels.length - ZONES_SHOWN}
+                </span>
+              )}
+            </p>
+          </div>
+        )}
 
         {selected && (
           <div className="sticky bottom-0 -mx-6 mt-8 bg-surface-app-ground px-6 pb-8 pt-4">

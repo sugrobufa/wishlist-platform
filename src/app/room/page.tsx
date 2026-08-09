@@ -19,7 +19,7 @@ import {
 import { MONEY_ZONE_KEY, rooms, type Room, type RoomZone } from "@/config/design";
 import { roomImageUrl } from "@/app/rooms/room-image";
 import { SceneStage } from "@/components/scene/SceneStage";
-import { asLightColor, asTimeOfDay } from "@/components/scene/grading";
+import { asLightColor, asTimeOfDay, NATIVE_TIME_OF_DAY } from "@/components/scene/grading";
 import { immersiveLayout } from "@/components/scene/immersive-layout";
 import { ZoneIndexProvider } from "@/components/scene/zone-index-context";
 import { ZoneRail } from "@/components/scene/zone-rail";
@@ -62,6 +62,8 @@ export default async function RoomPage() {
 
   const t = await getTranslations("Room");
   const tList = await getTranslations("RoomList");
+  // Подписи времени суток — те же, что у ручки в настройках (тикет 96).
+  const tSettings = await getTranslations("Settings");
   const preset = rooms.find((candidate) => candidate.id === room.preset);
   // Красивый адрес с ником, когда он занят (тикет 13); короткий код
   // продолжает работать редиректом.
@@ -102,6 +104,8 @@ export default async function RoomPage() {
     : undefined;
 
   const accent = preset?.accent ?? "#E7C9A9";
+  // Время суток комнаты — и в сцену, и в чип шапки (доска В1).
+  const roomTod = asTimeOfDay(room.timeOfDay);
   // Сколько своих вещей в комнате: 0 — сцена гаснет (тикет 104), меньше пяти
   // — над таб-баром висит тихая плашка «ссылку лучше отдавать от пяти вещей»
   // (решение владельца 09.08, task15.json → emptyStates).
@@ -156,7 +160,7 @@ export default async function RoomPage() {
             // До этого проезд был только у гостя.
             drift
             // Свет и время суток комнаты (тикет 96) — грейдинг поверх кадра.
-            timeOfDay={asTimeOfDay(room.timeOfDay)}
+            timeOfDay={roomTod}
             lightColor={asLightColor(room.lightColor)}
             // Пустая комната гаснет (тикет 104): темнота вместо чужих вещей.
             empty={itemCount === 0}
@@ -166,7 +170,17 @@ export default async function RoomPage() {
         <header className="imm-rail imm-rail-top">
           <div className="imm-top-grid">
             <div className="imm-area-titles">
-              <p className="overline text-text-muted">{t("overline")}</p>
+              {/* Чип времени суток (доска В1, турны 6 · 9a · 10). Доска
+                  писала его с часами — «вечер · 21:40», — но время суток у
+                  нас РУЧКА комнаты (тикет 96), а не часы: показать 21:40
+                  рядом с выбранным «утром» значило бы соврать дважды.
+                  Поэтому чип говорит выбранное положение, и только когда оно
+                  не родное: «день» — это кадр как снят, о нём сообщать
+                  нечего. */}
+              <p className="overline text-text-muted">
+                {t("overline")}
+                {roomTod !== NATIVE_TIME_OF_DAY && ` · ${tSettings(`tod_${roomTod}`)}`}
+              </p>
               <h1 className="display imm-title mt-1 text-2xl lg:text-4xl">{roomTitle}</h1>
             </div>
 
