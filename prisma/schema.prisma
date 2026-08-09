@@ -116,9 +116,10 @@ model Room {
   // считается по точным значениям.
   hallRoundPrices Boolean @default(false)
 
-  user  User      @relation(fields: [userId], references: [id], onDelete: Cascade)
-  items Item[]
-  goal  RoomGoal?
+  user   User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  items  Item[]
+  goal   RoomGoal?
+  events RoomEvent[]
 }
 
 // ---------- Копилка на мечту (ADR-0008, тикет 44) ----------
@@ -300,6 +301,42 @@ model OccasionSummary {
   @@unique([roomId, date])
 }
 
+// ---------- Лента «Что происходит» (тикет 114, доска 34c) ----------
+
+enum RoomEventKind {
+  ITEMS_ADDED // друг добавил вещи «хочу» (склеивается за день на чтении)
+  SHELF_OPENED // в зоне появилась первая вещь
+  TREASURY_OPENED // открыл видимость сокровищницы
+  ROOM_CHANGED // сменил интерьер
+  BECAME_MUTUAL // согласие состоялось с обеих сторон
+}
+
+/**
+ * Событие живой комнаты. Пять видов, и все — про КОМНАТУ, а не про подарки:
+ * подарочный слой (брони, складчины, «что подарили») в ленту не попадает ни
+ * в каком виде — это прямое следствие инварианта №1 и отдельное правило
+ * доски 34c.
+ *
+ * ПОЧЕМУ ТАБЛИЦА, А НЕ ВЫЧИСЛЕНИЕ. Два события из пяти считались бы по датам
+ * вещей, а три — нет: момента смены интерьера, открытия сокровищницы и
+ * согласия не хранит никто. Событие — это факт «когда», и хранить его надо
+ * тогда, когда оно случилось.
+ *
+ * `payload` — только то, что нужно СТРОКЕ: ключ зоны, имя пресета. Имён и
+ * вещей здесь нет и быть не может.
+ */
+model RoomEvent {
+  id        String        @id @default(cuid())
+  roomId    String
+  kind      RoomEventKind
+  payload   Json?
+  createdAt DateTime      @default(now())
+
+  room Room @relation(fields: [roomId], references: [id], onDelete: Cascade)
+
+  @@index([roomId, createdAt])
+}
+
 // ---------- Связи (не добавляются вручную) ----------
 
 enum ConnectionKind {
@@ -327,6 +364,11 @@ model Connection {
   consentAskedAt DateTime?
   consentA       Boolean?
   consentB       Boolean?
+  // Когда связь СТАЛА взаимной (тикет 114): «Соня теперь в твоих связях» —
+  // пятое событие ленты. Это событие СВЯЗИ, а не комнаты, поэтому и живёт
+  // здесь, а не в RoomEvent: у него две стороны и ни одной комнаты.
+  // null — взаимной ещё не становилась.
+  mutualAt       DateTime?
 
   a User @relation("ConnA", fields: [aUserId], references: [id], onDelete: Cascade)
   b User @relation("ConnB", fields: [bUserId], references: [id], onDelete: Cascade)

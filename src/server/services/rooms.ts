@@ -7,6 +7,7 @@ import { revalidateTag } from "next/cache";
 import { Prisma, type Room, type User } from "@prisma/client";
 import { z } from "zod";
 import { prisma } from "@/server/db";
+import { recordRoomEvent } from "@/server/services/room-events";
 import { rooms as roomPresets } from "@/config/design";
 import { roomCacheTag } from "@/server/services/items";
 import { itemPhotoUrl } from "@/server/dto/items";
@@ -296,6 +297,9 @@ export async function changeRoomPreset(
   ]);
 
   revalidateRoom(room.id);
+  // «Комната Милы — теперь „Изумруд"» (тикет 114): момент смены интерьера
+  // не хранит больше никто, а лента про него рассказывает.
+  if (room.preset !== preset) await recordRoomEvent(room.id, "ROOM_CHANGED", { preset });
   return { room: updated, movedToAnything: moved.count };
 }
 
@@ -420,6 +424,15 @@ export async function setHallSettings(
     },
   });
   revalidateRoom(room.id);
+
+  // «Сокровищница Милы теперь открыта» (тикет 114). Событие ставится только
+  // на ОТКРЫТИЕ и только на настоящее изменение: закрытие — не новость, а
+  // повторное сохранение того же положения — не событие вовсе.
+  const opened =
+    parsed.priceVisibility !== undefined &&
+    parsed.priceVisibility !== room.hallPriceVisibility &&
+    (parsed.priceVisibility === "ALL" || parsed.priceVisibility === "FRIENDS");
+  if (opened) await recordRoomEvent(room.id, "TREASURY_OPENED");
   return updated;
 }
 

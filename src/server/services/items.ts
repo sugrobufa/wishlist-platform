@@ -12,6 +12,7 @@ import { prisma } from "@/server/db";
 import { rooms as roomPresets } from "@/config/design";
 import { domainOf, normalizeUrl } from "@/server/parser";
 import { enqueueImageIngest } from "@/server/queues";
+import { recordItemAdded, recordRoomEvent } from "@/server/services/room-events";
 import { releaseBookingForItem } from "@/server/services/bookings";
 
 const idSchema = z.string().min(1);
@@ -311,6 +312,13 @@ export async function createItem(userId: string, input: unknown): Promise<Item> 
 
   const { canonicalUrl, domain } = urlMetaFor(data);
 
+  // Сколько вещей в зоне БЫЛО — для события «появилась полка» (тикет 114).
+  // Считаем до создания: иначе первая вещь второй зоны выглядела бы как
+  // открытие первой.
+  const zoneCountBefore = await prisma.item.count({
+    where: { roomId: room.id, zone: data.zone },
+  });
+
   const item = await prisma.item.create({
     data: {
       roomId: room.id,
@@ -345,6 +353,11 @@ export async function createItem(userId: string, input: unknown): Promise<Item> 
   });
 
   revalidateRoom(room.id);
+
+  // Событие ленты (тикет 114): «У Милы 3 новых желания» и «появилась полка».
+  // Ошибка записи наверх не поднимается — лента украшение, а добавление вещи
+  // важнее.
+  await recordItemAdded(room.id, data.zone, zoneCountBefore);
 
   // Фото магазина — в СВОЁ S3 через воркер (инвариант №6: не хотлинкуем).
   // Своё фото приоритетнее: при photoKey джоба не ставится вовсе.

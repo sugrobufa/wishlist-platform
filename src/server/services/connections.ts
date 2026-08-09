@@ -253,11 +253,32 @@ export async function respondToConnection(
   });
   if (!row || row.consentAskedAt === null) return false; // спрашивать нечего
 
-  await prisma.connection.update({
+  const updated = await prisma.connection.update({
     where: { id: row.id },
     data: { [myConsentField(row, id)]: agree },
   });
+  await stampMutual(updated);
   return true;
+}
+
+/**
+ * Отметить момент, когда связь СТАЛА взаимной (тикет 114): «Соня теперь в
+ * твоих связях» — пятое событие ленты, и его «когда» иначе не восстановить.
+ *
+ * Ставится ровно один раз: `mutualAt` уже стоит — второй ответ его не
+ * двигает. Ошибка наверх не поднимается: лента украшение, а согласие важнее.
+ */
+async function stampMutual(row: Connection): Promise<void> {
+  if (row.mutualAt !== null || connectionStatus(row) !== "active") return;
+  if (row.consentAskedAt === null) return; // связь без вопроса взаимной не «становилась»
+  try {
+    await prisma.connection.updateMany({
+      where: { id: row.id, mutualAt: null },
+      data: { mutualAt: new Date() },
+    });
+  } catch (error) {
+    console.error(`[лента] момент взаимности связи ${row.id} не записался`, error);
+  }
 }
 
 /**
@@ -288,6 +309,14 @@ export async function respondToAllPending(userId: string, agree: boolean): Promi
       data: { consentB: agree },
     }),
   ]);
+
+  // Ответ «со всеми» мог сделать взаимной не одну связь — отмечаем каждую.
+  if (agree && asA.count + asB.count > 0) {
+    const touched = await prisma.connection.findMany({
+      where: { OR: [{ aUserId: id }, { bUserId: id }], mutualAt: null },
+    });
+    for (const row of touched) await stampMutual(row);
+  }
   return asA.count + asB.count;
 }
 
