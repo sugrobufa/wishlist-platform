@@ -45,7 +45,14 @@ export default async function AddItemPage({ searchParams }: SearchParams) {
 
   // Прямоугольник зоны едет во флоу вместе с подписью: из него режется кроп
   // комнаты для выбора «люблю / хочу» (тикет 27).
-  const zones: ZoneOption[] = visibleZones(preset.zones, room.zonesOff).map((zone) => ({
+  // Выбранные в онбординге категории — верхними (тикет 113, доска 34b):
+  // список зон не меняется, меняется его порядок. Пустой ответ — как было.
+  const wanted = new Set(room.wants);
+  const ordered = [
+    ...visibleZones(preset.zones, room.zonesOff).filter((zone) => wanted.has(zone.key)),
+    ...visibleZones(preset.zones, room.zonesOff).filter((zone) => !wanted.has(zone.key)),
+  ];
+  const zones: ZoneOption[] = ordered.map((zone) => ({
     key: zone.key,
     label: zoneInfo(zone.key)?.label ?? zone.label,
     rect: zone.rect,

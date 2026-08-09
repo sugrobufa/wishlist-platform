@@ -747,6 +747,13 @@ describe("словарь и дизайн-пакет", () => {
       "Onboarding.occasionStep",
       "Onboarding.occasionSubtitle",
       "Onboarding.occasionTitle",
+      // Тикет 113 (доска 34b): третий шаг онбординга — «что чаще всего
+      // хочется». Строки присланы раундом 22 дословно.
+      "Onboarding.wantsMax",
+      "Onboarding.wantsSkip",
+      "Onboarding.wantsStep",
+      "Onboarding.wantsSubtitle",
+      "Onboarding.wantsTitle",
       // Косметика доски В3 (турн 14a): «Зоны этой комнаты» с «+5» у выбранной
       // заготовки. Слова заголовка наши — доска рисовала список без подписи.
       "Onboarding.zonesTitle",

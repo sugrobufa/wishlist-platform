@@ -37,6 +37,19 @@ function visiblePresetZones(preset: string, zonesOff: readonly string[]) {
 }
 
 /**
+ * Порядок наполнения по ответу «что чаще всего хочется» (тикет 113, доска
+ * 34b): выбранные категории идут ПЕРВЫМИ. Комнату это не меняет — полки
+ * стоят там же и в том же порядке; меняется только очередь, в которой
+ * подборка их наполняет, и потому первые вещи человек видит там, где сам
+ * попросил. Пустой ответ (вопрос пропущен) — порядок пресета как был.
+ */
+function orderedByWants<T extends { key: string }>(zones: T[], wants: readonly string[]): T[] {
+  if (wants.length === 0) return zones;
+  const wanted = new Set(wants);
+  return [...zones.filter((zone) => wanted.has(zone.key)), ...zones.filter((zone) => !wanted.has(zone.key))];
+}
+
+/**
  * Сколько вещей принесёт набор — то самое «+40» с доски. Число СЧИТАЕТСЯ по
  * пулам видимых зон, а не пишется в строку: у мужских и женских наборов зон
  * пулы разные, и обещать всем одно и то же число значит обмануть половину.
@@ -70,13 +83,13 @@ export async function applyStarterPack(
   const id = idSchema.parse(userId);
   const room = await prisma.room.findUnique({
     where: { userId: id },
-    select: { id: true, preset: true, zonesOff: true },
+    select: { id: true, preset: true, zonesOff: true, wants: true },
   });
   if (!room) return { roomFound: false, created: 0, photos: 0 };
 
   const result: StarterPackResult = { roomFound: true, created: 0, photos: 0 };
 
-  for (const zone of visiblePresetZones(room.preset, room.zonesOff)) {
+  for (const zone of orderedByWants(visiblePresetZones(room.preset, room.zonesOff), room.wants)) {
     const seeds = poolSeeds(zone.pool);
     if (seeds.length === 0) continue; // у зоны нет пула (money) — не выдумываем
     if ((await prisma.item.count({ where: { roomId: room.id, zone: zone.key } })) > 0) continue;

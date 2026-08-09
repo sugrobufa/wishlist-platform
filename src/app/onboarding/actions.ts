@@ -31,6 +31,9 @@ export async function createRoomAction(formData: FormData): Promise<void> {
   await createRoomForUser(userId, {
     preset: String(formData.get("preset") ?? ""),
     zoneSet: String(formData.get("zoneSet") ?? ""),
+    // «Что чаще всего хочется» (тикет 113): три-четыре ключа зон через
+    // запятую. Пусто — вопрос пропустили, и это законный ответ.
+    wants: String(formData.get("wants") ?? ""),
   });
 
   // Имя (тикет 38, предзаполняется из брони). Пустое поле — не «стереть»:

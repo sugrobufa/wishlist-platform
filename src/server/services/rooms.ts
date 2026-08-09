@@ -64,9 +64,20 @@ const SLUG_CREATE_ATTEMPTS = 5;
  */
 export async function createRoomForUser(
   userId: string,
-  input: { preset: string; zoneSet: string },
+  input: { preset: string; zoneSet: string; wants?: string },
 ): Promise<Room> {
   const { preset, zoneSet } = createRoomInputSchema.parse(input);
+  // «Что хочется» (тикет 113, доска 34b): ключи зон ЭТОГО пресета, не больше
+  // четырёх. Мусор и чужие ключи молча отбрасываются — ответ необязательный,
+  // и ронять на нём создание комнаты было бы дико.
+  const presetZones = new Set(
+    (roomPresets.find((candidate) => candidate.id === preset)?.zones ?? []).map((zone) => zone.key),
+  );
+  const wants = String(input.wants ?? "")
+    .split(",")
+    .map((key) => key.trim())
+    .filter((key) => presetZones.has(key))
+    .slice(0, 4);
 
   const existing = await prisma.room.findUnique({ where: { userId } });
   if (existing) return existing;
@@ -74,7 +85,7 @@ export async function createRoomForUser(
   for (let attempt = 0; attempt < SLUG_CREATE_ATTEMPTS; attempt += 1) {
     try {
       return await prisma.room.create({
-        data: { userId, preset, zoneSet, shareSlug: generateShareSlug() },
+        data: { userId, preset, zoneSet, wants, shareSlug: generateShareSlug() },
       });
     } catch (error) {
       if (isUniqueViolation(error, "userId")) {

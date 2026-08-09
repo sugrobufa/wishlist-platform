@@ -70,7 +70,12 @@
     "nameLabel": "Your name",
     "nameFromBooking": "taken from your booking — you can change it",
     "emailNote": "You sign in with {email}. No password to invent",
-    "zonesTitle": "Zones in this room"
+    "zonesTitle": "Zones in this room",
+    "wantsStep": "What you want",
+    "wantsTitle": "What do you want most often?",
+    "wantsSubtitle": "Pick three or four — we will build a selection from them. All the shelves stay.",
+    "wantsSkip": "Skip — I will start from scratch",
+    "wantsMax": "Four is enough — the rest follows on its own"
   },
   "Room": {
     "overline": "Your room",

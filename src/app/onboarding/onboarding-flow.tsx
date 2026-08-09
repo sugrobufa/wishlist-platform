@@ -16,6 +16,8 @@ export type PresetCard = {
   imageUrl: string;
   /** Подписи зон этой комнаты — для строки «Зоны этой комнаты» (доска В3). */
   zoneLabels: string[];
+  /** Ключи тех же зон, в том же порядке — чипам «что хочется» (тикет 113). */
+  zoneKeys: string[];
 };
 
 /** Сколько зон называем словами; остальные — «+5» (форма доски). */
@@ -26,9 +28,20 @@ type ZoneSet = "F" | "M" | "ALL";
 const ZONE_SETS: ZoneSet[] = ["F", "M", "ALL"];
 
 /** Доска (турн 11d) просит три вопроса; счётчик шага говорит то же число. */
-const TOTAL_STEPS = 3;
+const TOTAL_STEPS = 4;
 
-type Step = 1 | 2 | 3;
+type Step = 1 | 2 | 3 | 4;
+
+/**
+ * «Что чаще всего хочется» (тикет 113, доска 34b): чипы — подписи зон
+ * выбранного набора МИНУС две. «Что угодно» ловит всё, что не влезло в
+ * категории, «Просто деньги» — копилка, а не вещи: обе как ответ на «что
+ * хочется» не значат ничего.
+ */
+const WANTS_EXCLUDED = new Set(["anything", "money"]);
+
+/** Выбрать можно 3–4; четвёртый гасит остальные чипы. Меньше — тоже ответ. */
+const WANTS_MAX = 4;
 
 /** "#RRGGBB" + альфа → 8-значный hex (ореол «полосы света», tokens.json). */
 function withAlpha(hex: string, alpha: number): string {
@@ -77,6 +90,8 @@ export function OnboardingFlow({
   const [presetId, setPresetId] = useState<string | null>(null);
   const [occasionDate, setOccasionDate] = useState(() => initialOccasionValue(initialOccasionDate));
   const [displayName, setDisplayName] = useState(() => (initialName ?? "").trim());
+  /** Ответ шага «что хочется» — ключи зон; пусто = пропустили. */
+  const [wants, setWants] = useState<string[]>([]);
 
   // Акценты наборов — из данных rooms.json (первая комната набора), не из кода.
   const setAccent: Record<ZoneSet, { accent: string; ink: string }> = {
@@ -270,20 +285,109 @@ export function OnboardingFlow({
     );
   }
 
+  // ---- Шаг 3: «что чаще всего хочется» (тикет 113, доска 34b) ----
+  //
+  // Единственный шаг, который НИЧЕГО не решает про комнату: полки уже
+  // выбраны шагом 2 и от этого ответа не переставляются и не выключаются.
+  // Он красит подборку «начни с готового» и порядок зон в добавлении — то
+  // есть первые минуты после онбординга, а не саму комнату.
+  if (step === 3) {
+    const chips = selected.zoneKeys
+      .map((key, index) => ({ key, label: selected.zoneLabels[index] ?? key }))
+      .filter((zone) => !WANTS_EXCLUDED.has(zone.key));
+    const full = wants.length >= WANTS_MAX;
+
+    const toggle = (key: string) =>
+      setWants((current) =>
+        current.includes(key)
+          ? current.filter((candidate) => candidate !== key)
+          : current.length >= WANTS_MAX
+            ? current
+            : [...current, key],
+      );
+
+    return (
+      <main className="mx-auto flex min-h-screen w-full max-w-xl flex-col justify-center px-6 py-10 md:max-w-4xl">
+        <button
+          type="button"
+          onClick={() => setStep(2)}
+          className="pressable self-start text-sm text-text-muted hover:text-text-strong"
+        >
+          ← {t("back")}
+        </button>
+
+        <p className="overline mt-6 text-text-muted">
+          {t("stepOverline", { current: 3, total: TOTAL_STEPS })} · {t("wantsStep")}
+        </p>
+        <h1 className="display mt-4 text-3xl md:text-5xl">{t("wantsTitle")}</h1>
+        <p className="mt-4 max-w-md text-text-body">{t("wantsSubtitle")}</p>
+
+        <div className="mt-7 flex flex-wrap gap-2">
+          {chips.map((zone) => {
+            const picked = wants.includes(zone.key);
+            return (
+              <button
+                key={zone.key}
+                type="button"
+                aria-pressed={picked}
+                // Четвёртый выбор гасит остальные чипы (wantsMax): предел
+                // виден, а не встречается отказом на нажатие.
+                disabled={!picked && full}
+                onClick={() => toggle(zone.key)}
+                className={`pressable min-h-11 px-3.5 text-[13px] font-semibold disabled:opacity-40 ${
+                  picked ? "" : "border border-surface-hairline bg-surface-fill text-text-muted"
+                }`}
+                style={picked ? { background: selected.accent, color: selected.ink } : undefined}
+              >
+                {zone.label}
+              </button>
+            );
+          })}
+        </div>
+
+        {full && <p className="mt-3 text-xs text-text-faint">{t("wantsMax")}</p>}
+
+        <div className="sticky bottom-0 -mx-6 mt-8 bg-surface-app-ground px-6 pb-8 pt-4">
+          <button
+            type="button"
+            onClick={() => setStep(4)}
+            className={LIGHT_BUTTON_CLASS}
+            style={lightButtonStyle(selected.accent)}
+          >
+            {t("next")} →
+          </button>
+          {/* «Я сам, с нуля» отдельной веткой не заводится (доска 34b): это
+              та же кнопка пропуска на этом же шаге. Пропустил — подборка
+              остаётся общей по интерьеру, и вопрос больше не возвращается. */}
+          <button
+            type="button"
+            onClick={() => {
+              setWants([]);
+              setStep(4);
+            }}
+            className="pressable mt-3 block w-full py-2 text-center text-[13px] text-text-muted hover:text-text-strong"
+          >
+            {t("wantsSkip")}
+          </button>
+        </div>
+      </main>
+    );
+  }
+
   const dateMissing = occasionDate === "";
 
   return (
     <main className="mx-auto flex min-h-screen w-full max-w-xl flex-col justify-center px-6 py-10 md:max-w-4xl">
       <button
         type="button"
-        onClick={() => setStep(2)}
+        onClick={() => setStep(3)}
         className="pressable self-start text-sm text-text-muted hover:text-text-strong"
       >
         ← {t("back")}
       </button>
 
       <p className="overline mt-6 text-text-muted">
-        {t("stepOverline", { current: 3, total: TOTAL_STEPS })} · {t("occasionStep")}
+        {t("stepOverline", { current: 4, total: TOTAL_STEPS })} · {t("occasionStep")}
       </p>
       <h1 className="display mt-4 text-3xl md:text-5xl">{t("occasionTitle")}</h1>
       <p className="mt-4 max-w-md text-text-body">{t("occasionSubtitle")}</p>
@@ -291,6 +395,9 @@ export function OnboardingFlow({
       <form action={createRoomAction} className="mt-8 flex w-full max-w-md flex-col gap-4">
         <input type="hidden" name="zoneSet" value={zoneSet} />
         <input type="hidden" name="preset" value={selected.id} />
+        {/* Ответ «что хочется» (тикет 113) едет вместе с комнатой: он её не
+            меняет, но красит подборку и порядок зон в добавлении. */}
+        <input type="hidden" name="wants" value={wants.join(",")} />
 
         {/* Имя в комнате. Стоит рядом с датой сознательно: это последний
             экран, и оба поля — про самого человека, а не про интерьер.
