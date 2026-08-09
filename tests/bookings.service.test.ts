@@ -306,8 +306,17 @@ describe("takenForRoomSlug — хозяйке своей комнаты кана
     const forOwner = await takenForRoomSlug(room.shareSlug, [], {
       viewerUserId: room.userId,
     });
-    // toEqual пиноит ответ ЦЕЛИКОМ: ни одного непустого поля.
-    expect(forOwner).toEqual({ itemIds: [], mine: [], myBookingsCount: 0, signedIn: true });
+    // toEqual пиноит ответ ЦЕЛИКОМ: ни одного непустого поля ПРО БРОНИ.
+    // `signedIn` и `hallOpen` о бронях не говорят ничего — первое про вход
+    // в аккаунт (тикет 98b), второе про её же витрину (тикет 116): запирать
+    // хозяйку от собственных вещей не за чем.
+    expect(forOwner).toEqual({
+      itemIds: [],
+      mine: [],
+      myBookingsCount: 0,
+      signedIn: true,
+      hallOpen: true,
+    });
   });
 
   it("её собственные брони в ЧУЖИХ комнатах в этот ноль не попадают как факт: чужая комната отвечает ей как гостю", async () => {
@@ -330,7 +339,13 @@ describe("takenForRoomSlug — хозяйке своей комнаты кана
     const inOwnRoom = await takenForRoomSlug(mine.shareSlug, [cancelToken], {
       viewerUserId: mine.userId,
     });
-    expect(inOwnRoom).toEqual({ itemIds: [], mine: [], myBookingsCount: 0, signedIn: true });
+    expect(inOwnRoom).toEqual({
+      itemIds: [],
+      mine: [],
+      myBookingsCount: 0,
+      signedIn: true,
+      hallOpen: true,
+    });
   });
 
   it("пустота — только СВОЕЙ хозяйке: соседка и аноним видят занятое как раньше", async () => {
@@ -381,6 +396,9 @@ describe("listBookingsByTokens — «мои брони» без чужих се�
     const bookings = await listBookingsByTokens([cancelToken]);
     expect(bookings).toHaveLength(1);
     expect(Object.keys(bookings[0]!).sort()).toEqual([
+      // «Показаться после праздника · да/нет» (хвост тикета 98b): ключ есть
+      // всегда, значение — только у гостя с аккаунтом (ниже отдельный тест).
+      "connection",
       "createdAt",
       "itemId",
       "mode",
@@ -398,6 +416,8 @@ describe("listBookingsByTokens — «мои брони» без чужих се�
       ownerName: "Мила",
       mode: "SIGNED",
       purchased: false,
+      // Бронь анонимная — связывать некого, строки о связи не будет вовсе.
+      connection: null,
     });
     expect(JSON.stringify(bookings)).not.toMatch(/guestName|guestEmail|my-own/);
   });

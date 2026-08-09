@@ -153,12 +153,13 @@ export async function setDemoGhostsAction(off: boolean): Promise<SettingsResult>
   return runForOwner((userId) => setDemoGhostsOff(userId, Boolean(off)));
 }
 
-// ---------- Зал славы: стоимость подарков (тикет 35) ----------
+// ---------- Сокровищница: кто видит (тикет 116) и стоимость (тикет 35) ----------
 
 /**
- * Сохранить раздел «Зал славы»: видимость цены (четыре положения), сумма
- * всего зала, имя дарителя, округление. Раздел сохраняется целиком — как
- * нарисовано на доске (турн 12d, кнопка «Сохранить» внизу экрана).
+ * Сохранить раздел «Сокровищница»: кто видит саму витрину (три положения,
+ * тикет 116/ADR-0011), видимость цены (четыре положения), сумма, имя
+ * дарителя, округление. Раздел сохраняется целиком — как нарисовано на доске
+ * (турн 12d, кнопка «Сохранить» внизу экрана).
  */
 export async function setHallSettingsAction(input: HallSettingsInput): Promise<SettingsResult> {
   return runForOwner((userId) => setHallSettings(userId, input));

@@ -37,7 +37,12 @@ import {
   respondToAllPending,
   respondToConnection,
 } from "../src/server/services/connections";
-import { BookingError, bookItem } from "../src/server/services/bookings";
+import {
+  BookingError,
+  bookItem,
+  listBookingsByTokens,
+  offerConnection,
+} from "../src/server/services/bookings";
 import { setHiddenFromHall } from "../src/server/services/items";
 import { closeOccasion, receiveGift } from "../src/server/services/occasions";
 import { POST as bookRoute } from "../src/app/api/v1/items/[id]/book/route";
@@ -570,6 +575,8 @@ describe("listConnections — DTO без email, происхождение по 
     for (const row of rows) {
       expect(Object.keys(row).sort()).toEqual([
         "avatarUrl",
+        // Состоялась связь или осталась односторонней (хвост 98b, доска 32a).
+        "consent",
         "createdAt",
         "displayName",
         "id",
@@ -655,7 +662,11 @@ describe("тикет 98b — согласие по 32a: гость на брон
     expect(connectionStatus(row!)).toBe("declined");
     expect(isConsentedConnection(row!)).toBe(false);
     expect(await listPendingConsent(owner.user.id)).toEqual([]);
-    expect(await listConnections(owner.user.id)).toHaveLength(0);
+    // …но из списка строка НЕ уходит (хвост 98b, доска 32a): она остаётся
+    // односторонней — «знакомы · подарок в истории».
+    expect(await listConnections(owner.user.id)).toMatchObject([
+      { displayName: "Катя", consent: "declined" },
+    ]);
 
     // История подарка при этом цела — строка живёт, просто не дружба.
     expect(row?.history).toMatchObject({ giftsToA: 1 });
@@ -673,7 +684,9 @@ describe("тикет 98b — согласие по 32a: гость на брон
     // Вопрос снят у обоих: строки «тебе отказали» не существует.
     expect(await listPendingConsent(giver.user.id)).toEqual([]);
     expect(await listPendingConsent(owner.user.id)).toEqual([]);
-    expect(await listConnections(giver.user.id)).toHaveLength(0);
+    // У дарителя остаётся односторонняя строка — и она молчит о том, что
+    // отказ БЫЛ: подпись у неё та же, что у молчаливого подарка.
+    expect(await listConnections(giver.user.id)).toMatchObject([{ consent: "declined" }]);
   });
 
   it("«Оставить взаимно» отвечает разом — и только за себя", async () => {
@@ -748,15 +761,179 @@ describe("тикет 98b — согласие по 32a: гость на брон
   });
 });
 
+// Хвост тикета 98b — две вещи, которых у согласия не хватало по доске 32a:
+// гостю негде было ПЕРЕДУМАТЬ до праздника, а отказ уносил связь из списков
+// совсем, хотя должен оставлять видимую одностороннюю строку.
+describe("хвост 98b — передумать до праздника и односторонняя строка после отказа", () => {
+  /** Бронь ЗАЛОГИНЕННОГО гостя: только у неё есть чем передумать. */
+  async function bookAsGuest(
+    owner: { room: { id: string } },
+    guestId: string,
+    offersConnection: boolean,
+  ) {
+    const item = await createWantItem(owner.room.id);
+    const { cancelToken } = await bookItem(
+      { itemId: item.id, name: "Катя", offersConnection },
+      { sessionUserId: guestId },
+    );
+    return { item, cancelToken };
+  }
+
+  /** Строка «Показаться после праздника» из «Моих подарков». */
+  async function connectionRow(cancelToken: string) {
+    return (await listBookingsByTokens([cancelToken]))[0]?.connection;
+  }
+
+  it("до праздника ответ виден строкой и меняется — в обе стороны", async () => {
+    const owner = await createOwnerWithRoom();
+    const guest = await createUser("Катя");
+    const { cancelToken } = await bookAsGuest(owner, guest.id, false);
+
+    expect(await connectionRow(cancelToken)).toEqual({ offers: false, editable: true });
+
+    await offerConnection(cancelToken, true);
+    expect(await connectionRow(cancelToken)).toEqual({ offers: true, editable: true });
+
+    // И обратно: пока праздник не наступил, «показаться» — не навсегда.
+    await offerConnection(cancelToken, false);
+    expect(await connectionRow(cancelToken)).toEqual({ offers: false, editable: true });
+  });
+
+  it("ответ живёт на ПАРЕ: вторая бронь той же хозяйке меняется вместе с первой", async () => {
+    const owner = await createOwnerWithRoom();
+    const guest = await createUser("Катя");
+    const first = await bookAsGuest(owner, guest.id, false);
+    const second = await bookAsGuest(owner, guest.id, false);
+
+    await offerConnection(first.cancelToken, true);
+
+    expect(await connectionRow(first.cancelToken)).toEqual({ offers: true, editable: true });
+    expect(await connectionRow(second.cancelToken)).toEqual({ offers: true, editable: true });
+  });
+
+  it("у брони без аккаунта строки нет вовсе — связывать некого", async () => {
+    const owner = await createOwnerWithRoom();
+    const item = await createWantItem(owner.room.id);
+    const { cancelToken } = await bookItem({
+      itemId: item.id,
+      name: "Инкогнито",
+      offersConnection: true,
+    });
+
+    expect(await connectionRow(cancelToken)).toBeNull();
+    // Анониму ответ и не сохраняется — молча, без отказа.
+    expect(
+      (await prisma.booking.findUniqueOrThrow({ where: { itemId: item.id } })).offersConnection,
+    ).toBe(false);
+    await expect(offerConnection(cancelToken, true)).resolves.toBeUndefined();
+  });
+
+  it("после праздника строка остаётся, но передумать не даёт", async () => {
+    const owner = await createOwnerWithRoom();
+    const guest = await createUser("Катя");
+    const { cancelToken } = await bookAsGuest(owner, guest.id, true);
+
+    await closeOccasion(owner.room.id, { manual: true });
+
+    expect(await connectionRow(cancelToken)).toEqual({ offers: true, editable: false });
+    await expect(offerConnection(cancelToken, false)).rejects.toMatchObject({
+      code: "OCCASION_PASSED",
+    });
+    // Ответ не тронут: хозяйка увидит на «что подарили» ровно то, что было.
+    expect(await connectionRow(cancelToken)).toEqual({ offers: true, editable: false });
+  });
+
+  it("запирает не календарь, а закрытие итога; новая дата впереди — снова открывает", async () => {
+    const owner = await createOwnerWithRoom();
+    const guest = await createUser("Катя");
+    const { cancelToken } = await bookAsGuest(owner, guest.id, true);
+
+    // Дата прошла, а итог ещё не закрыт: ответа не видел никто (без summary
+    // «что подарили» молчит, и «Дошло» не отмечается) — менять можно.
+    await prisma.room.update({
+      where: { id: owner.room.id },
+      data: { occasionDate: new Date(Date.now() - 24 * HOUR_MS) },
+    });
+    expect((await connectionRow(cancelToken))?.editable).toBe(true);
+
+    // Итог закрыт — с этой секунды ответ отыгран.
+    await closeOccasion(owner.room.id);
+    expect((await connectionRow(cancelToken))?.editable).toBe(false);
+
+    // Между праздниками: следующая дата впереди — брони копятся к ней, и
+    // ответ снова живой (то же правило, что у баннера комнаты).
+    await prisma.room.update({
+      where: { id: owner.room.id },
+      data: { occasionDate: new Date(Date.now() + 30 * 24 * HOUR_MS) },
+    });
+    expect((await connectionRow(cancelToken))?.editable).toBe(true);
+    await offerConnection(cancelToken, false);
+    expect(await connectionRow(cancelToken)).toEqual({ offers: false, editable: true });
+  });
+
+  it("отказ оставляет одностороннюю строку: видна обоим, взаимной связь не делает", async () => {
+    const owner = await createOwnerWithRoom("Аня");
+    const giver = await createOwnerWithRoom("Катя");
+    // Друг у друга уже бывали: у СОСТОЯВШЕЙСЯ связи это дало бы карточку с
+    // кадром комнаты (тикет 95) — у односторонней её быть не должно.
+    await recordVisit(owner.user.id, giver.user.id);
+    await recordVisit(giver.user.id, owner.user.id);
+    await giftFlow(owner, giver.user.id, { consent: false });
+
+    const [row] = await pairRows(owner.user.id, giver.user.id);
+    expect(await respondToConnection(owner.user.id, row!.id, false)).toBe(true);
+
+    // Факт подарка цел — он и есть содержание строки «знакомы · подарок в
+    // истории», и перспектива у сторон по-прежнему разная.
+    expect(await listConnections(owner.user.id)).toMatchObject([
+      { displayName: "Катя", consent: "declined", room: null, origin: { received: 1, given: 0 } },
+    ]);
+    expect(await listConnections(giver.user.id)).toMatchObject([
+      { displayName: "Аня", consent: "declined", room: null, origin: { received: 0, given: 1 } },
+    ]);
+
+    // Дружбой связь при этом не стала и взаимной не становилась.
+    const after = (await pairRows(owner.user.id, giver.user.id))[0]!;
+    expect(isConsentedConnection(after)).toBe(false);
+    expect(after.mutualAt).toBeNull();
+  });
+
+  it("неспрошенные (null) и отказавшиеся (false) — разные случаи, и оба переживают фильтр", async () => {
+    const owner = await createOwnerWithRoom();
+    // 1) Вопроса не было вовсе: связь из визита (consentAskedAt = null).
+    const watcher = await createUser("Сергей");
+    await recordVisit(watcher.id, owner.user.id);
+    // 2) Отказ: подарил тихо, связь не предлагал (consentB = false).
+    const quiet = await createUser("Мила");
+    await giftFlow(owner, quiet.id, { offer: false, consent: false });
+    // 3) Ждёт ответа: предложил, хозяйка ещё молчит (consentA = null).
+    const waiting = await createUser("Катя");
+    await giftFlow(owner, waiting.id, { consent: false });
+
+    const rows = await listConnections(owner.user.id);
+    // Главное здесь — что НЕСПРОШЕННАЯ строка жива: отрицание
+    // (`NOT { consentA: false }`) выбросило бы её вместе с отказом, потому что
+    // в SQL NULL = false даёт UNKNOWN. Фильтр написан перечислением.
+    expect(rows.map((r) => r.displayName).sort()).toEqual(["Мила", "Сергей"]);
+    expect(rows.find((r) => r.displayName === "Сергей")?.consent).toBe("active");
+    expect(rows.find((r) => r.displayName === "Мила")?.consent).toBe("declined");
+    // Ждущая ответа в список связей не попадает — у неё своё место.
+    expect(await listPendingConsent(owner.user.id)).toMatchObject([{ displayName: "Катя" }]);
+  });
+});
+
 describe("ИНВАРИАНТ №4 — друзья не добавляются (негативный)", () => {
   it("поверхность сервиса связей — ровно рождение из подарка/ссылки, чтение и ответ", () => {
     // Строгий allowlist: НИКАКИХ add/create/search/import по произвольному
     // вводу. Тикет 98 добавил три имени, и все три — про УЖЕ существующую
-    // строку: прочитать вопрос и ответить на него за себя.
+    // строку: прочитать вопрос и ответить на него за себя. Тикет 114 добавил
+    // четвёртое, и оно тоже читающее: лента «Что происходит» спрашивает,
+    // ЧЬИ события человеку можно показать, и списка людей не создаёт.
     expect(Object.keys(connectionsService).sort()).toEqual([
       "connectionStatus",
       "isConsentedConnection",
       "listConnections",
+      "listConnectionsForFeed",
       "listPendingConsent",
       "recordVisit",
       "recordVisitBySlug",

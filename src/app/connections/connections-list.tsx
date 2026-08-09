@@ -113,11 +113,19 @@ function FeedCard({ item, tall }: { item: FeedRow; tall: boolean }) {
 
 export function ConnectionsList({ rows, accent, ink, now }: ConnectionsListProps) {
   const t = useTranslations("Connections");
+  // Подпись односторонней строки живёт в секции согласия (доска 32a прислала
+  // её вместе с экранами вопроса), а не в «Друзьях»: строка про тот же ответ.
+  const tConsent = useTranslations("Consent");
   const format = useFormatter();
   const [filter, setFilter] = useState<Filter>("ALL");
 
+  // Односторонние строки («знакомы · подарок в истории») видны в «Все», но не
+  // под фильтрами видов связи: отказ ни «взаимно», ни «слежу», ни «смотрели».
   const visible = useMemo(
-    () => (filter === "ALL" ? rows : rows.filter((row) => row.kind === filter)),
+    () =>
+      filter === "ALL"
+        ? rows
+        : rows.filter((row) => row.consent === "active" && row.kind === filter),
     [rows, filter],
   );
 
@@ -212,7 +220,7 @@ export function ConnectionsList({ rows, accent, ink, now }: ConnectionsListProps
             <li
               key={row.id}
               className={`flex items-center gap-3 bg-surface-app-ground py-3.5 ${
-                row.kind === "VIEWED" ? "opacity-75" : ""
+                row.kind === "VIEWED" || row.consent === "declined" ? "opacity-75" : ""
               }`}
             >
               <Avatar url={row.avatarUrl} />
@@ -221,21 +229,30 @@ export function ConnectionsList({ rows, accent, ink, now }: ConnectionsListProps
                   <span className="truncate text-sm font-semibold text-text-primary">
                     {row.displayName ?? t("nameFallback")}
                   </span>
-                  <span
-                    className={`flex-none px-1.5 py-0.5 text-[8.5px] font-semibold uppercase tracking-[0.1em] ${
-                      row.kind === "MUTUAL" ? "" : "bg-surface-fill text-text-muted"
-                    }`}
-                    style={
-                      row.kind === "MUTUAL"
-                        ? { background: `${accent}2E`, color: accent }
-                        : undefined
-                    }
-                  >
-                    {t(`badge${row.kind}`)}
-                  </span>
+                  {/* Односторонняя строка значка вида связи НЕ получает: она
+                      ни «взаимно», ни «слежу» — весь её смысл сказан подписью
+                      ниже (доска 32a). */}
+                  {row.consent === "active" && (
+                    <span
+                      className={`flex-none px-1.5 py-0.5 text-[8.5px] font-semibold uppercase tracking-[0.1em] ${
+                        row.kind === "MUTUAL" ? "" : "bg-surface-fill text-text-muted"
+                      }`}
+                      style={
+                        row.kind === "MUTUAL"
+                          ? { background: `${accent}2E`, color: accent }
+                          : undefined
+                      }
+                    >
+                      {t(`badge${row.kind}`)}
+                    </span>
+                  )}
                 </div>
                 <p className="mt-1.5 text-[11px] leading-snug text-text-muted">
-                  {originLabel(row.origin)}
+                  {/* «знакомы · подарок в истории»: отказ не стирает факт
+                      подарка — он только не делает связь взаимной. */}
+                  {row.consent === "declined"
+                    ? tConsent("declinedRow")
+                    : originLabel(row.origin)}
                 </p>
               </div>
               {/* «N дней назад» — последнее событие связи. */}

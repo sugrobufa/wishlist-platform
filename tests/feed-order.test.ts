@@ -24,6 +24,9 @@ function row(
     origin: { type: "link" },
     lastAt,
     createdAt: lastAt,
+    // Состоявшаяся связь: односторонние строки («знакомы · подарок в истории»,
+    // хвост 98b) в ленту не попадают — у них комнаты нет по построению.
+    consent: "active",
     room:
       occasionDate === null
         ? null

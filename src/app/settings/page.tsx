@@ -81,8 +81,14 @@ export default async function SettingsPage() {
 
   const zoneSet = room.zoneSet === "F" || room.zoneSet === "M" ? room.zoneSet : "ALL";
   const occasionDate = room.occasionDate ? room.occasionDate.toISOString().slice(0, 10) : null;
-  // Настройки зала славы (тикет 35) — форма клиента совпадает с DTO зала.
-  const hallSettings: HallSettingsView = hallSettingsOf(room);
+  // Настройки сокровищницы: показ цены и прочее — из DTO зала (тикет 35), а
+  // «кто видит витрину» приезжает прямо из строки комнаты (тикет 116).
+  // В DTO цены оно НЕ переехало сознательно: настройки про разное, и общий
+  // тип означал бы, что их можно перепутать местами (ADR-0011).
+  const hallSettings: HallSettingsView = {
+    ...hallSettingsOf(room),
+    visibility: room.hallVisibility,
+  };
   // Чем держится комната: почта основного входа и второй способ (тикет 94).
   const harden = await getHardenState(userId);
 

@@ -383,15 +383,25 @@ export async function setDemoGhostsOff(userId: string, off: boolean): Promise<Ro
   return updated;
 }
 
-// ---------- Зал славы: стоимость подарков (тикет 35, ADR-0004) ----------
+// ---------- Сокровищница: кто входит (тикет 116) и стоимость (тикет 35) ----------
 
 /**
- * Вход раздела «Зал славы» в настройках. Четыре положения видимости — не
- * тумблер: «стоимость это чувствительно» (доска, турн 12d). Поля
- * необязательные: раздел сохраняется целиком, но частичная правка возможна.
+ * Вход раздела «Сокровищница» в настройках. Поля необязательные: раздел
+ * сохраняется целиком, но частичная правка возможна.
+ *
+ * ДВЕ НАСТРОЙКИ И ОНИ ПРО РАЗНОЕ (ADR-0011):
+ * - `visibility` — кто вообще входит в ВИТРИНУ. Три положения: у экрана
+ *   «только мне» и «никому» — одна и та же дверь. Дефолт открытый (`ALL`);
+ * - `priceVisibility` — кто видит там ЦЕНУ. Четыре положения, не тумблер:
+ *   «стоимость это чувствительно» (доска, турн 12d), дефолт `FRIENDS`.
+ *
+ * Открытая витрина с закрытой ценой — законное сочетание; закрытая витрина
+ * настройку цены не сбрасывает (она понадобится, когда витрину откроют
+ * обратно).
  */
 export const hallSettingsSchema = z
   .object({
+    visibility: z.enum(["ALL", "MUTUAL", "NONE"]).optional(),
     priceVisibility: z.enum(["ALL", "FRIENDS", "ME", "NONE"]).optional(),
     totalShown: z.boolean().optional(),
     giverShown: z.boolean().optional(),
@@ -402,9 +412,13 @@ export const hallSettingsSchema = z
 export type HallSettingsInput = z.infer<typeof hallSettingsSchema>;
 
 /**
- * Сохранить настройки зала славы. Ревалидирует комнату тем же тегом, что и
- * остальные настройки: от видимости цены зависит СОСТАВ guest-DTO подарков
- * (services/guest-room → dto/guest-items), и кэш обязан пересобраться.
+ * Сохранить настройки сокровищницы. Ревалидирует комнату тем же тегом, что и
+ * остальные настройки, и это обязательно с ДВУХ сторон:
+ * - от видимости цены зависит СОСТАВ guest-DTO подарков
+ *   (services/guest-room → dto/guest-items);
+ * - от `visibility` зависит, рисуется ли гостю вход «Сокровищница»
+ *   (тикет 116): страница /r/{slug} кэшируется целиком, и без ревалидации
+ *   закрытая витрина осталась бы со ссылкой ещё на всё окно ISR.
  */
 export async function setHallSettings(
   userId: string,
@@ -415,6 +429,7 @@ export async function setHallSettings(
   const updated = await prisma.room.update({
     where: { id: room.id },
     data: {
+      ...(parsed.visibility === undefined ? {} : { hallVisibility: parsed.visibility }),
       ...(parsed.priceVisibility === undefined
         ? {}
         : { hallPriceVisibility: parsed.priceVisibility }),
@@ -428,10 +443,18 @@ export async function setHallSettings(
   // «Сокровищница Милы теперь открыта» (тикет 114). Событие ставится только
   // на ОТКРЫТИЕ и только на настоящее изменение: закрытие — не новость, а
   // повторное сохранение того же положения — не событие вовсе.
+  //
+  // СЧИТАЕТСЯ ПО ДВЕРИ, А НЕ ПО ЦЕНЕ (исправлено вместе с тикетом 116).
+  // Пока настройки «кто входит в витрину» не существовало, поводом взяли
+  // единственное, что было под рукой, — смену видимости ЦЕНЫ. Это было
+  // неверно дважды: цена подарков и открытая витрина — разные события, а
+  // положение FRIENDS у цены читается у нас ЗАКРЫТО (`guestSeesHallPrice`),
+  // то есть строка «теперь открыта» появлялась там, где гостю не открылось
+  // ничего. Теперь повод один и настоящий: дверь была заперта и отперлась.
   const opened =
-    parsed.priceVisibility !== undefined &&
-    parsed.priceVisibility !== room.hallPriceVisibility &&
-    (parsed.priceVisibility === "ALL" || parsed.priceVisibility === "FRIENDS");
+    parsed.visibility !== undefined &&
+    room.hallVisibility === "NONE" &&
+    parsed.visibility !== "NONE";
   if (opened) await recordRoomEvent(room.id, "TREASURY_OPENED");
   return updated;
 }

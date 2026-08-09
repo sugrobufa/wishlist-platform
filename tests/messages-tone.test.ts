@@ -636,6 +636,21 @@ describe("словарь и дизайн-пакет", () => {
       "Experience.validUntil",
       "Experience.when",
       "Experience.where",
+      // Лента «Что происходит» (тикет 114, часть 2). Пять строк событий и
+      // хвост склейки `mergedTail` — ДОСЛОВНО из messages-ru.json поставки
+      // раунда 23 (задание 19, турн 35a); в handoff-словаре пакета секции
+      // Feed нет, поэтому ключи числятся нашими — та же история, что у
+      // `Consent.*`. `Feed.title` — единственная строка не из словаря: имя
+      // секции взято с самого макета 35a («Что происходит»).
+      // `Feed.empty` здесь нет и не будет: дизайн снял его тем же заданием
+      // (пустого состояния у ленты не существует — секция просто отсутствует).
+      "Feed.becameMutual",
+      "Feed.itemsAdded",
+      "Feed.mergedTail",
+      "Feed.roomChanged",
+      "Feed.shelfOpened",
+      "Feed.title",
+      "Feed.treasuryOpened",
       "Goal.amountLabel",
       "Goal.badge",
       "Goal.cancel",
@@ -736,6 +751,16 @@ describe("словарь и дизайн-пакет", () => {
       "Hall.toHall",
       "Hall.total",
       "Hall.totalRounded",
+      // Хвост тикета 98b: строка «Показаться после праздника · да/нет» в
+      // «Моих подарках» — единственное место, где гость может передумать про
+      // связь до праздника. Доска 32a назвала эту форму («передумать в „Моих
+      // бронях"»), но слов к ней не прислала: в её же словаре есть только
+      // секция Consent для двух экранов вопроса. Написано по памятке тона.
+      "MyBookings.connectionHint",
+      "MyBookings.connectionLabel",
+      "MyBookings.connectionLocked",
+      "MyBookings.connectionNo",
+      "MyBookings.connectionYes",
       "Onboarding.emailNote",
       "Onboarding.nameFromBooking",
       "Onboarding.nameLabel",
@@ -820,6 +845,21 @@ describe("словарь и дизайн-пакет", () => {
       "Settings.hallVisFRIENDS",
       "Settings.hallVisME",
       "Settings.hallVisNONE",
+      // «Кто видит сокровищницу» (тикет 116, ADR-0011): три положения над
+      // настройками цены. Дизайн просил эту настройку три раунда подряд, но
+      // рисовал её ЧЕТЫРЬМЯ положениями по образцу цены — владелец свёл к трём
+      // (у экрана «только мне» и «никому» — одна дверь), и своих слов у доски
+      // на три положения нет. Тексты написаны по памятке; заголовок берёт имя
+      // раздела после переименования 06.08.2026 («Сокровищница», не «зал
+      // славы»). Дизайну ушла просьба нарисовать секцию из трёх положений —
+      // приедет, и эти ключи обязаны свериться с ней.
+      "Settings.hallWhoALL",
+      "Settings.hallWhoHintALL",
+      "Settings.hallWhoHintMUTUAL",
+      "Settings.hallWhoHintNONE",
+      "Settings.hallWhoLabel",
+      "Settings.hallWhoMUTUAL",
+      "Settings.hallWhoNONE",
       // Свет и время суток (тикет 96, доска Б6): две последние ручки
       // персонализации. Доска рисовала сегменты, словами дизайн их не
       // подписывал — названия положений наши, по памятке.

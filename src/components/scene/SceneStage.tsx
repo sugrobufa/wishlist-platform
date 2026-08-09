@@ -2,14 +2,16 @@
 
 // Живая сцена комнаты (тикет 02): кадр интерьера + стопка кадров «открыто» +
 // хотспоты. Тап по зоне — вычисленный наезд камеры (motion.json → openZone),
-// выход — «сетка гаснет → камера отъезжает» (closeZone). Координаты только из
-// rooms.json через src/config/design; телефон и десктоп — одна карта.
+// выход — три фазы closeZone: «сетка гаснет» (0 · 200), «камера отходит»
+// (120 · 760/820, settle) и «вуаль поднимается» (120 · 600, out). Координаты
+// только из rooms.json через src/config/design; телефон и десктоп — одна карта.
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { preload } from "react-dom";
 import { useTranslations } from "next-intl";
 import { hitTargetMin, scene, sceneMotion, type Room, type RoomZone } from "@/config/design";
 import { roomImageUrl } from "@/app/rooms/room-image";
 import {
+  closeScore,
   computeZoneCamera,
   frameRect,
   rectToPercent,
@@ -32,6 +34,7 @@ import {
 import {
   bloomTint,
   effectiveLightness,
+  EMPTY_ZONE_VEIL,
   NATIVE_LIGHT_COLOR,
   NATIVE_TIME_OF_DAY,
   sceneFilter,
@@ -70,8 +73,10 @@ export type SceneStageProps = {
    * особенно это важно на мобильном, чтобы пользователь понимал, что комната
    * шире, чем он видит». Прежний довод «своя комната хозяйке знакома» отменён
    * им же: знание про ШИРИНУ кадра не приходит от знакомства с содержимым.
-   * Первое касание останавливает проезд до конца сессии — прицелиться в зону
-   * это не мешает.
+   * Касание, драг и наезд на зону ставят проезд на ПАУЗУ (прицелиться в зону
+   * это не мешает), а через несколько секунд покоя он возвращается сам —
+   * тикет 117, приёмка владельца: «спустя некоторое время комната должна
+   * гулять как и при первом входе».
    */
   drift?: boolean;
   /**
@@ -87,6 +92,15 @@ export type SceneStageProps = {
    * вещи-примеры — владелец решил 09.08.2026, что это темнота, а не призраки.
    */
   empty?: boolean;
+  /**
+   * Ключи зон, за которыми нет ни одной вещи (35b, раунд 23 · турн 25c).
+   *
+   * Наезд на такую зону гасит СЦЕНУ ПОД ПАНЕЛЬЮ — не панель и не экран «зона
+   * списком» (там сцены нет вовсе, гасить нечего; дизайн снял это
+   * недоразумение сам). Список приходит с сервера: пустота — свойство данных,
+   * а не разметки, и сцена его не вычисляет.
+   */
+  emptyZones?: readonly string[];
   className?: string;
 };
 
@@ -101,6 +115,11 @@ const FRAME_DESKTOP = rectToPercent(frameRect("desktop"), "desktop");
 const WALK_PHONE = walkScore("phone");
 const WALK_DESKTOP = walkScore("desktop");
 
+// Выход: три фазы closeZone (camera.ts → closeScore). Своя длительность, своя
+// кривая и свой старт — вход этих чисел не видит и наоборот.
+const CLOSE_PHONE = closeScore("phone");
+const CLOSE_DESKTOP = closeScore("desktop");
+
 // Отклик предмета светом (тикет 64): две фазы партитуры, разбор выбора —
 // zone-marker.ts → wakeScore.
 const WAKE = wakeScore();
@@ -110,8 +129,18 @@ const BASE_VARS = {
   "--ease-walk": sceneMotion.easingWalk,
   "--ease-settle": sceneMotion.easingSettle,
   "--cam-origin": sceneMotion.camera.origin,
-  "--cam-ms": `${sceneMotion.camera.durationMs.phone}ms`,
-  "--cam-ms-d": `${sceneMotion.camera.durationMs.desktop}ms`,
+  // Выход из зоны, closeZone «Камера отходит»: 760/820 мс кривой settle со
+  // стартом +120. Числа выхода отдельны от входа — так написано в контракте
+  // («наружу спокойнее, чем внутрь»), и до этого тикета выход ехал на числах
+  // входа (720/810, кривая out) — долг ADR-0003 §4.
+  "--close-at": `${CLOSE_PHONE.camera.atMs}ms`,
+  "--close-ms": `${CLOSE_PHONE.camera.durationMs}ms`,
+  "--close-ms-d": `${CLOSE_DESKTOP.camera.durationMs}ms`,
+  "--close-ease": CLOSE_PHONE.camera.easing,
+  // closeZone «Вуаль поднимается» — свой темп и та же задержка, что у камеры.
+  "--veil-out-at": `${CLOSE_PHONE.veil.atMs}ms`,
+  "--veil-out-ms": `${CLOSE_PHONE.veil.durationMs}ms`,
+  "--veil-out-ease": CLOSE_PHONE.veil.easing,
   // Фаза 1 «Вес переносится назад» — одинакова на обоих видах.
   "--lead-ms": `${WALK_PHONE.lead.durationMs}ms`,
   "--lead-rest": WALK_PHONE.lead.rest,
@@ -144,7 +173,8 @@ const BASE_VARS = {
   "--wake-at-d": `${WAKE.atMs.desktop}ms`,
   "--wake-ms": `${WAKE.riseMs}ms`,
   "--wake-out-ms": `${WAKE.fallMs}ms`,
-  "--grid-ms": `${sceneMotion.closeGrid.durationMs}ms`,
+  // closeZone «Сетка гаснет» — первая фаза выхода, с нуля.
+  "--grid-ms": `${CLOSE_PHONE.grid.durationMs}ms`,
   "--grid-at": `${sceneMotion.gridEnter.atMs.phone}ms`,
   "--grid-at-d": `${sceneMotion.gridEnter.atMs.desktop}ms`,
   "--grid-in-o": `${sceneMotion.gridEnter.perTileMs.opacity}ms`,
@@ -188,6 +218,7 @@ export function SceneStage({
   timeOfDay = NATIVE_TIME_OF_DAY,
   lightColor = NATIVE_LIGHT_COLOR,
   empty = false,
+  emptyZones,
   className,
 }: SceneStageProps) {
   const t = useTranslations("Scene");
@@ -266,10 +297,18 @@ export function SceneStage({
 
   const closeZone = useCallback(() => {
     if (phase !== "open") return;
-    // Партитура closeZone: сетка гаснет (220 мс) → камера отъезжает.
+    // Партитура closeZone целиком (три фазы, camera.ts → closeScore):
+    //   0 мс   «Сетка гаснет»       200 мс — этот таймер;
+    //   120 мс «Камера отходит»     760/820 мс, settle;
+    //   120 мс «Вуаль поднимается»  600 мс, out.
+    // Вторую и третью фазы JS не ведёт вовсе: они стартуют сами, как только со
+    // сцены снимается класс `zoomed` (`setPhase("closing")` ниже), а их
+    // задержки лежат в CSS полем `transition-delay`. Таймер отмеряет ровно
+    // первую фазу: к его концу лист и подпись догорели, и их можно снимать с
+    // дерева — камера с вуалью к этому моменту уже едут.
     const gridMs = reducedMotion
       ? sceneMotion.reducedTransitionMs
-      : sceneMotion.closeGrid.durationMs;
+      : CLOSE_PHONE.grid.durationMs;
     setPhase("closing");
     clearTimer();
     timerRef.current = window.setTimeout(() => {
@@ -307,7 +346,20 @@ export function SceneStage({
     () => zones.find((zone) => zone.key === activeKey) ?? null,
     [zones, activeKey],
   );
-  const zoomedIn = phase !== "idle" && activeZone !== null;
+  /**
+   * ДВА СОСТОЯНИЯ ВМЕСТО ОДНОГО (долг В10, ADR-0003 §4).
+   *
+   * `zoomedIn` — камера В зоне. Гаснет в момент нажатия «Отойти»: с этого
+   * такта наезд снимается, и обе фазы выхода (камера и вуаль) стартуют своими
+   * переходами со своей задержкой +120 мс. Прежде фаза «closing» держала
+   * камеру на месте, а выход начинался только через 200 мс — не по контракту:
+   * там камера трогается, ПОКА сетка гаснет.
+   *
+   * `zoneOpen` — зона открыта как экран: лист вещей, подпись, спрятанные
+   * хотспоты. Живёт до конца первой фазы, чтобы листу было чем догореть.
+   */
+  const zoomedIn = phase === "open" && activeZone !== null;
+  const zoneOpen = phase !== "idle" && activeZone !== null;
 
   // Указатель зон в нижней полосе (тикет 34) живёт в соседнем поддереве
   // страницы, поэтому связь с ним — через контекст: сцена отдаёт вход в зону
@@ -322,7 +374,7 @@ export function SceneStage({
     },
     [zones, openZone],
   );
-  const { lit, zoneEvents } = useSceneZoneIndex(openZoneByKey, zoomedIn ? activeKey : null);
+  const { lit, zoneEvents } = useSceneZoneIndex(openZoneByKey, zoneOpen ? activeKey : null);
 
   // Пан окна по кадру (тикет 55): драг в покое двигает окно 430 по кадру 630,
   // тап остаётся тапом. Формула позиции — immersive-layout.ts, поведение
@@ -372,7 +424,7 @@ export function SceneStage({
     };
 
     // Зона открыта: слой хотспотов спрятан, свет никому не нужен.
-    if (zoomedIn) {
+    if (zoneOpen) {
       setNear(null, 0);
       return;
     }
@@ -438,7 +490,7 @@ export function SceneStage({
       if (raf) window.cancelAnimationFrame(raf);
       setNear(null, 0);
     };
-  }, [zones, zoomedIn, finePointer]);
+  }, [zones, zoneOpen, finePointer]);
 
   // Наезд считается формулой для актуального вида и раскладывается по двум
   // слоям: внешний везёт сдвиг, внутренний — масштаб. В покое инлайновых
@@ -455,8 +507,21 @@ export function SceneStage({
   // (`bloomAR`/`bloomRot`), как у метки. Значения живут инлайн-переменными,
   // движение целиком в CSS: ре-рендеров на кадр нет, как у движка близости
   // (тикет 50) и панорамы (тикет 55).
-  const wakeZone = zoomedIn && zoneWakesWithLight(activeZone) ? activeZone : null;
+  const wakeZone = zoneOpen && zoneWakesWithLight(activeZone) ? activeZone : null;
   const wakeBox = wakeZone ? zoneFramePercent(wakeZone.rect) : null;
+
+  // Наезд на ПУСТУЮ зону (35b): сцена под раскрытой панелью гаснет — на .56
+  // яркости и мягкой вуалью сверху. Слой ниже стоит всегда и гасится
+  // прозрачностью, поэтому затемнение ПРИХОДИТ ВМЕСТЕ С КАМЕРОЙ, а не
+  // появляется готовым. Держится, пока камера в зоне: с первым тактом выхода
+  // сцена начинает светлеть обратно.
+  //
+  // В ПУСТОЙ КОМНАТЕ СЛОЯ НЕТ ВОВСЕ. Там пусты все зоны до единой, и темнота
+  // уже сказана самой комнатой — и фильтром, и вуалью (тикет 104). Второй слой
+  // поверх множится ровно так же, как множились бы яркости: две вуали
+  // `multiply` у нижней кромки оставляют 6.6% кадра. Тот же довод, что у ночи,
+  // только про соседний слой.
+  const zoneDimOn = zoomedIn && !empty && (emptyZones?.includes(activeZone.key) ?? false);
 
   // Метка зоны: одно число комнаты решает, чем она обозначена — светом
   // (тёмный интерьер) или тенью вокруг предмета (светлый). Веса считаются
@@ -475,9 +540,12 @@ export function SceneStage({
       "--accent": bloomTint(lightColor, preset.accent),
       "--room-lightness": `${lightness}`,
       "--zone-bloom-weight": `${weights.bloom}`,
-      "--grade-filter": sceneFilter(timeOfDay, lightColor, empty, preset.tod),
+      // Яркость пустой зоны живёт ЗДЕСЬ, а не на слое: фильтр слоем не
+      // выражается, а фотографию мы не трогаем. Правило «не множится» —
+      // в grading.ts: ни на ночь, ни на темноту пустой комнаты.
+      "--grade-filter": sceneFilter(timeOfDay, lightColor, empty, preset.tod, zoneDimOn),
     } as React.CSSProperties;
-  }, [preset.accent, preset.roomLightness, preset.tod, timeOfDay, lightColor, empty]);
+  }, [preset.accent, preset.roomLightness, preset.tod, timeOfDay, lightColor, empty, zoneDimOn]);
 
   /** Слои грейдинга: по одному на ручку, каждый со своим блендом. */
   const grades = useMemo(
@@ -537,7 +605,10 @@ export function SceneStage({
                             key={zone.key}
                             aria-hidden
                             className={
-                              zoomedIn && zone.key === activeKey
+                              // Кроссфейд кадра «открыто» закрывается вместе с
+                              // листом (первая фаза выхода), а не с камерой:
+                              // створки успевают сойтись, пока она отходит.
+                              zoneOpen && zone.key === activeKey
                                 ? `${s.openFrame} ${s.openFrameOn}`
                                 : s.openFrame
                             }
@@ -558,6 +629,19 @@ export function SceneStage({
                           style={{ background: grade.overlay, mixBlendMode: grade.blend }}
                         />
                       ))}
+                      {/* Наезд на пустую зону (35b): вуаль поверх грейдинга и
+                          под откликом света — гаснет интерьер, а не свечение.
+                          Узел стоит всегда, видимость решает класс: новый узел
+                          въехал бы мгновенно, и «сцена гаснет по мере подхода»
+                          превратилось бы в щелчок. */}
+                      <div
+                        aria-hidden
+                        className={zoneDimOn ? `${s.zoneDim} ${s.zoneDimOn}` : s.zoneDim}
+                        style={{
+                          background: EMPTY_ZONE_VEIL.overlay,
+                          mixBlendMode: EMPTY_ZONE_VEIL.blend,
+                        }}
+                      />
                       {/* Отклик светом лежит ВНУТРИ дыхания, рядом с кадром:
                           он едет с камерой и дышит с фотографией, то есть
                           приклеен к предмету, а не к экрану. Ключ — номер
@@ -612,8 +696,8 @@ export function SceneStage({
 
         <div
           ref={hotspotsLayerRef}
-          className={zoomedIn ? `${s.hotspots} ${s.hotspotsHidden}` : s.hotspots}
-          inert={zoomedIn}
+          className={zoneOpen ? `${s.hotspots} ${s.hotspotsHidden}` : s.hotspots}
+          inert={zoneOpen}
           {...zoneEvents}
         >
           {zones.map((zone, index) => (
@@ -641,7 +725,7 @@ export function SceneStage({
           ))}
         </div>
 
-        {zoomedIn && (
+        {zoneOpen && (
           <div className={phase === "closing" ? `${s.caption} ${s.captionOut}` : s.caption}>
             <h2 className={s.captionTitle}>{zoneLabel(activeZone)}</h2>
             {/* «Отойти» — тихая пилюля из пакета (tokens.json →
@@ -668,7 +752,7 @@ export function SceneStage({
           заканчивается выше, пилюля лежит на вуали, а не на комнате. Позиция —
           scene.module.css → .hint, одна формула на оба вида; планка таб-бара
           живёт ниже, у самого края (bottom 14), и они не толкаются. */}
-      <div className={zoomedIn ? `${s.hint} ${s.hintHidden}` : s.hint} aria-hidden>
+      <div className={zoneOpen ? `${s.hint} ${s.hintHidden}` : s.hint} aria-hidden>
         {/* В пустой комнате подсказка «коснись зоны» врёт: касаться нечего.
             Вместо неё — обещание, что свет включится сам (тикет 104). */}
         <span className={s.hintPill}>{empty ? t("emptyRoom") : t("hint")}</span>
@@ -684,7 +768,7 @@ export function SceneStage({
           зоне кадр не панорамируется, и нить показывала бы неправду. */}
       <div
         ref={threadRef}
-        className={zoomedIn ? `${s.thread} ${s.threadHidden}` : s.thread}
+        className={zoneOpen ? `${s.thread} ${s.threadHidden}` : s.thread}
         aria-hidden
       >
         <span className={s.threadSegment} />
@@ -693,7 +777,7 @@ export function SceneStage({
       {/* Акцент и ink комнаты панель передаёт дальше карточке копилки
           (зона «Просто деньги», тикет 44) — она рисуется не из вещей. */}
       <ZonePanel
-        zone={zoomedIn ? activeZone : null}
+        zone={zoneOpen ? activeZone : null}
         closing={phase === "closing"}
         accent={preset.accent}
         ink={preset.ink}

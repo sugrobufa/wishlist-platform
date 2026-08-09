@@ -1,7 +1,8 @@
 // Чистая математика наезда камеры. Координаты приходят ТОЛЬКО из rooms.json
-// (через src/config/design), партитура — motion.json → openZone: масштаб,
-// длительности, кривые. Ничего не задаётся руками; десктоп — тот же
-// расчёт через factorFromPhone (1.7778).
+// (через src/config/design), партитура — motion.json: `openZone` на вход
+// (`walkScore`) и `closeZone` на выход (`closeScore`) — масштаб, длительности,
+// кривые. Ничего не задаётся руками; десктоп — тот же расчёт через
+// factorFromPhone (1.7778).
 //
 // СИСТЕМА КООРДИНАТ (раунд 4 пакета, тикет 40). Прямоугольники зон заданы в
 // координатах КАДРА 630×351. Сцена — это окно, в котором кадр стоит: на
@@ -276,6 +277,52 @@ export function walkScore(view: SceneView): WalkScore {
       easing: curve(scale.easing),
     },
     totalMs: settle.atMs[view] + settle.durationMs,
+  };
+}
+
+export type CloseScore = {
+  /** «Сетка гаснет» — лист вещей и подпись зоны уходят первыми, с нуля. */
+  grid: { atMs: number; durationMs: number };
+  /** «Камера отходит» — вся стопка слоёв возвращается в покой одним движением. */
+  camera: WalkLayerTiming;
+  /** «Вуаль поднимается» — радиальная вуаль отпускает периферию кадра. */
+  veil: WalkLayerTiming;
+  /** От нажатия «Отойти» до полного покоя сцены, мс. */
+  totalMs: number;
+};
+
+/**
+ * Партитура ВЫХОДА из зоны — три фазы `closeZone` (долг ADR-0003 §4).
+ *
+ * ПОЧЕМУ ОДИН СЛОЙ, А НЕ ПЯТЬ, КАК НА ВХОДЕ. Контракт говорит прямо:
+ * «Перелёта на выходе нет: отступать спиной с покачиванием — не человеческий
+ * жест». Значит нет ни переноса веса, ни перелёта, ни оседания — одно
+ * движение кривой `settle`, и всей стопке слоёв хватает одного и того же
+ * правила покоя: каждый возвращается к своему `transform` из CSS.
+ *
+ * ПОЧЕМУ НАРУЖУ ДОЛЬШЕ, ЧЕМ ВНУТРЬ (760 против 620 на масштабе входа) —
+ * там же: «внутрь ведёт намерение, наружу — просто отпустил».
+ *
+ * ЗАДЕРЖКИ ЖИВУТ В CSS. У всех трёх фаз своё `at` (0 · 120 · 120), и ни одна
+ * не ждёт предыдущую — как на входе. Поэтому JS отмеряет таймером только
+ * первую («сетка гаснет»): к её концу лист догорел и его можно снимать с
+ * дерева, а камера с вуалью к этому моменту уже едут своими переходами.
+ */
+export function closeScore(view: SceneView): CloseScore {
+  const { grid, camera, veil } = sceneMotion.close;
+  return {
+    grid: { atMs: grid.atMs, durationMs: grid.durationMs },
+    camera: {
+      atMs: camera.atMs,
+      durationMs: camera.durationMs[view],
+      easing: curve(camera.easing),
+    },
+    veil: { atMs: veil.atMs, durationMs: veil.durationMs, easing: curve(veil.easing) },
+    totalMs: Math.max(
+      grid.atMs + grid.durationMs,
+      camera.atMs + camera.durationMs[view],
+      veil.atMs + veil.durationMs,
+    ),
   };
 }
 

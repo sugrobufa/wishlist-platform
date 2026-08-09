@@ -3,6 +3,7 @@ import Link from "next/link";
 import { getLocale, getTranslations } from "next-intl/server";
 import { notFound } from "next/navigation";
 import { getGuestHall } from "@/server/services/guest-hall";
+import { getSessionUserId } from "@/server/services/rooms";
 import { rooms } from "@/config/design";
 import { roomImageUrl } from "@/app/rooms/room-image";
 import { formatHallMoney } from "@/app/room/hall/money";
@@ -10,9 +11,20 @@ import s from "@/components/hall/hall.module.css";
 
 type Params = { params: Promise<{ slug: string }> };
 
-// ISR, как у самой комнаты (тикет 07): вещи витрины лежат в Data Cache с тем
-// же тегом room-{id}, и мутации хозяйки ревалидируют обе страницы разом.
-export const revalidate = 300;
+// ПОЛНОСТРАНИЧНОГО ISR ЗДЕСЬ БОЛЬШЕ НЕТ (тикет 116, ADR-0011). Витрина
+// получила настройку «кто её видит», и «только взаимным друзьям» — это ответ
+// про КОНКРЕТНОГО зрителя: страница обязана читать сессию, а страница,
+// читающая сессию, кэшироваться целиком не может — иначе первый же гость
+// раздал бы свой ответ всем следующим.
+//
+// НАГРУЗКА НА БД ОТ ЭТОГО НЕ РАСТЁТ. Сами вещи витрины по-прежнему лежат в
+// Data Cache (unstable_cache в guest-hall.ts, тег room-{id}) и переживают
+// смену зрителя; per-request остаётся только сборка HTML и две дешёвые
+// проверки по unique-индексам — комната по слагу и взаимность пары.
+//
+// Соседняя /r/{slug} свой ISR СОХРАНЯЕТ и сессию не читает (её шапка):
+// вход «Сокровищница» узнаёт свой ответ из некэшируемого канала «занято».
+export const dynamic = "force-dynamic";
 
 // Только generateMetadata: рядом с ним `export const metadata` Next запрещает.
 export async function generateMetadata(): Promise<Metadata> {
@@ -22,19 +34,40 @@ export async function generateMetadata(): Promise<Metadata> {
 }
 
 /**
+ * userId сессии БЕЗ требования сессии — тот же ленивый auth, что в канале
+ * «занято» и в роутах брони (тикеты 08/11/41): `@/server/auth` живёт только в
+ * runtime Next (request-scope), а вне его — vitest зовёт эту страницу
+ * напрямую — зритель честно считается анонимом.
+ */
+async function optionalSessionUserId(): Promise<string | null> {
+  try {
+    const { auth } = await import("@/server/auth");
+    const session = await auth();
+    return await getSessionUserId(session?.user);
+  } catch {
+    return null;
+  }
+}
+
+/**
  * Сокровищница глазами ГОСТЯ (тикет 93, доска А5 · турны 11b и 11c).
  *
  * ЧТО ВИДНО ГОСТЮ, РЕШАЕТ НЕ ЭТОТ ФАЙЛ. `getGuestHall` уже отдал ровно то, что
- * можно: спрятанные вещи и выключенные зоны отфильтрованы на чтении (инвариант
- * №5), спрятанные глазком — фильтром наблюдателя (тикет 89), цена появляется
+ * можно: сама дверь — «кто видит сокровищницу» (тикет 116, ADR-0011),
+ * спрятанные вещи и выключенные зоны отфильтрованы на чтении (инвариант №5),
+ * спрятанные глазком — фильтром наблюдателя (тикет 89), цена появляется
  * ключом только по настройке зала (инвариант №8, ADR-0004). Здесь раскладка.
+ *
+ * Закрытая витрина — 404 тем же `notFound()`, что и неизвестный слаг: «пусто»
+ * и «закрыто» гость различать не должен. Пустая витрина при этом 404 НЕ даёт
+ * — она приезжает своим пустым состоянием.
  *
  * Действий на этой странице нет ни одного: вещи «люблю» уже подарены, дарить
  * их нельзя, а бронями витрина не занимается вовсе (инвариант №1).
  */
 export default async function GuestHallPage({ params }: Params) {
   const { slug } = await params;
-  const hall = await getGuestHall(slug);
+  const hall = await getGuestHall(slug, await optionalSessionUserId());
   if (!hall) notFound();
 
   const preset = rooms.find((candidate) => candidate.id === hall.preset);

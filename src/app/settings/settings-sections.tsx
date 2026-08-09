@@ -626,14 +626,30 @@ export function OccasionSection({
   );
 }
 
-// ---------- Зал славы: стоимость подарков (тикет 35, турн 12d) ----------
+// ---------- Сокровищница: кто видит (тикет 116) и стоимость (тикет 35) ----------
 
-/** Четыре положения видимости цены в зале — порядок доски, сверху вниз. */
+/**
+ * ТРИ положения «кто видит сокровищницу» (тикет 116, ADR-0011) — порядок
+ * ADR, сверху вниз, от открытого к закрытому. Не четыре, как у цены под
+ * ними: у ЭКРАНА «только мне» и «никому» — одна и та же дверь, и человек не
+ * отличил бы результат.
+ */
+const HALL_WHO = ["ALL", "MUTUAL", "NONE"] as const;
+export type HallWho = (typeof HALL_WHO)[number];
+
+/**
+ * Четыре положения видимости ЦЕНЫ в сокровищнице — порядок доски, сверху
+ * вниз. Отдельный список, а не тот же самый: настройки про разное, и общий
+ * тип означал бы, что их можно перепутать местами (ADR-0011).
+ */
 const HALL_VISIBILITIES = ["ALL", "FRIENDS", "ME", "NONE"] as const;
-export type HallVisibility = (typeof HALL_VISIBILITIES)[number];
+export type HallPriceVisibility = (typeof HALL_VISIBILITIES)[number];
 
 export type HallSettingsView = {
-  priceVisibility: HallVisibility;
+  /** Кто входит в саму витрину (тикет 116). */
+  visibility: HallWho;
+  /** Кто видит там цену (тикет 35, ADR-0004). */
+  priceVisibility: HallPriceVisibility;
   totalShown: boolean;
   giverShown: boolean;
   roundPrices: boolean;
@@ -683,10 +699,53 @@ function Toggle({
   );
 }
 
+/** Один ряд переключателя: кружок и подпись. Вид у обеих настроек зала общий. */
+function RadioRow({
+  label,
+  active,
+  accent,
+  onPick,
+}: {
+  label: string;
+  active: boolean;
+  accent: string;
+  onPick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      role="radio"
+      aria-checked={active}
+      onClick={onPick}
+      className="pressable flex items-center gap-3 border-t border-surface-hairline py-3.5 text-left first:border-t-0"
+    >
+      <span
+        aria-hidden
+        className="h-[17px] w-[17px] flex-none rounded-full border"
+        style={
+          active
+            ? { borderColor: accent, borderWidth: 5 }
+            : { borderColor: "rgba(255,249,242,.28)", borderWidth: 1.5 }
+        }
+      />
+      <span
+        className={
+          active ? "text-sm font-medium text-text-primary" : "text-sm font-medium text-text-muted"
+        }
+      >
+        {label}
+      </span>
+    </button>
+  );
+}
+
 /**
- * Раздел «Зал славы»: кто видит стоимость подарков (четыре положения, а не
- * тумблер — «стоимость это чувствительно»), сумма всего зала отдельным
- * тумблером, имя дарителя и округление. Сохраняется целиком, как на доске.
+ * Раздел «Сокровищница». ДВЕ настройки, и они про разное (ADR-0011):
+ * - «Кто видит сокровищницу» — три положения, дефолт открытый. Стоит ПЕРВОЙ:
+ *   вопрос «кто вообще войдёт» старше вопроса «что он там увидит»;
+ * - «Показывать стоимость вещей» — четыре положения, а не тумблер
+ *   («стоимость это чувствительно»), дефолт «только друзьям» (ADR-0004).
+ * Ниже — сумма, имя дарителя и округление. Сохраняется целиком, как на доске.
  *
  * Тумблер «Кто подарил» управляет ПОКАЗОМ имени в зале, а не повторным
  * раскрытием: имена раскрываются ровно один раз (инвариант №2).
@@ -704,40 +763,37 @@ export function HallSection({
 
   return (
     <Section overline={t("hallOverline")}>
-      <p className="text-sm text-text-muted">{t("hallPriceLabel")}</p>
+      {/* Кто вообще входит в витрину (тикет 116) — над настройками цены. */}
+      <p className="text-sm text-text-muted">{t("hallWhoLabel")}</p>
+      <div role="radiogroup" aria-label={t("hallWhoLabel")} className="flex flex-col">
+        {HALL_WHO.map((option) => (
+          <RadioRow
+            key={option}
+            label={t(`hallWho${option}`)}
+            active={draft.visibility === option}
+            accent={accent}
+            onPick={() => setDraft((current) => ({ ...current, visibility: option }))}
+          />
+        ))}
+      </div>
+      {/* Подпись под выбранным положением: три двери похожи на вид и
+          расходятся по последствиям — что именно выбрано, лучше сказать
+          словами. Тот же приём, что у «только друзьям» ниже. */}
+      <p className="text-xs text-text-faint">{t(`hallWhoHint${draft.visibility}`)}</p>
+
+      <p className="mt-1 border-t border-surface-hairline pt-4 text-sm text-text-muted">
+        {t("hallPriceLabel")}
+      </p>
       <div role="radiogroup" aria-label={t("hallPriceLabel")} className="flex flex-col">
-        {HALL_VISIBILITIES.map((option) => {
-          const active = draft.priceVisibility === option;
-          return (
-            <button
-              key={option}
-              type="button"
-              role="radio"
-              aria-checked={active}
-              onClick={() => setDraft((current) => ({ ...current, priceVisibility: option }))}
-              className="pressable flex items-center gap-3 border-t border-surface-hairline py-3.5 text-left first:border-t-0"
-            >
-              <span
-                aria-hidden
-                className="h-[17px] w-[17px] flex-none rounded-full border"
-                style={
-                  active
-                    ? { borderColor: accent, borderWidth: 5 }
-                    : { borderColor: "rgba(255,249,242,.28)", borderWidth: 1.5 }
-                }
-              />
-              <span
-                className={
-                  active
-                    ? "text-sm font-medium text-text-primary"
-                    : "text-sm font-medium text-text-muted"
-                }
-              >
-                {t(`hallVis${option}`)}
-              </span>
-            </button>
-          );
-        })}
+        {HALL_VISIBILITIES.map((option) => (
+          <RadioRow
+            key={option}
+            label={t(`hallVis${option}`)}
+            active={draft.priceVisibility === option}
+            accent={accent}
+            onPick={() => setDraft((current) => ({ ...current, priceVisibility: option }))}
+          />
+        ))}
       </div>
       {draft.priceVisibility === "FRIENDS" && (
         <p className="text-xs text-text-faint">{t("hallFriendsHint")}</p>

@@ -7,7 +7,7 @@ import s from "./scene.module.css";
 
 type ZonePanelProps = {
   zone: RoomZone | null;
-  /** Фаза «сетка гаснет» (closeZone[0], 220 мс) перед отъездом камеры. */
+  /** Фаза «Сетка гаснет» (closeZone, 200 мс) — камера отходит следом, с +120. */
   closing: boolean;
   /** Акцент комнаты — карточке копилки (полоса, плашка). */
   accent: string;

@@ -16,6 +16,7 @@ import { IconLock } from "@/components/icons";
 import { GuestBookingProvider } from "./booking/booking-context";
 import { FreeGifts } from "./booking/free-gifts";
 import { GuestZoneGrid } from "./booking/guest-zone-grid";
+import { HallLink } from "./booking/hall-link";
 import { MyBookingsLink } from "./booking/my-bookings-link";
 import { daysUntilOccasion } from "./welcome";
 
@@ -133,6 +134,17 @@ export default async function GuestRoomPage({ params }: Params) {
   const hasHall = Object.values(room.itemsByZone).some((items) =>
     items.some((item) => item.state === "LOVE" && !item.isDemo && item.inHall),
   );
+
+  // …и только когда витрина открыта (тикет 116, ADR-0011): ссылки, ведущей в
+  // 404, быть не должно. Три положения решаются здесь тремя разными способами,
+  // и все три сохраняют полностраничный ISR — сессию эта страница не читает:
+  // - ALL — ссылка рисуется сервером, как и до тикета: ответ один на всех;
+  // - NONE — не рисуется вовсе: гостю входа нет ни при каком зрителе;
+  // - MUTUAL — ответ про КОНКРЕТНОГО зрителя, поэтому его приносит клиентский
+  //   `HallLink` из некэшируемого канала «занято» (поле `hallOpen`).
+  // Хозяйка, открывшая свою же ссылку, вход видит при любом положении —
+  // канал отвечает ей `hallOpen: true` (services/bookings.takenForOwner).
+  const hallHref = `/r/${room.nick ?? room.shareSlug}/hall`;
 
   // Приветствие холодному гостю (тикет 38, турн 12b): три тихие строки над
   // сценой. Первое, что человек видит, — всё ещё чужая комната; приветствие
@@ -290,15 +302,14 @@ export default async function GuestRoomPage({ params }: Params) {
                       {tList("toList")}
                     </Link>
                     {/* Витрина хозяйки (тикет 93, доска А5): не «что подарить»,
-                        а «кто она» — вещи, которые у неё уже есть. */}
-                    {hasHall && (
-                      <Link
-                        href={`/r/${room.nick ?? room.shareSlug}/hall`}
-                        className="pressable btn-quiet"
-                      >
+                        а «кто она» — вещи, которые у неё уже есть. Кому она
+                        открыта — решает настройка комнаты (тикет 116). */}
+                    {hasHall && room.hallVisibility === "ALL" && (
+                      <Link href={hallHref} className="pressable btn-quiet">
                         {tHall("toHall")}
                       </Link>
                     )}
+                    {hasHall && room.hallVisibility === "MUTUAL" && <HallLink href={hallHref} />}
                     {/* «Мои брони · N» — появляется после клиентского fetch,
                         если cookie непуст. */}
                     <MyBookingsLink />

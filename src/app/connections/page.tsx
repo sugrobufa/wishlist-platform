@@ -5,10 +5,12 @@ import { redirect } from "next/navigation";
 import { auth } from "@/server/auth";
 import { getRoomForUser, getSessionUserId } from "@/server/services/rooms";
 import { listConnections, listPendingConsent } from "@/server/services/connections";
+import { listFriendsFeed } from "@/server/services/friends-feed";
 import { rooms } from "@/config/design";
 import { TabBar } from "@/components/tab-bar/tab-bar";
 import { StayInTouch } from "@/components/consent/stay-in-touch";
 import { ConnectionsList } from "./connections-list";
+import { WhatsHappening } from "./whats-happening";
 
 export const dynamic = "force-dynamic";
 
@@ -23,6 +25,10 @@ export async function generateMetadata(): Promise<Metadata> {
  * Все/Взаимно/Слежу/
  * Смотрели, у каждой строки — происхождение («дарил(а) тебе N раз»,
  * «смотрел(а) · N визитов»).
+ *
+ * Внизу — лента «Что происходит» (тикет 114, часть 2, макет 35a): хроника
+ * комнат друзей. Её может не быть вовсе, и это нормальное состояние экрана:
+ * у новичка событий нет, и секция не рисуется даже заголовком (задание 19).
  *
  * ИНВАРИАНТ №4: здесь НЕТ ни поиска людей, ни добавления — связи рождаются
  * сами. Единственная мутация страницы — ответ «остаться на связи?» (тикет 98):
@@ -45,14 +51,28 @@ export default async function ConnectionsPage() {
   const accent = preset?.accent ?? "#E7C9A9";
   const ink = preset?.ink ?? "#241A0E";
 
+  // «Сейчас» фиксируется на сервере ОДИН раз: страница force-dynamic (рендер
+  // на каждый запрос). От этого же момента считает клиентский список — без
+  // гидрационных расхождений и без ENVIRONMENT_FALLBACK; и от него же считает
+  // свежесть ленты, чтобы «3 дн» в строке и её право на жизнь не разъезжались.
+  // eslint-disable-next-line react-hooks/purity -- перезапуска рендера с устаревшим now у RSC-страницы не бывает
+  const now = Date.now();
+
   const connections = await listConnections(userId);
   // Вопрос «остаться на связи?» второй стороне (тикет 98): даритель узнаёт о
   // связи здесь — экрана «что подарили» у него нет, это экран хозяйки.
   const consent = await listPendingConsent(userId);
+  // Лента «Что происходит» (тикет 114, часть 2): вехи комнат друзей и их новые
+  // желания. Пусто — секции не будет вовсе, вместе с заголовком (задание 19).
+  const feed = await listFriendsFeed(userId, new Date(now));
+  // Считаем ТОЛЬКО состоявшиеся: односторонняя строка «знакомы · подарок в
+  // истории» (доска 32a) видна в списке, но ни «взаимно», ни «слежу» она не
+  // является — назвать её так значило бы соврать про отказ.
+  const friends = connections.filter((row) => row.consent === "active");
   const counts = {
-    mutual: connections.filter((row) => row.kind === "MUTUAL").length,
-    follow: connections.filter((row) => row.kind === "FOLLOW").length,
-    viewed: connections.filter((row) => row.kind === "VIEWED").length,
+    mutual: friends.filter((row) => row.kind === "MUTUAL").length,
+    follow: friends.filter((row) => row.kind === "FOLLOW").length,
+    viewed: friends.filter((row) => row.kind === "VIEWED").length,
   };
 
   return (
@@ -67,7 +87,7 @@ export default async function ConnectionsPage() {
             {t("title")}
             {connections.length > 0 && ` · ${connections.length}`}
           </h1>
-          {connections.length > 0 && (
+          {friends.length > 0 && (
             <p className="mt-2.5 text-[11px] font-medium text-text-muted">
               {t("countsLine", counts)}
             </p>
@@ -80,11 +100,7 @@ export default async function ConnectionsPage() {
         <StayInTouch rows={consent} accent={accent} ink={ink} className="mb-7" />
 
         {connections.length > 0 ? (
-          // «Сейчас» для relativeTime фиксируется на сервере: страница
-          // force-dynamic (рендер на каждый запрос), клиент считает от того же
-          // момента — без гидрационных расхождений и без ENVIRONMENT_FALLBACK.
-          // eslint-disable-next-line react-hooks/purity -- перезапуска рендера с устаревшим now у RSC-страницы не бывает
-          <ConnectionsList rows={connections} accent={accent} ink={ink} now={Date.now()} />
+          <ConnectionsList rows={connections} accent={accent} ink={ink} now={now} />
         ) : (
           // Тихое пустое состояние: добавлять руками нечего — и это нормально.
           // При висящем вопросе молчим: «здесь пока никого» рядом с «остаться
@@ -106,6 +122,11 @@ export default async function ConnectionsPage() {
             </div>
           )
         )}
+
+        {/* «Что происходит» — ПОД карточками: экран держат они (у них отсчёт
+            до праздника и «пора действовать»), лента их дополняет. Секции не
+            будет вовсе, если свежих событий нет, — компонент решает это сам. */}
+        <WhatsHappening rows={feed} now={now} />
       </div>
 
       {/* Таб-бар «в списках — постоянный» (тикет 52, турн 25a). */}

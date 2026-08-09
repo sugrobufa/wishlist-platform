@@ -513,7 +513,13 @@ const settle = phase(motionContract.openZone, "Оседание");
 const veilPhase = phase(motionContract.openZone, "Периферия темнеет");
 const openFramePhase = phase(motionContract.openZone, "Мебель раскрывается");
 const gridPhase = phase(motionContract.openZone, "Вещи встают в сетку");
+// Выход из зоны — три фазы `closeZone`, все три (долг ADR-0003 §4). Тикет 22
+// распаковал одну «Сетку гаснет», а камера уезжала на числах ВХОДА
+// (`camera.durationMs`, 720/810, кривая `out`) — правка design.ts была вне его
+// территории. Теперь у выхода свои числа: 760/820, `settle`, старт +120 мс.
 const closeGridPhase = phase(motionContract.closeZone, "Сетка гаснет");
+const closeCameraPhase = phase(motionContract.closeZone, "Камера отходит");
+const closeVeilPhase = phase(motionContract.closeZone, "Вуаль поднимается");
 
 // "translate ±1.1%, scale 1.10→1.13"
 const driftAmplitude = requireMatch(
@@ -579,14 +585,18 @@ export const sceneMotion = {
   /** Кривые «походки» (раунд 2): шаг и оседание. Применяет тикет 22. */
   easingWalk: motionContract.easing.walk,
   easingSettle: motionContract.easing.settle,
-  /** Камера: длительность одного слитного наезда, origin и transform покоя. */
+  /**
+   * Камера: origin и transform покоя.
+   *
+   * ОБЩЕЙ ДЛИТЕЛЬНОСТИ У КАМЕРЫ БОЛЬШЕ НЕТ, и это не потеря. Она была нужна,
+   * пока камера ехала одним слоем с одним transition: тогда за неё брали
+   * длительность сдвига (720/810). Тикет 22 разложил ВХОД на пять слоёв
+   * (`walk`), а выход до сих пор ехал на том же входном числе с чужой кривой —
+   * долг, который ADR-0003 §4 назвал сам. Теперь у каждой стороны свои числа
+   * из контракта: вход — `walk`, выход — `close`, и одного числа «на камеру»
+   * не существует.
+   */
   camera: {
-    /**
-     * Пока камера — один слой с одним transition, берём длительность сдвига:
-     * именно он довозит зону до центра и он же длиннее масштаба. Разложить
-     * наезд на вложенные слои — тикет 22, ему нужен `walk` целиком.
-     */
-    durationMs: pair(stepMove.duration, "Шаг: сдвиг к зоне"),
     origin: CAMERA_ORIGIN,
     /** Тот же origin числом (проценты сцены) — вход в расчёт наезда. */
     originPct: { x: Number(cameraOriginPct[1]), y: Number(cameraOriginPct[2]) },
@@ -651,8 +661,38 @@ export const sceneMotion = {
     perTileMs: gridPhase.perTile ?? { opacity: 0, transform: 0 },
     from: gridPhase.from ?? "",
   },
-  /** closeZone «Сетка гаснет» (камера отходит следом). */
-  closeGrid: { durationMs: flat(closeGridPhase.duration, "Сетка гаснет") },
+  /**
+   * ВЫХОД ИЗ ЗОНЫ — партитура `closeZone` целиком, три фазы.
+   *
+   * Контракт разводит вход и выход намеренно: «наружу спокойнее, чем внутрь
+   * (620 против 760): внутрь ведёт намерение, наружу — просто отпустил», и
+   * перелёта на выходе нет вовсе («отступать спиной с покачиванием — не
+   * человеческий жест»). Отсюда одна фаза камеры вместо трёх слоёв жеста и
+   * кривая `settle` вместо `walk`.
+   *
+   * СТАРТ +120 МС — не украшение: первой уходит сетка вещей (200 мс с нуля),
+   * и камера трогается, пока лист ещё гаснет. Обе задержки живут в CSS
+   * (`transition-delay`), таймер в JS отмеряет только первую фазу.
+   */
+  close: {
+    /** «Сетка гаснет» — лист и подпись зоны уходят первыми. */
+    grid: {
+      atMs: flat(closeGridPhase.at, "Сетка гаснет"),
+      durationMs: flat(closeGridPhase.duration, "Сетка гаснет"),
+    },
+    /** «Камера отходит» — вся стопка слоёв возвращается в покой. */
+    camera: {
+      atMs: flat(closeCameraPhase.at, "Камера отходит"),
+      durationMs: pair(closeCameraPhase.duration, "Камера отходит"),
+      easing: closeCameraPhase.easing ?? "settle",
+    },
+    /** «Вуаль поднимается» — радиальная вуаль отпускает периферию. */
+    veil: {
+      atMs: flat(closeVeilPhase.at, "Вуаль поднимается"),
+      durationMs: flat(closeVeilPhase.duration, "Вуаль поднимается"),
+      easing: closeVeilPhase.easing ?? "out",
+    },
+  },
   drift: {
     durationMs: motionContract.ambient.drift.duration,
     translatePct: Number(driftAmplitude[1]),

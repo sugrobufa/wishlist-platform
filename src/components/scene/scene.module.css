@@ -109,8 +109,11 @@
  * Позиция окна приходит одной переменной `--win-pan` в px ЭКРАНА (формула —
  * immersive-layout.ts → phonePanShiftPx; px, а не проценты: переменную читают
  * два слоя разной ширины, и процент значил бы у них разные пиксели). Темп
- * задают `--win-pan-ms`/`--win-pan-ease`: 0 мс — палец ведёт сам (прямое
- * управление), инерцию и программные проезды ставит JS (use-scene-pan.ts).
+ * задают `--win-pan-ms`/`--win-pan-ease`/`--win-pan-at`: 0 мс — палец ведёт сам
+ * (прямое управление), инерцию и программные проезды ставит JS
+ * (use-scene-pan.ts). Задержка нужна ровно одному ходу — возврату окна на
+ * выходе из зоны: у фазы «Камера отходит» старт +120 мс, и сани обязаны
+ * трогаться вместе с кадром, а не раньше него.
  * Сани стоят СНАРУЖИ всей стопки камеры: при наезде их сдвиг уезжает в ноль
  * тем же темпом, что «шаг к зоне», и центровка камеры (camera.ts, слои
  * inset:0) не знает о пане ничего — её условие не трогали.
@@ -121,7 +124,8 @@
   position: absolute;
   inset: 0;
   transform: translateX(var(--win-pan, 0px));
-  transition: transform var(--win-pan-ms, 0ms) var(--win-pan-ease, var(--ease-out));
+  transition: transform var(--win-pan-ms, 0ms) var(--win-pan-ease, var(--ease-out))
+    var(--win-pan-at, 0ms);
 }
 
 /* --- Камера: слой на фазу партитуры ------------------------------------- */
@@ -143,7 +147,14 @@
  * с середины экрана (вывод — camera.ts → computeZoneCamera).
  * Значения .pan и .zoom приходят инлайном из SceneStage — они зависят от зоны;
  * при выходе инлайн снимается, слои возвращаются к transform из этих правил,
- * и обратный переход берёт длительность отсюда же (выход по closeZone). */
+ * и обратный переход берёт длительность отсюда же (выход по closeZone).
+ *
+ * ПРАВИЛО ПОКОЯ НИЖЕ И ЕСТЬ ВЫХОД (closeZone «Камера отходит», camera.ts →
+ * closeScore): 760/820 мс кривой `settle` со стартом +120 мс — камера трогается,
+ * пока сетка вещей ещё гаснет. Перелёта на выходе нет ни у одного слоя, поэтому
+ * всем пятерым хватает одного правила: каждый просто возвращается к своему
+ * transform. Все пять правил `.zoomed .*` задают `transition` целиком
+ * (длительность, кривую и задержку), поэтому вход этих чисел не видит. */
 
 .camera,
 .over,
@@ -153,7 +164,7 @@
   position: absolute;
   inset: 0;
   transform-origin: var(--cam-origin);
-  transition: transform var(--cam-ms) var(--ease-out);
+  transition: transform var(--close-ms) var(--close-ease) var(--close-at);
 }
 
 .camera {
@@ -230,6 +241,41 @@
   height: var(--frame-h);
   pointer-events: none;
   transition: opacity 400ms cubic-bezier(0.23, 1, 0.32, 1);
+}
+
+/* --- Наезд на ПУСТУЮ зону: гаснет сцена под панелью (35b) ---------------- */
+
+/* Слой живёт ЗДЕСЬ, рядом с грейдингом и внутри дыхания, а не над вьюпортом:
+ * гаснуть должна фотография комнаты, поверх которой раскрыта панель зоны, —
+ * и вместе с ней, той же геометрией и тем же дыханием (турн 25c). Экран «зона
+ * списком» это правило не касается вовсе: сцены там нет.
+ *
+ * УЗЕЛ СТОИТ ВСЕГДА, а не появляется вместе с пустой зоной: новый узел въехал
+ * бы на своей прозрачности мгновенно, и вместо «сцена гаснет по мере подхода»
+ * получился бы щелчок. Пустой он не стоит ничего — прозрачность 0.
+ *
+ * ТЕМП — ТОТ ЖЕ, ЧТО У ВУАЛИ: затемнение приходит с наездом («Периферия
+ * темнеет», 560 со стартом 90) и уходит с ним же («Вуаль поднимается», 600 со
+ * стартом 120). Своей фазы у этого слоя в партитуре нет, а изобретать числа
+ * запрещено — берём соседнюю по смыслу, как это уже сделано с откликом света.
+ *
+ * Яркость (`brightness(.56) saturate(.8)`) сюда не входит: она живёт фильтром
+ * на самом кадре (`--grade-filter`, grading.ts → sceneFilter) — фильтр слоем
+ * не выражается, а саму фотографию мы не трогаем. */
+.zoneDim {
+  position: absolute;
+  left: var(--frame-l);
+  top: var(--frame-t);
+  width: var(--frame-w);
+  height: var(--frame-h);
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity var(--veil-out-ms) var(--veil-out-ease) var(--veil-out-at);
+}
+
+.zoneDimOn {
+  opacity: 1;
+  transition: opacity var(--veil-ms) var(--ease-out) var(--veil-at);
 }
 
 
@@ -335,20 +381,23 @@
   background: linear-gradient(0deg, rgba(11, 8, 6, 0.7), rgba(11, 8, 6, 0) 48%);
 }
 
+/* Правило покоя — это ВЫХОД (closeZone «Вуаль поднимается»): 600 мс кривой
+ * `out` со стартом +120 мс, тем же, что у камеры. Вход задаёт `.veilOn`
+ * целиком, своей длительностью и своей задержкой. */
 .veil {
   position: absolute;
   inset: 0;
   background: radial-gradient(120% 80% at 50% 40%, rgba(11, 8, 6, 0) 38%, rgba(11, 8, 6, 0.55));
   opacity: 0;
-  transition: opacity var(--veil-ms) var(--ease-out);
+  transition: opacity var(--veil-out-ms) var(--veil-out-ease) var(--veil-out-at);
   pointer-events: none;
 }
 
 /* «Периферия темнеет» стартует со сдвигом: темнота идёт следом за шагом,
- * а не предупреждает о нём (openZone → at: 90). На выходе задержки нет. */
+ * а не предупреждает о нём (openZone → at: 90). */
 .veilOn {
   opacity: 1;
-  transition-delay: var(--veil-at);
+  transition: opacity var(--veil-ms) var(--ease-out) var(--veil-at);
   pointer-events: auto;
   cursor: pointer;
 }
@@ -444,7 +493,8 @@
   width: var(--frame-w);
   height: var(--frame-h);
   transform: translateX(var(--win-pan, 0px));
-  transition: transform var(--win-pan-ms, 0ms) var(--win-pan-ease, var(--ease-out));
+  transition: transform var(--win-pan-ms, 0ms) var(--win-pan-ease, var(--ease-out))
+    var(--win-pan-at, 0ms);
 }
 
 /* Обёртка метки зоны: несёт ключ зоны и метку подсветки от указателя зон
@@ -956,12 +1006,13 @@
     justify-content: center;
   }
 
+  /* Правило покоя — выход (closeZone «Камера отходит»), на десктопе 820 мс. */
   .camera,
   .over,
   .settle,
   .pan,
   .zoom {
-    transition-duration: var(--cam-ms-d);
+    transition-duration: var(--close-ms-d);
   }
 
   .zoomed .over,
@@ -999,10 +1050,18 @@
     display: none;
   }
 
+  /* `.grade` в этом списке появился вместе с `.zoneDim` (35b): слой грейдинга
+     повторяет геометрию кадра, а десктопной строки у него не было — на
+     десктопе он оставался шириной с ТЕЛЕФОННЫЙ кадр (146.5% окна со сдвигом
+     −2.79%). Вертикальным градиентам это было незаметно, а радиальному пятну
+     ламп ночи (`at 50% 100%`) — нет: его центр приходился на 70.5% ширины
+     окна вместо середины. Числа рецептов (тикет 112) не тронуты. */
   .frame,
   .openFrame,
   .hotspots,
-  .wakeLayer {
+  .wakeLayer,
+  .grade,
+  .zoneDim {
     left: var(--frame-l-d);
     top: var(--frame-t-d);
     width: var(--frame-w-d);
@@ -1125,6 +1184,7 @@
   .zoom,
   .openFrame,
   .veil,
+  .zoneDim,
   .dim,
   .edge,
   .hotspot,
@@ -1160,7 +1220,8 @@
   }
 
   .openFrameOn,
-  .veilOn {
+  .veilOn,
+  .zoneDimOn {
     transition-delay: 0ms;
   }
 

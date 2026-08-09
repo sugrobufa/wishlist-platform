@@ -33,6 +33,9 @@ const BOOKING_ERROR_STATUS: Record<BookingError["code"], number> = {
   // вещь есть, но взять её нельзя.
   EXPIRED: 409,
   POOL_NOT_SUPPORTED: 400,
+  // Праздник прошёл, ответ про связь отыгран (хвост 98b). Сама бронь этого
+  // отказа не встречает — он приходит из соседнего роута `book/offer`.
+  OCCASION_PASSED: 409,
   TOKEN_NOT_FOUND: 404,
 };
 

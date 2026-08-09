@@ -9,7 +9,7 @@
 //   держит темнота. Выдача остаётся чистой функцией видимых гостю данных —
 //   побочного канала «в этой зоне что-то спрятано» не появилось.
 import { unstable_cache } from "next/cache";
-import type { Prisma } from "@prisma/client";
+import type { HallVisibility, Prisma } from "@prisma/client";
 import { z } from "zod";
 import { prisma } from "@/server/db";
 import { MONEY_ZONE_KEY, rooms as roomPresets } from "@/config/design";
@@ -82,6 +82,18 @@ export type GuestRoomView = {
    */
   timeOfDay: string;
   lightColor: string;
+  /**
+   * «Кто видит сокровищницу» (тикет 116, ADR-0011) — по этому положению
+   * страница решает, как рисовать вход на витрину: `ALL` — сразу на сервере,
+   * `NONE` — не рисовать вовсе, `MUTUAL` — маленьким клиентским компонентом,
+   * который спросит ответ у некэшируемого канала «занято».
+   *
+   * КЭШУ НЕ МЕШАЕТ: это свойство КОМНАТЫ, одинаковое для всех зрителей, а не
+   * ответ про конкретного гостя — /r/{slug} остаётся полностраничным ISR и
+   * сессии по-прежнему не читает (её шапка). Смена настройки ревалидирует
+   * тег room-{id} вместе с остальными настройками зала.
+   */
+  hallVisibility: HallVisibility;
 };
 
 /**
@@ -148,6 +160,7 @@ export async function getGuestRoom(slug: string): Promise<GuestRoomView | null> 
     ),
     timeOfDay: room.timeOfDay,
     lightColor: room.lightColor,
+    hallVisibility: room.hallVisibility,
   };
 }
 

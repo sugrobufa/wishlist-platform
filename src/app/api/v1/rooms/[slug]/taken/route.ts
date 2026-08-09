@@ -12,8 +12,12 @@
 //   GET /api/v1/rooms/{slug}/taken →
 //   200 { data: { itemIds: string[]   — занятые вещи комнаты, ТОЛЬКО id, без имён;
 //                 mine: string[]      — какие из них заняты ЭТИМ гостем (по его cookie);
-//                 myBookingsCount: number — всего живых броней гостя, для «Мои подарки · N» } }
-//   200 { data: { itemIds: [], mine: [], myBookingsCount: 0 } } — хозяйке этой комнаты
+//                 myBookingsCount: number — всего живых броней гостя, для «Мои подарки · N»;
+//                 signedIn: boolean   — зритель вошёл (вопрос «остаться в связях?», тикет 98b);
+//                 hallOpen: boolean   — витрина открыта ЭТОМУ зрителю (тикет 116, ADR-0011):
+//                                       по нему рисуется вход «Сокровищница» при положении
+//                                       «только взаимным друзьям» } }
+//   200 { data: { itemIds: [], mine: [], myBookingsCount: 0, hallOpen: true } } — хозяйке этой комнаты
 //   404 { error } — неизвестный слаг. Всегда Cache-Control: no-store.
 import { NextResponse, type NextRequest } from "next/server";
 import { getSessionUserId } from "@/server/services/rooms";

@@ -1,6 +1,10 @@
 // «Остаться в связях?» — ответ гостя на подтверждении брони (тикет 98b,
 // доска 32a). Токен клиент не присылает — сервер находит его в cookie, как
 // у соседнего «куплено».
+//
+// Этой же дверью гость ПЕРЕДУМЫВАЕТ из «Моих подарков» (хвост 98b): ответ
+// один на пару гость↔хозяйка, значит и роут на оба случая один. Срок ответа
+// сторожит сервис — после праздника он отвечает OCCASION_PASSED.
 import { NextResponse, type NextRequest } from "next/server";
 import { z } from "zod";
 import { allowBookingAction, clientIp } from "@/server/rate-limit";
@@ -50,7 +54,8 @@ export async function POST(request: NextRequest, { params }: Ctx): Promise<NextR
     await offerConnection(token, parsed.data.offers);
   } catch (error) {
     if (error instanceof BookingError) {
-      return errorResponse(error.code, error.message, 404);
+      // Праздник уже прошёл — это не «не нашли», а «поздно» (хвост 98b).
+      return errorResponse(error.code, error.message, error.code === "OCCASION_PASSED" ? 409 : 404);
     }
     throw error;
   }

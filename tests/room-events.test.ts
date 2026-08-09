@@ -78,19 +78,41 @@ describe("запись событий комнаты (тикет 114)", () => {
     expect(await kindsOf(room.id)).toHaveLength(before);
   });
 
-  it("сокровищница: событие только на ОТКРЫТИЕ и только на изменение", async () => {
+  it("сокровищница: событие ставит ДВЕРЬ, а не цена (тикет 116)", async () => {
     const { user, room } = await ownerWithRoom();
-    // Дефолт FRIENDS → ME: закрытие, не новость.
-    await setHallSettings(user.id, { priceVisibility: "ME" });
+
+    // ЦЕНА событием не является вовсе. Пока настройки «кто входит» не
+    // существовало, повод брали отсюда — это было неверно дважды: цена
+    // подарков и открытая витрина разные события, а положение FRIENDS у цены
+    // читается у нас ЗАКРЫТО, то есть «теперь открыта» появлялось там, где
+    // гостю не открывалось ничего.
+    await setHallSettings(user.id, { priceVisibility: "ALL" });
     expect(await kindsOf(room.id)).not.toContain("TREASURY_OPENED");
 
-    await setHallSettings(user.id, { priceVisibility: "ALL" });
+    // Дефолт двери — ALL; закрытие новостью не является.
+    await setHallSettings(user.id, { visibility: "NONE" });
+    expect(await kindsOf(room.id)).not.toContain("TREASURY_OPENED");
+
+    // Отперли — вот это новость.
+    await setHallSettings(user.id, { visibility: "ALL" });
     expect(await kindsOf(room.id)).toContain("TREASURY_OPENED");
 
     // Повтор того же положения событием не считается.
     const before = (await kindsOf(room.id)).length;
-    await setHallSettings(user.id, { priceVisibility: "ALL" });
+    await setHallSettings(user.id, { visibility: "ALL" });
     expect(await kindsOf(room.id)).toHaveLength(before);
+  });
+
+  it("сокровищница: «только взаимным» из запертой — тоже открытие", async () => {
+    const { user, room } = await ownerWithRoom();
+
+    await setHallSettings(user.id, { visibility: "NONE" });
+    await setHallSettings(user.id, { visibility: "MUTUAL" });
+
+    // Дверь отперта не для всех, но отперта: для взаимных друзей витрины
+    // раньше не было, а теперь есть — им и рассказываем. Кому она не открыта,
+    // тот строки не увидит: это решает лента при чтении (friends-feed).
+    expect(await kindsOf(room.id)).toContain("TREASURY_OPENED");
   });
 
   it("ПОДАРОЧНЫЙ СЛОЙ в ленту не попадает: бронь события не создаёт", async () => {

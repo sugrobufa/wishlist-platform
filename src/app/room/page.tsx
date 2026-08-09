@@ -164,6 +164,10 @@ export default async function RoomPage() {
             lightColor={asLightColor(room.lightColor)}
             // Пустая комната гаснет (тикет 104): темнота вместо чужих вещей.
             empty={itemCount === 0}
+            // Наезд на ПУСТУЮ зону гасит сцену под панелью (35b, турн 25c):
+            // «полка на месте, вещей на ней нет». Список считает сервер — он
+            // и так прошёл по зонам за вещами.
+            emptyZones={zones?.emptyKeys}
           />
         )}
 
@@ -316,6 +320,14 @@ async function buildZoneContent(
   summaries: Record<string, ZoneSummaryDto>;
   /** Сколько СВОИХ вещей в комнате всего — по нему гаснет пустая (тикет 104). */
   ownCount: number;
+  /**
+   * Зоны без единой своей вещи — по ним гаснет сцена при наезде (35b).
+   *
+   * Зона «Просто деньги» сюда не попадает никогда: пустой она не бывает —
+   * в ней стоит копилка на мечту (тикет 44), а не пустая полка, и гасить
+   * сцену под карточкой цели было бы неправдой.
+   */
+  emptyKeys: string[];
 }> {
   const tZone = await getTranslations("ZoneGrid");
   const tScene = await getTranslations("Scene");
@@ -389,5 +401,8 @@ async function buildZoneContent(
     content: Object.fromEntries(entries.map(([key, node]) => [key, node])),
     summaries: Object.fromEntries(entries.map(([key, , summary]) => [key, summary])),
     ownCount: entries.reduce((sum, [, , , count]) => sum + count, 0),
+    emptyKeys: entries
+      .filter(([key, , , count]) => count === 0 && key !== MONEY_ZONE_KEY)
+      .map(([key]) => key),
   };
 }

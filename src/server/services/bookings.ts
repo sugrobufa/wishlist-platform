@@ -14,6 +14,7 @@ import { Prisma } from "@prisma/client";
 import { z } from "zod";
 import { prisma } from "@/server/db";
 import { itemPhotoUrl } from "@/server/dto/items";
+import { hallOpenToViewer } from "@/server/services/hall-access";
 
 const idSchema = z.string().min(1).max(64);
 // Слаг приходит из URL от кого угодно: мусор режем до похода в БД (как в guest-room).
@@ -32,6 +33,7 @@ export type BookingErrorCode =
   | "ALREADY_BOOKED" // уникальность Booking.itemId (P2002) — уже занято
   | "EXPIRED" // впечатление с вышедшим сроком (тикет 97)
   | "POOL_NOT_SUPPORTED" // складчина — Phase 2 (каркас в БД есть, UI нет)
+  | "OCCASION_PASSED" // передумать про связь после праздника поздно (тикет 98b)
   | "TOKEN_NOT_FOUND"; // операция по чужому/несуществующему токену
 
 export class BookingError extends Error {
@@ -193,12 +195,22 @@ export async function markPurchased(cancelToken: string, purchased = true): Prom
  * Предложение живёт на ПАРЕ гость↔хозяйка, а не на вещи: ответ ставится всем
  * живым броням этого гостя в этой комнате разом — вторая бронь той же хозяйке
  * вопроса уже не задаст, а передумать можно один раз на всех.
+ *
+ * ПЕРЕДУМАТЬ МОЖНО ТОЛЬКО ДО ПРАЗДНИКА (хвост тикета 98b). Как только итог
+ * закрыт, ответ отыгран: хозяйка видит предложение на «что подарили», а
+ * «Дошло» переносит его в связь — менять задним числом нечего (условие —
+ * `consentAnswerLocked` ниже). Отказ доменный (OCCASION_PASSED) и живёт
+ * ЗДЕСЬ, а не в разметке: строка «Моих подарков» только показывает то, что
+ * решил сервис.
  */
 export async function offerConnection(cancelToken: string, offers: boolean): Promise<void> {
   const token = z.string().min(1).max(128).parse(cancelToken);
   const mine = await prisma.booking.findUnique({
     where: { cancelToken: token },
-    select: { guestUserId: true, item: { select: { roomId: true } } },
+    select: {
+      guestUserId: true,
+      item: { select: { roomId: true, room: { select: { occasionDate: true } } } },
+    },
   });
   if (!mine) {
     throw new BookingError("TOKEN_NOT_FOUND", "брони с таким токеном нет");
@@ -206,10 +218,44 @@ export async function offerConnection(cancelToken: string, offers: boolean): Pro
   // Гость без аккаунта: связывать некого, ответ молча ничего не меняет.
   if (!mine.guestUserId) return;
 
+  const closed = await prisma.occasionSummary.findFirst({
+    where: { roomId: mine.item.roomId },
+    select: { id: true },
+  });
+  if (consentAnswerLocked(mine.item.room, closed !== null, new Date())) {
+    throw new BookingError("OCCASION_PASSED", "праздник уже прошёл — ответ менять поздно");
+  }
+
   await prisma.booking.updateMany({
     where: { guestUserId: mine.guestUserId, item: { roomId: mine.item.roomId } },
     data: { offersConnection: Boolean(offers) },
   });
+}
+
+/**
+ * Ответ про связь уже отыгран? От этого зависит, можно ли ещё передумать
+ * (хвост тикета 98b): до праздника — да, после — нет.
+ *
+ * Отсчёт идёт не от календаря, а от МОМЕНТА, КОГДА ОТВЕТ СТАНОВИТСЯ ВИДЕН.
+ * До закрытия праздника его не читает никто: связи из подарка ещё нет
+ * (`receiveGift` без `OccasionSummary` отвечает NO_SUMMARY), а «что подарили»
+ * без итога не показывает ни имён, ни вопросов. Наступившая дата сама по себе
+ * не запирает ничего: между ней и закрытием (его делает воркер или сама
+ * хозяйка) человек не увидел ещё ни строчки — а вот гость в эти часы может и
+ * подарок занять, и на вопрос ответить.
+ *
+ * Обратный случай — комната МЕЖДУ праздниками: прошлый итог закрыт, но
+ * впереди уже стоит новая дата, и брони копятся к ней (то же правило, что у
+ * баннера комнаты — `occasions.occasionBannerVisible`). Такой ответ снова
+ * живой: он про следующий праздник, а не про закрытый.
+ */
+function consentAnswerLocked(
+  room: { occasionDate: Date | null },
+  closed: boolean,
+  now: Date,
+): boolean {
+  if (room.occasionDate && room.occasionDate > now) return false;
+  return closed;
 }
 
 // ---------- «Мои брони» гостя ----------
@@ -230,6 +276,20 @@ export type MyBookingDto = {
   purchased: boolean;
   /** ISO-строка — когда занял. */
   createdAt: string;
+  /**
+   * Строка «Показаться после праздника · да/нет» (хвост тикета 98b, доска
+   * 32a). null — спрашивать не о чем: гость бронировал без аккаунта, и
+   * связывать его не с кем (`offersConnection` у такой брони всегда false).
+   */
+  connection: MyBookingConnectionDto | null;
+};
+
+/** Ответ гостя про связь — как он выглядит в «Моих подарках». */
+export type MyBookingConnectionDto = {
+  /** Текущий ответ: показаться хозяйке после праздника или подарить тихо. */
+  offers: boolean;
+  /** Можно ли ещё передумать. false — праздник прошёл, вопрос отыгран. */
+  editable: boolean;
 };
 
 /** Токены из cookie: только похожие на наши (48 hex), без дублей. */
@@ -258,6 +318,10 @@ export async function listBookingsByTokens(tokens: readonly string[]): Promise<M
       mode: true,
       purchased: true,
       createdAt: true,
+      // Ответ про связь (хвост тикета 98b): гостю показывается его же ответ,
+      // о хозяйке эти поля не говорят ничего — инвариант №1 не задет.
+      guestUserId: true,
+      offersConnection: true,
       item: {
         select: {
           id: true,
@@ -265,7 +329,9 @@ export async function listBookingsByTokens(tokens: readonly string[]): Promise<M
           photoKey: true,
           room: {
             select: {
+              id: true,
               shareSlug: true,
+              occasionDate: true,
               user: { select: { displayName: true, name: true } },
             },
           },
@@ -273,6 +339,21 @@ export async function listBookingsByTokens(tokens: readonly string[]): Promise<M
       },
     },
   });
+
+  // «Праздник уже закрыт?» — одним запросом на весь список: OccasionSummary
+  // связан с комнатой только полем roomId (relation'а у модели нет).
+  const roomIds = [...new Set(bookings.map((booking) => booking.item.room.id))];
+  const closedRooms = new Set(
+    roomIds.length === 0
+      ? []
+      : (
+          await prisma.occasionSummary.findMany({
+            where: { roomId: { in: roomIds } },
+            select: { roomId: true },
+          })
+        ).map((summary) => summary.roomId),
+  );
+  const now = new Date();
 
   return bookings.map((booking) => ({
     itemId: booking.item.id,
@@ -283,6 +364,16 @@ export async function listBookingsByTokens(tokens: readonly string[]): Promise<M
     mode: booking.mode,
     purchased: booking.purchased,
     createdAt: booking.createdAt.toISOString(),
+    connection: booking.guestUserId
+      ? {
+          offers: booking.offersConnection,
+          editable: !consentAnswerLocked(
+            booking.item.room,
+            closedRooms.has(booking.item.room.id),
+            now,
+          ),
+        }
+      : null,
   }));
 }
 
@@ -349,6 +440,19 @@ export type TakenChannelDto = {
    * не говорит ничего — инвариант №1 не задет.
    */
   signedIn: boolean;
+  /**
+   * Открыта ли ЭТОМУ зрителю сокровищница комнаты (тикет 116, ADR-0011).
+   *
+   * Живёт здесь по той же причине, что и `signedIn`, и ровно в том же канале:
+   * при положении «только взаимным друзьям» ответ зависит от того, КТО
+   * смотрит, а страница /r/{slug} кэшируется целиком и сессии не читает.
+   * Второго запроса ради одной ссылки заводить незачем — вход «Сокровищница»
+   * приезжает тем же кругом, что «занято» и «Мои подарки».
+   *
+   * Про брони не говорит ничего: инвариант №1 не задет. Хозяйке своей же
+   * ссылки флаг приходит `true` — витрина её собственная (см. takenForOwner).
+   */
+  hallOpen: boolean;
 };
 
 /**
@@ -369,7 +473,10 @@ export type TakenChannelDto = {
  */
 function takenForOwner(): TakenChannelDto {
   // Хозяйка на своей ссылке вошла — но занятого для неё не существует.
-  return { itemIds: [], mine: [], myBookingsCount: 0, signedIn: true };
+  // `hallOpen` при этом true, и правило «пустой ответ» здесь не нарушено:
+  // оно про БРОНИ, а витрина — её собственная, и запирать хозяйку от своих же
+  // вещей не за чем (тикет 116).
+  return { itemIds: [], mine: [], myBookingsCount: 0, signedIn: true, hallOpen: true };
 }
 
 /**
@@ -381,6 +488,7 @@ async function takenForGuest(
   roomId: string,
   tokens: readonly string[],
   signedIn: boolean,
+  hallOpen: boolean,
 ): Promise<TakenChannelDto> {
   const itemIds = await takenItemIds(roomId);
   const valid = validTokens(tokens);
@@ -394,7 +502,13 @@ async function takenForGuest(
           })
         ).map((row) => row.itemId);
 
-  return { itemIds, mine, myBookingsCount: await countBookingsByTokens(tokens), signedIn };
+  return {
+    itemIds,
+    mine,
+    myBookingsCount: await countBookingsByTokens(tokens),
+    signedIn,
+    hallOpen,
+  };
 }
 
 /**
@@ -422,21 +536,31 @@ export async function takenForRoomSlug(
   // так же, как по коду (иначе у комнаты с ником он молча мёртв — и ветка
   // хозяйки в нём никогда бы не сработала). Ник, совпадающий с чужим кодом,
   // не выдаётся (services/rooms.setRoomNick), поэтому порядок безопасен.
+  const roomSelect = { id: true, userId: true, hallVisibility: true } as const;
   const room =
     (await prisma.room.findUnique({
       where: { nick: parsedSlug.data },
-      select: { id: true, userId: true },
+      select: roomSelect,
     })) ??
     (await prisma.room.findUnique({
       where: { shareSlug: parsedSlug.data },
-      select: { id: true, userId: true },
+      select: roomSelect,
     }));
   if (!room) return null;
 
   const viewerUserId = options.viewerUserId ? idSchema.parse(options.viewerUserId) : null;
   if (viewerUserId !== null && viewerUserId === room.userId) return takenForOwner();
 
-  return takenForGuest(room.id, tokens, viewerUserId !== null);
+  // «Открыта ли витрина этому зрителю» (тикет 116) считается ТЕМ ЖЕ сервисом,
+  // что и остальное в этом ответе: гостевая страница узнаёт ответ отсюда и не
+  // заводит ради ссылки второго запроса. Правило одно на дверь и на ссылку —
+  // ссылки, ведущей в 404, быть не должно (ADR-0011).
+  return takenForGuest(
+    room.id,
+    tokens,
+    viewerUserId !== null,
+    await hallOpenToViewer(room, viewerUserId),
+  );
 }
 
 // ---------- Канал хозяйки: счётчик «N вещей уже забраны» (тикет 09) ----------

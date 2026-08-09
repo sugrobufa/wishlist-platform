@@ -23,6 +23,15 @@ export type GuestBookingState = {
   /** Зритель вошёл в аккаунт — вопрос «остаться в связях?» (тикет 98b). */
   signedIn: boolean;
   /**
+   * Витрина открыта ЭТОМУ зрителю (тикет 116, ADR-0011). Нужен ровно одной
+   * ссылке «Сокровищница» при положении «только взаимным друзьям»: ответ
+   * зависит от того, кто смотрит, а страница /r/{slug} кэшируется целиком.
+   *
+   * До ответа канала — `false`: ссылки, ведущей в 404, быть не должно, и
+   * лучше на мгновение не показать вход, чем показать чужой.
+   */
+  hallOpen: boolean;
+  /**
    * Сколько вещей ЭТОЙ комнаты гость занял прямо сейчас, за этот заход.
    * Приветствие вычитает это число из «сколько подарков ещё свободно»: сам
    * счётчик посчитан при рендере, а страница кэшируется (ISR 300 с) — без
@@ -49,6 +58,7 @@ export function GuestBookingProvider({ slug, children }: { slug: string; childre
   const [mine, setMine] = useState<ReadonlySet<string>>(new Set());
   const [myBookingsCount, setMyBookingsCount] = useState(0);
   const [signedIn, setSignedIn] = useState(false);
+  const [hallOpen, setHallOpen] = useState(false);
   const [bookedNow, setBookedNow] = useState(0);
 
   useEffect(() => {
@@ -79,6 +89,7 @@ export function GuestBookingProvider({ slug, children }: { slug: string; childre
                   mine?: unknown;
                   myBookingsCount?: unknown;
                   signedIn?: unknown;
+                  hallOpen?: unknown;
                 };
               })
                 .data
@@ -88,6 +99,7 @@ export function GuestBookingProvider({ slug, children }: { slug: string; childre
         setMine(new Set(stringArray(data.mine)));
         setMyBookingsCount(typeof data.myBookingsCount === "number" ? data.myBookingsCount : 0);
         setSignedIn(data.signedIn === true);
+        setHallOpen(data.hallOpen === true);
       } catch {
         // Тихо: без канала «занято» комната остаётся смотрибельной,
         // а сервер всё равно не даст занять уже занятое (P2002 → 409).
@@ -108,8 +120,8 @@ export function GuestBookingProvider({ slug, children }: { slug: string; childre
   }, []);
 
   const value = useMemo<GuestBookingState>(
-    () => ({ taken, mine, myBookingsCount, signedIn, bookedNow, markBooked, markTaken }),
-    [taken, mine, myBookingsCount, signedIn, bookedNow, markBooked, markTaken],
+    () => ({ taken, mine, myBookingsCount, signedIn, hallOpen, bookedNow, markBooked, markTaken }),
+    [taken, mine, myBookingsCount, signedIn, hallOpen, bookedNow, markBooked, markTaken],
   );
 
   return <GuestBookingContext.Provider value={value}>{children}</GuestBookingContext.Provider>;

@@ -17,7 +17,7 @@
 // ведёт кадр сам (0 мс), отпускание и программные ходы едут CSS-переходом.
 import { useEffect, useRef } from "react";
 import { scene, sceneMotion, type RoomZone } from "@/config/design";
-import { walkScore } from "./camera";
+import { closeScore, walkScore } from "./camera";
 import {
   clampPan,
   phoneEdgeHints,
@@ -60,8 +60,10 @@ const INTRO_SESSION_KEY = "wl-scene-pan-intro";
 /**
  * Дрейф комнаты (тикет 72, турн 28b): окно медленно едет от края до края, пока
  * человек читает, и само показывает 33 зоны, которые в покое стоят за правым
- * краем. Только гостю: свою комнату хозяйка знает наизусть, ей остаётся
- * «вздох» (ambient.drift — дыхание кадра, отдельный слой).
+ * краем. Прежде — только гостю; с тикета 103 у обоих (решение владельца:
+ * «особенно это важно на мобильном, чтобы пользователь понимал, что комната
+ * шире, чем он видит»). «Вздох» кадра (ambient.drift) — отдельный слой, он
+ * идёт всегда и к этому проезду отношения не имеет.
  *
  * АВТОПРОЕЗД ТИКЕТА 55 НЕ ЗАДВОЕН, а заменён: у гостя дрейф делает то же самое
  * («комната шире экрана»), только не рывком в 40 единиц и обратно, а всё
@@ -77,6 +79,48 @@ const INTRO_SESSION_KEY = "wl-scene-pan-intro";
  */
 const DRIFT_UNITS_PER_S = 23;
 const DRIFT_DELAY_MS = 1400;
+
+/**
+ * ПАУЗА ПОКОЯ: через сколько после последнего действия комната снова гуляет
+ * (тикет 117, приёмка владельца 09.08: «спустя некоторое время комната должна
+ * гулять как и при первом входе»).
+ *
+ * ЧИСЛО НАШЕ, ДИЗАЙН ЕГО НЕ ДАВАЛ — своей фазы под возврат дрейфа в
+ * `motion.json` нет, и выдумывать её в контракте мы не вправе. Обоснование:
+ * плечо дрейфа ≈ 8.7 с (200 единиц ÷ 23 ед/с), задержка первого старта
+ * 1400 мс. Пауза короче пяти секунд столкнулась бы с человеком, который
+ * просто задумался, держа палец рядом; длиннее десяти — это уже «не
+ * вернулось», то есть ровно то, на что жалоба. Вопрос выписан дизайну
+ * письмом 24; придёт своё число — меняем здесь одну строку.
+ *
+ * ДО ТИКЕТА 117 ЗДЕСЬ БЫЛА ВЕЧНОСТЬ. Флаг «дрейф остановлен» ставился при
+ * первом касании и при открытии зоны и не сбрасывался нигде: одно касание — и
+ * комната стояла до перезагрузки страницы. Довод был про НАМЕРЕНИЕ («тронул —
+ * значит управляешь сам»), и он верен ровно на время, пока рука на экране.
+ */
+const DRIFT_RESUME_MS = 6000;
+
+/**
+ * Длительность плеча дрейфа: путь ÷ скорость, а не подобранное число.
+ * Чистая, потому что её проверяет тест (движение в панели браузера не идёт).
+ */
+export function driftLegMs(from: number, to: number): number {
+  return Math.round((Math.abs(to - from) / DRIFT_UNITS_PER_S) * 1000);
+}
+
+/**
+ * Куда ехать дрейфу ИЗ ТЕКУЩЕГО положения окна — к дальнему краю.
+ *
+ * Возобновление после паузы обязано начинаться там, где окно стоит: рывок в
+ * край и был бы тем самым автопроездом, ради отказа от которого тикет 72
+ * заводил дрейф. Дальний край выбран, чтобы первый ход был длинным и читался
+ * как движение: от ближнего края окно уехало бы на пару пикселей и развернулось
+ * (а стоя точно НА краю — вовсе никуда, плечо нулевой длины).
+ */
+export function driftTargetFrom(from: number, range = phonePanRange()): number {
+  const here = clampPan(from);
+  return range.max - here >= here - range.min ? range.max : range.min;
+}
 
 type UseScenePanOptions = {
   /** Вьюпорт сцены — на нём слушатели жеста и от него же берётся ширина. */
@@ -101,9 +145,10 @@ type UseScenePanOptions = {
   /** Телефонная раскладка. На десктопе хук не делает ничего и не следит. */
   enabled: boolean;
   /**
-   * Комната сама едет от края до края, пока её не тронули (тикет 72). Только
-   * гостю: он видит комнату впервые. Первое касание останавливает дрейф до
-   * конца сессии — иначе в зону не прицелиться.
+   * Комната сама едет от края до края, пока её не трогают (тикет 72; с тикета
+   * 103 — у обоих, и у гостя, и у хозяйки). Касание, драг и наезд на зону
+   * ставят проезд на паузу — иначе в зону не прицелиться, — а через
+   * `DRIFT_RESUME_MS` покоя он возвращается сам (тикет 117).
    */
   drift?: boolean;
   /** Зона открыта: жест спит, окно передано камере (пан уезжает в ноль). */
@@ -131,6 +176,8 @@ type Drag = {
 
 /** Кривая «walk» из motion.json — тем же темпом едет пан при наезде камеры. */
 const WALK = walkScore("phone");
+/** Партитура выхода (closeZone) — тем же темпом окно возвращается из зоны. */
+const CLOSE = closeScore("phone");
 
 export function useScenePan({
   viewportRef,
@@ -154,8 +201,14 @@ export function useScenePan({
   const suppressClickRef = useRef(false);
   const introTimersRef = useRef<number[]>([]);
   const introRidingRef = useRef(false);
-  /** Дрейф остановлен навсегда: тронули сцену или открыли зону (тикет 72). */
-  const driftStoppedRef = useRef(false);
+  /**
+   * Дрейф НА ПАУЗЕ: идёт взаимодействие — палец на сцене или открыта зона
+   * (тикет 117). Не «навсегда»: паузу снимает отсчёт покоя `DRIFT_RESUME_MS`,
+   * и любое новое действие заводит его заново.
+   */
+  const driftPausedRef = useRef(false);
+  /** Пустить дрейф с текущего места; ставит сам эффект дрейфа, пока он жив. */
+  const driftRestartRef = useRef<(() => void) | null>(null);
   const settleTimerRef = useRef<number | null>(null);
   /** Ширина дорожки нити в px — меряется при включении и на resize. */
   const trackWidthRef = useRef(0);
@@ -174,14 +227,23 @@ export function useScenePan({
     onSettleRef.current = onSettle;
   });
 
-  /** Записать позицию окна в DOM: сдвиг слоёв, темп, намёк на края. */
-  const applyRef = useRef((pan: number, ms: number, ease?: string) => {
+  /**
+   * Записать позицию окна в DOM: сдвиг слоёв, темп, намёк на края.
+   *
+   * `atMs` — задержка старта; нужна ровно одному ходу, возврату окна на выходе
+   * из зоны: у фазы «Камера отходит» старт +120 мс, и сани обязаны трогаться
+   * вместе с кадром. Всем остальным ходам она нулевая, и переменная снимается,
+   * чтобы прошлая задержка не досталась следующему движению пальца.
+   */
+  const applyRef = useRef((pan: number, ms: number, ease?: string, atMs = 0) => {
     const viewport = viewportRef.current;
     const vars = varsRef.current;
     if (!viewport || !vars) return;
     const width = viewport.getBoundingClientRect().width || scene.phone.w;
     vars.style.setProperty("--win-pan", `${phonePanShiftPx(pan, width)}px`);
     vars.style.setProperty("--win-pan-ms", `${ms}ms`);
+    if (atMs) vars.style.setProperty("--win-pan-at", `${atMs}ms`);
+    else vars.style.removeProperty("--win-pan-at");
     if (ease) vars.style.setProperty("--win-pan-ease", ease);
     else vars.style.removeProperty("--win-pan-ease");
     // Намёк держит клампнутая позиция: резина за краем не выключает кромку.
@@ -208,6 +270,28 @@ export function useScenePan({
     for (const timer of introTimersRef.current) window.clearTimeout(timer);
     introTimersRef.current = [];
     introRidingRef.current = false;
+  });
+
+  /**
+   * Остановить дрейф и завести отсчёт покоя (тикет 117).
+   *
+   * ОДИН МЕХАНИЗМ, А НЕ ВТОРОЙ: отсчёт живёт в том же `introTimersRef`, что и
+   * плечи дрейфа с автопроездом, поэтому его чистят те же `clearIntro` и уборка
+   * эффекта. Повторный вызов — это и есть «отсчёт сброшен»: старый таймер
+   * гаснет вместе с остальными, новый заводится следом.
+   */
+  const pauseDriftRef = useRef(() => {
+    driftPausedRef.current = true;
+    clearIntroRef.current();
+    const resume = window.setTimeout(() => {
+      // Человек всё ещё в зоне или всё ещё ведёт пальцем — остаёмся на паузе.
+      // Отсчёт заведут заново: закрытие зоны перезапускает эффект дрейфа,
+      // отпущенный палец зовёт эту же функцию из `endDrag`.
+      if (zoomedRef.current || dragRef.current) return;
+      driftPausedRef.current = false;
+      driftRestartRef.current?.();
+    }, DRIFT_RESUME_MS);
+    introTimersRef.current.push(resume);
   });
 
   const scheduleSettleRef = useRef((ms: number) => {
@@ -271,10 +355,12 @@ export function useScenePan({
 
     /** Перехват автопроезда пальцем: где сани сейчас, там окно и замирает. */
     const freezeIntro = () => {
-      // Тронули сцену — дрейф не возвращается в этой сессии (тикет 72).
-      driftStoppedRef.current = true;
-      if (!introRidingRef.current) return;
-      clearIntroRef.current();
+      // Тронули сцену — дрейф встаёт на паузу и заводится отсчёт покоя
+      // (тикет 117; прежде здесь он гас до конца сессии). «Ехал ли он сейчас»
+      // читаем ДО паузы: она гасит таймеры и сбрасывает этот самый флаг.
+      const riding = introRidingRef.current;
+      pauseDriftRef.current();
+      if (!riding) return;
       const sled = panWindowRef.current;
       if (sled) {
         try {
@@ -348,6 +434,10 @@ export function useScenePan({
       const drag = dragRef.current;
       if (!drag || event.pointerId !== drag.pointerId) return;
       dragRef.current = null;
+      // Палец ушёл — отсчёт покоя идёт с этого момента, а не с касания
+      // (тикет 117). Тапа это тоже касается: он мог открыть зону, и тогда
+      // паузу продлит уже она.
+      pauseDriftRef.current();
       if (!drag.moved) return; // тап — пусть зона его и получает
       suppressClickRef.current = true;
       window.setTimeout(() => {
@@ -414,10 +504,11 @@ export function useScenePan({
   useEffect(() => {
     if (!enabled) return;
     if (zoomed) {
-      // Открыли зону — человек уже выбрал, показывать ему комнату больше не
-      // нужно: дрейф гаснет насовсем (тикет 72).
-      driftStoppedRef.current = true;
-      clearIntroRef.current();
+      // Открыли зону — комната стоит, пока человек в ней: показывать ширину
+      // кадра тому, кто уже выбрал, незачем. Но именно ПОКА (тикет 117): отсчёт
+      // покоя пойдёт с закрытия зоны, а не «до перезагрузки страницы».
+      // `pauseDrift` гасит и таймеры — отдельный `clearIntro` здесь не нужен.
+      pauseDriftRef.current();
       savedPanRef.current = clampPan(panRef.current);
       if (panRef.current !== 0) {
         panRef.current = 0;
@@ -432,43 +523,78 @@ export function useScenePan({
     if (savedPanRef.current !== 0) {
       const target = savedPanRef.current;
       panRef.current = target;
-      // Темп отъезда камеры (closeZone): окно и кадр едут одной длительностью.
-      const ms = reducedRef.current
-        ? sceneMotion.reducedTransitionMs
-        : sceneMotion.camera.durationMs.phone;
-      applyRef.current(target, ms);
-      scheduleSettleRef.current(ms);
+      // Темп отъезда камеры — фаза closeZone «Камера отходит» целиком: та же
+      // длительность (760), та же кривая `settle` и тот же старт +120 мс.
+      // Прежде здесь стояла длительность ВХОДА (`camera.durationMs`, 720,
+      // кривая out): окно уезжало быстрее кадра и другой кривой — долг В10.
+      const reduced = reducedRef.current;
+      const ms = reduced ? sceneMotion.reducedTransitionMs : CLOSE.camera.durationMs;
+      applyRef.current(
+        target,
+        ms,
+        reduced ? undefined : CLOSE.camera.easing,
+        reduced ? 0 : CLOSE.camera.atMs,
+      );
+      scheduleSettleRef.current((reduced ? 0 : CLOSE.camera.atMs) + ms);
     }
   }, [enabled, zoomed]);
 
-  // --- Дрейф комнаты: едет, пока не тронули (тикет 72) ----------------------
+  // --- Дрейф комнаты: едет, пока её не трогают (тикеты 72 и 117) ------------
   //
   // Движение композитное: меняется одна переменная `--win-pan`, слои едут
   // своим transition — ре-рендеров на кадр нет, как и у панорамы пальцем.
   // Указатель зон синхронен по построению: он висит на той же переменной, а
   // не на втором сдвиге (условие тикета).
+  //
+  // ТРИ УСЛОВИЯ, ПРИ КОТОРЫХ ДРЕЙФА НЕТ ВОВСЕ, остались прежними: выключен
+  // сам проезд (`drift`), включён спокойный режим, справа за краем нечего
+  // показывать. Четвёртое — «уже трогали» — с тикета 117 не условие, а пауза.
   useEffect(() => {
     if (!enabled || !drift || reducedMotion) return;
-    if (driftStoppedRef.current) return;
+    // Зона открыта: комната стоит, и заводить отсчёт покоя рано — он пойдёт с
+    // закрытия, когда этот эффект перезапустится с `zoomed: false`.
+    if (zoomed) return;
     // Показывать есть что: справа за краем стоят зоны — правило по данным.
     if (!phoneEdgeHints(zonesRef.current, 0).right) return;
 
     const { min, max } = phonePanRange();
     const leg = (from: number, to: number) => {
-      if (driftStoppedRef.current || zoomedRef.current || dragRef.current) return;
+      if (driftPausedRef.current || zoomedRef.current || dragRef.current) return;
       introRidingRef.current = true;
       panRef.current = to;
-      const ms = Math.round((Math.abs(to - from) / DRIFT_UNITS_PER_S) * 1000);
+      const ms = driftLegMs(from, to);
       applyRef.current(to, ms, "ease-in-out");
       const next = window.setTimeout(() => leg(to, to === max ? min : max), ms);
       introTimersRef.current.push(next);
     };
 
-    const start = window.setTimeout(() => leg(panRef.current, max), DRIFT_DELAY_MS);
-    introTimersRef.current.push(start);
+    /**
+     * Пуск С ТЕКУЩЕГО ПОЛОЖЕНИЯ ОКНА (тикет 117): и первый раз, и после паузы.
+     * Плечо считается от того места, где окно стоит, поэтому возврат к жизни
+     * не выглядит рывком — скорость та же 23 ед/с, что и всегда.
+     */
+    const startFromHere = () => {
+      if (driftPausedRef.current || zoomedRef.current || dragRef.current) return;
+      const here = clampPan(panRef.current);
+      leg(here, driftTargetFrom(here, { min, max }));
+    };
+    driftRestartRef.current = startFromHere;
+
+    if (driftPausedRef.current) {
+      // Эффект перезапускается на смене `zoomed`, а его уборка гасит ВСЕ
+      // таймеры — включая незаконченный отсчёт покоя. Заводим отсчёт заново:
+      // для человека это и есть «закрыл зону — через паузу комната ожила».
+      pauseDriftRef.current();
+    } else {
+      const start = window.setTimeout(startFromHere, DRIFT_DELAY_MS);
+      introTimersRef.current.push(start);
+    }
 
     const clearIntro = clearIntroRef.current;
-    return () => clearIntro();
+    return () => {
+      driftRestartRef.current = null;
+      clearIntro();
+    };
   }, [enabled, drift, reducedMotion, presetId, zoomed]);
 
   // --- Первовходный автопроезд: один раз за сессию --------------------------

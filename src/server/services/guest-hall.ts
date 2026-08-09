@@ -10,11 +10,18 @@
 // - видимая зона — выключенная зона уносит вещь вместе с мебелью (там же);
 // - `hallItemShownToObservers` — вещь, спрятанная глазком (тикет 89).
 // Демо-призраков здесь нет по построению: выборка идёт по БД.
+//
+// ЧЕТВЁРТОЕ УСЛОВИЕ — САМА ДВЕРЬ (тикет 116, ADR-0011): «кто видит
+// сокровищницу», три положения. Оно ПОВЕРХ трёх существующих, а не вместо
+// них: открытая витрина по-прежнему не отдаёт спрятанное (инвариант №5).
+// Живёт здесь, в сервисе, а не на странице: роуты тонкие (CLAUDE.md), и
+// закрытая витрина обязана быть закрытой у КАЖДОГО читателя.
 import { unstable_cache } from "next/cache";
 import { prisma } from "@/server/db";
 import { rooms as roomPresets } from "@/config/design";
 import { visibleZones } from "@/components/scene/zones";
 import { itemPhotoUrl } from "@/server/dto/items";
+import { hallOpenToViewer } from "@/server/services/hall-access";
 import {
   hallGuestPriced,
   hallItemForGuest,
@@ -45,13 +52,26 @@ export type GuestHallView = {
  * Витрина комнаты глазами гостя. Неизвестный слаг или битый пресет — null,
  * страница отвечает 404. Пустая витрина — это НЕ null: комната есть, витрина
  * пуста, и сказать об этом честнее, чем отдать «страница не найдена».
+ *
+ * `viewerUserId` — личность смотрящего, если он вошёл (тикет 116). Закрытая
+ * настройкой витрина — тоже null, и это СОЗНАТЕЛЬНО тот же ответ, что у
+ * неизвестного слага: «пусто» и «закрыто» гость различать не должен, иначе
+ * 404 у одной комнаты и пустая витрина у другой сами рассказали бы, у кого
+ * есть что прятать.
  */
-export async function getGuestHall(slug: string): Promise<GuestHallView | null> {
+export async function getGuestHall(
+  slug: string,
+  viewerUserId: string | null = null,
+): Promise<GuestHallView | null> {
   const room = await findRoomBySlug(slug);
   if (!room) return null;
 
   const preset = roomPresets.find((candidate) => candidate.id === room.preset);
   if (!preset) return null;
+
+  // Дверь проверяется ДО всякого чтения вещей: закрытой витрины не должно
+  // быть даже в кэше.
+  if (!(await hallOpenToViewer(room, viewerUserId))) return null;
 
   // Видимые зоны считаются по СВЕЖЕЙ строке комнаты, а не по кэшу вещей:
   // выключенная только что зона обязана унести свои вещи немедленно, как и

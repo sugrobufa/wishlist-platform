@@ -12,7 +12,7 @@ import { prisma } from "@/server/db";
 import { rooms as roomPresets } from "@/config/design";
 import { domainOf, normalizeUrl } from "@/server/parser";
 import { enqueueImageIngest } from "@/server/queues";
-import { recordItemAdded, recordRoomEvent } from "@/server/services/room-events";
+import { recordItemAdded } from "@/server/services/room-events";
 import { releaseBookingForItem } from "@/server/services/bookings";
 
 const idSchema = z.string().min(1);

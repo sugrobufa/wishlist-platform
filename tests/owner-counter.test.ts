@@ -218,7 +218,14 @@ describe("ИНВАРИАНТ-СЕРИАЛИЗАЦИЯ: страница хозя
     // (тикет 41): «поделиться» больше не превращается в список забранного.
     expect(
       await takenForRoomSlug(owner.room.shareSlug, [], { viewerUserId: owner.user.id }),
-    ).toEqual({ itemIds: [], mine: [], myBookingsCount: 0, signedIn: true });
+    ).toEqual({
+      itemIds: [],
+      mine: [],
+      myBookingsCount: 0,
+      signedIn: true,
+      // Не про брони: её собственная витрина ей открыта (тикет 116).
+      hallOpen: true,
+    });
   });
 
   it("даже вещь, загруженная с include: {booking}, сериализуется без следа брони", async () => {
@@ -327,8 +334,10 @@ describe("GET /api/v1/rooms/{slug}/taken — хозяйке своей комн�
     expect(response.status).toBe(200);
     expect(response.headers.get("cache-control")).toBe("no-store");
     // toEqual пиноит ответ ЦЕЛИКОМ: id занятых вещей в нём нет ни одного.
+    // `hallOpen` про брони не говорит ничего — это её собственная витрина
+    // (тикет 116), и запирать хозяйку от своих же вещей не за чем.
     expect(await response.json()).toEqual({
-      data: { itemIds: [], mine: [], myBookingsCount: 0, signedIn: true },
+      data: { itemIds: [], mine: [], myBookingsCount: 0, signedIn: true, hallOpen: true },
     });
   });
 
@@ -348,7 +357,7 @@ describe("GET /api/v1/rooms/{slug}/taken — хозяйке своей комн�
       slugCtx(owner.room.shareSlug),
     );
     expect(await response.json()).toEqual({
-      data: { itemIds: [], mine: [], myBookingsCount: 0, signedIn: true },
+      data: { itemIds: [], mine: [], myBookingsCount: 0, signedIn: true, hallOpen: true },
     });
   });
 

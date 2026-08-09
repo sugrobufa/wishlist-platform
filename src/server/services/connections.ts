@@ -29,7 +29,7 @@
 // бы врать. Инвариант №4 цел: ответ «да» НИЧЕГО не создаёт — он отвечает про
 // уже существующую строку, рождённую подарком (негативный тест сторожит и
 // поверхность сервиса, и то, что экшен страницы не умеет create).
-import { Prisma, type Connection, type ConnectionKind } from "@prisma/client";
+import { Prisma, type Connection, type ConnectionKind, type HallVisibility } from "@prisma/client";
 import { z } from "zod";
 import { prisma } from "@/server/db";
 import { itemPhotoUrl } from "@/server/dto/items";
@@ -123,8 +123,12 @@ type ConsentFields = {
  *   которые у них уже есть;
  * - `pending` — спросили, ответили не все;
  * - `declined` — хоть одна сторона сказала «не в этот раз». Строка живёт
- *   дальше (история подарков не теряется), но из списков уходит у ОБОИХ и
- *   молча: кто отказался — не сообщается никому, объясняться никто не должен.
+ *   дальше — и, с хвоста тикета 98b (доска 32a), ОСТАЁТСЯ ВИДИМОЙ у обоих
+ *   как односторонняя «знакомы · подарок в истории»: отказ не стирает факт
+ *   подарка, он только не делает связь взаимной. Молчит при этом сам отказ —
+ *   кто именно отказался, не сообщается никому и объясняться никто не должен
+ *   (строки «тебе отказали» не существует, вопрос просто снимается у обоих).
+ *   Дружбой такая связь не становится: `isConsentedConnection` — false.
  */
 export type ConnectionStatus = "active" | "pending" | "declined";
 
@@ -556,6 +560,17 @@ export type ConnectionOriginDto =
   /** Происхождение не восстановить (битые старые данные) — честный fallback. */
   | { type: "link" };
 
+/**
+ * Состоялась ли связь — ровно два значения, потому что третьего страница не
+ * видит: ждущие ответа живут отдельным списком (`listPendingConsent`).
+ *
+ * `declined` — та самая односторонняя строка доски 32a: «знакомы · подарок в
+ * истории». Она видна ОБОИМ и ничего нового не раскрывает (имя дарителя
+ * раскрыто раньше, на «что подарили» — инвариант №2), но другом человека не
+ * делает: ни кадра комнаты, ни фильтров по виду связи у неё нет.
+ */
+export type ConnectionConsentDto = "active" | "declined";
+
 /** Строка страницы связей. Allowlist-DTO: email собеседника НЕ существует. */
 export type ConnectionRowDto = {
   id: string;
@@ -567,12 +582,17 @@ export type ConnectionRowDto = {
   /** ISO последнего события (подарок/визит/рождение) — для «N дней назад». */
   lastAt: string;
   createdAt: string;
+  /** Связь состоялась или осталась односторонней (доска 32a). */
+  consent: ConnectionConsentDto;
   /**
    * Комната собеседника — ТОЛЬКО если человек в ней уже был (тикет 95,
    * решение владельца 08.08). Ссылка на комнату и есть ключ доступа: показать
    * кадр чужой комнаты тому, кому её не давали, значит раздать ключ
    * (инвариант №7). Был — значит ссылку давали, и мы ничего нового не
    * открываем. Не был — здесь `null`, и строка остаётся строкой.
+   *
+   * У односторонней строки (`consent: "declined"`) здесь ВСЕГДА null: кадр
+   * комнаты — карточка друга, а отказ дружбой не стал.
    */
   room: ConnectionRoomDto | null;
 };
@@ -604,7 +624,20 @@ const personSelect = {
     // Комната собеседника (тикет 95) — отдаётся наружу НЕ всегда, а только
     // тому, кто в ней уже был; решает `roomForVisitor` ниже. Здесь только
     // чтение полей, которые гость и так видит, открыв комнату по ссылке.
-    room: { select: { id: true, preset: true, shareSlug: true, nick: true, occasionDate: true, zonesOff: true } },
+    room: {
+      select: {
+        id: true,
+        preset: true,
+        shareSlug: true,
+        nick: true,
+        occasionDate: true,
+        zonesOff: true,
+        // Открыта ли витрина СЕЙЧАС (тикет 116, ADR-0011) — лента обязана
+        // спросить об этом сама: строка «Сокровищница теперь открыта» живёт
+        // тридцать дней, а закрыть витрину обратно можно за секунду.
+        hallVisibility: true,
+      },
+    },
   },
 } as const;
 
@@ -627,8 +660,11 @@ function latestIso(createdAt: Date, ...candidates: (string | undefined)[]): stri
  * из origin `gift:{itemId}` (название подтягивается по вещи). Сортировка —
  * по последнему событию, свежие сверху. Фильтр по kind — опционален.
  *
- * Отдаются только СОСТОЯВШИЕСЯ связи (тикет 98): ждущие ответа живут отдельным
- * списком (`listPendingConsent`), отклонённые не показываются никому и никогда.
+ * Не отдаётся ровно одно состояние — ЖДУЩЕЕ ответа (тикет 98): у него своё
+ * место (`listPendingConsent`), и в списке связей вопрос выглядел бы
+ * состоявшейся связью. Отказ, наоборот, ОСТАЁТСЯ (хвост 98b, доска 32a) —
+ * односторонней строкой «знакомы · подарок в истории»: он не стирает факт
+ * подарка, он только не делает связь взаимной (`consent: "declined"`).
  */
 export async function listConnections(
   userId: string,
@@ -640,10 +676,25 @@ export async function listConnections(
     where: {
       OR: [{ aUserId: id }, { bUserId: id }],
       ...(options.kind ? { kind: options.kind } : {}),
-      // Состоявшиеся связи — фильтр стоит В ЗАПРОСЕ, а не после него: строка,
-      // ждущая ответа или отклонённая, не должна доезжать до страницы даже
-      // как отброшенная (тикет 98). Зеркало connectionStatus === "active".
-      AND: [{ OR: [{ consentAskedAt: null }, { consentA: true, consentB: true }] }],
+      // Фильтр стоит В ЗАПРОСЕ, а не после него: строка, ждущая ответа, не
+      // должна доезжать до страницы даже как отброшенная. Зеркало
+      // `connectionStatus !== "pending"`, выписанное ПЕРЕЧИСЛЕНИЕМ случаев.
+      //
+      // Отрицания («не ждёт ответа») здесь быть не может: `NOT { consentA:
+      // false }` в SQL сравнивает NULL с false, получает UNKNOWN — и вместе с
+      // отказами выбрасывает НЕСПРОШЕННЫЕ строки, то есть все связи из визитов
+      // и всё, что было до тикета 98. Четыре ветки ниже разводят эти случаи
+      // явно: не спрашивали · согласились оба · отказала сторона a · сторона b.
+      AND: [
+        {
+          OR: [
+            { consentAskedAt: null },
+            { consentA: true, consentB: true },
+            { consentA: false },
+            { consentB: false },
+          ],
+        },
+      ],
     },
     include: { a: personSelect, b: personSelect },
   });
@@ -669,6 +720,9 @@ export async function listConnections(
   const visitedRooms = rows.flatMap((row) => {
     const meIsA = row.aUserId === id;
     const other = meIsA ? row.b : row.a;
+    // Односторонняя строка карточки не получает — считать по её комнате
+    // нечего (см. `room` в DTO).
+    if (connectionStatus(row) === "declined") return [];
     if (!other.room || myVisitsToTheirRoom(readHistory(row.history), meIsA) === 0) return [];
     return [{ roomId: other.room.id, zoneKeys: visibleRoomZoneKeys(other.room) }];
   });
@@ -678,6 +732,9 @@ export async function listConnections(
     const meIsA = row.aUserId === id;
     const other = meIsA ? row.b : row.a;
     const history = readHistory(row.history);
+    // Ждущих ответа запрос сюда не пускает, поэтому состояний ровно два:
+    // состоялась — или осталась односторонней (доска 32a).
+    const declined = connectionStatus(row) === "declined";
 
     // Перспектива: направленные счётчики history → «мне»/«от меня».
     let received = (meIsA ? history.giftsToA : history.giftsToB) ?? 0;
@@ -724,8 +781,9 @@ export async function listConnections(
         history.lastVisitByBAt,
       ),
       createdAt: row.createdAt.toISOString(),
+      consent: declined ? "declined" : "active",
       room:
-        other.room && myVisitsToTheirRoom(history, meIsA) > 0
+        !declined && other.room && myVisitsToTheirRoom(history, meIsA) > 0
           ? {
               slug: other.room.nick ?? other.room.shareSlug,
               preset: other.room.preset,
@@ -740,6 +798,88 @@ export async function listConnections(
   });
 
   return result.sort((a, b) => (a.lastAt < b.lastAt ? 1 : a.lastAt > b.lastAt ? -1 : 0));
+}
+
+// ---------- Связи для ленты «Что происходит» (тикет 114) ----------
+
+/** Состоявшаяся связь глазами ленты: чьи события брать и чем их подписывать. */
+export type ConnectionForFeed = {
+  userId: string;
+  /** displayName ?? name; null — разметка подставит подпись. */
+  displayName: string | null;
+  /** Момент, когда связь стала взаимной, — пятое событие ленты. */
+  mutualAt: Date | null;
+  /** Комната друга: откуда брать события. null — комнаты у него нет. */
+  roomId: string | null;
+  /** id интерьера комнаты СЕЙЧАС — цвет точки строки. */
+  roomPreset: string | null;
+  /** Выключенные зоны (инвариант №5): их полок в ленте быть не должно. */
+  zonesOff: readonly string[];
+  /**
+   * Как открыта витрина друга СЕЙЧАС (тикет 116). Нужна ленте: событие
+   * «Сокровищница теперь открыта» живёт тридцать дней, а закрыть витрину
+   * обратно можно за секунду — и строка ещё месяц звала бы в запертую дверь.
+   * null — комнаты у друга нет.
+   */
+  hallVisibility: HallVisibility | null;
+  /**
+   * Адрес комнаты для тапа — ТОЛЬКО тому, кто в ней уже был. То же правило и
+   * та же причина, что у карточки друга (тикет 95, решение владельца 08.08):
+   * ссылка на комнату и есть ключ доступа, а лента — не повод раздать ключи
+   * от комнат, которых нам не давали (инвариант №7). Не был — `null`, и
+   * строка остаётся строкой.
+   */
+  roomSlug: string | null;
+};
+
+/**
+ * Состоявшиеся связи смотрящего для ленты. Здесь и только здесь решается,
+ * ЧЬИ события человек имеет право увидеть, — поэтому вопрос задан тому же
+ * судье, что и везде: `isConsentedConnection` (согласие получено И связь не
+ * «смотрели»). Заглянувший по ссылке человек другом не становится, и его
+ * ленты не увидит.
+ *
+ * Фильтр согласия стоит В ЗАПРОСЕ и написан ПЕРЕЧИСЛЕНИЕМ, а не отрицанием:
+ * `NOT { consentA: false }` в SQL выбрасывает и строки, где сторона ещё
+ * молчит (NULL = false даёт UNKNOWN, не TRUE). Тот же приём — у `kind`:
+ * спрашиваем `in`, а не `not`.
+ *
+ * ИНВАРИАНТ №4 цел: связь здесь только ЧИТАЕТСЯ, создать её нечем — поэтому
+ * и имя у функции читающее. Слов «friend/add/search» в поверхности этого
+ * сервиса нет и быть не должно: их сторожит негативный тест 11-го.
+ */
+export async function listConnectionsForFeed(userId: string): Promise<ConnectionForFeed[]> {
+  const id = idSchema.parse(userId);
+
+  const rows = await prisma.connection.findMany({
+    where: {
+      OR: [{ aUserId: id }, { bUserId: id }],
+      kind: { in: ["MUTUAL", "FOLLOW"] },
+      AND: [{ OR: [{ consentAskedAt: null }, { consentA: true, consentB: true }] }],
+    },
+    include: { a: personSelect, b: personSelect },
+  });
+
+  return rows
+    .filter((row) => isConsentedConnection(row))
+    .map((row) => {
+      const meIsA = row.aUserId === id;
+      const other = meIsA ? row.b : row.a;
+      const room = other.room;
+      return {
+        userId: meIsA ? row.bUserId : row.aUserId,
+        displayName: other.displayName ?? other.name ?? null,
+        mutualAt: row.mutualAt,
+        roomId: room?.id ?? null,
+        roomPreset: room?.preset ?? null,
+        zonesOff: room?.zonesOff ?? [],
+        hallVisibility: room?.hallVisibility ?? null,
+        roomSlug:
+          room && myVisitsToTheirRoom(readHistory(row.history), meIsA) > 0
+            ? (room.nick ?? room.shareSlug)
+            : null,
+      } satisfies ConnectionForFeed;
+    });
 }
 
 /**

@@ -285,6 +285,11 @@
     "cancelConfirm": "Really cancel?",
     "cancelYes": "Yes, cancel",
     "cancelNo": "Keep it",
+    "connectionLabel": "Show up after the holiday",
+    "connectionYes": "yes",
+    "connectionNo": "no",
+    "connectionHint": "Only the host sees the name, and only after the holiday",
+    "connectionLocked": "the holiday has passed — too late to change",
     "errGeneric": "Something went wrong — try again"
   },
   "GuestRoom": {
@@ -379,6 +384,13 @@
     "itemGiverRow": "A gift from",
     "itemPriceHidden": "Hidden",
     "hallOverline": "Treasure room",
+    "hallWhoLabel": "Who sees the treasure room",
+    "hallWhoALL": "Anyone with the link",
+    "hallWhoMUTUAL": "Mutual friends only",
+    "hallWhoNONE": "Nobody — it stays mine",
+    "hallWhoHintALL": "Anyone who comes to the room by its link can open the treasure room",
+    "hallWhoHintMUTUAL": "Mutual friends come from gifts, once both sides agreed to stay in touch — a guest has to be signed in",
+    "hallWhoHintNONE": "Nobody but me sees it — the way in disappears for guests of the room too",
     "hallPriceLabel": "Show what things cost",
     "hallVisALL": "Anyone with the link",
     "hallVisFRIENDS": "Friends only",
@@ -462,6 +474,15 @@
     "empty": "Friends appear from gifts and open links — nothing to add by hand",
     "emptyFiltered": "Nobody in this list yet",
     "emptyShare": "Share the room link"
+  },
+  "Feed": {
+    "title": "What's happening",
+    "itemsAdded": "{name} has {count, plural, one {# new wish} other {# new wishes}}",
+    "shelfOpened": "{name} now has a “{zone}” shelf",
+    "treasuryOpened": "The treasure room of {name} is now open",
+    "roomChanged": "The room of {name} — now “{room}”",
+    "becameMutual": "{name} is now among your friends",
+    "mergedTail": " · and {count, plural, one {# new wish} other {# new wishes}}"
   },
   "Hall": {
     "title": "Treasure room",
