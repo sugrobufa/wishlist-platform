@@ -1,9 +1,9 @@
 "use client";
 
-// «Остаться на связи?» (тикет 98, доска Б12) — один блок на два экрана:
-// «что подарили» у хозяйки и «Друзья» у дарителя. Спрашивают обоих, поэтому
-// и вопрос один и тот же; на доске он нарисован только со стороны хозяйки,
-// со второй стороны мы держим ту же форму (письмо дизайну — задание 16).
+// «Хочет остаться в связях» (тикет 98b, доска 32a) — блок на двух экранах:
+// у хозяйки на «что подарили» это ВОПРОС (её ответ решает), у дарителя на
+// «Друзьях» — состояние: он уже ответил на броне, и видит «{имя} решает
+// после праздника».
 //
 // Блок ничего не раскрывает сам: строки приходят с сервера уже проверенными
 // (`listPendingConsent`), имена в них — те же, что экран «что подарили» уже
@@ -80,14 +80,15 @@ export function StayInTouch({
   const waiting = rows.filter((row) => !row.answered);
 
   return (
-    <section className={className} aria-label={t("title")}>
-      <p className="overline" style={{ color: accent }}>
-        {t("badge")}
-      </p>
-      <h2 className="display mt-2 text-lg">{t("title")}</h2>
-      <p className="mt-2 text-xs leading-relaxed text-text-muted">{t("hint")}</p>
+    <section className={className} aria-label={t("hostChip")}>
+      <h2 className="display text-lg">{t("hostChip")}</h2>
+      <p className="mt-2 text-xs leading-relaxed text-text-muted">{t("hostBody")}</p>
 
       {failed && <p className="mt-3 text-sm text-text-muted">{t("errGeneric")}</p>}
+      {/* «Вопрос появляется только у дарителей, которые сами предложили
+          связь. Отказ дарителю не сообщается» — сноска доски 32a: она
+          объясняет и почему список короче числа подарков, и что отказ тихий. */}
+      <p className="mt-3 text-[10.5px] leading-snug text-text-faint">{t("footnote")}</p>
 
       {variant === "bulk" && waiting.length > 1 && (
         <button
@@ -97,7 +98,7 @@ export function StayInTouch({
           className="pressable mt-4 border-b-2 px-5 py-2.5 text-[13px] font-semibold text-text-primary disabled:opacity-60"
           style={{ borderColor: accent, boxShadow: `0 4px 18px -3px ${accent}6B` }}
         >
-          {t("agreeAll", { count: waiting.length })}
+          {t("hostKeep")}
         </button>
       )}
 
@@ -110,7 +111,7 @@ export function StayInTouch({
                 {row.displayName ?? t("nameFallback")}
               </p>
               <p className="mt-1.5 text-[11px] leading-snug text-text-muted">
-                {row.giftTitle ? t("rowGift", { title: row.giftTitle }) : t("rowPlain")}
+                {t("hostChipWait")}
               </p>
             </div>
 
@@ -118,7 +119,7 @@ export function StayInTouch({
               // Своё «да» уже сказано. Чужой ответ не показываем никогда:
               // отказ — личное дело, объясняться человек не должен.
               <span className="flex-none text-[11px] font-medium text-text-faint">
-                {t("waiting")}
+                {t("guestPending", { name: row.displayName ?? t("nameFallback") })}
               </span>
             ) : (
               <div className="flex flex-none items-center gap-1.5">
@@ -128,7 +129,7 @@ export function StayInTouch({
                   onClick={() => answer(row.id, () => respondToConnectionAction(row.id, false))}
                   className="pressable min-h-11 px-3 text-[11px] font-semibold text-text-muted disabled:opacity-60"
                 >
-                  {t("decline")}
+                  {t("hostNo")}
                 </button>
                 <button
                   type="button"
@@ -137,7 +138,7 @@ export function StayInTouch({
                   className="pressable min-h-11 px-3.5 text-[11px] font-bold disabled:opacity-60"
                   style={{ background: accent, color: ink }}
                 >
-                  {t("agree")}
+                  {t("hostKeep")}
                 </button>
               </div>
             )}

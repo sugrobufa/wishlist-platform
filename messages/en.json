@@ -580,17 +580,21 @@
     "notFound": "No such item in this room"
   },
   "Consent": {
-    "badge": "After the celebration",
-    "title": "Stay in touch?",
-    "hint": "We ask both sides: the connection appears only if both agree. A refusal stays between you — we never tell the other side",
-    "agreeAll": "With all {count, plural, one {# person} other {# people}}",
-    "agree": "Stay in touch",
-    "decline": "Not this time",
-    "waiting": "Waiting for a reply",
-    "rowGift": "Gift «{title}»",
-    "rowPlain": "A gift for this celebration",
-    "nameFallback": "Guest without a name",
-    "errGeneric": "Something went wrong — try again"
+    "offerTitle": "Stay in touch with {name}?",
+    "offerBody": "She will see your name after the celebration — and decide. Until then everything stays quiet, as usual",
+    "offerYes": "Yes, offer",
+    "offerNo": "Give quietly",
+    "offerSkipHint": "You can skip — change your mind before the celebration in «My gifts»",
+    "guestPending": "{name} decides after the celebration",
+    "hostChip": "wants to stay in touch",
+    "hostChipWait": "wants to stay in touch · waiting for your answer",
+    "hostBody": "Mutual friends see each other's rooms and prices closed to «friends only»",
+    "hostKeep": "Keep mutual",
+    "hostNo": "Not for now",
+    "declinedRow": "acquainted · gift in history",
+    "footnote": "The question appears only for givers who offered themselves. A refusal is never reported to the giver",
+    "errGeneric": "Something went wrong — try again",
+    "nameFallback": "Guest without a name"
   },
   "EmptyZone": {
     "position": "shelf {index} of {total} · still empty",

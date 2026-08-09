@@ -307,7 +307,7 @@ describe("takenForRoomSlug — хозяйке своей комнаты кана
       viewerUserId: room.userId,
     });
     // toEqual пиноит ответ ЦЕЛИКОМ: ни одного непустого поля.
-    expect(forOwner).toEqual({ itemIds: [], mine: [], myBookingsCount: 0 });
+    expect(forOwner).toEqual({ itemIds: [], mine: [], myBookingsCount: 0, signedIn: true });
   });
 
   it("её собственные брони в ЧУЖИХ комнатах в этот ноль не попадают как факт: чужая комната отвечает ей как гостю", async () => {
@@ -330,7 +330,7 @@ describe("takenForRoomSlug — хозяйке своей комнаты кана
     const inOwnRoom = await takenForRoomSlug(mine.shareSlug, [cancelToken], {
       viewerUserId: mine.userId,
     });
-    expect(inOwnRoom).toEqual({ itemIds: [], mine: [], myBookingsCount: 0 });
+    expect(inOwnRoom).toEqual({ itemIds: [], mine: [], myBookingsCount: 0, signedIn: true });
   });
 
   it("пустота — только СВОЕЙ хозяйке: соседка и аноним видят занятое как раньше", async () => {

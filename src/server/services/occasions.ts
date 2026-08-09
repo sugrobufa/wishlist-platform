@@ -392,6 +392,12 @@ export async function receiveGift(userId: string, itemId: string): Promise<Item>
         giverUserId: booking.guestUserId,
         itemId: item.id,
         itemTitle: item.title,
+        // Ответ гостя дан ЗАРАНЕЕ, на подтверждении брони (тикет 98b, доска
+        // 32a): здесь он только переносится в связь. Не предлагал — связь
+        // рождается односторонней («знакомы · подарок в истории»), и хозяйку
+        // мы ни о чём не спрашиваем: молчаливой дружбы больше нет, но и
+        // вопроса без предложения тоже.
+        guestOffered: booking.offersConnection,
       });
     }
 

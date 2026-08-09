@@ -257,6 +257,14 @@ model Booking {
   purchased   Boolean     @default(false)
   createdAt   DateTime    @default(now())
 
+  // Гость предложил остаться на связи (тикет 98b, доска 32a). Вопрос задаётся
+  // на подтверждении брони — до праздника и до всякой связи, поэтому живёт
+  // здесь, а не в Connection: Connection к этому моменту ещё не существует.
+  // Смысл — на ПАРЕ гость↔хозяйка, а не на вещи: вторая бронь той же хозяйке
+  // вопроса не задаёт, предложение уже сделано. Всегда false у гостя без
+  // аккаунта: связывать некого.
+  offersConnection Boolean @default(false)
+
   item Item               @relation(fields: [itemId], references: [id], onDelete: Cascade)
   pool PoolContribution[]
 }

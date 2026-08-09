@@ -23,3 +23,58 @@
 
 /* Своего вида у ссылки «Мои брони» больше нет: она стала тихой пилюлей
  * `.btn-quiet` (globals.css, тикет 86), общей со «Списком» по соседству. */
+
+/* «Остаться в связях?» на подтверждении брони (тикет 98b, доска 32a).
+   Отдельная плашка под строкой брони — её числа с доски: bg .03, border .09. */
+.offer {
+  margin-top: 14px;
+  padding: 13px 15px;
+  border: 1px solid rgba(255, 255, 255, 0.09);
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.offerTitle {
+  font: 600 13px/1.35 var(--font-ui);
+  color: var(--color-text-primary);
+}
+
+.offerBody {
+  margin-top: 6px;
+  font: 400 11.5px/1.45 var(--font-ui);
+  color: var(--color-text-muted);
+}
+
+.offerRow {
+  display: flex;
+  gap: 8px;
+  margin-top: 11px;
+}
+
+.offerRow button {
+  min-height: 44px;
+  padding: 0 14px;
+  font: 700 11.5px/1 var(--font-ui);
+  color: var(--color-text-primary);
+}
+
+/* «Да, предложить» заливается акцентом комнаты (инлайном), «Подарить тихо»
+   остаётся тихой кнопкой — второй равной по весу здесь быть не должно. */
+.offerRow button:first-child {
+  color: #0b0806;
+}
+
+.offerRow button:last-child {
+  border: 1px solid var(--color-surface-hairline);
+  color: var(--color-text-muted);
+}
+
+.offerHint {
+  margin-top: 9px;
+  font: 400 10.5px/1.45 var(--font-ui);
+  color: var(--color-text-faint);
+}
+
+.offerAnswered {
+  margin-top: 14px;
+  font: 500 11.5px/1.45 var(--font-ui);
+}

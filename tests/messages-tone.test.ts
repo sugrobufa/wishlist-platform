@@ -588,24 +588,26 @@ describe("словарь и дизайн-пакет", () => {
       "Connections.feedInDays",
       "Connections.feedNoDate",
       "Connections.feedToday",
-      // Тикет 98 (доска Б12, турн 20a): «Остаться на связи?» после праздника.
-      // Экрана согласия НЕТ НИ В ОДНОМ пакете дизайна — это первый вопрос
-      // задания 16 (BRIEF-19). С доски дословно взяты только заголовок
-      // («Остаться на связи?») и форма кнопки «Со всеми {count}»; остальное
-      // написано по памятке тона. Отдельно: доска рисует вопрос лишь со
-      // стороны хозяйки, а спрашиваем мы обоих — «разрешение у обеих сторон»
-      // её же словами, и второй стороне нужен тот же словарь.
-      "Consent.agree",
-      "Consent.agreeAll",
-      "Consent.badge",
-      "Consent.decline",
+      // Тикет 98b (доска 32a, раунд 20): согласие на связь. Экрана согласия
+      // не было ни в одном пакете — мы собрали его сами и получили от него
+      // готовые строки следующим раундом. Здесь они ДОСЛОВНО из его
+      // messages-ru.json → Consent; в его же handoff-словаре этой секции
+      // нет, поэтому ключи числятся нашими.
+      "Consent.declinedRow",
       "Consent.errGeneric",
-      "Consent.hint",
+      "Consent.footnote",
+      "Consent.guestPending",
+      "Consent.hostBody",
+      "Consent.hostChip",
+      "Consent.hostChipWait",
+      "Consent.hostKeep",
+      "Consent.hostNo",
       "Consent.nameFallback",
-      "Consent.rowGift",
-      "Consent.rowPlain",
-      "Consent.title",
-      "Consent.waiting",
+      "Consent.offerBody",
+      "Consent.offerNo",
+      "Consent.offerSkipHint",
+      "Consent.offerTitle",
+      "Consent.offerYes",
       // Пустая зона (тикет 99, доска Б27 · турн 25c). Числа и смысл — из
       // `task15.json → emptyStates.emptyZone`, слова оттуда же дословно:
       // «Положить сюда первую», «Убрать полку из комнаты», «полка 02 из 13 ·

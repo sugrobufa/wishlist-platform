@@ -28,6 +28,7 @@ import {
   type BookingErrorKey,
 } from "./booking-errors";
 import { GiftTag } from "./gift-tag";
+import { ConnectionOffer } from "./connection-offer";
 import { RoomOffer } from "./room-offer";
 import s from "./booking-dialog.module.css";
 
@@ -47,7 +48,7 @@ export function BookingDialog({ item, ownerName, accent, onClose }: BookingDialo
   // Строка приватности живёт в словаре комнаты гостя (турн 12b) и там же
   // и остаётся: тикет 77 сменил ей МЕСТО НА ЭКРАНЕ, а не владельца.
   const tGuest = useTranslations("GuestRoom");
-  const { markBooked, markTaken } = useGuestBooking();
+  const { markBooked, markTaken, signedIn } = useGuestBooking();
   const [phase, setPhase] = useState<Phase>("form");
   const [error, setError] = useState<BookingErrorKey | null>(null);
   const [name, setName] = useState("");
@@ -134,6 +135,13 @@ export function BookingDialog({ item, ownerName, accent, onClose }: BookingDialo
               {t("successTitle")}
             </p>
             <p className={s.doneHint}>{t("successHint")}</p>
+            {/* Вопрос связи — ОТДЕЛЬНОЙ плашкой сразу под строкой брони
+                (тикет 98b, доска 32a): появляется вместе с подтверждением,
+                не позже. Гостю без аккаунта не показывается — связывать
+                некого, и сервер такой ответ всё равно не примет. */}
+            {signedIn && (
+              <ConnectionOffer itemId={item.id} ownerName={ownerName} accent={accent} />
+            )}
             {shopBlock}
             {/* Имя и почта — те самые, что человек напечатал строкой выше;
                 наружу они не уходят никуда, кроме его собственной комнаты. */}

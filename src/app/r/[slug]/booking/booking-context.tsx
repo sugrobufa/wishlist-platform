@@ -20,6 +20,8 @@ export type GuestBookingState = {
   mine: ReadonlySet<string>;
   /** Всего живых броней гостя — строка «Мои брони · N» внизу комнаты. */
   myBookingsCount: number;
+  /** Зритель вошёл в аккаунт — вопрос «остаться в связях?» (тикет 98b). */
+  signedIn: boolean;
   /**
    * Сколько вещей ЭТОЙ комнаты гость занял прямо сейчас, за этот заход.
    * Приветствие вычитает это число из «сколько подарков ещё свободно»: сам
@@ -46,6 +48,7 @@ export function GuestBookingProvider({ slug, children }: { slug: string; childre
   const [taken, setTaken] = useState<ReadonlySet<string>>(new Set());
   const [mine, setMine] = useState<ReadonlySet<string>>(new Set());
   const [myBookingsCount, setMyBookingsCount] = useState(0);
+  const [signedIn, setSignedIn] = useState(false);
   const [bookedNow, setBookedNow] = useState(0);
 
   useEffect(() => {
@@ -70,13 +73,21 @@ export function GuestBookingProvider({ slug, children }: { slug: string; childre
         const payload: unknown = await response.json();
         const data =
           typeof payload === "object" && payload !== null
-            ? (payload as { data?: { itemIds?: unknown; mine?: unknown; myBookingsCount?: unknown } })
+            ? (payload as {
+                data?: {
+                  itemIds?: unknown;
+                  mine?: unknown;
+                  myBookingsCount?: unknown;
+                  signedIn?: unknown;
+                };
+              })
                 .data
             : undefined;
         if (!data) return;
         setTaken(new Set(stringArray(data.itemIds)));
         setMine(new Set(stringArray(data.mine)));
         setMyBookingsCount(typeof data.myBookingsCount === "number" ? data.myBookingsCount : 0);
+        setSignedIn(data.signedIn === true);
       } catch {
         // Тихо: без канала «занято» комната остаётся смотрибельной,
         // а сервер всё равно не даст занять уже занятое (P2002 → 409).
@@ -97,8 +108,8 @@ export function GuestBookingProvider({ slug, children }: { slug: string; childre
   }, []);
 
   const value = useMemo<GuestBookingState>(
-    () => ({ taken, mine, myBookingsCount, bookedNow, markBooked, markTaken }),
-    [taken, mine, myBookingsCount, bookedNow, markBooked, markTaken],
+    () => ({ taken, mine, myBookingsCount, signedIn, bookedNow, markBooked, markTaken }),
+    [taken, mine, myBookingsCount, signedIn, bookedNow, markBooked, markTaken],
   );
 
   return <GuestBookingContext.Provider value={value}>{children}</GuestBookingContext.Provider>;

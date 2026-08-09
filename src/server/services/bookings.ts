@@ -62,6 +62,12 @@ export const bookItemInputSchema = z.object({
   name: z.string({ error: "имя обязательно" }).trim().min(1, "имя обязательно").max(120),
   email: optionalEmail,
   mode: z.enum(["QUIET", "SIGNED", "POOL"]).default("QUIET"),
+  /**
+   * Гость предложил остаться на связи (тикет 98b, доска 32a). Вопрос стоит
+   * на подтверждении брони, поэтому и ответ приходит сюда. У гостя без
+   * аккаунта игнорируется: связывать некого.
+   */
+  offersConnection: z.boolean().default(false),
 });
 
 export type BookItemInput = z.input<typeof bookItemInputSchema>;
@@ -142,6 +148,9 @@ export async function bookItem(
         guestEmail: data.email ?? null,
         guestUserId: sessionUserId,
         cancelToken,
+        // Предложение связи — только у гостя с аккаунтом: анониму связь
+        // заводить не с кем (тикет 98b). У остальных остаётся false.
+        offersConnection: sessionUserId ? data.offersConnection : false,
       },
     });
   } catch (error) {
@@ -174,6 +183,33 @@ export async function markPurchased(cancelToken: string, purchased = true): Prom
   if (count === 0) {
     throw new BookingError("TOKEN_NOT_FOUND", "брони с таким токеном нет");
   }
+}
+
+/**
+ * «Остаться в связях?» — ответ гостя на подтверждении брони (тикет 98b,
+ * доска 32a). Меняет только СВОЮ бронь по своему токену; связи в этот момент
+ * ещё не существует, она родится на «Дошло» и возьмёт ответ отсюда.
+ *
+ * Предложение живёт на ПАРЕ гость↔хозяйка, а не на вещи: ответ ставится всем
+ * живым броням этого гостя в этой комнате разом — вторая бронь той же хозяйке
+ * вопроса уже не задаст, а передумать можно один раз на всех.
+ */
+export async function offerConnection(cancelToken: string, offers: boolean): Promise<void> {
+  const token = z.string().min(1).max(128).parse(cancelToken);
+  const mine = await prisma.booking.findUnique({
+    where: { cancelToken: token },
+    select: { guestUserId: true, item: { select: { roomId: true } } },
+  });
+  if (!mine) {
+    throw new BookingError("TOKEN_NOT_FOUND", "брони с таким токеном нет");
+  }
+  // Гость без аккаунта: связывать некого, ответ молча ничего не меняет.
+  if (!mine.guestUserId) return;
+
+  await prisma.booking.updateMany({
+    where: { guestUserId: mine.guestUserId, item: { roomId: mine.item.roomId } },
+    data: { offersConnection: Boolean(offers) },
+  });
 }
 
 // ---------- «Мои брони» гостя ----------
@@ -304,6 +340,15 @@ export type TakenChannelDto = {
   mine: string[];
   /** Всего живых броней гостя — строка «Мои подарки · N» внизу комнаты. */
   myBookingsCount: number;
+  /**
+   * Зритель вошёл в свой аккаунт (тикет 98b). Нужен вопросу «остаться в
+   * связях?»: анониму связывать некого, и спрашивать его не о чем.
+   *
+   * Живёт ЗДЕСЬ, а не в разметке страницы, потому что гостевая страница
+   * одинакова для всех и сессии не читает вовсе (ISR). Про брони этот флаг
+   * не говорит ничего — инвариант №1 не задет.
+   */
+  signedIn: boolean;
 };
 
 /**
@@ -323,7 +368,8 @@ export type TakenChannelDto = {
  * «она не может подсмотреть» (ADR-0007).
  */
 function takenForOwner(): TakenChannelDto {
-  return { itemIds: [], mine: [], myBookingsCount: 0 };
+  // Хозяйка на своей ссылке вошла — но занятого для неё не существует.
+  return { itemIds: [], mine: [], myBookingsCount: 0, signedIn: true };
 }
 
 /**
@@ -334,6 +380,7 @@ function takenForOwner(): TakenChannelDto {
 async function takenForGuest(
   roomId: string,
   tokens: readonly string[],
+  signedIn: boolean,
 ): Promise<TakenChannelDto> {
   const itemIds = await takenItemIds(roomId);
   const valid = validTokens(tokens);
@@ -347,7 +394,7 @@ async function takenForGuest(
           })
         ).map((row) => row.itemId);
 
-  return { itemIds, mine, myBookingsCount: await countBookingsByTokens(tokens) };
+  return { itemIds, mine, myBookingsCount: await countBookingsByTokens(tokens), signedIn };
 }
 
 /**
@@ -389,7 +436,7 @@ export async function takenForRoomSlug(
   const viewerUserId = options.viewerUserId ? idSchema.parse(options.viewerUserId) : null;
   if (viewerUserId !== null && viewerUserId === room.userId) return takenForOwner();
 
-  return takenForGuest(room.id, tokens);
+  return takenForGuest(room.id, tokens, viewerUserId !== null);
 }
 
 // ---------- Канал хозяйки: счётчик «N вещей уже забраны» (тикет 09) ----------
