@@ -1,6 +1,11 @@
 # ARCHITECTURE — Grace (техимя репозитория — wishlist-platform)
 
-Версия 0.3 (синхронизирована с PRD 0.3 и дизайн-пакетом `design/package/`).
+Версия 0.4 (синхронизирована с PRD 0.4 и дизайн-пакетом `design/package/`).
+
+0.4 (09.08.2026, тикет 124): состояний у вещи нет. `ItemState` (`LOVE | WANT`)
+убран из модели; место вещи держит одно поле `inHall` — `false` комната,
+`true` сокровищница. Прежнее имя витрины «зал славы» заменено на нынешнее —
+«сокровищница»; это то же место, а не новое.
 
 ## 0. Принципы
 
@@ -39,7 +44,7 @@ Sentry + OTel + PostHog (prod).
 
 Шрифты: **Archivo** (display, 900, uppercase), **Onest** (UI),
 **Instrument Sans** (аннотации) — self-host через `next/font`.
-**three.js — только для зала славы** и только когда есть 3D-модель (не в MVP;
+**three.js — только для сокровищницы** и только когда есть 3D-модель (не в MVP;
 в MVP вращение — фото + CSS, как в макете).
 
 ## 3. Сцена комнаты
@@ -69,8 +74,10 @@ Sentry + OTel + PostHog (prod).
 ### 3.2 Реализация
 
 - `SceneStage` (client component): слой кадра комнаты + слой кадров «открыто»
-  стопкой + слой призраков «хочу» + хотспоты. Трансформы — CSS transform от
-  конфига; никакой пиксельной магии в компонентах.
+  стопкой + хотспоты. Трансформы — CSS transform от конфига; никакой
+  пиксельной магии в компонентах. Отдельного слоя «призраков» у сцены нет:
+  пустую комнату закрывает затемнение, а не вещи-примеры (решение владельца
+  09.08.2026).
 - Партитура анимаций — из `motion.json` (длительности, кривая
   `cubic-bezier(.23,1,.32,1)`, стаггер сетки 60 мс, ambient-дрейф отдельным
   слоем ПОД камерой). `prefers-reduced-motion` — по контракту, не «всё в 0».
@@ -104,39 +111,48 @@ model Room {
   zonesOff     String[]               // выключенные зоны (исчезают с мебелью)
   shareSlug    String   @unique       // комната доступна по ссылке
   occasionDate DateTime?              // ближайший праздник (день рождения — P1)
+  hallVisibility HallVisibility @default(ALL) // кто входит в сокровищницу (ADR-0011)
   createdAt    DateTime @default(now())
   user         User     @relation(fields: [userId], references: [id])
   items        Item[]
 }
 
-enum ItemState { LOVE WANT }
+enum HallVisibility { ALL MUTUAL NONE }  // «всем по ссылке» | «взаимным» | «никому»
+
 enum PriceVisibility { ALL FRIENDS ME NONE }
 enum ItemSource { URL MANUAL PHOTO CATALOG SHARE EXTENSION BOT }
 
-// Одна вещь, два состояния (контракт items.json). Пунктир = WANT, не «нет фото».
+// Одна вещь, два МЕСТА (контракт items.json v2, тикет 124). Состояния нет:
+// `inHall = false` — комната (бронируется, есть цена и степень желания),
+// `inHall = true` — сокровищница (не бронируется, цены гостю нет вовсе).
+// Пунктира нет ни у одной вещи — кодировать им больше нечего.
 model Item {
   id           String     @id @default(cuid())
   roomId       String
-  zone         String                    // ключ зоны из zones.json
-  state        ItemState
+  zone         String                    // ключ зоны; живёт и у вещи витрины
   title        String
   note         String?
-  photoKey     String?                   // техническое поле, на состояние не влияет
+  photoKey     String?                   // техническое поле, на место не влияет
   url          String?
   canonicalUrl String?
   domain       String?
-  // --- поля WANT ---
-  price          Decimal?  @db.Decimal(12, 2)  // обязательна для WANT (валидация в сервисе)
+  // --- поля вещи КОМНАТЫ ---
+  // Живут у всего, но показываются, только пока вещь в комнате. Переезд их
+  // не стирает: «Вернуть в комнату» показывает цену снова.
+  price          Decimal?  @db.Decimal(12, 2)  // обязательна у вещи комнаты (Zod в сервисе)
   currency       String?
   priceVisibility PriceVisibility @default(ALL)
   size           String?
   color          String?
-  desire         Int?                    // «насколько хочется», 1–4
-  // --- поля LOVE ---
+  desire         Int?                    // степень желания, 1–4; null = «не скажу»
+  eventWhen      String?                 // услуга-впечатление: «14 марта», «выходные»
+  eventWhere     String?                 // город, место или «онлайн»
+  validUntil     DateTime?               // конец сертификата, последний день выставки
+  // --- МЕСТО вещи и история подарка ---
   giverName    String?                   // «Подарила мама» / из брони при «Дошло»
-  receivedAt   DateTime?                 // «Подарен в 2024»
-  inHall       Boolean    @default(false) // зал славы; скрыть можно, вернуть в WANT нельзя
-  hiddenFromHall Boolean  @default(false)
+  receivedAt   DateTime?                 // «Подарок 2024 года»
+  inHall       Boolean    @default(false) // единственный признак места; ОБРАТИМ
+  hiddenFromHall Boolean  @default(false) // глазок: спрятать вещь витрины от гостей
   // --- общее ---
   hidden       Boolean    @default(false) // видит только хозяйка
   source       ItemSource @default(MANUAL)
@@ -147,7 +163,7 @@ model Item {
   room         Room       @relation(fields: [roomId], references: [id])
   booking      Booking?
   priceSnapshots PriceSnapshot[]
-  @@index([roomId, zone, state])
+  @@index([roomId, zone, inHall])
   @@index([canonicalUrl])
 }
 
@@ -231,34 +247,60 @@ DTO-слой (`src/server/dto/*`) — единственное место сер
   участников: в счётчике — одна занятая вещь, порога не существует (PRD §12а).
   Прогресс сбора — отдельный гостевой канал (Phase 2), хозяйке не отдаётся.
   Счётчик может убывать (отмена брони, несобравшаяся складчина с автовозвратом
-  вещи в «хочу») — убывание не скрывается и не детализируется.
+  взносов) — убывание не скрывается и не детализируется.
 - **`itemForGuest`** — `taken: boolean`, `purchased: boolean`, `isMine`
   (по cancelToken); имена других гостей не отдаются.
-- Вещи `hidden` и вещи выключенных зон гостю не отдаются вовсе; `LOVE` для
-  гостя — без цены всегда.
+- Вещи `hidden` и вещи выключенных зон гостю не отдаются вовсе; **вещь
+  сокровищницы гость получает без цены всегда** — правило живёт одной функцией
+  `guestSeesHallPrice()` (`src/server/dto/hall.ts`), у неё нет аргументов
+  сознательно: любая настройка в сигнатуре читалась бы как дверь, которой
+  больше нет.
 - Unit-тесты фиксируют: (а) owner-DTO не содержит полей брони, (б) guest не
-  видит hidden, (в) пунктир-маркер `WANT` не зависит от наличия фото.
+  видит hidden, (в) гость не получает цену вещи сокровищницы ни при какой
+  настройке, (г) пунктира не бывает ни при каком входе.
 
-## 6. Переход «хочу → люблю» (сервис `receiveGift`)
+## 6. Два переезда вещи: `receiveGift` и `toggleHall`
 
-Одна транзакция, вызывается с экрана «что подарили» (отмечает хозяйка):
+**«Дошло» (`receiveGift`) — единственный СИСТЕМНЫЙ переезд.** Одна транзакция,
+вызывается с экрана «что подарили» (отмечает хозяйка):
 
-1. `item.state = LOVE`, `receivedAt = now`, `giverName` ← из брони (или руками);
-2. `inHall = true` — вещь в зале славы;
+1. `inHall = true` — вещь уезжает из комнаты в сокровищницу;
+2. `receivedAt = now`, `giverName` ← из брони (или руками);
 3. раскрытие имени — только в рамках `OccasionSummary.revealedAt` (один раз);
 4. создание/обновление `Connection` (origin `gift:{itemId}`), гостю —
    предложение «остаться на связи»;
 5. бронь закрывается.
 
-Обратного перехода нет (`LOVE → WANT` запрещён на уровне сервиса); вещь можно
-скрыть из зала славы (`hiddenFromHall`), но не вернуть в «хочу».
+Повторный вызов на вещи, которая уже на витрине, отказывает
+(`ALREADY_IN_HALL`) — раскрытие бывает ровно один раз.
+
+**Ручной переезд (`toggleHall`) — в обе стороны.** «В сокровищницу» и
+«Вернуть в комнату»: по смыслу меняется только `inHall`. Зона и цена
+сохраняются; `giverName` не трогается ни при въезде, ни при возврате;
+`hiddenFromHall` сбрасывается при въезде (витрина показывает вещь, как бы её
+раньше ни прятали глазком), а `receivedAt` проставляется, только если его ещё
+нет — у подарка это момент «Дошло», и переезд не вправе его переписать.
+
+**Что именно необратимо.** Не место вещи, а **раскрытие имени дарителя**.
+Место обратимо, и возврат в комнату имя не отменяет и второй раз не запускает.
+Имена и место — две разные вещи, связывать их нельзя (тикет 124, решение
+владельца 09.08.2026). Отдельно: вещь витрины можно спрятать от гостей
+глазком (`hiddenFromHall`) — это не переезд, вещь остаётся на витрине хозяйки.
+
+**Бронь при ручном переезде на витрину снимается молча — для ХОЗЯЙКИ.**
+Действие доступно всегда и выглядит одинаково на любой вещи: спрятанная кнопка
+сама рассказала бы, какие вещи уже забрали (инвариант №1). Гостю при этом
+уходит письмо «вещь уехала — выбери другую» (шаблон просрочки), складчине —
+автовозврат взносов тем же механизмом, что у несобравшейся складчины. Ни один
+экран хозяйки и ни один ответ сервера не зависят от того, была бронь или нет —
+тест обязателен.
 
 ## 7. Наполнение №1: каталог и партнёрские фиды (Phase 2–3, флаг `CATALOG_ENABLED`)
 
 Без изменений с v0.2: источники по рынку (Admitad/ePN/YML · Amazon PA-API ·
 AliExpress), потоковый `feed.ingest` (SAX, upsert батчами, дедуп
 GTIN → canonicalUrl → fuzzy), поиск (FTS + pg_trgm + pgvector HNSW),
-использование: поиск при добавлении «хочу», блок «где купить», монетизация.
+использование: поиск при добавлении вещи, блок «где купить», монетизация.
 Исходящие ссылки — только через `GET /out/:token` (+`OutboundClick`, `subId`),
 в UI помечены. Партиционирование по источнику, отдельный worker.
 
@@ -293,7 +335,8 @@ GTIN → canonicalUrl → fuzzy), поиск (FTS + pg_trgm + pgvector HNSW),
 GET  /me · PATCH /me · POST /me/second-auth                     (auth)
 GET  /room · PATCH /room (preset, zoneSet, zonesOff, occasion)  (auth)
 GET  /room/taken-count                 счётчик «уже забраны»    (auth, без кэша)
-CRUD /items · POST /items/:id/received  переход WANT→LOVE       (auth)
+CRUD /items · POST /items/:id/received  «Дошло» → сокровищница  (auth)
+POST /items/:id/hall { on }            ручной переезд в обе стороны (auth)
 POST /parse { url } → ParsedProduct | { jobId } · GET /parse/:id (auth)
 POST /recognize { imageKey } → { jobId } · GET /recognize/:id   (auth, флаг)
 GET  /catalog/search?q&zone                                     (auth, флаг)
@@ -343,7 +386,7 @@ token-bucket на домен. Адаптеры: `SiteAdapter` + фикстура
 | `occasion.close` | сборка «что подарили» после даты | 1 |
 | `parse.browser` | Playwright-рендер | 2 |
 | `feed.ingest` / `embeddings.build` | каталог | 2 |
-| `price.refresh` | перепроверка цен WANT | 2 |
+| `price.refresh` | перепроверка цен у вещей комнаты | 2 |
 | `ai.recognize` | vision-распознавание | 2 |
 
 ## 14. Переменные окружения (`.env.example`)

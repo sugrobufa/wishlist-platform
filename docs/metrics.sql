@@ -13,11 +13,15 @@
 --     «комнату открыл гость» считаем по следам действий гостей — связи VIEWED
 --     (визит залогиненного гостя) и брони. Это НИЖНЯЯ оценка шаринга.
 --  3. Демо-призраки в БД не пишутся — фильтровать их из Item не нужно.
+--  4. Колонки Item.state больше НЕТ (тикет 124, 09.08.2026): состояния «хочу»
+--     и «люблю» отменены, различие живёт в месте — Item.inHall (false —
+--     комната, true — сокровищница). Запросы ниже переписаны под неё; правило
+--     переноса прежних данных было «LOVE → inHall = true».
 -- ============================================================================
 
 
 -- ----------------------------------------------------------------------------
--- 1. АКТИВАЦИЯ: доля пользователей, добавивших ≥3 вещи (любого состояния)
+-- 1. АКТИВАЦИЯ: доля пользователей, добавивших ≥3 вещи
 --    за первые 7 дней после регистрации.
 --    Учитываем только «созревшие» аккаунты (регистрация ≥7 дней назад) —
 --    у свежих окно ещё не закрылось, и они бы занижали метрику.
@@ -46,31 +50,32 @@ LEFT JOIN first_week_items f ON f."userId" = u."id";
 
 
 -- ----------------------------------------------------------------------------
--- 2. БАЛАНС МОДЕЛИ: доля вещей «люблю» среди всех вещей.
---    Здоровый коридор ~30–50% (комната, а не витрина желаний).
+-- 2. БАЛАНС МЕСТ: доля вещей в сокровищнице среди всех вещей.
+--    Здоровый коридор ~30–50%. Уехало на витрину почти всё — гостю нечего
+--    дарить; на витрине пусто — цикл не замкнулся ни разу.
 --    Плюс распределение по комнатам — медиана честнее среднего.
 -- ----------------------------------------------------------------------------
 SELECT
   count(*)                                        AS items_total,
-  count(*) FILTER (WHERE i."state" = 'LOVE')      AS love_items,
-  round(100.0 * count(*) FILTER (WHERE i."state" = 'LOVE') / nullif(count(*), 0), 1)
-                                                  AS love_share_pct
+  count(*) FILTER (WHERE i."inHall")              AS hall_items,
+  round(100.0 * count(*) FILTER (WHERE i."inHall") / nullif(count(*), 0), 1)
+                                                  AS hall_share_pct
 FROM "Item" i;
 
 -- Та же доля по комнатам (только комнаты с ≥3 вещами — иначе шум):
--- медиана по комнатам устойчивее к «витринам» с сотней желаний.
+-- медиана по комнатам устойчивее к комнатам с сотней желаний.
 WITH per_room AS (
   SELECT i."roomId",
          count(*) AS items_total,
-         round(100.0 * count(*) FILTER (WHERE i."state" = 'LOVE') / count(*), 1) AS love_pct
+         round(100.0 * count(*) FILTER (WHERE i."inHall") / count(*), 1) AS hall_pct
   FROM "Item" i
   GROUP BY i."roomId"
   HAVING count(*) >= 3
 )
 SELECT
   count(*)                                                      AS rooms_counted,
-  round(avg(love_pct), 1)                                       AS love_pct_avg,
-  percentile_cont(0.5) WITHIN GROUP (ORDER BY love_pct)::numeric(5,1) AS love_pct_median
+  round(avg(hall_pct), 1)                                       AS hall_pct_avg,
+  percentile_cont(0.5) WITHIN GROUP (ORDER BY hall_pct)::numeric(5,1) AS hall_pct_median
 FROM per_room;
 
 
@@ -80,7 +85,8 @@ FROM per_room;
 --    (а) связь VIEWED/любая у хозяйки (визит залогиненного гостя создаёт
 --        VIEWED; подарок поднимает её до FOLLOW/MUTUAL — считаем все);
 --    (б) живая бронь на вещи комнаты (гость точно заходил);
---    (в) след прошлой брони: вещь LOVE с заполненным giverName («Дошло»).
+--    (в) след прошлой брони: вещь В СОКРОВИЩНИЦЕ с заполненным giverName
+--        («Дошло»).
 --    Это нижняя оценка: комната, которую только смотрели анонимы, не видна.
 -- ----------------------------------------------------------------------------
 SELECT
@@ -95,15 +101,15 @@ LEFT JOIN LATERAL (
      OR EXISTS (SELECT 1 FROM "Booking" b JOIN "Item" i ON i."id" = b."itemId"
                 WHERE i."roomId" = r."id")
      OR EXISTS (SELECT 1 FROM "Item" i
-                WHERE i."roomId" = r."id" AND i."state" = 'LOVE' AND i."giverName" IS NOT NULL)
+                WHERE i."roomId" = r."id" AND i."inHall" AND i."giverName" IS NOT NULL)
 ) opened ON true;
 
 
 -- ----------------------------------------------------------------------------
 -- 4. ЯДРО: доля комнат с ≥1 тихой бронью за последние 30 дней.
 --    Booking хранит только живые брони (оговорка 1) — чтобы не терять брони,
---    уже закрытые «Дошло», добавляем след receiveGift: LOVE с giverName и
---    receivedAt в окне. Отменённые гостями брони не видны никак — нижняя
+--    уже закрытые «Дошло», добавляем след receiveGift: вещь в сокровищнице с
+--    giverName и receivedAt в окне. Отменённые гостями брони не видны — нижняя
 --    оценка. Событийный лог для точной версии — кандидат Phase 2.
 -- ----------------------------------------------------------------------------
 SELECT
@@ -117,7 +123,7 @@ LEFT JOIN LATERAL (
   WHERE EXISTS (SELECT 1 FROM "Booking" b JOIN "Item" i ON i."id" = b."itemId"
                 WHERE i."roomId" = r."id" AND b."createdAt" >= now() - interval '30 days')
      OR EXISTS (SELECT 1 FROM "Item" i
-                WHERE i."roomId" = r."id" AND i."state" = 'LOVE'
+                WHERE i."roomId" = r."id" AND i."inHall"
                   AND i."giverName" IS NOT NULL
                   AND i."receivedAt" >= now() - interval '30 days')
 ) booked ON true;
@@ -125,8 +131,8 @@ LEFT JOIN LATERAL (
 
 -- ----------------------------------------------------------------------------
 -- 5а. ЗАМЫКАНИЕ ЦИКЛА: доля праздников с ≥1 отмеченным «Дошло».
---     Праздник = OccasionSummary. «Дошло» этого праздника — вещь LOVE с
---     giverName, чей receivedAt ≥ createdAt summary (receiveGift существует
+--     Праздник = OccasionSummary. «Дошло» этого праздника — вещь в
+--     сокровищнице с giverName, чей receivedAt ≥ createdAt summary (receiveGift существует
 --     только после закрытия праздника — контракт тикета 10). Для комнат с
 --     несколькими праздниками окно режем следующим summary, чтобы подарки
 --     позднего праздника не засчитались раннему.
@@ -148,7 +154,7 @@ LEFT JOIN LATERAL (
   WHERE EXISTS (
     SELECT 1 FROM "Item" i
     WHERE i."roomId" = s."roomId"
-      AND i."state" = 'LOVE'
+      AND i."inHall"
       AND i."giverName" IS NOT NULL
       AND i."receivedAt" >= s."createdAt"
       AND (s.next_summary_at IS NULL OR i."receivedAt" < s.next_summary_at)
@@ -190,12 +196,14 @@ SELECT
   round(100.0 * count(*) FILTER (WHERE i."source" = 'URL' AND i."photoKey" IS NOT NULL)
         / nullif(count(*) FILTER (WHERE i."source" = 'URL'), 0), 1)
                                                         AS url_with_photo_pct,
-  -- у URL-вещей «хочу»: сколько с ценой (обязательна в форме, но парсер мог
-  -- её предзаполнить — без трекинга правок это верхняя граница его заслуг)
-  round(100.0 * count(*) FILTER (WHERE i."source" = 'URL' AND i."state" = 'WANT'
+  -- у URL-вещей КОМНАТЫ: сколько с ценой (обязательна в форме, но парсер мог
+  -- её предзаполнить — без трекинга правок это верхняя граница его заслуг).
+  -- Вещи витрины исключены: цены у них может не быть вовсе, и они занижали бы
+  -- оценку парсера ни за что.
+  round(100.0 * count(*) FILTER (WHERE i."source" = 'URL' AND NOT i."inHall"
                                    AND i."price" IS NOT NULL)
-        / nullif(count(*) FILTER (WHERE i."source" = 'URL' AND i."state" = 'WANT'), 0), 1)
-                                                        AS url_want_with_price_pct
+        / nullif(count(*) FILTER (WHERE i."source" = 'URL' AND NOT i."inHall"), 0), 1)
+                                                        AS url_room_with_price_pct
 FROM "Item" i;
 
 -- Разрез по магазинам: где парсер реально живёт (топ-15 доменов URL-вещей).

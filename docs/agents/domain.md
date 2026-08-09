@@ -7,7 +7,12 @@ Layout: **single-context** — one `CONTEXT.md` at the repo root + `docs/adr/`.
 ## Before exploring, read these
 
 - **`CONTEXT.md`** at the repo root — глоссарий домена (комната, зона, вещь,
-  люблю/хочу, тихая бронь…).
+  сокровищница, тихая бронь…).
+  ⚠️ **Глоссарий отстал от модели.** 09.08.2026 (тикет 124) у вещи отменены
+  состояния «хочу» и «люблю»; различие живёт в месте — комната и
+  сокровищница. Пока `CONTEXT.md` не переписан, по модели вещи верить
+  `docs/PRD.md` §2, `docs/ARCHITECTURE.md` §4 и §6 и
+  `design/package/handoff/items.json` (v2), а не глоссарию.
 - **`docs/adr/`** — read ADRs that touch the area you're about to work in.
 - Продуктовый контекст: `docs/PRD.md`, `docs/ARCHITECTURE.md`; контракты UI —
   `design/package/handoff/*` (items.json, rooms.json, tokens.json, motion.json).
