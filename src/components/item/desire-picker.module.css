@@ -1,0 +1,90 @@
+/* Ввод степени желания — числа раунда 29 (task31.json → addFormScale.form):
+ * четыре огонька на целях 44, точка 14 px, слово ступени под шкалой, «не
+ * скажу» тихой кнопкой справа.
+ *
+ * Показ (desire-scale.module.css) живёт своими числами — 6 px в карточке и
+ * 5 px в строке зоны. Это не дубль: там шкала ЧИТАЕТСЯ и стоит у цены, здесь
+ * по ней ПОПАДАЮТ пальцем, и цель нажатия у продукта одна на всё — 44 px
+ * (rooms.json → hitTargetMin). */
+
+.picker {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.steps {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 2px;
+}
+
+/* Цель 44×44 при точке 14: рисунок не растёт, растёт площадь нажатия. */
+.step {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: var(--hit-target-min, 44px);
+  height: var(--hit-target-min, 44px);
+  border: 0;
+  background: none;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.step:disabled {
+  cursor: default;
+  opacity: 0.6;
+}
+
+.flame {
+  display: block;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: rgba(255, 249, 242, 0.2);
+}
+
+/* Заливка и ореол «мечтаю» приезжают инлайном — акцент комнаты это данные. */
+.flameOn {
+  background: none;
+}
+
+/* «Не скажу»: тихая кнопка справа. Акцента у неё нет ни в каком положении —
+   пустое не имеет права выглядеть выбранным (дефолта у шкалы нет). */
+.unset {
+  display: inline-flex;
+  align-items: center;
+  min-height: var(--hit-target-min, 44px);
+  margin-inline-start: 8px;
+  padding: 0 10px;
+  border: 0;
+  background: none;
+  font: 400 12px/1 var(--font-ui);
+  color: var(--color-text-faint);
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.unsetOn {
+  color: rgba(255, 249, 242, 0.55);
+}
+
+.unset:disabled {
+  cursor: default;
+  opacity: 0.6;
+}
+
+.step:focus-visible,
+.unset:focus-visible {
+  outline: 1px dashed currentColor;
+  outline-offset: 2px;
+}
+
+.word {
+  margin: 0;
+  padding-inline-start: 15px;
+  font: 400 12px/1 var(--font-ui);
+  color: rgba(255, 249, 242, 0.55);
+}

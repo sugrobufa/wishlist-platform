@@ -5,7 +5,7 @@ import { getTranslations } from "next-intl/server";
 import { notFound, permanentRedirect } from "next/navigation";
 import { cache } from "react";
 import { getGuestRoom } from "@/server/services/guest-room";
-import { rooms } from "@/config/design";
+import { rooms, zoneInfo } from "@/config/design";
 import { roomImageUrl } from "@/app/rooms/room-image";
 import { SceneStage } from "@/components/scene/SceneStage";
 import { asLightColor, asTimeOfDay } from "@/components/scene/grading";
@@ -17,12 +17,16 @@ import {
 } from "@/components/scene/scene-corner";
 import { ZoneIndexProvider } from "@/components/scene/zone-index-context";
 import { ZoneRail } from "@/components/scene/zone-rail";
-import { IconList, IconLock, IconTreasury } from "@/components/icons";
+import { visibleZones } from "@/components/scene/zones";
+import type { RoomListGroup } from "@/components/room-list/room-list-view";
+import { IconLock, IconTreasury } from "@/components/icons";
 import { GuestBookingProvider } from "./booking/booking-context";
 import { FreeGifts } from "./booking/free-gifts";
 import { GuestZoneGrid } from "./booking/guest-zone-grid";
+import { GuestZoneFree } from "./booking/zone-free";
 import { HallLink } from "./booking/hall-link";
 import { MyBookingsLink } from "./booking/my-bookings-link";
+import { GuestRoomListView } from "./list/guest-room-list";
 import { daysUntilOccasion } from "./welcome";
 
 // Страница одинакова для всех и не читает auth()/cookies (регистрация гостя
@@ -127,7 +131,6 @@ export default async function GuestRoomPage({ params }: Params) {
   if (!preset) notFound();
 
   const t = await getTranslations("GuestRoom");
-  const tList = await getTranslations("RoomList");
   const tHall = await getTranslations("Hall");
   const ownerName = room.ownerName ?? t("ownerFallback");
 
@@ -189,6 +192,43 @@ export default async function GuestRoomPage({ params }: Params) {
       />,
     ]),
   );
+
+  // Гостевая половина счётчика зоны — «3 из 4 свободны» (тикет 124). Число
+  // считает КЛИЕНТ из некэшируемого канала «занято»: в кэшируемой сводке ему
+  // места нет (инвариант №1 — хозяйка открывает свою же ссылку и получает тот
+  // же HTML). Отсюда уезжают только идентификаторы вещей зоны, а они и так
+  // лежат в разметке: из них собраны сами плитки.
+  const zoneCounters: Record<string, ReactNode> = Object.fromEntries(
+    Object.entries(room.summariesByZone)
+      .filter(([, summary]) => summary.count > 0)
+      .map(([zoneKey, summary]) => [
+        zoneKey,
+        <GuestZoneFree
+          key={zoneKey}
+          total={summary.count}
+          itemIds={(room.itemsByZone[zoneKey] ?? [])
+            .filter((item) => !item.isDemo)
+            .map((item) => item.id)}
+        />,
+      ]),
+  );
+
+  // Все вещи комнаты списком — второе положение переключателя полосы
+  // (тикет 129). Данные ТЕ ЖЕ, что у сцены: второго запроса не заводим, и
+  // полностраничный ISR остаётся целым. Демо-призраки сюда не идут: в плоском
+  // перечне они читались бы как вещи хозяйки. Пустые зоны секциями не
+  // рисуются (task31.json → headers.roomList).
+  const listGroups: RoomListGroup[] = [];
+  for (const zone of visibleZones(preset.zones, room.zonesOff)) {
+    const items = (room.itemsByZone[zone.key] ?? []).filter((item) => !item.isDemo);
+    if (items.length === 0) continue;
+    listGroups.push({
+      key: zone.key,
+      label: zoneInfo(zone.key)?.label ?? zone.label,
+      pool: zone.pool,
+      items,
+    });
+  }
 
   return (
     <main
@@ -294,9 +334,10 @@ export default async function GuestRoomPage({ params }: Params) {
                   его приносит клиентский `HallLink` из некэшируемого канала
                   «занято». Ссылки, ведущей в 404, быть не должно. */}
               <SceneCorner>
-                <CornerMark href={`${roomPath}/list`} label={tList("toList")}>
-                  <IconList size={CORNER_ICON_SIZE} />
-                </CornerMark>
+                {/* ЗНАКА «СПИСКОМ» ЗДЕСЬ БОЛЬШЕ НЕТ (тикет 129): он переехал
+                    в полосу под кадром, к правому краю, и переключает её
+                    содержимое вместо того, чтобы уводить на отдельную
+                    страницу. У хозяйки ровно так же. */}
                 {hasHall && room.hallVisibility === "ALL" && (
                   <CornerMark href={hallHref} label={tHall("toHall")}>
                     <IconTreasury size={CORNER_ICON_SIZE} />
@@ -317,6 +358,13 @@ export default async function GuestRoomPage({ params }: Params) {
               summaries={room.summariesByZone}
               viewer="guest"
               accent={preset.accent}
+              counters={zoneCounters}
+              roomList={
+                // Провайдер канала «занято» уже стоит на всей странице —
+                // берём вид БЕЗ собственного провайдера, иначе на один экран
+                // пришлось бы два одинаковых запроса.
+                <GuestRoomListView groups={listGroups} accent={preset.accent} embedded />
+              }
               below={
                 // Всё, что словами, — ПОД оглавлением (тикет 77, расширен
                 // тикетом 85). В строке НАД оглавлением места тексту нет: там

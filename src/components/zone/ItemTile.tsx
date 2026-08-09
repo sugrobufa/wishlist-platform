@@ -1,8 +1,9 @@
-// Плитка вещи в сетке зоны. Визуальный код состояний — items.json:
-// «хочу» — пунктирный контур акцентом комнаты + сплошная полоса 2px акцентом
-// по нижнему краю; «люблю» — плитка без контура, граница rgba(255,255,255,.09).
-// Серая заливка = «нет фото», состояние НЕ кодирует (инвариант №3, классификатор
-// tile-appearance.ts под тестом). Демо-призрак — полупрозрачность и бейдж «пример».
+// Плитка вещи в сетке зоны. Визуального кода состояний НЕТ (тикет 124,
+// модель v2 дизайна): у плитки одна граница на всех — rgba(255,255,255,.09).
+// Пунктирный контур и акцентная полоса, которыми кодировалось «хочу», ушли
+// вместе с самими состояниями — инвариант №3 отменён целиком.
+// Серая заливка = «нет фото» и только это (классификатор tile-appearance.ts под
+// тестом). Демо-призрак — полупрозрачность и бейдж «пример».
 import type { CSSProperties, ReactNode } from "react";
 import { useLocale, useTranslations } from "next-intl";
 import { PoolIcon } from "@/components/pool-icons";
@@ -63,9 +64,7 @@ export function ItemTile({ item, staggerIndex, action, pool }: ItemTileProps) {
     meta = t("loveCaption");
   }
 
-  const mediaClass = [s.media, look.dashed ? s.mediaDashed : "", look.greyFill ? s.mediaGrey : ""]
-    .filter(Boolean)
-    .join(" ");
+  const mediaClass = look.greyFill ? `${s.media} ${s.mediaGrey}` : s.media;
 
   return (
     <li
@@ -95,7 +94,6 @@ export function ItemTile({ item, staggerIndex, action, pool }: ItemTileProps) {
             {look.monogram}
           </span>
         )}
-        {look.accentBar && <div className={s.bar} aria-hidden />}
         {look.ghost && <span className={s.badge}>{t("demoBadge")}</span>}
       </div>
       <p className={s.title}>{item.title}</p>

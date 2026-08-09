@@ -3,7 +3,7 @@ import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { auth } from "@/server/auth";
 import { getRoomForUser, getSessionUserId } from "@/server/services/rooms";
-import { rooms, zoneInfo } from "@/config/design";
+import { rooms } from "@/config/design";
 import { roomImageUrl } from "@/app/rooms/room-image";
 import { GUEST_INTRO_COOKIE, parseGuestIntro } from "./guest-intro";
 import { OnboardingFlow, type PresetCard } from "./onboarding-flow";
@@ -22,6 +22,9 @@ export default async function OnboardingPage() {
   const room = await getRoomForUser(userId);
   if (room) redirect("/room");
 
+  // Подписей зон здесь больше нет (письмо 33, турн 40b): перечень полок ушёл
+  // с шага 2, а чипы «что хочется» уехали из онбординга целиком — в первое
+  // открытие «начни с готового». Комнату выбирают глазами, по картинке.
   const presets: PresetCard[] = rooms.map((room) => ({
     id: room.id,
     name: room.name,
@@ -29,11 +32,6 @@ export default async function OnboardingPage() {
     accent: room.accent,
     ink: room.ink,
     imageUrl: roomImageUrl(room.base),
-    // Зоны комнаты подписями (доска В3, турн 14a): выбирают-то не картинку,
-    // а набор полок, и до сих пор человек узнавал их состав уже внутри.
-    // Подписи из zones.json — те же слова, что он потом увидит в комнате.
-    zoneLabels: room.zones.map((zone) => zoneInfo(zone.key)?.label ?? zone.label),
-    zoneKeys: room.zones.map((zone) => zone.key),
   }));
 
   // Предзаполнение из брони (тикет 38): холодный гость только что назвал имя

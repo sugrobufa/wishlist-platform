@@ -33,6 +33,22 @@ type OwnerItemBaseDto = {
    * запасной путь. Гостю это поле не отдаётся.
    */
   createdAt: string;
+  /**
+   * Услуга-впечатление (тикет 97): «Когда · Где · Годен до».
+   *
+   * ЛЕЖИТ В ОБЩЕЙ ЧАСТИ, А НЕ В ФОРМЕ КОМНАТЫ, и это не вкусовщина. Поля
+   * принадлежат ВЕЩИ, а не её месту: сертификат, уехавший на витрину после
+   * «Дошло», не перестаёт истекать. А главное — `updateItem` пишет их
+   * БЕЗУСЛОВНО (`eventWhen: data.eventWhen ?? null`), то есть любая карточка,
+   * которая их не знает, обязана их стереть при первом же сохранении. Так и
+   * было до 09.08.2026: правка вещи из зоны «Впечатления» молча обнуляла срок
+   * годности, а после переноса шкалы желания в правку на месте это делал даже
+   * тап по огоньку.
+   */
+  eventWhen: string | null;
+  eventWhere: string | null;
+  /** Календарный день `YYYY-MM-DD` или null. */
+  validUntil: string | null;
 };
 
 /**
@@ -52,11 +68,6 @@ export type OwnerRoomItemDto = OwnerItemBaseDto & {
   color: string | null;
   /** «Насколько хочется», 1–4 — единственная градация вещи (тикет 125). */
   desire: number | null;
-  /** Услуга-впечатление (тикет 97): «Когда · Где · Годен до». */
-  eventWhen: string | null;
-  eventWhere: string | null;
-  /** Календарный день `YYYY-MM-DD` или null. */
-  validUntil: string | null;
 };
 
 /**
@@ -101,6 +112,9 @@ export function itemForOwner(item: Item): OwnerItemDto {
     hidden: item.hidden,
     isDemo: false,
     createdAt: item.createdAt.toISOString(),
+    eventWhen: item.eventWhen,
+    eventWhere: item.eventWhere,
+    validUntil: item.validUntil === null ? null : item.validUntil.toISOString().slice(0, 10),
   };
 
   if (item.inHall) {
@@ -121,8 +135,5 @@ export function itemForOwner(item: Item): OwnerItemDto {
     size: item.size,
     color: item.color,
     desire: item.desire,
-    eventWhen: item.eventWhen,
-    eventWhere: item.eventWhere,
-    validUntil: item.validUntil === null ? null : item.validUntil.toISOString().slice(0, 10),
   };
 }

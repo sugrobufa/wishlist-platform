@@ -18,7 +18,7 @@
 // зоне остаётся однажестовым, а самое ценное из сводки — сколько в зоне
 // вещей — стоит прямо в пункте списка и не требует жеста вовсе. Разбор — в
 // Comments тикета.
-import { useEffect, useMemo, useRef } from "react";
+import { useEffect, useMemo, useRef, type ReactNode } from "react";
 import { useLocale, useTranslations } from "next-intl";
 import type { RoomZone } from "@/config/design";
 import type { ZoneSummaryDto } from "@/server/dto/zone-summary";
@@ -41,13 +41,19 @@ export type ZoneIndexProps = {
   /** Сводки по ключу зоны; что в них попало — решил DTO-слой. */
   summaries?: Record<string, ZoneSummaryDto>;
   /**
-   * Чьими глазами читается строка счётчиков (handoff/answers-04.md):
-   * хозяйке «19 в подарок», гостю «19 можно подарить» — одно и то же число
-   * про желания. Сколько уже забрали, не видит никто и нигде в этой карточке.
+   * Чьими глазами читается строка счётчиков. Хозяйке — «N вещей», и только
+   * это (инвариант №1: про занятость по зонам ей не показывается ничего).
+   * Гостю — «сколько из скольких свободно», готовым узлом в `counters`.
    */
   viewer: "owner" | "guest";
   /** Акцент комнаты — номер активной зоны, рамка фокуса, детали карточки. */
   accent: string;
+  /**
+   * Гостевая строка счётчика по ключу зоны (тикет 124): считается на клиенте
+   * из некэшируемого канала «занято» — в кэшируемой сводке ему места нет
+   * (разбор — dto/zone-summary.ts). Узла нет — говорим «N вещей».
+   */
+  counters?: Record<string, ReactNode>;
 };
 
 /** «01», «02» … — нумерация по видимым зонам, как в макете 17a. */
@@ -76,7 +82,14 @@ function formatMoney(value: string, currency: string, locale: string): string {
   }
 }
 
-export function ZoneIndex({ zones, zonesOff, summaries, viewer, accent }: ZoneIndexProps) {
+export function ZoneIndex({
+  zones,
+  zonesOff,
+  summaries,
+  viewer,
+  accent,
+  counters,
+}: ZoneIndexProps) {
   const t = useTranslations("Scene");
   const tCounts = useTranslations("ZoneGrid");
   const locale = useLocale();
@@ -191,14 +204,15 @@ export function ZoneIndex({ zones, zonesOff, summaries, viewer, accent }: ZoneIn
                       <span className={s.cardTitle}>{label}</span>
                       {summary && summary.count > 0 && (
                         <span className={s.cardSub}>
-                          {/* «N вещей» обоим (тикет 124): второе число
-                              говорило «сколько помечено хочу», а в комнате
-                              теперь всё — желание. `want: 0` гасит вторую
-                              половину строки. Гостевое «M свободно» придёт из
-                              канала «занято» — заход про экраны. */}
-                          {viewer === "owner"
-                            ? tCounts("zoneCounts", { total: summary.count, want: 0 })
-                            : t("summaryCountsGuest", { total: summary.count, want: 0 })}
+                          {/* Хозяйке — «N вещей», и только (`want: 0` гасит
+                              вторую половину строки словаря): про занятость по
+                              зонам ей не показывается ничего. Гостю — «3 из 4
+                              свободны» готовым узлом из некэшируемого канала
+                              «занято»: сложиться в кэшируемой сводке это число
+                              не имеет права (инвариант №1). */}
+                          {viewer === "guest" && counters?.[zone.key] != null
+                            ? counters[zone.key]
+                            : tCounts("zoneCounts", { total: summary.count, want: 0 })}
                         </span>
                       )}
                     </div>

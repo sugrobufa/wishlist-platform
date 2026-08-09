@@ -762,6 +762,32 @@ export async function listHallItems(roomId: string): Promise<Item[]> {
   });
 }
 
+/**
+ * Сколько вещей сокровищницы лежит в каждой зоне — сырьё для строки-моста
+ * «Ещё {n} — в сокровищнице» подвалом зоны (раунд 29, task31.json →
+ * treasuryBridge).
+ *
+ * ЗАЧЕМ ОТДЕЛЬНЫЙ ЗАПРОС. Выборка зоны (`listZoneItems`) витринные вещи не
+ * отдаёт — и не должна: в комнате их нет. Но человек после переезда видит
+ * зону, похудевшую вдвое, и спрашивает «куда делась половина». Мост отвечает,
+ * не размывая места: карточек витрины в зоне по-прежнему нет.
+ *
+ * ТОЛЬКО ХОЗЯЙКЕ. Гостю моста не бывает вовсе (его дверь в витрину — знак в
+ * углу), поэтому функция живёт в серверных сервисах хозяйки и в гостевой кэш
+ * комнаты не попадает. Числа тут — её собственные вещи; броней они не видят.
+ *
+ * Скрытые глазком (`hiddenFromHall`) считаются: у хозяйки они на витрине
+ * остаются, просто приглушены (тикет 89) — мост ведёт туда же, где они лежат.
+ */
+export async function hallCountsByZone(roomId: string): Promise<Record<string, number>> {
+  const rows = await prisma.item.groupBy({
+    by: ["zone"],
+    where: { roomId: idSchema.parse(roomId), inHall: true },
+    _count: { _all: true },
+  });
+  return Object.fromEntries(rows.map((row) => [row.zone, row._count._all]));
+}
+
 // ---------- Дедуп по canonicalUrl (тикет 06) ----------
 
 export type DuplicateItem = { id: string; title: string; zone: string };

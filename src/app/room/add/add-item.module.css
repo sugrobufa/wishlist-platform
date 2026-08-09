@@ -1,13 +1,15 @@
-/* Карточка добавления (тикет 04, турн 8; шаг 1 переписан тикетом 27, турн 23a).
+/* Карточка добавления (тикет 04, турн 8).
  *
- * Шаг 1 — «Что это для тебя?»: две панели показывают ОДНО место комнаты
- * человека — кроп базового кадра вокруг зоны, куда вещь встанет. Слева предмет
- * стоит плотно и подсвечен, справа то же место с призрачным контуром и
- * светящейся полосой. Новых картинок для этого не заведено: геометрию кропа
- * считает src/components/scene/zone-crop.ts из rooms.json.
+ * ШАГА 1 БОЛЬШЕ НЕТ (тикет 124). Здесь жили две панели «люблю \ хочу» с кропами
+ * комнаты (тикет 27, турн 23a): призрачный контур, светящаяся полоса, приглушение
+ * несделанного выбора. Состояний у вещи не осталось — выбирать нечего, и весь
+ * блок удалён вместе с модулем `state-choice.ts`. Переменные `--state-choice-*`
+ * в tokens.css остаются: их генерирует `scripts/tokens.mjs` из пакета дизайна и
+ * сторожит `tests/design-contract.test.ts` — трогать конвейер токенов ради
+ * мёртвого экрана нельзя.
+ *
  * Акцент/ink комнаты и производные прозрачности приходят CSS-переменными
- * --ai-* из компонента (rooms.json), числа кнопки — tokens.json → button,
- * числа выбора — --state-choice-* (tokens.json → stateChoice).
+ * --ai-* из компонента (rooms.json), числа кнопки — tokens.json → button.
  */
 
 .root {
@@ -53,177 +55,7 @@
   color: var(--color-text-faint);
 }
 
-/* --- Шаг 1: два кропа комнаты (tokens.json → stateChoice) ----------------- */
-
-.tileGrid {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 10px;
-  margin-top: 30px;
-}
-
-/* Панель — сам кроп и подпись под ним, без рамки и заливки: рамка спорила бы
- * с кадром. Состояния «выбрано / не выбрано» живут на opacity и filter, оба
- * перехода — 240 мс easeOut (stateChoice.transition). */
-.tile {
-  display: block;
-  border: 0;
-  background: none;
-  padding: 0;
-  min-height: var(--hit-target-min);
-  text-align: left;
-  cursor: pointer;
-  -webkit-tap-highlight-color: transparent;
-  transition:
-    opacity var(--state-choice-ms) var(--ai-ease),
-    filter var(--state-choice-ms) var(--ai-ease);
-}
-
-/* Выбрано: панель светлее на 4% (полосу света зажигает .tileBar ниже). */
-.tileOn {
-  filter: brightness(1.04);
-}
-
-/* Не выбрано: приглушена до 62%. */
-.tileDim {
-  opacity: var(--state-choice-dim);
-}
-
-/* Кроп: коробка 1.35:1, внутри — базовый кадр комнаты, сдвинутый так, чтобы в
- * ней оказалась зона. Размер и позиция считаются из rooms.json и приезжают
- * переменными --sc-* из компонента. */
-.tileArt {
-  position: relative;
-  display: block;
-  width: 100%;
-  aspect-ratio: var(--state-choice-ar);
-  overflow: hidden;
-  background: var(--color-surface-fill);
-}
-
-.tileCrop {
-  position: absolute;
-  inset: 0;
-  background-image: var(--sc-image);
-  background-size: var(--sc-size);
-  background-position: var(--sc-pos);
-  background-repeat: no-repeat;
-}
-
-/* «Люблю»: предмет плотный и подсвечен сверху — свет собран на зоне, кадр
- * вокруг неё уходит в тень (numbers — турн 23a макета). */
-.tileLight {
-  position: absolute;
-  inset: 0;
-  background: radial-gradient(
-    ellipse 62% 58% at var(--sc-cx, 50%) var(--sc-cy, 44%),
-    rgba(255, 226, 190, 0.22),
-    rgba(11, 8, 6, 0.72) 78%
-  );
-}
-
-/* «Хочу»: то же место, но вещи там ещё нет — кадр отступает в тень, чтобы
- * призрачный контур читался как обещание, а не как предмет. */
-.tileArtWant .tileCrop {
-  filter: saturate(0.35) brightness(0.5);
-}
-
-.tileArtWant .tileLight {
-  background: radial-gradient(
-    ellipse 62% 58% at var(--sc-cx, 50%) var(--sc-cy, 44%),
-    rgba(255, 226, 190, 0.08),
-    rgba(11, 8, 6, 0.8) 78%
-  );
-}
-
-/* Призрачный контур встаёт РОВНО на прямоугольник зоны внутри кропа: вещь
- * появится именно там. Пунктир и заливка — tokens.json → ghostItem; он
- * кодирует «хочу», а не отсутствие фотографии (инвариант №3 CLAUDE.md). */
-.ghostBox {
-  position: absolute;
-  left: var(--sc-l, 27.7%);
-  top: var(--sc-t, 33.3%);
-  width: var(--sc-w, 39.4%);
-  height: var(--sc-h, 30.3%);
-  border: 1px dashed var(--ai-accent);
-  background: rgba(255, 255, 255, 0.04);
-}
-
-/* Светящаяся полоса 2px по нижнему краю контура — место готово. Стоит внутри
- * контура, поэтому у зоны во всю высоту кропа её не срежет. */
-.ghostBar {
-  position: absolute;
-  left: var(--sc-l, 27.7%);
-  top: calc(var(--sc-t, 33.3%) + var(--sc-h, 30.3%) - 2px);
-  width: var(--sc-w, 39.4%);
-  height: 2px;
-  background: var(--ai-accent);
-  box-shadow: 0 0 14px 2px var(--ai-glow-85);
-}
-
-/* Полоса под панелью: у выбранной — «полоса света» главной кнопки
- * (tokens.json → button.primary.rest), у остальных тихая линия. */
-.tileBar {
-  display: block;
-  height: 2px;
-  background: var(--color-surface-hairline-strong);
-  transition:
-    background-color var(--state-choice-ms) var(--ai-ease),
-    box-shadow var(--state-choice-ms) var(--ai-ease);
-}
-
-.tileOn .tileBar {
-  background: var(--ai-accent);
-  box-shadow: 0 4px 18px -3px var(--ai-glow-42);
-}
-
-.tileLabel {
-  display: block;
-  margin-top: 13px;
-  font: 700 16px/1 var(--font-ui);
-  color: var(--color-text-primary);
-}
-
-.tileHint {
-  display: block;
-  margin-top: 7px;
-  font: 400 12px/1.45 var(--font-ui);
-  color: var(--color-text-muted);
-}
-
-/* Наведение только там, где курсор настоящий: панель чуть выходит из тени. */
-@media (hover: hover) and (pointer: fine) {
-  .tileLight {
-    transition: opacity var(--state-choice-ms) var(--ai-ease);
-  }
-
-  .tile:hover .tileLight {
-    opacity: 0.72;
-  }
-
-  /* Просадка нажатия (tokens.json → button.press) живёт на .pressable, но её
-   * transition стоит на том же свойстве `transition`, что и переход выбора, —
-   * побеждает одно объявление. Собираем оба здесь, за теми же воротами
-   * курсора, за какими просадка объявлена в globals.css. */
-  .tile {
-    transition:
-      opacity var(--state-choice-ms) var(--ai-ease),
-      filter var(--state-choice-ms) var(--ai-ease),
-      transform 160ms var(--ai-ease);
-  }
-}
-
-/* prefers-reduced-motion: переход не убивается в ноль — 120 мс по контракту
- * motion.json, смена состояния остаётся читаемой. */
-@media (prefers-reduced-motion: reduce) {
-  .tile,
-  .tileBar,
-  .tileLight {
-    transition-duration: var(--ai-reduced-ms);
-  }
-}
-
-/* --- Шаг 2: поля формы ----------------------------------------------------- */
+/* --- Поля формы ------------------------------------------------------------ */
 
 .fieldLabel {
   display: block;
@@ -258,7 +90,7 @@ textarea.input {
   line-height: 1.45;
 }
 
-/* --- Сегментные ряды: видимость цены, подпись «люблю» ---------------------- */
+/* --- Сегментные ряды: видимость цены, подпись вещи сокровищницы ------------ */
 
 .segRow {
   display: flex;
@@ -283,51 +115,17 @@ textarea.input {
   font-weight: 600;
 }
 
-/* --- «Насколько хочется»: четыре ступени лесенкой -------------------------- */
+/* --- «Насколько хочется»: второй вопрос формы (раунд 29) ------------------- */
 
-.desireSteps {
-  display: flex;
-  align-items: flex-end;
-  gap: 4px;
-}
-
-.desireStep {
-  flex: 1;
-  border: 1px solid var(--color-surface-hairline);
-  background: var(--color-surface-fill);
-  padding: 0;
-  cursor: pointer;
-  -webkit-tap-highlight-color: transparent;
-}
-
-.desireStep:nth-child(1) {
-  height: 20px;
-}
-.desireStep:nth-child(2) {
-  height: 27px;
-}
-.desireStep:nth-child(3) {
-  height: 34px;
-}
-.desireStep:nth-child(4) {
-  height: 41px;
-}
-
-.desireOn {
-  background: var(--ai-accent);
-  border-color: var(--ai-accent);
-}
-
-/* Выбранная ступень светится — как полка под «хочу». */
-.desireStep[aria-checked="true"] {
-  box-shadow: 0 0 12px 0 var(--ai-glow-55);
-}
-
-.desireCaption {
-  margin: 8px 0 0;
-  font: 400 12px/1 var(--font-ui);
-  color: var(--color-text-muted);
-  min-height: 12px;
+/* Лесенки из четырёх столбиков здесь больше нет: шкала переехала в общий
+ * `components/item/desire-picker` — тот же ввод стоит и в карточке вещи у
+ * хозяйки (правка на месте), и разъезжаться им нельзя. Осталась только
+ * подсказка под шкалой: «гостю это главная подсказка при выборе» — довод
+ * дизайна, ради которого поле и подняли (task31.json → addFormScale.hint). */
+.desireHint {
+  margin: 2px 0 0;
+  font: 400 11.5px/1.4 var(--font-ui);
+  color: var(--color-text-faint);
 }
 
 /* --- Фото ------------------------------------------------------------------ */

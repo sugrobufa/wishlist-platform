@@ -24,6 +24,7 @@ const read = (relative: string) =>
 const zoneGrid = read("../src/components/zone/ZoneGrid.tsx");
 const roomList = read("../src/components/room-list/room-list-view.tsx");
 const ownerGrid = read("../src/app/room/zone/[zone]/owner-zone-grid.tsx");
+const addFlow = read("../src/app/room/add/add-item-flow.tsx");
 
 describe("сетка зоны: вкладок «Хочу/Люблю» больше нет", () => {
   it("массива вкладок и переключателя вкладки не существует", () => {
@@ -62,5 +63,43 @@ describe("ни один экран не спрашивает у вещи сос�
     ] as const) {
       expect(source, `${name}: обращение к item.state`).not.toMatch(/item\.state/u);
     }
+  });
+});
+
+/**
+ * Форма добавления — последнее место, где выбор состояния ещё жил. Заход по
+ * серверу свёл «люблю» на `inHall: true`, чтобы форма не падала валидацией, и
+ * оставил переключатель на экране временно. Здесь он снят совсем.
+ *
+ * Почему это отдельная проверка, а не «и так видно»: панели были красивыми —
+ * два кропа комнаты, призрачный контур, светящаяся полоса, — и вернуть их
+ * соблазнительно. Экран стал короче на один выбор, и это была цель, а не
+ * побочный эффект: вещь, которую кладут В КОМНАТУ, по определению «чего
+ * хочется», а второе место открывается своим входом `?hall=1`.
+ */
+describe("форма добавления: шага «что это для тебя» больше нет", () => {
+  it("панелей выбора и их модуля не существует", () => {
+    expect(addFlow).not.toContain("stateChoicePanels");
+    expect(addFlow).not.toContain("ItemState");
+    expect(() => read("../src/app/room/add/state-choice.ts")).toThrow();
+    expect(() => read("../src/app/room/add/state-choice.test.ts")).toThrow();
+  });
+
+  it("место решает АДРЕС, а не экран", () => {
+    // `?hall=1` — сокровищница, без параметра — комната. Ни того, ни другого
+    // человек на форме не выбирает.
+    expect(addFlow).toContain("if (!toHall) {");
+    expect(addFlow).toContain("inHall: false as const");
+    expect(addFlow).toContain("inHall: true as const");
+    expect(addFlow).not.toMatch(/setState\(/u);
+  });
+
+  it("слов «люблю» и «хочу» на экране не осталось", () => {
+    for (const key of ["loveLabel", "wantLabel", "loveHint", "wantHint", "question"]) {
+      expect(addFlow, key).not.toContain(`t("${key}")`);
+    }
+    // Заголовок называет МЕСТО.
+    expect(addFlow).toContain('t("hallLabel")');
+    expect(addFlow).toContain('t("roomLabel")');
   });
 });

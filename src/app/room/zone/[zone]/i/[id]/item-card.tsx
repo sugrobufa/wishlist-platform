@@ -7,18 +7,27 @@
 // другую полку и история вещи «люблю».
 //
 // Чего здесь нет и не будет:
-// - состояния вещи: «хочу → люблю» переводит отдельная кнопка «Уже моё» в
-//   сетке зоны, и переход необратим (инвариант №2). В форме правки поля
-//   `state` нет вовсе — ни в разметке, ни в отправляемом объекте;
+// - состояния вещи: его не существует (тикет 124). Место решает МЕСТО, и
+//   меняет его отдельное действие в листе «⋯» — «В сокровищницу» / «Вернуть в
+//   комнату». В форме правки ключа `inHall` нет вовсе — ни в разметке, ни в
+//   отправляемом объекте;
 // - ничего про бронь: хозяйке не показывают, что вещь занята (инвариант №1),
 //   поэтому карточка не спрашивает сервер «а можно ли править» и не рисует
 //   ни предупреждения, ни блокировки. Правка проходит молча.
+//
+// СТЕПЕНЬ ЖЕЛАНИЯ ПРАВИТСЯ НА МЕСТЕ — тапом по огонькам в шапке, без «Изменить»
+// и без «Сохранить» (раунд 29, task31.json → addFormScale.editInPlace).
+// Довод дизайна прямой: проставить степень задним числом тридцати вещам должно
+// быть дёшево, а через форму это тридцать раз «открыть — выбрать — сохранить».
+// Отдельного поля степени в форме ниже поэтому больше нет: два места ввода
+// одного значения на одном экране — это два места, где оно разъедется.
 import { useState, useTransition, type CSSProperties } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useLocale, useTranslations } from "next-intl";
-import { DesireScale } from "@/components/item/desire-scale";
+import { DesirePicker } from "@/components/item/desire-picker";
 import type { OwnerItemDto } from "@/server/dto/items";
+import { isExperienceZone } from "@/server/dto/experience";
 import type { HallPriceAudience } from "@/server/dto/hall";
 import { formatHallMoney } from "@/app/room/hall/money";
 import { PriceSeenBadge } from "@/app/room/hall/price-seen-badge";
@@ -34,7 +43,6 @@ export type ZoneOption = { key: string; label: string };
 type PriceVisibility = "ALL" | "FRIENDS" | "ME" | "NONE";
 
 const VISIBILITIES: PriceVisibility[] = ["ALL", "FRIENDS", "ME", "NONE"];
-const DESIRE_STEPS = [1, 2, 3, 4] as const;
 // Малый набор формы; сервис принимает любой код ISO 4217 (как в карточке
 // добавления). Валюта вещи, пришедшая из парсера, дорисовывается ниже.
 const CURRENCIES = [
@@ -111,6 +119,7 @@ export function ItemCard({ item, lovePrice, zones, zoneLabel, accent, ink }: Ite
   const t = useTranslations("Settings");
   const tField = useTranslations("AddItem");
   const tHall = useTranslations("Hall");
+  const tExp = useTranslations("Experience");
   const locale = useLocale();
   const router = useRouter();
 
@@ -130,6 +139,12 @@ export function ItemCard({ item, lovePrice, zones, zoneLabel, accent, ink }: Ite
   const [size, setSize] = useState(want?.size ?? "");
   const [color, setColor] = useState(want?.color ?? "");
   const [desire, setDesire] = useState<number | null>(want?.desire ?? null);
+  // Впечатление (тикет 97): «Когда · Где · Годен до». Поля держим ВСЕГДА, а
+  // не только в зоне впечатлений, — см. buildInput: сервер пишет их
+  // безусловно, и не отправить их значит стереть.
+  const [eventWhen, setEventWhen] = useState(item.eventWhen ?? "");
+  const [eventWhere, setEventWhere] = useState(item.eventWhere ?? "");
+  const [validUntil, setValidUntil] = useState(item.validUntil ?? "");
   const [giverName, setGiverName] = useState(love?.giverName ?? "");
   const [year, setYear] = useState(love?.receivedAt ? yearOf(love.receivedAt) : "");
 
@@ -164,26 +179,66 @@ export function ItemCard({ item, lovePrice, zones, zoneLabel, accent, ink }: Ite
     });
   }
 
+  /**
+   * Тело правки. `inHall` не отправляется вовсе: правка не переселяет вещь.
+   * Степень приходит доводом, потому что её меняет ещё и тап по огонькам в
+   * шапке — там своего набора полей не собирается, иначе он однажды разойдётся
+   * с этим.
+   */
+  function buildInput(desireValue: number | null) {
+    // ПОЛЯ ВПЕЧАТЛЕНИЯ ИДУТ ВСЕГДА, в обеих ветках. `updateItem` пишет их
+    // безусловно (`eventWhen: data.eventWhen ?? null`), поэтому «не отправить»
+    // здесь означает «стереть». Баг жил с тикета 97 и стрелял тише, чем
+    // кажется: тот же `buildInput` зовёт тап по огоньку степени — одно
+    // касание шкалы обнуляло человеку срок годности сертификата.
+    const common = {
+      zone,
+      title: title.trim(),
+      note: note.trim() || undefined,
+      eventWhen: eventWhen.trim() || undefined,
+      eventWhere: eventWhere.trim() || undefined,
+      validUntil: validUntil || undefined,
+    };
+    return !item.inHall
+      ? {
+          ...common,
+          price: price.trim(),
+          currency,
+          priceVisibility,
+          size: size.trim() || undefined,
+          color: color.trim() || undefined,
+          desire: desireValue ?? undefined,
+        }
+      : {
+          ...common,
+          giverName: giverName.trim() || undefined,
+          receivedYear: year.trim() === "" ? undefined : Number(year),
+        };
+  }
+
+  /**
+   * Правка степени НА МЕСТЕ: тап по огоньку и есть сохранение (раунд 29).
+   * Огонёк загорается сразу, не дожидаясь сервера, — иначе тап по тридцати
+   * вещам подряд превращается в тридцать ожиданий.
+   *
+   * Пока форме нечего сохранять (нет названия или цены), на сервер не идём:
+   * значение остаётся в черновике и уедет туда вместе с «Сохранить». Показать
+   * тут ошибку валидации значило бы отругать человека за поле, которого он не
+   * трогал.
+   */
+  function onPickDesire(next: number | null) {
+    if (busy || item.inHall) return;
+    setDesire(next);
+    if (!canSave) return;
+    run(
+      () => updateItemAction(item.id, buildInput(next)),
+      () => router.refresh(),
+    );
+  }
+
   function onSave() {
     if (busy || !canSave) return;
-    const common = { zone, title: title.trim(), note: note.trim() || undefined };
-    // `inHall` не отправляется вовсе: правка не переселяет вещь.
-    const input =
-      !item.inHall
-        ? {
-            ...common,
-            price: price.trim(),
-            currency,
-            priceVisibility,
-            size: size.trim() || undefined,
-            color: color.trim() || undefined,
-            desire: desire ?? undefined,
-          }
-        : {
-            ...common,
-            giverName: giverName.trim() || undefined,
-            receivedYear: year.trim() === "" ? undefined : Number(year),
-          };
+    const input = buildInput(desire);
 
     run(
       () => updateItemAction(item.id, input),
@@ -208,20 +263,35 @@ export function ItemCard({ item, lovePrice, zones, zoneLabel, accent, ink }: Ite
           <Link href={zoneHref} className="pressable text-xs font-semibold text-text-strong">
             ← {zoneLabel}
           </Link>
-          <p className="overline mt-5 text-text-muted">
-            {item.inHall ? tField("loveLabel") : tField("wantLabel")}
-            {item.hidden && <span className="ml-2 text-text-faint">· {t("itemHiddenBadge")}</span>}
-          </p>
+          {/* Оверлайн называет МЕСТО, а не состояние (тикет 124). У вещи
+              комнаты места одно и оно очевидно — над заголовком уже стоит имя
+              зоны, из которой пришли; поэтому строка появляется только у
+              витринной вещи и у спрятанной. */}
+          {(item.inHall || item.hidden) && (
+            <p className="overline mt-5 text-text-muted">
+              {item.inHall && tHall("title")}
+              {item.hidden && (
+                <span className={item.inHall ? "ml-2 text-text-faint" : "text-text-faint"}>
+                  {item.inHall ? "· " : ""}
+                  {t("itemHiddenBadge")}
+                </span>
+              )}
+            </p>
+          )}
           <h1 className="display mt-2 text-3xl lg:text-4xl">{item.title}</h1>
-          {/* Степень желания ПОКАЗОМ (тикет 125, турн 36d): четыре огонька и
-              слово. До этого поле только заполнялось — в шапке карточки его
-              не было видно ни хозяйке, ни гостю, и владелец это заметил.
-              Шкала здесь читает то же состояние, что и поле правки ниже: она
-              говорит, что у вещи есть, а поле — меняет. `null` («не скажу») не
-              рисуется вовсе. */}
+          {/* Степень желания — ВВОДОМ, а не показом (раунд 29): четыре огонька
+              на целях 44 и «не скажу» рядом, тап сохраняет сразу. Прежде здесь
+              стояла та же шкала, но только для чтения, а менять её ходили в
+              поле формы ниже — два места на одно значение. Теперь место одно.
+              У вещи сокровищницы шкалы нет вовсе: желание исполнено. */}
           {!item.inHall && (
-            <div className="mt-3">
-              <DesireScale desire={desire} accent={accent} place="card" />
+            <div className="mt-2">
+              <DesirePicker
+                desire={desire}
+                accent={accent}
+                onPick={onPickDesire}
+                disabled={busy}
+              />
             </div>
           )}
         </header>
@@ -391,33 +461,10 @@ export function ItemCard({ item, lovePrice, zones, zoneLabel, accent, ink }: Ite
                 </label>
               </div>
 
-              <div className="flex flex-col gap-1.5">
-                <span className={LABEL_CLASS}>{tField("desireLabel")}</span>
-                <div
-                  className="flex flex-wrap items-center gap-1.5"
-                  role="radiogroup"
-                  aria-label={tField("desireLabel")}
-                >
-                  {DESIRE_STEPS.map((step) => {
-                    const active = desire != null && step <= desire;
-                    return (
-                      <button
-                        key={step}
-                        type="button"
-                        role="radio"
-                        aria-checked={desire === step}
-                        aria-label={tField(`desire${step}`)}
-                        onClick={() => setDesire((current) => (current === step ? null : step))}
-                        className="pressable h-2.5 w-9 border border-surface-hairline-strong"
-                        style={active ? { background: accent, borderColor: accent } : undefined}
-                      />
-                    );
-                  })}
-                  <span className="ml-2 text-xs text-text-faint">
-                    {desire == null ? tField("desireUnset") : tField(`desire${desire}`)}
-                  </span>
-                </div>
-              </div>
+              {/* Поля степени желания здесь БОЛЬШЕ НЕТ (раунд 29): она
+                  правится тапом по огонькам в шапке карточки и сохраняется
+                  тем же тапом. Второе место ввода того же значения на том же
+                  экране — это место, где оно разъедется. */}
             </>
           )}
 
@@ -443,6 +490,42 @@ export function ItemCard({ item, lovePrice, zones, zoneLabel, accent, ink }: Ite
                   max={new Date().getUTCFullYear()}
                   value={year}
                   onChange={(event) => setYear(event.target.value)}
+                />
+              </label>
+            </div>
+          )}
+
+          {/* Впечатление (тикет 97) — та же развилка, что в карточке
+              добавления: поля показываются в зонах впечатлений. Значения
+              уходят на сервер ВСЕГДА (см. buildInput), показ — только здесь:
+              спрашивать «Когда» у пары кроссовок незачем. */}
+          {isExperienceZone(zone) && (
+            <div className="flex flex-col gap-3">
+              <label className="flex flex-col gap-1.5">
+                <span className={LABEL_CLASS}>{tExp("when")}</span>
+                <input
+                  className={INPUT_CLASS}
+                  maxLength={80}
+                  value={eventWhen}
+                  onChange={(event) => setEventWhen(event.target.value)}
+                />
+              </label>
+              <label className="flex flex-col gap-1.5">
+                <span className={LABEL_CLASS}>{tExp("where")}</span>
+                <input
+                  className={INPUT_CLASS}
+                  maxLength={80}
+                  value={eventWhere}
+                  onChange={(event) => setEventWhere(event.target.value)}
+                />
+              </label>
+              <label className="flex flex-col gap-1.5">
+                <span className={LABEL_CLASS}>{tExp("validUntil")}</span>
+                <input
+                  className={INPUT_CLASS}
+                  type="date"
+                  value={validUntil}
+                  onChange={(event) => setValidUntil(event.target.value)}
                 />
               </label>
             </div>

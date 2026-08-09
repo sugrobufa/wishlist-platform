@@ -4,7 +4,6 @@ import { redirect } from "next/navigation";
 import { auth } from "@/server/auth";
 import { getRoomForUser, getSessionUserId } from "@/server/services/rooms";
 import { rooms, zoneInfo } from "@/config/design";
-import { roomImageUrl } from "@/app/rooms/room-image";
 import { visibleZones } from "@/components/scene/zones";
 import { AddItemFlow, type ZoneOption } from "./add-item-flow";
 
@@ -22,10 +21,12 @@ type SearchParams = { searchParams: Promise<{ zone?: string; hall?: string }> };
  * зоны комнаты с подписями из zones.json и отдаёт клиентскому флоу;
  * ?zone=… предвыбирает зону (невидимые ключи молча игнорируются).
  *
- * ?hall=1 — пришли с витрины сокровищницы (тикет 89): вещь по определению уже
- * своя, поэтому вопрос «люблю или хочу» не задаётся вовсе (решение владельца
- * 08.08.2026: «хочу» в сокровищнице не надо). Зону всё равно спрашиваем —
- * витрина зоне не замена, а слой поверх.
+ * ДВА ВХОДА, И РАЗЛИЧАЕТ ИХ МЕСТО (тикет 124). Без параметра вещь встаёт В
+ * КОМНАТУ — то есть в список желаний; `?hall=1` (тикет 89) кладёт её сразу в
+ * сокровищницу. Состояния у вещи нет, и вопроса «люблю или хочу» на экране не
+ * задаётся ни в одном из входов. Зону спрашиваем в обоих: витрина зоне не
+ * замена, а слой поверх, и `zone` у витринной вещи сохраняется — иначе
+ * «Вернуть в комнату» некуда возвращать.
  */
 export default async function AddItemPage({ searchParams }: SearchParams) {
   const { zone: zoneParam, hall: hallParam } = await searchParams;
@@ -43,10 +44,11 @@ export default async function AddItemPage({ searchParams }: SearchParams) {
   const preset = rooms.find((candidate) => candidate.id === room.preset);
   if (!preset) redirect("/room");
 
-  // Прямоугольник зоны едет во флоу вместе с подписью: из него режется кроп
-  // комнаты для выбора «люблю / хочу» (тикет 27).
   // Выбранные в онбординге категории — верхними (тикет 113, доска 34b):
   // список зон не меняется, меняется его порядок. Пустой ответ — как было.
+  //
+  // Прямоугольник зоны сюда больше не едет: он был нужен кропу комнаты на шаге
+  // «что это для тебя», а шага не стало (тикет 124).
   const wanted = new Set(room.wants);
   const ordered = [
     ...visibleZones(preset.zones, room.zonesOff).filter((zone) => wanted.has(zone.key)),
@@ -55,7 +57,6 @@ export default async function AddItemPage({ searchParams }: SearchParams) {
   const zones: ZoneOption[] = ordered.map((zone) => ({
     key: zone.key,
     label: zoneInfo(zone.key)?.label ?? zone.label,
-    rect: zone.rect,
   }));
   const preselected = zones.find((zone) => zone.key === zoneParam)?.key;
   const initialZone = preselected ?? zones[0]?.key ?? "";
@@ -71,7 +72,6 @@ export default async function AddItemPage({ searchParams }: SearchParams) {
       // витрину, со страницы зоны (?zone=…) обратно в неё, иначе в комнату
       // (приёмка п.1).
       exitHref={toHall ? "/room/hall" : preselected ? `/room/zone/${preselected}` : "/room"}
-      roomImage={roomImageUrl(preset.base)}
       accent={preset.accent}
       ink={preset.ink}
     />

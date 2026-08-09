@@ -9,7 +9,11 @@
 // ВКЛАДОК «ХОЧУ / ЛЮБЛЮ» БОЛЬШЕ НЕТ (тикет 124). Они показывали два состояния
 // вещи, а состояний не осталось: в зоне лежит только то, чего хочется, —
 // список один. Вещи сокровищницы сюда не приезжают вовсе (фильтр в сервисе).
-// Слова вкладок и пустых состояний — работа захода про строки.
+//
+// КОЛИЧЕСТВО ЛЕЧИТСЯ ЯРУСАМИ ШИРИНЫ (раунд 29,
+// `design/package/handoff/round29/task31.json` → gridTiers), а не заголовками:
+// заголовков по степеням нет никогда — делить список больше нечем. Три яруса
+// и их числа живут в CSS-модуле, здесь только выбор яруса по количеству.
 import { useId, type CSSProperties, type ReactNode } from "react";
 import { useTranslations } from "next-intl";
 import { sceneMotion } from "@/config/design";
@@ -43,6 +47,20 @@ const EXPERIENCE_ZONE = "events";
  * полный экран числом («ещё 21») или просто словами («Показать все»).
  */
 export const SHEET_TILES = 5;
+
+/**
+ * Ярус ширины по количеству вещей (task31.json → gridTiers). Пороги — числа
+ * дизайна, не подобранные: 1–2 «во всю ширину», 3–6 «первая широкая плюс
+ * двухколонник», 7+ «плотный двухколонник».
+ *
+ * Отдельной функцией и с экспортом — чтобы пороги проверялись тестом, а не
+ * пересказывались в разметке.
+ */
+export function gridTier(count: number): "wide" | "lead" | "dense" {
+  if (count <= 2) return "wide";
+  if (count <= 6) return "lead";
+  return "dense";
+}
 
 export type ZoneGridProps = {
   /** Вещи зоны (DTO). Демо-призраки — с isDemo: true. */
@@ -84,6 +102,14 @@ export type ZoneGridProps = {
    * судьбу её решает не он.
    */
   ownerEmpty?: boolean;
+  /**
+   * Подвал зоны — тихая строка-мост «Ещё {n} — в сокровищнице» (раунд 29,
+   * task31.json → treasuryBridge). Узел приходит снаружи, потому что решает
+   * его вызывающая сторона: мост есть ТОЛЬКО у хозяйки и только когда в
+   * витрине правда лежат вещи ЭТОЙ зоны. У гостя моста нет — его дверь в
+   * витрину стоит знаком в углу сцены.
+   */
+  footer?: ReactNode;
 };
 
 export function ZoneGrid({
@@ -96,6 +122,7 @@ export function ZoneGrid({
   pool,
   zoneKey,
   ownerEmpty = false,
+  footer,
 }: ZoneGridProps) {
   const t = useTranslations("ZoneGrid");
   const baseId = useId();
@@ -131,7 +158,7 @@ export function ZoneGrid({
           // всегда строками, и у гостя, и у хозяйки. Смешанной сетки нет.
           <ExperienceRows items={shown} renderItemAction={renderItemAction} />
         ) : (
-          <ul className={s.grid}>
+          <ul className={`${s.grid} ${TIER_CLASS[gridTier(shown.length)]}`}>
             {shown.map((item, index) => (
               <ItemTile
                 key={item.id}
@@ -144,7 +171,17 @@ export function ZoneGrid({
           </ul>
         )}
         {hasDemo && <p className={s.demoHint}>{t("demoNote")}</p>}
+        {/* Мост в витрину — подвалом зоны и последним: он про то, чего в этой
+            зоне УЖЕ нет, и вставать выше самих вещей ему не за что. */}
+        {footer}
       </div>
     </div>
   );
 }
+
+/** Ярус → класс модуля. Плотный двухколонник — сама `.grid`, класса ему не надо. */
+const TIER_CLASS: Record<ReturnType<typeof gridTier>, string> = {
+  wide: s.tierWide as string,
+  lead: s.tierLead as string,
+  dense: "",
+};

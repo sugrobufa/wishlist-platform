@@ -102,10 +102,16 @@ const TONE_RULES: ReadonlyArray<readonly [string, RegExp]> = [
   ["обращение на «вы»", asWord("вы|вас|вам|вами|ваш[а-я]*")],
   // Слова технического контракта в интерфейсе не существуют.
   ["слово из технического контракта", asWord("наезд[а-я]*|кадр[а-я]*|хотспот[а-я]*|пресет[а-я]*")],
-  // «Набор зон» — тоже слово контракта. Ловим само слово, а не только пару:
-  // «От набора зависят зоны комнаты» — та же мысль теми же словами. В словаре
-  // на его месте живёт «заготовка».
-  ["«набор зон»", asWord("набор[а-я]*")],
+  // «Набор зон» — слово контракта, и ловится ПАРОЙ, а не одним словом.
+  //
+  // ПРАВИЛО СУЖЕНО (раунд 29). Оно ловило «набор[а-я]*» целиком — «от набора
+  // зависят зоны комнаты» это та же мысль теми же словами, — но сам пакет
+  // теперь говорит «Наборы отличаются полками» в `Onboarding.zoneSetHint`.
+  // Тот же прецедент, что у «товара» и «пространства» выше: доска и пакет —
+  // источник правды, и слово живое. Запрет остаётся на связке, которой пакет
+  // не пользуется ни разу; на месте одиночного слова в наших собственных
+  // строках по-прежнему живёт «заготовка».
+  ["«набор зон»", asWord("набор[а-я]*\\s+зон[а-я]*")],
   // Столбец «не говорим» из памятки — то, что нельзя спутать с живой речью.
   [
     "слово не из словаря продукта",
@@ -306,18 +312,21 @@ const renamed = (line: string) =>
  * отсюда уйти, и тест «записанное расхождение — настоящее» заметит, если
  * забудут.
  */
-const PACKAGE_DRIFT: readonly string[] = [
-  "Connections.empty",
-  "Connections.filtersAria",
-  "Connections.title",
-  "Consent.offerSkipHint",
-  "DataSection.deleteWarn",
-  "DataSection.exportHint",
-  "Feed.becameMutual",
-  "Hall.deleteConfirmBody",
-  "Occasion.connectionAppeared",
-  "Room.connectionsLink",
-];
+/**
+ * ЗАПРОС ВЫПОЛНЕН ЦЕЛИКОМ (раунд 29) — СПИСОК ПУСТ, и это хорошая новость, а
+ * не забытая уборка. Дизайн доназвал «Связи» «Друзьями» во всех падежах,
+ * включая обороты внутри фраз, и переписал три строки, где расходилось не
+ * слово, а мысль: `Consent.offerSkipHint` («до праздника» → «до закрытия
+ * итога»), `DataSection.deleteWarn` («брони гостей» → «подарки гостей») и
+ * `Hall.deleteConfirmBody` («Связь с дарителем останется» → «Даритель
+ * останется»). Все три взяты у него дословно — слово дизайна сильнее нашего
+ * вкуса, и переписывать его обратно было бы ровно тем, против чего список и
+ * заведён.
+ *
+ * Пустым он и должен оставаться по умолчанию: появится расхождение — сюда
+ * запись с причиной, а не молчаливая подгонка ожидания под факт.
+ */
+const PACKAGE_DRIFT: readonly string[] = [];
 
 /**
  * ПЕРЕПИСАНО ПО РЕШЕНИЮ ВЛАДЕЛЬЦА — второй, отдельный список расхождений.
@@ -360,11 +369,12 @@ const OWNER_REWRITE_89: readonly string[] = ["Hall.empty"];
  * Отсюда две переписанные строки: «занято» → «уже дарят» и «занято тобой» →
  * «уже даришь ты». Слово «занято» описывало склад, а речь о подарке.
  *
- * ЗАПРОС ДИЗАЙНУ: доска и пакет расходятся между собой (у неё имя, у него
- * «занято») — просим свести и прислать формулировку под наше правило.
- * Раунд 27 обе строки не тронул: у него по-прежнему «занято».
+ * ЗАПРОС ВЫПОЛНЕН (раунд 29): «Вместо „занято" — „уже дарят": та же фраза,
+ * которой вещь помечена в списке, когда даритель скрыт. Гость учит одно
+ * слово, а не два. И „занято" из мира парковок, а тут комната». Обе строки в
+ * пакете теперь наши слово в слово — расхождения не осталось, список пуст.
  */
-const OWNER_REWRITE_105: readonly string[] = ["Booking.taken", "Booking.takenByYou"];
+const OWNER_REWRITE_105: readonly string[] = [];
 
 /**
  * ЧЕТВЁРТЫЙ список — ОБРАТНОЕ РАСХОЖДЕНИЕ: строки, которые в пакете есть, а в
@@ -399,6 +409,16 @@ const OWNER_REWRITE_105: readonly string[] = ["Booking.taken", "Booking.takenByY
  *    Переименование ключей — не словарная правка, а проход по компонентам:
  *    отдельным тикетом, вместе со сверкой текстов.
  *
+ * 2а. САМОГО ЭКРАНА НЕТ. `Onboarding.wantsStep` («Что хочется») и
+ *    `Onboarding.wantsSkip` («Пропустить — начну с нуля») — подпись шага «что
+ *    чаще всего хочется» и кнопка пропуска на нём. Шага больше нет (тикет 134,
+ *    письмо 33 · турн 40b): вопрос уехал чипами в первое открытие «начни с
+ *    готового», где ответ сразу виден в подборке, которую он красит. Подписи
+ *    шага там нет — она называла бы несуществующий экран; пропуск стал «просто
+ *    листать дальше», отдельной кнопки дизайн и не просит («анкеты нет»).
+ *    САМ ВОПРОС ЖИВ ДОСЛОВНО: `wantsTitle`, `wantsSubtitle` и `wantsMax`
+ *    сверяются обычным путём.
+ *
  * 3. СТРОКИ ЕЩЁ НЕ ПОСТРОЕННЫХ СОСТОЯНИЙ. `Consent.oneWayRow`, `quietGiver`,
  *    `quietGiverF` — подписи в «Друзьях» для односторонней связи и для
  *    дарителя, который подарил тихо. `ZoneGrid.guestFilterAll` /
@@ -431,6 +451,8 @@ const PACKAGE_ONLY: readonly string[] = [
   "Hall.hideFromGuests",
   "Hall.hideFromGuestsHint",
   "Hall.showToGuests",
+  "Onboarding.wantsSkip",
+  "Onboarding.wantsStep",
   "TreasuryAccess.optLink",
   "TreasuryAccess.optLinkHint",
   "TreasuryAccess.optMutual",
@@ -648,12 +670,12 @@ describe("словарь и дизайн-пакет", () => {
     // графика без слов.
     const own = [...ru.keys()].filter((key) => !handoff.has(key)).sort();
     expect(own).toEqual([
-      "AddItem.back",
       // Тикет 89: карточка добавления, открытая С ВИТРИНЫ (?hall=1). Выхода
       // на витрину и её заголовка доска не рисовала — она вообще не знает,
       // что вещь можно положить в сокровищницу сразу, минуя зону.
       "AddItem.backToHall",
       "AddItem.backToRoom",
+      "AddItem.desireGuestHint",
       "AddItem.hallHint",
       "AddItem.hallLabel",
       // СИРОТЫ ПО УБЫЛИ — дизайн снял их у себя, а продукт ими ещё живёт.
@@ -667,9 +689,8 @@ describe("словарь и дизайн-пакет", () => {
       // «хочу»). Снятие состояний — отдельная работа, не словарная правка.
       // Прецедент `Scene.noOpenFrame` ниже говорит, чем это кончается, если
       // тянуть: сирота по убыли живёт в UI, пока её оттуда не уберут руками.
-      "AddItem.loveHint",
-      "AddItem.loveLabel",
-      "AddItem.question",
+      "AddItem.roomHint",
+      "AddItem.roomLabel",
       "AddItem.saveHint",
       // Услуга-впечатление (тикет 97): подсказки полей «Когда» и «Где».
       // Примеры с доски («выходные», «онлайн»), самих подписей полей в
@@ -678,8 +699,6 @@ describe("словарь и дизайн-пакет", () => {
       // ссылки — «снимает недоверие к полю». Доска называла четыре, мы
       // называем шесть: ровно те, на которых парсер проверен фикстурами.
       "AddItem.urlShops",
-      "AddItem.wantHint",
-      "AddItem.wantLabel",
       "AddItem.whenPlaceholder",
       "AddItem.wherePlaceholder",
       // Тикет 76: два новых отказа брони. Пакет знает `errTaken`/`errRate`/
@@ -886,9 +905,7 @@ describe("словарь и дизайн-пакет", () => {
       "Hall.noteAdd",
       "Hall.noteQuote",
       "Hall.priceAbout",
-      "Hall.priceHide",
       "Hall.priceSeenAria",
-      "Hall.priceShow",
       "Hall.seenALL",
       "Hall.seenFRIENDS",
       "Hall.seenITEM",
@@ -907,6 +924,7 @@ describe("словарь и дизайн-пакет", () => {
       // другая механика: подтверждение с объяснением на каждую сторону вместо
       // двух голых кнопок. Наши пять удалены из словаря: мёртвая строка стоит
       // килобайта в разметке КАЖДОЙ страницы (правило выше).
+      "Hall.zoneBridge",
       "Onboarding.emailNote",
       "Onboarding.nameFromBooking",
       "Onboarding.nameLabel",
@@ -923,7 +941,6 @@ describe("словарь и дизайн-пакет", () => {
       // поставкой раунда 22, а теперь стоит и в handoff-словаре.
       // Косметика доски В3 (турн 14a): «Зоны этой комнаты» с «+5» у выбранной
       // заготовки. Слова заголовка наши — доска рисовала список без подписи.
-      "Onboarding.zonesTitle",
       // Тикет 94 (доска Б8, турн 13b): просьба укрепить аккаунт перед первым
       // шером. С доски дословно «Комнату теперь есть чем терять» и
       // «Поделиться без этого» — отказ разрешён и на доске тоже. Остальное по
@@ -939,10 +956,7 @@ describe("словарь и дизайн-пакет", () => {
       // не выдумано: комната закрыта от индексации (инвариант №7).
       "Room.shareWhoSees",
       "RoomList.empty",
-      "RoomList.filterAll",
       "RoomList.filterAria",
-      "RoomList.filterLove",
-      "RoomList.filterWant",
       "RoomList.subtitle",
       "RoomList.title",
       "RoomList.toList",
@@ -953,7 +967,6 @@ describe("словарь и дизайн-пакет", () => {
       "Scene.emptyRoom",
       "Scene.indexAria",
       "Scene.summaryBrands",
-      "Scene.summaryCountsGuest",
       "Scene.summaryEmpty",
       "Scene.summaryEnter",
       "Scene.summaryFreeAll",
@@ -976,20 +989,13 @@ describe("словарь и дизайн-пакет", () => {
       "Settings.accessSecond",
       "Settings.accessSecondLinked",
       "Settings.accessSecondNone",
-      "Settings.hallFriendsHint",
       "Settings.hallGiverHint",
       "Settings.hallGiverLabel",
-      "Settings.hallItemHint",
       "Settings.hallOverline",
-      "Settings.hallPriceLabel",
       "Settings.hallRoundHint",
       "Settings.hallRoundLabel",
       "Settings.hallTotalHint",
       "Settings.hallTotalLabel",
-      "Settings.hallVisALL",
-      "Settings.hallVisFRIENDS",
-      "Settings.hallVisME",
-      "Settings.hallVisNONE",
       // «Кто видит сокровищницу» (тикет 116, ADR-0011): три положения над
       // настройками цены. Дизайн просил эту настройку три раунда подряд, но
       // рисовал её ЧЕТЫРЬМЯ положениями по образцу цены — владелец свёл к трём
@@ -1012,9 +1018,6 @@ describe("словарь и дизайн-пакет", () => {
       // «действие „Уже моё" снято — переход в сокровищницу один, itemHallAdd».
       // Причина та же, что у `AddItem.love*` выше: пока у вещи два состояния,
       // необратимый переход «хочу → люблю» существует и обязан спрашивать.
-      "Settings.itemAlreadyMine",
-      "Settings.itemAlreadyMineConfirm",
-      "Settings.itemAlreadyMineYes",
       // Свет и время суток (тикет 96, доска Б6): две последние ручки
       // персонализации. Доска рисовала сегменты, словами дизайн их не
       // подписывал — названия положений наши, по памятке.
@@ -1026,7 +1029,9 @@ describe("словарь и дизайн-пакет", () => {
       "Settings.itemDeleteHint",
       "Settings.itemEdit",
       "Settings.itemGiverRow",
+      "Settings.itemHallAddConfirm",
       "Settings.itemHallAddHint",
+      "Settings.itemHallAddYes",
       "Settings.itemHallRemoveHint",
       "Settings.itemHideHint",
       "Settings.itemMore",
@@ -1096,12 +1101,8 @@ describe("словарь и дизайн-пакет", () => {
       // `emptyWant` дизайн при этом переименовал в `empty` с тем же текстом
       // (запись в `PACKAGE_ONLY` выше). Причина остатка та же, что у двух
       // троек выше: снятие состояний — работа по модели, не по словарю.
-      "ZoneGrid.emptyLove",
       "ZoneGrid.emptyWant",
       "ZoneGrid.loveCaption",
-      "ZoneGrid.tabLove",
-      "ZoneGrid.tabWant",
-      "ZoneGrid.tabsAria",
       // Экран зоны списком (тикет 74, турн 29b): чипы порядка, выбор вещей,
       // массовое скрытие и гостевой фильтр «только свободные». Слова с доски
       // 29b дословно («по дате», «по цене», «скрытые», «Скрыть 2 вещи»,
@@ -1110,6 +1111,7 @@ describe("словарь и дизайн-пакет", () => {
       "ZoneList.cancel",
       "ZoneList.counts",
       "ZoneList.emptyFree",
+      "ZoneList.emptyHidden",
       "ZoneList.freeOnly",
       "ZoneList.hideMany",
       "ZoneList.select",

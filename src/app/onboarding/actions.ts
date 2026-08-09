@@ -28,12 +28,13 @@ export async function createRoomAction(formData: FormData): Promise<void> {
   const userId = await getSessionUserId(session?.user);
   if (!userId) redirect("/signin");
 
+  // «Что чаще всего хочется» ОТСЮДА УШЛО (письмо 33, турн 40b): вопрос больше
+  // не шаг онбординга, его задают чипами при первом открытии «начни с готового»
+  // (`room/starter-pack.tsx` → `saveWantsAction`). Комната заводится без ответа,
+  // и это законно: `Room.wants` необязателен и был необязателен всегда.
   await createRoomForUser(userId, {
     preset: String(formData.get("preset") ?? ""),
     zoneSet: String(formData.get("zoneSet") ?? ""),
-    // «Что чаще всего хочется» (тикет 113): три-четыре ключа зон через
-    // запятую. Пусто — вопрос пропустили, и это законный ответ.
-    wants: String(formData.get("wants") ?? ""),
   });
 
   // Имя (тикет 38, предзаполняется из брони). Пустое поле — не «стереть»:

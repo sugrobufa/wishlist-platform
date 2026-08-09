@@ -131,13 +131,6 @@
   container-type: inline-size;
 }
 
-/* «Хочу» — пунктир акцентом. Кодирует СОСТОЯНИЕ, не отсутствие фото
-   (инвариант №3): тот же язык, что у плитки в зоне. */
-.thumbWant {
-  border: 1px dashed var(--rl-accent, #e7c9a9);
-  background-color: rgba(255, 255, 255, 0.04);
-}
-
 .monogram {
   position: absolute;
   inset: 0;
@@ -172,19 +165,6 @@
   margin: 0;
   font: 600 15px/1.25 var(--font-ui);
   color: var(--color-text-strong);
-}
-
-.chip {
-  padding: 4px 10px;
-  border: 1px solid rgba(255, 249, 242, 0.16);
-  border-radius: var(--radius-pill, 100px);
-  font: 500 11px/1 var(--font-ui);
-  color: var(--color-text-muted);
-}
-
-.chipWant {
-  border: 1px dashed var(--rl-accent, #e7c9a9);
-  color: var(--rl-accent, #e7c9a9);
 }
 
 /* Цена и степень желания стоят вместе (турн 36b, тикет 125): огоньки читаются

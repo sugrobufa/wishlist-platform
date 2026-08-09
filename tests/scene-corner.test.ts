@@ -2,9 +2,18 @@
 // «поделиться» под открытой зоной (тикет 121). Приёмка владельца 09.08.2026,
 // ответ дизайна — турн 36c.
 //
+// ЧТО ИЗМЕНИЛОСЬ (тикет 129). Знак «Списком» ИЗ УГЛА УШЁЛ: владелец показал
+// снимком, что ему место в полосе под кадром, у правого края, и что он должен
+// переключать содержимое этой полосы, а не уводить на отдельную страницу.
+// Проверки «в углу два знака» поэтому переписаны на «в углу одна шкатулка», а
+// сам переключатель проверяется своим файлом (tests/rail-list-toggle).
+// Знак сокровищницы владелец не двигал — он только забраковал рисунок, и
+// шкатулка стала бриллиантом (набор обновлён, сверка ниже — та же).
+//
 // ЧТО ЗДЕСЬ ЗАЩИЩАЕТСЯ:
-// - знак «Списком» и знак «Сокровищница» есть у ОБЕИХ сторон, в одном месте и
-//   ведут каждый в свой существующий экран;
+// - знак «Сокровищница» есть у ОБЕИХ сторон, в одном месте и ведёт в свой
+//   существующий экран;
+// - одиночный знак в углу не тянет за собой раскладку, рассчитанную на двоих;
 // - пилюли со словами, стоявшие под оглавлением зон, не вернулись: слово
 //   живёт только в `aria-label` и подсказке;
 // - у гостя шкатулки НЕТ при закрытой витрине, и решается это тем же
@@ -21,7 +30,7 @@ import { fileURLToPath } from "node:url";
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
-import { IconList, IconTreasury } from "../src/components/icons";
+import { IconHall, IconList, IconTreasury } from "../src/components/icons";
 
 const read = (relative: string) =>
   readFileSync(fileURLToPath(new URL(relative, import.meta.url)), "utf8");
@@ -55,12 +64,25 @@ const fromPackage = (file: string) =>
 const fromOurs = (component: Parameters<typeof createElement>[0]) =>
   shapeOf(renderToStaticMarkup(createElement(component)));
 
-describe("иконки угла — путь в путь с набором дизайна", () => {
+describe("иконки — путь в путь с набором дизайна", () => {
   it.each([
+    // `ui-list` живёт теперь не в углу, а в полосе (тикет 129) — сверка та же:
+    // знак не менялся, менялось его место.
     ["ui-list", IconList],
     ["ui-treasury", IconTreasury],
   ])("%s совпадает с файлом набора", (file, component) => {
     expect(fromOurs(component)).toEqual(fromPackage(file));
+  });
+
+  it("шкатулка стала бриллиантом — и только у знаков ВИТРИНЫ", () => {
+    // Владелец 09.08: «мне не нравится сундук, нужна другая, более читаемая,
+    // может бриллиант». Дизайн ответил новой редакцией `ui-treasury` и
+    // `action-treasury`. Знак таб-бара (`IconHall`, файл `tab-treasury`) при
+    // этом остался шкатулкой — его никто не браковал, и место витрины в баре
+    // живо (тикет 132). Сверяем, что мы не поменяли лишнего.
+    expect(fromOurs(IconTreasury)).toEqual(fromPackage("action-treasury"));
+    expect(fromOurs(IconHall)).toEqual(fromPackage("tab-treasury"));
+    expect(fromOurs(IconTreasury)).not.toEqual(fromOurs(IconHall));
   });
 
   it("формат набора: сетка 24, контур 1.7, скруглённые концы, currentColor", () => {
@@ -80,21 +102,29 @@ describe("иконки угла — путь в путь с набором ди�
   });
 });
 
-describe("знаки стоят у обеих сторон и ведут в свои экраны", () => {
-  it("у хозяйки: «Списком» → /room/list, «Сокровищница» → /room/hall", () => {
+describe("знак витрины стоит у обеих сторон и ведёт в свой экран", () => {
+  it("у хозяйки: «Сокровищница» → /room/hall, и она в углу одна", () => {
     expect(ownerPage).toContain("<SceneCorner>");
-    expect(ownerPage).toMatch(/<CornerMark href="\/room\/list" label=\{tList\("toList"\)\}/u);
     expect(ownerPage).toMatch(/<CornerMark href="\/room\/hall" label=\{tHall\("toHall"\)\}/u);
-    expect(ownerPage).toContain("<IconList size={CORNER_ICON_SIZE} />");
     expect(ownerPage).toContain("<IconTreasury size={CORNER_ICON_SIZE} />");
+    // Знак «Списком» уехал в полосу (тикет 129) — в углу его нет.
+    expect(ownerPage).not.toMatch(/<CornerMark href="\/room\/list"/u);
   });
 
-  it("у гостя: тот же ряд и те же знаки, адреса — его комнаты", () => {
+  it("у гостя: то же место и тот же знак, адрес — его комнаты", () => {
     expect(guestPage).toContain("<SceneCorner>");
-    expect(guestPage).toMatch(/<CornerMark href=\{`\$\{roomPath\}\/list`\}/u);
     expect(guestPage).toMatch(/<CornerMark href=\{hallHref\}/u);
-    expect(guestPage).toContain("<IconList size={CORNER_ICON_SIZE} />");
     expect(guestPage).toContain("<IconTreasury size={CORNER_ICON_SIZE} />");
+    expect(guestPage).not.toMatch(/<CornerMark href=\{`\$\{roomPath\}\/list`\}/u);
+  });
+
+  it("одиночный знак в углу не сломал раскладку ряда", () => {
+    // Ряд собран флексом с шагом, а не сеткой на две колонки: убыль знака
+    // ничего не двигает, и второй при надобности встанет рядом.
+    expect(globalsCss).toMatch(/\.imm-corner \{[\s\S]*?display: flex;/u);
+    expect(globalsCss).not.toMatch(/\.imm-corner \{[\s\S]*?grid-template-columns/u);
+    // Дети ряда рисуют страницы, и число их не зашито в компоненте.
+    expect(corner).toContain("children");
   });
 
   it("размер знака — одно число на обе стороны, руками не набивается", () => {
@@ -120,8 +150,50 @@ describe("знаки стоят у обеих сторон и ведут в св
     expect(ownerPage).not.toMatch(/btn-quiet[\s\S]{0,120}tList\("toList"\)/u);
     expect(guestPage).not.toMatch(/btn-quiet[\s\S]{0,120}tList\("toList"\)/u);
     expect(guestPage).not.toMatch(/btn-quiet[\s\S]{0,120}tHall\("toHall"\)/u);
-    // У хозяйки слот `below` был ровно под эту пилюлю и опустел вместе с ней.
-    expect(ownerPage).not.toContain("below={");
+    // Слот `below` у хозяйки СНОВА ЗАНЯТ, и это не возврат пилюли: там стоят
+    // блоки пустой комнаты («Или начни с готового» и плашка про пять вещей).
+    // Прежде оба были `position: fixed` и ложились на строки зон — починка
+    // наложения, приёмка 09.08.
+    expect(ownerPage).toContain("imm-empty-slot");
+  });
+});
+
+describe("блоки пустой комнаты стоят в потоке полосы, а не слоем поверх неё", () => {
+  // ЧТО БЫЛО СЛОМАНО. В пустой комнате под кадром оказывались три слоя, ничего
+  // не знающих друг о друге: строки зон (нижняя полоса, absolute от кадра до
+  // таб-бара), «Или начни с готового» (fixed, таб-бар + 78) и плашка про пять
+  // вещей (fixed, таб-бар + 18). Высоты у двух последних отмерены на глаз, и
+  // слова шли прямо сквозь слова. В комнате С ВЕЩАМИ обоих блоков нет вовсе —
+  // потому поломка и жила незамеченной.
+  it("ни у одного из блоков не осталось своего позиционирования", () => {
+    for (const selector of ["imm-starter", "imm-share-plaque"]) {
+      const body = new RegExp(`\\.${selector} \\{([^}]*)\\}`, "u").exec(globalsCss)?.[1] ?? "";
+      expect(body, `${selector}: правило не найдено`).not.toBe("");
+      expect(body, `${selector}: position должен уйти вместе с отступами`).not.toMatch(
+        /position:\s*fixed/u,
+      );
+      expect(body, `${selector}: отступ от таб-бара отмерян на глаз`).not.toMatch(
+        /--imm-tab-bar/u,
+      );
+    }
+  });
+
+  it("оба живут одним контейнером в слоте `below` нижней полосы", () => {
+    expect(globalsCss).toMatch(/\.imm-empty-slot \{[\s\S]*?flex-direction: column;/u);
+    // Контейнер стоит внутри ZoneRail, а не рядом с таб-баром.
+    const rail = ownerPage.slice(ownerPage.indexOf("<ZoneRail"), ownerPage.indexOf("</ZoneRail>"));
+    expect(rail).toContain("imm-empty-slot");
+    expect(rail).toContain("<StarterPack");
+    expect(rail).toContain("imm-share-plaque");
+  });
+
+  it("список зон гибкий, а блоки — нет: место отдаёт он, а не они", () => {
+    // Стопка полосы — flex-колонка; список прокручивается сам (min-height: 0),
+    // слот `below` объявлен `flex: none`. Наложиться такой стопке нечем.
+    const railCss = read("../src/components/scene/zone-index.module.css");
+    expect(railCss).toMatch(/\.below \{[\s\S]*?flex: none;/u);
+    const listCss = read("../src/components/scene/zone-list.module.css");
+    expect(listCss).toMatch(/\.list \{[\s\S]*?min-height: 0;[\s\S]*?overflow-y: auto;/u);
   });
 });
 

@@ -250,8 +250,14 @@ export function OwnerZoneGrid({ items, accent, zoneKey, pool }: OwnerZoneGridPro
     const isDelete = kind === "delete";
     return (
       <div className="mt-1 flex flex-wrap items-center gap-3 text-xs">
+        {/* Вопрос про ПЕРЕЕЗД, а не про состояние (тикет 124): «Перевести в
+            „люблю“? Обратно пути нет» врало дважды — состояний не осталось, а
+            дорога назад есть и называется «Вернуть в комнату». Вопрос при этом
+            остался: переезд молча снимает бронь, и спросить один раз честно.
+            Он одинаков у ЛЮБОЙ вещи — по нему нельзя догадаться, занята она
+            или нет (инвариант №1). */}
         <span className="text-text-muted">
-          {isDelete ? t("itemDeleteConfirm") : t("itemAlreadyMineConfirm")}
+          {isDelete ? t("itemDeleteConfirm") : t("itemHallAddConfirm")}
         </span>
         <button
           type="button"
@@ -263,7 +269,7 @@ export function OwnerZoneGrid({ items, accent, zoneKey, pool }: OwnerZoneGridPro
           }
           className="pressable font-semibold text-text-strong disabled:opacity-60"
         >
-          {isDelete ? t("itemDeleteYes") : t("itemAlreadyMineYes")}
+          {isDelete ? t("itemDeleteYes") : t("itemHallAddYes")}
         </button>
         <button
           type="button"
@@ -348,8 +354,10 @@ export function OwnerZoneGrid({ items, accent, zoneKey, pool }: OwnerZoneGridPro
                   )}
                 </button>
               )}
+              {/* Миниатюра одна на всех: пунктира не бывает ни у какой вещи
+                  (тикет 124, инвариант №3 отменён целиком). */}
               <div
-                className={look.dashed ? `${rl.thumb} ${rl.thumbWant}` : rl.thumb}
+                className={rl.thumb}
                 style={item.photoUrl ? { backgroundImage: `url(${item.photoUrl})` } : undefined}
                 aria-hidden
               >
@@ -385,8 +393,15 @@ export function OwnerZoneGrid({ items, accent, zoneKey, pool }: OwnerZoneGridPro
           );
         })}
       </ul>
+      {/* Пусто по двум разным причинам, и путать их нельзя: в зоне нет вещей
+          вовсе — «Добавь первое желание»; включён чип «скрытые», а скрытых нет
+          — так и говорим. Прежде вторую половину подписывал `emptyLove`
+          («Расскажи, что ты любишь»), и это перестало значить что-либо вместе
+          с состояниями (тикет 124). */}
       {shown.length === 0 && (
-        <p className="text-sm text-text-muted">{tg(sort === "hidden" ? "emptyLove" : "emptyWant")}</p>
+        <p className="text-sm text-text-muted">
+          {sort === "hidden" ? tl("emptyHidden") : tg("emptyWant")}
+        </p>
       )}
 
       {/* Нижняя панель действия: счёт стоит прямо в подписи кнопки (29b). */}

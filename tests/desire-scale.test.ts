@@ -116,12 +116,57 @@ describe("два места — два вида (36d)", () => {
 });
 
 describe("где показ обязан быть", () => {
-  it("в карточке вещи у хозяйки — у названия, только у «хочу»", () => {
+  // ЧТО ИЗМЕНИЛОСЬ В КАРТОЧКЕ ХОЗЯЙКИ (раунд 29, task31.json →
+  // addFormScale.editInPlace). Там стояла та же шкала, но ТОЛЬКО ДЛЯ ЧТЕНИЯ, а
+  // менять степень ходили в отдельное поле формы ниже — два места на одно
+  // значение. Дизайн просит править НА МЕСТЕ, тапом по огонькам, без
+  // «Изменить»: «проставить задним числом тридцати вещам должно быть дёшево».
+  // Поэтому в шапке теперь ввод (`DesirePicker`), а поля в форме нет вовсе.
+  // Показ (`DesireScale`) остался там, где вещь читают, а не правят: у гостя
+  // и в строке зоны.
+  it("в карточке вещи у хозяйки — ВВОДОМ, у названия, только у вещи комнаты", () => {
     const card = read("../src/app/room/zone/[zone]/i/[id]/item-card.tsx");
-    expect(card).toContain("<DesireScale");
-    expect(card).toContain('place="card"');
+    expect(card).toContain("<DesirePicker");
     // Тикет 124: место вместо состояния — шкала у вещи КОМНАТЫ.
     expect(card).toContain("!item.inHall && (");
+    // Тап сохраняет сразу — второй кнопки для этого нет.
+    expect(card).toContain("onPick={onPickDesire}");
+    expect(card).toMatch(/updateItemAction\(item\.id, buildInput\(next\)\)/u);
+    // Второго места ввода на экране не осталось.
+    expect(card).not.toContain("DESIRE_STEPS");
+  });
+
+  it("в форме добавления — вторым вопросом, сразу после названия", () => {
+    const form = read("../src/app/room/add/add-item-flow.tsx");
+    expect(form).toContain("<DesirePicker");
+    // Порядок: название → степень → зона. Прежде степень стояла последним
+    // полем, и это была прямая причина 56 пустых из 57.
+    const title = form.indexOf('{t("titleLabel")}');
+    const desire = form.indexOf("<DesirePicker");
+    const zone = form.indexOf('{t("zoneLabel")}');
+    expect(title).toBeGreaterThan(-1);
+    expect(desire).toBeGreaterThan(title);
+    expect(zone).toBeGreaterThan(desire);
+  });
+
+  it("ДЕФОЛТА НЕТ: система степень не проставляет — ни в форме, ни во вводе", () => {
+    // «Мечтаю у всего подряд» без дефолта не случается: обесценить шкалу может
+    // только система, проставившая что-то сама (task31.json → devaluation).
+    const form = read("../src/app/room/add/add-item-flow.tsx");
+    expect(form).toContain("useState<number | null>(null)");
+    const picker = read("../src/components/item/desire-picker.tsx");
+    expect(picker).not.toMatch(/useState\(/u);
+    // «Не скажу» — законное пустое и стоит на экране всегда, а не появляется
+    // после выбора: это и есть обещание «поле необязательное».
+    expect(picker).toContain('t("desireUnset")');
+    expect(picker).toContain("onPick(null)");
+  });
+
+  it("цель нажатия у огонька — 44, точка 14 (числа раунда 29)", () => {
+    const css = read("../src/components/item/desire-picker.module.css");
+    expect(css).toContain("width: var(--hit-target-min, 44px)");
+    expect(css).toContain("height: var(--hit-target-min, 44px)");
+    expect(css).toContain("width: 14px");
   });
 
   it("в карточке вещи у ГОСТЯ — тем же видом: он по шкале выбирает подарок", () => {

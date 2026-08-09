@@ -11,6 +11,13 @@
  *  осознанным решением (сменив её), а не молча починив баг у всех сразу. */
 export const ROOM_OFFER_ASKED_KEY = "wl.room-offer.v1";
 
+/**
+ * Второй вопрос по тому же правилу — «что чаще всего хочется» при первом
+ * открытии «начни с готового» (письмо 33, турн 40b). Ключ СВОЙ: вопросы разные
+ * и заданы в разных местах, а общая отметка молча съедала бы один другим.
+ */
+export const STARTER_WANTS_ASKED_KEY = "wl.starter-wants.v1";
+
 /** Ровно то, что нам нужно от localStorage, — и ничего больше. */
 export type AskStore = Pick<Storage, "getItem" | "setItem">;
 
@@ -31,10 +38,10 @@ export function browserAskStore(): AskStore | null {
  * спрашивали: единственный источник новых хозяек важнее аккуратности отметки,
  * а худшее, что случится, — вопрос повторится в другом окне.
  */
-export function alreadyAsked(store: AskStore | null): boolean {
+export function alreadyAsked(store: AskStore | null, key: string = ROOM_OFFER_ASKED_KEY): boolean {
   if (!store) return false;
   try {
-    return store.getItem(ROOM_OFFER_ASKED_KEY) !== null;
+    return store.getItem(key) !== null;
   } catch {
     return false;
   }
@@ -45,10 +52,10 @@ export function alreadyAsked(store: AskStore | null): boolean {
  * молчание для нас одно и то же — второй раз мы не спрашиваем ни в том, ни в
  * другом случае.
  */
-export function rememberAsked(store: AskStore | null): void {
+export function rememberAsked(store: AskStore | null, key: string = ROOM_OFFER_ASKED_KEY): void {
   if (!store) return;
   try {
-    store.setItem(ROOM_OFFER_ASKED_KEY, "1");
+    store.setItem(key, "1");
   } catch {
     // запрет на хранение — не повод ломать лист брони
   }

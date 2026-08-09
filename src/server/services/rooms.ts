@@ -30,6 +30,26 @@ export const createRoomInputSchema = z.object({
 });
 export type CreateRoomInput = z.infer<typeof createRoomInputSchema>;
 
+/** Ответ «что хочется» — не больше четырёх ключей (доска 34b). */
+export const WANTS_MAX = 4;
+
+/**
+ * Ключи зон ЭТОГО пресета, не больше четырёх. Мусор и чужие ключи молча
+ * отбрасываются: ответ необязательный, и ронять на нём создание комнаты (или
+ * запись ответа) было бы дико. Вход — строка через запятую или готовый список:
+ * из формы приезжает первое, из экшена чипов — второе.
+ */
+function cleanWants(preset: string, raw: string | readonly string[]): string[] {
+  const presetZones = new Set(
+    (roomPresets.find((candidate) => candidate.id === preset)?.zones ?? []).map((zone) => zone.key),
+  );
+  const keys = typeof raw === "string" ? raw.split(",") : raw;
+  return keys
+    .map((key) => String(key).trim())
+    .filter((key) => presetZones.has(key))
+    .slice(0, WANTS_MAX);
+}
+
 // ---------- Короткий адрес комнаты ----------
 
 const SLUG_ALPHABET = "abcdefghijklmnopqrstuvwxyz0123456789";
@@ -68,17 +88,11 @@ export async function createRoomForUser(
   input: { preset: string; zoneSet: string; wants?: string },
 ): Promise<Room> {
   const { preset, zoneSet } = createRoomInputSchema.parse(input);
-  // «Что хочется» (тикет 113, доска 34b): ключи зон ЭТОГО пресета, не больше
-  // четырёх. Мусор и чужие ключи молча отбрасываются — ответ необязательный,
-  // и ронять на нём создание комнаты было бы дико.
-  const presetZones = new Set(
-    (roomPresets.find((candidate) => candidate.id === preset)?.zones ?? []).map((zone) => zone.key),
-  );
-  const wants = String(input.wants ?? "")
-    .split(",")
-    .map((key) => key.trim())
-    .filter((key) => presetZones.has(key))
-    .slice(0, 4);
+  // «Что хочется» (тикет 113, доска 34b). Онбординг этого ответа больше не
+  // приносит — вопрос переехал в первое открытие «начни с готового» (письмо
+  // 33), и обычный вызов идёт без него. Разбор входа оставлен: комната
+  // создаётся и через посев стенда, и через тесты, где ответ известен заранее.
+  const wants = cleanWants(preset, input.wants ?? "");
 
   const existing = await prisma.room.findUnique({ where: { userId } });
   if (existing) return existing;
@@ -154,7 +168,8 @@ function isUniqueViolation(error: unknown, field: string): boolean {
 /** Доменные отказы настроек — поверх ZodError самих схем. */
 export class RoomSettingsError extends Error {
   constructor(
-    readonly code: "NO_ROOM" | "NICK_TAKEN" | "NICK_RESERVED" | "ZONE_UNKNOWN" | "FOREIGN_AVATAR_KEY",
+    readonly code:
+      "NO_ROOM" | "NICK_TAKEN" | "NICK_RESERVED" | "ZONE_UNKNOWN" | "FOREIGN_AVATAR_KEY",
     message: string,
   ) {
     super(message);
@@ -199,15 +214,70 @@ export const nickSchema = z
  * тикет 58) — чтобы /r/grace не оказался чьей-то личной комнатой.
  */
 const RESERVED_NICKS = new Set([
-  "r", "api", "room", "rooms", "settings", "signin", "signout", "signup",
-  "login", "logout", "register", "onboarding", "my-bookings", "mybookings",
-  "my_bookings", "media", "demo", "admin", "auth", "hall", "occasion",
-  "occasions", "connections", "export", "account", "profile", "user", "users",
-  "me", "my", "help", "about", "support", "terms", "privacy", "legal",
-  "static", "assets", "public", "img", "images", "files", "mail", "email",
-  "new", "edit", "delete", "search", "sitemap", "robots", "favicon",
-  "manifest", "worker", "test", "www", "app", "blog", "docs", "status",
-  "gdpr", "next", "_next", "wishlist", "grace",
+  "r",
+  "api",
+  "room",
+  "rooms",
+  "settings",
+  "signin",
+  "signout",
+  "signup",
+  "login",
+  "logout",
+  "register",
+  "onboarding",
+  "my-bookings",
+  "mybookings",
+  "my_bookings",
+  "media",
+  "demo",
+  "admin",
+  "auth",
+  "hall",
+  "occasion",
+  "occasions",
+  "connections",
+  "export",
+  "account",
+  "profile",
+  "user",
+  "users",
+  "me",
+  "my",
+  "help",
+  "about",
+  "support",
+  "terms",
+  "privacy",
+  "legal",
+  "static",
+  "assets",
+  "public",
+  "img",
+  "images",
+  "files",
+  "mail",
+  "email",
+  "new",
+  "edit",
+  "delete",
+  "search",
+  "sitemap",
+  "robots",
+  "favicon",
+  "manifest",
+  "worker",
+  "test",
+  "www",
+  "app",
+  "blog",
+  "docs",
+  "status",
+  "gdpr",
+  "next",
+  "_next",
+  "wishlist",
+  "grace",
 ]);
 
 /** true — слово занято системой (для подсказки в UI до сабмита). */
@@ -361,8 +431,28 @@ const occasionDateSchema = z.iso.date();
  */
 export async function setOccasionDate(userId: string, date: string | null): Promise<Room> {
   const room = await requireRoom(userId);
-  const occasionDate = date === null ? null : new Date(`${occasionDateSchema.parse(date)}T00:00:00.000Z`);
+  const occasionDate =
+    date === null ? null : new Date(`${occasionDateSchema.parse(date)}T00:00:00.000Z`);
   const updated = await prisma.room.update({ where: { id: room.id }, data: { occasionDate } });
+  revalidateRoom(room.id);
+  return updated;
+}
+
+/**
+ * Ответ «что чаще всего хочется» (тикет 113, доска 34b). Пишется теперь не из
+ * онбординга, а из первого открытия «начни с готового» (письмо 33, турн 40b) —
+ * место вопроса сменилось, смысл нет.
+ *
+ * КОМНАТУ ЭТО НЕ МЕНЯЕТ: ни `zonesOff`, ни `preset`, ни порядок полок. Ответ
+ * красит подборку набора (`orderedByWants`) и порядок зон в форме добавления —
+ * первые минуты после онбординга, а не саму комнату. Чужие ключи и мусор молча
+ * отбрасываются, больше четырёх не берём; пустой список — законный ответ
+ * («просто листать дальше»), он же и стирает прежний.
+ */
+export async function setRoomWants(userId: string, keys: readonly string[]): Promise<Room> {
+  const room = await requireRoom(userId);
+  const wants = cleanWants(room.preset, z.array(z.string()).max(64).parse(keys));
+  const updated = await prisma.room.update({ where: { id: room.id }, data: { wants } });
   revalidateRoom(room.id);
   return updated;
 }
@@ -420,10 +510,7 @@ export type HallSettingsInput = z.infer<typeof hallSettingsSchema>;
  *   (тикет 116): страница /r/{slug} кэшируется целиком, и без ревалидации
  *   закрытая витрина осталась бы со ссылкой ещё на всё окно ISR.
  */
-export async function setHallSettings(
-  userId: string,
-  input: HallSettingsInput,
-): Promise<Room> {
+export async function setHallSettings(userId: string, input: HallSettingsInput): Promise<Room> {
   const parsed = hallSettingsSchema.parse(input);
   const room = await requireRoom(userId);
   const updated = await prisma.room.update({
@@ -479,10 +566,7 @@ export const lightSettingsSchema = z
 
 export type LightSettingsInput = z.infer<typeof lightSettingsSchema>;
 
-export async function setLightSettings(
-  userId: string,
-  input: LightSettingsInput,
-): Promise<Room> {
+export async function setLightSettings(userId: string, input: LightSettingsInput): Promise<Room> {
   const parsed = lightSettingsSchema.parse(input);
   const room = await requireRoom(userId);
   const updated = await prisma.room.update({

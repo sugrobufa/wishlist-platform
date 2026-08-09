@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { useFormStatus } from "react-dom";
 import { useTranslations } from "next-intl";
-import { IconCheck, IconEye } from "@/components/icons";
+import { IconCheck } from "@/components/icons";
 import { createRoomAction } from "./actions";
 import { initialOccasionValue } from "./occasion-date";
 
@@ -14,34 +14,41 @@ export type PresetCard = {
   accent: string;
   ink: string;
   imageUrl: string;
-  /** Подписи зон этой комнаты — для строки «Зоны этой комнаты» (доска В3). */
-  zoneLabels: string[];
-  /** Ключи тех же зон, в том же порядке — чипам «что хочется» (тикет 113). */
-  zoneKeys: string[];
 };
-
-/** Сколько зон называем словами; остальные — «+5» (форма доски). */
-const ZONES_SHOWN = 5;
 
 type ZoneSet = "F" | "M" | "ALL";
 
 const ZONE_SETS: ZoneSet[] = ["F", "M", "ALL"];
 
-/** Доска (турн 11d) просит три вопроса; счётчик шага говорит то же число. */
-const TOTAL_STEPS = 4;
+/**
+ * ТРИ ШАГА: набор → интерьер → дата (письмо 33, турн 40b).
+ *
+ * Четвёртым был вопрос «что чаще всего хочется» (тикет 113, доска 34b). Он
+ * уехал из онбординга в первое открытие «начни с готового»
+ * (`src/app/room/starter-pack.tsx`) — там ответ сразу виден в подборке,
+ * которую он красит. Причину назвал сам дизайн: после отмены состояний
+ * (тикет 124) стартовый набор ужался вдвое, и целый экран между человеком и
+ * его комнатой стал дороже пользы. Слова вопроса не менялись — переехало
+ * место (`Onboarding.wants*`, помета `_wantsMoved` в словаре пакета).
+ */
+const TOTAL_STEPS = 3;
 
-type Step = 1 | 2 | 3 | 4;
+type Step = 1 | 2 | 3;
 
 /**
- * «Что чаще всего хочется» (тикет 113, доска 34b): чипы — подписи зон
- * выбранного набора МИНУС две. «Что угодно» ловит всё, что не влезло в
- * категории, «Просто деньги» — копилка, а не вещи: обе как ответ на «что
- * хочется» не значат ничего.
+ * Локап Grace над шагами (письмо 33 · турн 40a, `task33.json → lockupOnSteps`).
+ * Числа дизайна: высота 22, по центру, top = safe-area + 30, до оверлайна шага
+ * 28, opacity .92 — одинаково на всех трёх шагах. Не кнопка, не анимируется, с
+ * заголовком (23/700) не спорит: человек ещё не знает, где он оказался, и
+ * подпись отвечает ему тихо.
+ *
+ * Первое место в продукте, где локап вообще применяется: шапка комнаты собрана
+ * разметкой с загруженным Onest, и файл лежал без дела с раунда 13.
  */
-const WANTS_EXCLUDED = new Set(["anything", "money"]);
-
-/** Выбрать можно 3–4; четвёртый гасит остальные чипы. Меньше — тоже ответ. */
-const WANTS_MAX = 4;
+const LOCKUP_URL = "/logo/grace-lockup-outlined.svg";
+const LOCKUP_HEIGHT = 22;
+/** Ширина при высоте 22 — из вьюбокса файла 176×48, а не на глаз. */
+const LOCKUP_WIDTH = Math.round((LOCKUP_HEIGHT * 176) / 48);
 
 /** "#RRGGBB" + альфа → 8-значный hex (ореол «полосы света», tokens.json). */
 function withAlpha(hex: string, alpha: number): string {
@@ -90,8 +97,6 @@ export function OnboardingFlow({
   const [presetId, setPresetId] = useState<string | null>(null);
   const [occasionDate, setOccasionDate] = useState(() => initialOccasionValue(initialOccasionDate));
   const [displayName, setDisplayName] = useState(() => (initialName ?? "").trim());
-  /** Ответ шага «что хочется» — ключи зон; пусто = пропустили. */
-  const [wants, setWants] = useState<string[]>([]);
 
   // Акценты наборов — из данных rooms.json (первая комната набора), не из кода.
   const setAccent: Record<ZoneSet, { accent: string; ink: string }> = {
@@ -119,38 +124,51 @@ export function OnboardingFlow({
 
   if (zoneSet === null || step === 1) {
     return (
-      <main className="mx-auto flex min-h-screen w-full max-w-xl flex-col justify-center px-6 py-10 md:max-w-4xl">
-        <p className="overline text-text-muted">
-          {t("stepOverline", { current: 1, total: TOTAL_STEPS })} · {t("zoneSetStep")}
-        </p>
-        <h1 className="display mt-4 text-3xl md:text-5xl">{t("zoneSetTitle")}</h1>
-        <p className="mt-4 max-w-md text-text-body">{t("zoneSetSubtitle")}</p>
+      <main className={STEP_MAIN_CLASS}>
+        <StepLockup />
+        <div className="flex flex-1 flex-col md:justify-center">
+          <p className="overline text-text-muted">
+            {t("stepOverline", { current: 1, total: TOTAL_STEPS })} · {t("zoneSetStep")}
+          </p>
+          {/* СМЫСЛ ДО УСТРОЙСТВА (письмо 33, турн 40a). Заголовок называет
+              МЕСТО, подзаголовок отдаёт обе половины смысла одной фразой (сюда
+              складываешь себе — сюда приходят друзья), и только потом, подписью
+              у карточек, звучит вопрос про устройство комнаты. Прежний экран
+              начинал с устройства («Что будет в комнате?» + «это заготовка,
+              какие полки поставить»), и человек не понимал, о чём речь. */}
+          <h1 className="display mt-4 text-3xl md:text-5xl">{t("zoneSetTitle")}</h1>
+          <p className="mt-4 max-w-md text-text-body">{t("zoneSetSubtitle")}</p>
 
-        <div className="mt-8 flex flex-col gap-3 md:flex-row">
-          {ZONE_SETS.map((set) => (
-            <button
-              key={set}
-              type="button"
-              onClick={() => pickZoneSet(set)}
-              className="pressable flex-1 border border-surface-hairline bg-surface-fill p-5 text-left hover:bg-surface-fill-hover"
-            >
-              <span className="block text-lg font-semibold text-text-primary">
-                {t(`setLabel${set}`)}
-              </span>
-              <span className="mt-1 block text-sm text-text-muted">
-                {t(`setDescription${set}`)}
-              </span>
-              <span className="overline mt-4 block text-text-faint">
-                {t("roomCount", { count: filterBySet(presets, set).length })}
-              </span>
-            </button>
-          ))}
-        </div>
+          <div className="mt-8 flex flex-col gap-3 md:flex-row">
+            {ZONE_SETS.map((set) => (
+              // Карточки одной высоты, счётчик прижат к низу (приёмка 09.08:
+              // у «Мужской» описание в одну строку против двух у соседей, и
+              // «4 КОМНАТЫ» стояли на 12 px выше соседних). Длина описания на
+              // раскладку не влияет вовсе — тянется оно, а не карточка,
+              // поэтому следующая правка слов ряд заново не сломает.
+              <button
+                key={set}
+                type="button"
+                onClick={() => pickZoneSet(set)}
+                className="pressable flex flex-1 flex-col border border-surface-hairline bg-surface-fill p-5 text-left hover:bg-surface-fill-hover"
+              >
+                <span className="block text-lg font-semibold text-text-primary">
+                  {t(`setLabel${set}`)}
+                </span>
+                <span className="mt-1 block grow text-sm text-text-muted">
+                  {t(`setDescription${set}`)}
+                </span>
+                <span className="overline mt-4 block text-text-faint">
+                  {t("roomCount", { count: filterBySet(presets, set).length })}
+                </span>
+              </button>
+            ))}
+          </div>
 
-        <div className="mt-6 flex items-start gap-3 border border-surface-hairline bg-surface-fill p-4">
-          {/* Открытый глаз — наш знак (канона в 25a нет), из общего набора. */}
-          <IconEye size={17} className="mt-0.5 flex-none text-text-faint" />
-          <p className="text-xs leading-relaxed text-text-muted">{t("zoneSetHint")}</p>
+          {/* Вопрос шага — тихой подписью под карточками, там, где выбор и
+              происходит (турн 40a). Рамки и знака у неё больше нет: это не
+              предупреждение, а продолжение разговора. */}
+          <p className="mt-4 text-xs leading-relaxed text-text-faint">{t("zoneSetHint")}</p>
         </div>
       </main>
     );
@@ -161,16 +179,10 @@ export function OnboardingFlow({
 
   if (step === 2 || !selected) {
     return (
-      <main className="mx-auto flex min-h-screen w-full max-w-xl flex-col px-6 py-10 md:max-w-4xl">
-        <button
-          type="button"
-          onClick={() => setStep(1)}
-          className="pressable self-start text-sm text-text-muted hover:text-text-strong"
-        >
-          ← {t("back")}
-        </button>
+      <main className={STEP_MAIN_CLASS}>
+        <StepLockup onBack={() => setStep(1)} />
 
-        <p className="overline mt-6 text-text-muted">
+        <p className="overline text-text-muted">
           {t("stepOverline", { current: 2, total: TOTAL_STEPS })} · {t("roomStep")}
         </p>
         <h1 className="display mt-4 text-3xl md:text-5xl">{t("presetTitle")}</h1>
@@ -250,24 +262,13 @@ export function OnboardingFlow({
           })}
         </div>
 
-        {/* «Зоны этой комнаты · Украшения · Парфюм … +5» (доска В3, турн 14a).
-            Появляется у ВЫБРАННОЙ комнаты: список под каждой из десяти плиток
-            превратил бы сетку в простыню, а вопрос «что там внутри» возникает
-            ровно про ту, на которую человек уже нажал. */}
-        {selected && selected.zoneLabels.length > 0 && (
-          <div className="mt-4">
-            <p className="overline text-text-faint">{t("zonesTitle")}</p>
-            <p className="mt-1.5 text-[13px] leading-relaxed text-text-body">
-              {selected.zoneLabels.slice(0, ZONES_SHOWN).join(" · ")}
-              {selected.zoneLabels.length > ZONES_SHOWN && (
-                <span className="text-text-faint">
-                  {" "}
-                  +{selected.zoneLabels.length - ZONES_SHOWN}
-                </span>
-              )}
-            </p>
-          </div>
-        )}
+        {/* ПЕРЕЧНЯ ПОЛОК ЗДЕСЬ БОЛЬШЕ НЕТ (письмо 33, турн 40b; замечание
+            владельца 09.08 «не надо перечислять, какие полки есть в комнате»).
+            Была строка «Зоны этой комнаты: Одежда · Красота и уход · … +8» у
+            выбранной заготовки (доска В3, турн 14a). Комнату выбирают ГЛАЗАМИ,
+            а тринадцать слов под картинкой превращали выбор интерьера в чтение
+            таблицы; внутри одного набора строка к тому же почти не менялась.
+            Различие наборов теперь названо на шаге 1 — там, где выбирают набор. */}
 
         {selected && (
           <div className="sticky bottom-0 -mx-6 mt-8 bg-surface-app-ground px-6 pb-8 pt-4">
@@ -285,165 +286,127 @@ export function OnboardingFlow({
     );
   }
 
-  // ---- Шаг 3: «что чаще всего хочется» (тикет 113, доска 34b) ----
+  // ---- Шаг 3: дата праздника (тикет 43) ----
   //
-  // Единственный шаг, который НИЧЕГО не решает про комнату: полки уже
-  // выбраны шагом 2 и от этого ответа не переставляются и не выключаются.
-  // Он красит подборку «начни с готового» и порядок зон в добавлении — то
-  // есть первые минуты после онбординга, а не саму комнату.
-  if (step === 3) {
-    const chips = selected.zoneKeys
-      .map((key, index) => ({ key, label: selected.zoneLabels[index] ?? key }))
-      .filter((zone) => !WANTS_EXCLUDED.has(zone.key));
-    const full = wants.length >= WANTS_MAX;
-
-    const toggle = (key: string) =>
-      setWants((current) =>
-        current.includes(key)
-          ? current.filter((candidate) => candidate !== key)
-          : current.length >= WANTS_MAX
-            ? current
-            : [...current, key],
-      );
-
-    return (
-      <main className="mx-auto flex min-h-screen w-full max-w-xl flex-col justify-center px-6 py-10 md:max-w-4xl">
-        <button
-          type="button"
-          onClick={() => setStep(2)}
-          className="pressable self-start text-sm text-text-muted hover:text-text-strong"
-        >
-          ← {t("back")}
-        </button>
-
-        <p className="overline mt-6 text-text-muted">
-          {t("stepOverline", { current: 3, total: TOTAL_STEPS })} · {t("wantsStep")}
-        </p>
-        <h1 className="display mt-4 text-3xl md:text-5xl">{t("wantsTitle")}</h1>
-        <p className="mt-4 max-w-md text-text-body">{t("wantsSubtitle")}</p>
-
-        <div className="mt-7 flex flex-wrap gap-2">
-          {chips.map((zone) => {
-            const picked = wants.includes(zone.key);
-            return (
-              <button
-                key={zone.key}
-                type="button"
-                aria-pressed={picked}
-                // Четвёртый выбор гасит остальные чипы (wantsMax): предел
-                // виден, а не встречается отказом на нажатие.
-                disabled={!picked && full}
-                onClick={() => toggle(zone.key)}
-                className={`pressable min-h-11 px-3.5 text-[13px] font-semibold disabled:opacity-40 ${
-                  picked ? "" : "border border-surface-hairline bg-surface-fill text-text-muted"
-                }`}
-                style={picked ? { background: selected.accent, color: selected.ink } : undefined}
-              >
-                {zone.label}
-              </button>
-            );
-          })}
-        </div>
-
-        {full && <p className="mt-3 text-xs text-text-faint">{t("wantsMax")}</p>}
-
-        <div className="sticky bottom-0 -mx-6 mt-8 bg-surface-app-ground px-6 pb-8 pt-4">
-          <button
-            type="button"
-            onClick={() => setStep(4)}
-            className={LIGHT_BUTTON_CLASS}
-            style={lightButtonStyle(selected.accent)}
-          >
-            {t("next")} →
-          </button>
-          {/* «Я сам, с нуля» отдельной веткой не заводится (доска 34b): это
-              та же кнопка пропуска на этом же шаге. Пропустил — подборка
-              остаётся общей по интерьеру, и вопрос больше не возвращается. */}
-          <button
-            type="button"
-            onClick={() => {
-              setWants([]);
-              setStep(4);
-            }}
-            className="pressable mt-3 block w-full py-2 text-center text-[13px] text-text-muted hover:text-text-strong"
-          >
-            {t("wantsSkip")}
-          </button>
-        </div>
-      </main>
-    );
-  }
+  // ЗДЕСЬ СТОЯЛ ЧЕТВЁРТЫЙ ШАГ — «что чаще всего хочется» (тикет 113, доска
+  // 34b). Он уехал целиком в первое открытие «начни с готового»: единственное,
+  // что делал ответ, — красил подборку и порядок зон в добавлении, а стоял
+  // отдельным экраном между человеком и его комнатой. Ни состав вопроса, ни
+  // правило «3–4», ни то, что на комнату он не влияет, не менялись — сменилось
+  // место (`src/app/room/starter-pack.tsx`, письмо 33 · турн 40b).
 
   const dateMissing = occasionDate === "";
 
   return (
-    <main className="mx-auto flex min-h-screen w-full max-w-xl flex-col justify-center px-6 py-10 md:max-w-4xl">
-      <button
-        type="button"
-        onClick={() => setStep(3)}
-        className="pressable self-start text-sm text-text-muted hover:text-text-strong"
-      >
-        ← {t("back")}
-      </button>
+    <main className={STEP_MAIN_CLASS}>
+      <StepLockup onBack={() => setStep(2)} />
 
-      <p className="overline mt-6 text-text-muted">
-        {t("stepOverline", { current: 4, total: TOTAL_STEPS })} · {t("occasionStep")}
-      </p>
-      <h1 className="display mt-4 text-3xl md:text-5xl">{t("occasionTitle")}</h1>
-      <p className="mt-4 max-w-md text-text-body">{t("occasionSubtitle")}</p>
+      <div className="flex flex-1 flex-col md:justify-center">
+        <p className="overline text-text-muted">
+          {t("stepOverline", { current: 3, total: TOTAL_STEPS })} · {t("occasionStep")}
+        </p>
+        <h1 className="display mt-4 text-3xl md:text-5xl">{t("occasionTitle")}</h1>
+        <p className="mt-4 max-w-md text-text-body">{t("occasionSubtitle")}</p>
 
-      <form action={createRoomAction} className="mt-8 flex w-full max-w-md flex-col gap-4">
-        <input type="hidden" name="zoneSet" value={zoneSet} />
-        <input type="hidden" name="preset" value={selected.id} />
-        {/* Ответ «что хочется» (тикет 113) едет вместе с комнатой: он её не
-            меняет, но красит подборку и порядок зон в добавлении. */}
-        <input type="hidden" name="wants" value={wants.join(",")} />
+        <form action={createRoomAction} className="mt-8 flex w-full max-w-md flex-col gap-4">
+          <input type="hidden" name="zoneSet" value={zoneSet} />
+          <input type="hidden" name="preset" value={selected.id} />
 
-        {/* Имя в комнате. Стоит рядом с датой сознательно: это последний
+          {/* Имя в комнате. Стоит рядом с датой сознательно: это последний
             экран, и оба поля — про самого человека, а не про интерьер.
             Необязательное — кнопку запирает только дата. */}
-        <label className="flex flex-col gap-1.5">
-          <span className="text-sm text-text-muted">{t("nameLabel")}</span>
-          <input
-            type="text"
-            name="displayName"
-            value={displayName}
-            onChange={(event) => setDisplayName(event.target.value)}
-            maxLength={80}
-            autoComplete="name"
-            className="border border-surface-hairline-strong bg-surface-app-ground px-3 py-2.5 text-sm text-text-primary outline-none focus:border-text-faint"
-          />
-          {initialName !== null && initialName.trim() !== "" && (
-            <span className="text-xs text-text-faint">{t("nameFromBooking")}</span>
-          )}
-        </label>
+          <label className="flex flex-col gap-1.5">
+            <span className="text-sm text-text-muted">{t("nameLabel")}</span>
+            <input
+              type="text"
+              name="displayName"
+              value={displayName}
+              onChange={(event) => setDisplayName(event.target.value)}
+              maxLength={80}
+              autoComplete="name"
+              className="border border-surface-hairline-strong bg-surface-app-ground px-3 py-2.5 text-sm text-text-primary outline-none focus:border-text-faint"
+            />
+            {initialName !== null && initialName.trim() !== "" && (
+              <span className="text-xs text-text-faint">{t("nameFromBooking")}</span>
+            )}
+          </label>
 
-        <label className="flex flex-col gap-1.5">
-          <span className="text-sm text-text-muted">{t("occasionLabel")}</span>
-          <input
-            type="date"
-            name="occasionDate"
-            value={occasionDate}
-            onChange={(event) => setOccasionDate(event.target.value)}
-            className="border border-surface-hairline-strong bg-surface-app-ground px-3 py-2.5 text-sm text-text-primary outline-none focus:border-text-faint"
-          />
-        </label>
+          <label className="flex flex-col gap-1.5">
+            <span className="text-sm text-text-muted">{t("occasionLabel")}</span>
+            <input
+              type="date"
+              name="occasionDate"
+              value={occasionDate}
+              onChange={(event) => setOccasionDate(event.target.value)}
+              className="border border-surface-hairline-strong bg-surface-app-ground px-3 py-2.5 text-sm text-text-primary outline-none focus:border-text-faint"
+            />
+          </label>
 
-        {/* Кнопка заперта, пока поля нет: пропуск бывает только осознанным. */}
-        <CreateRoomButton accent={selected.accent} disabled={dateMissing} />
-        {dateMissing && <p className="text-xs text-text-faint">{t("occasionButtonHint")}</p>}
+          {/* Кнопка заперта, пока поля нет: пропуск бывает только осознанным. */}
+          <CreateRoomButton accent={selected.accent} disabled={dateMissing} />
+          {dateMissing && <p className="text-xs text-text-faint">{t("occasionButtonHint")}</p>}
 
-        <div className="mt-2 flex flex-col items-start gap-1.5 border-t border-surface-hairline pt-4">
-          <SkipDateButton />
-          <p className="text-xs text-text-faint">{t("occasionSkipHint")}</p>
-          {/* Почта, которой человек вошёл: пароля в продукте нет, и об этом
+          <div className="mt-2 flex flex-col items-start gap-1.5 border-t border-surface-hairline pt-4">
+            <SkipDateButton />
+            <p className="text-xs text-text-faint">{t("occasionSkipHint")}</p>
+            {/* Почта, которой человек вошёл: пароля в продукте нет, и об этом
               лучше сказать прямо один раз (доска, турн 12c). */}
-          {signInEmail && (
-            <p className="text-xs text-text-faint">{t("emailNote", { email: signInEmail })}</p>
-          )}
-        </div>
-      </form>
+            {signInEmail && (
+              <p className="text-xs text-text-faint">{t("emailNote", { email: signInEmail })}</p>
+            )}
+          </div>
+        </form>
+      </div>
     </main>
+  );
+}
+
+/**
+ * Общая рама шага: экран во всю высоту, отступы полей и место под локап.
+ * `pb-10` вместо прежнего `py-10` — верхний отступ теперь у самого локапа
+ * (safe-area + 30), и второй сверху сдвинул бы его с числа дизайна.
+ */
+const STEP_MAIN_CLASS =
+  "mx-auto flex min-h-screen w-full max-w-xl flex-col px-6 pb-10 md:max-w-4xl";
+
+/**
+ * Локап Grace над шагом и, если есть куда, стрелка «Назад» слева от него.
+ *
+ * Стрелка стоит В ЭТОЙ ЖЕ строке сознательно: числа дизайна отмерены от локапа
+ * до ОВЕРЛАЙНА шага («до оверлайна 28»), и своя строка у «Назад» встала бы
+ * ровно между ними. Локап при этом остаётся по центру ЭКРАНА — стрелка выведена
+ * из потока (`absolute`), и ширина слова на его положение не влияет.
+ */
+function StepLockup({ onBack }: { onBack?: () => void }) {
+  const t = useTranslations("Onboarding");
+
+  return (
+    <div
+      className="relative flex items-center justify-center"
+      style={{ paddingTop: "calc(env(safe-area-inset-top, 0px) + 30px)", marginBottom: 28 }}
+    >
+      {onBack && (
+        <button
+          type="button"
+          onClick={onBack}
+          className="pressable absolute bottom-0 left-0 text-sm text-text-muted hover:text-text-strong"
+        >
+          ← {t("back")}
+        </button>
+      )}
+      {/* Файл дизайна как есть, через раздачу пакета (src/app/logo/[file]).
+          Не кнопка и не заголовок: `alt` называет место, ссылки под ним нет.
+          eslint-disable — next/image здесь не к месту: оптимизатор SVG не
+          трогает, а размеры знака заданы контрактом, а не раскладкой. */}
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img
+        src={LOCKUP_URL}
+        alt="Grace"
+        width={LOCKUP_WIDTH}
+        height={LOCKUP_HEIGHT}
+        style={{ height: LOCKUP_HEIGHT, width: LOCKUP_WIDTH, opacity: 0.92 }}
+      />
+    </div>
   );
 }
 

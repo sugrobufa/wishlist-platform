@@ -35,8 +35,18 @@ export type RoomListGroup = {
 export type RoomListViewProps = {
   groups: RoomListGroup[];
   accent: string;
-  /** Куда ведёт «Комната» в переключателе: сцена хозяйки или гостя. */
-  roomHref: string;
+  /**
+   * Куда ведёт «Комната» в переключателе: сцена хозяйки или гостя. Не нужен
+   * встроенному виду (`embedded`) — там из списка не уходят, там переключаются.
+   */
+  roomHref?: string;
+  /**
+   * Список стоит В ПОЛОСЕ ПОД КАДРОМ, а не отдельной страницей (тикет 129).
+   * Тогда переключателя «Комната / Список» внутри него быть не должно: он
+   * уводил бы со страницы, а весь смысл правки в том, что уходить не надо —
+   * переключает знак «Списком» в той же полосе, и кадр остаётся на экране.
+   */
+  embedded?: boolean;
   /**
    * Куда ведёт заголовок группы: НАЧАЛО адреса, к которому дописывается ключ
    * зоны. У хозяйки — её экран зоны, у гостя своего экрана зоны нет, и
@@ -87,6 +97,7 @@ export function RoomListView({
   groups,
   accent,
   roomHref,
+  embedded = false,
   zoneHrefBase,
   takenIds,
 }: RoomListViewProps) {
@@ -110,16 +121,20 @@ export function RoomListView({
 
   return (
     <div style={{ "--rl-accent": accent } as React.CSSProperties}>
-      {/* Переключатель «Комната / Список» (29a): список не заменяет сцену, он
-          стоит рядом с ней, и вернуться должно быть так же дёшево, как уйти. */}
-      <div className={s.segmented} role="group" aria-label={t("viewAria")}>
-        <Link href={roomHref} className={`pressable ${s.segment}`}>
-          {t("toRoom")}
-        </Link>
-        <span className={`${s.segment} ${s.segmentOn}`} aria-current="page">
-          {t("toList")}
-        </span>
-      </div>
+      {/* Переключатель «Комната / Список» (29a) — только у ОТДЕЛЬНОЙ страницы
+          списка: там он единственная дорога назад к сцене. В полосе под кадром
+          (тикет 129) его нет и быть не должно — там переключает знак, а кадр
+          и так на экране. */}
+      {!embedded && roomHref && (
+        <div className={s.segmented} role="group" aria-label={t("viewAria")}>
+          <Link href={roomHref} className={`pressable ${s.segment}`}>
+            {t("toRoom")}
+          </Link>
+          <span className={`${s.segment} ${s.segmentOn}`} aria-current="page">
+            {t("toList")}
+          </span>
+        </div>
+      )}
 
       <div className={s.filters} role="group" aria-label={t("filterAria")}>
         {/* «Только свободные» (турн 29b-guest) — единственный фильтр, который
@@ -159,8 +174,10 @@ export function RoomListView({
                 const price = item.inHall === true ? null : formatPrice(item, locale);
                 return (
                   <li key={item.id} className={s.row}>
+                    {/* Миниатюра одна на всех: пунктира не бывает ни у какой
+                        вещи (тикет 124, инвариант №3 отменён целиком). */}
                     <div
-                      className={look.dashed ? `${s.thumb} ${s.thumbWant}` : s.thumb}
+                      className={s.thumb}
                       style={
                         item.photoUrl ? { backgroundImage: `url(${item.photoUrl})` } : undefined
                       }

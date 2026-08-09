@@ -50,6 +50,80 @@
   gap: 4px;
 }
 
+/* Действия полосы — одной группой у левого края. `.imm-row` растаскивает своих
+ * детей `space-between`, и без этой обёртки знак «Списком» встал бы не справа,
+ * а третьим в ряду: у хозяйки на десктопе в строке ещё «Добавить вещь» и
+ * «поделиться». */
+.rowLead {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 18px;
+}
+
+/* --- Знак «Списком» в полосе (тикет 129) ---------------------------------- */
+
+/* Стоит СПРАВА, зеркально «поделиться» слева: тот же круг 44, та же высота.
+ * У гостя кнопки «поделиться» в полосе нет, и знак остаётся единственным — но
+ * на том же месте: места элементов не должны зависеть от того, кто смотрит.
+ *
+ * Специфичность (0,2,0) намеренно: в globals.css у `.imm-rail button` стоят
+ * display/align-items/min-height, и без второго класса они бы победили. */
+.stack .listMark {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  width: var(--hit-target-min, 44px);
+  height: var(--hit-target-min, 44px);
+  min-height: var(--hit-target-min, 44px);
+  border: 1px solid var(--color-surface-hairline-strong);
+  border-radius: 50%;
+  background: none;
+  color: var(--color-text-strong);
+  cursor: pointer;
+  pointer-events: auto;
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* Включённое состояние ОБЯЗАНО быть видимым (условие тикета 129): иначе
+ * человек не поймёт, в каком из двух видов он находится. Акцент комнаты
+ * приезжает инлайн-переменной — цвет комнаты это данные, а не стиль. */
+.stack .listMarkOn {
+  border-color: var(--rail-accent, #e7c9a9);
+  background: rgba(255, 255, 255, 0.08);
+  color: var(--rail-accent, #e7c9a9);
+}
+
+/* Плоский список всех вещей на месте оглавления. Прокручивается сам, как и
+ * список зон (zone-list.module.css → .list): полоса своей высоты не меняет,
+ * иначе поехала бы раскладка сцены (immersive-layout.ts, тикеты 42/45). */
+.listPane {
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior-y: contain;
+  scrollbar-width: none;
+  pointer-events: auto;
+  /* Уезжает под края экрана, а не обрывается по гуттеру полосы. */
+  margin-inline: calc(var(--imm-gutter, 22px) * -1);
+  padding-inline: var(--imm-gutter, 22px);
+  /* Кромка-затухание внизу: низ не режется молча (правило тикета 59). */
+  mask-image: linear-gradient(180deg, #000 calc(100% - 28px), transparent 100%);
+}
+
+.listPane::-webkit-scrollbar {
+  display: none;
+}
+
+@media (min-width: 1024px) {
+  /* Десктопная полоса — лента ровно в 116 px, и её высота входит в расчёт
+     раскладки сцены. Список обязан уместиться В НЕЁ: строка действий 44 плюс
+     воздух — остальное его. Расти вверх, наезжая на кадр, он не имеет права. */
+  .listPane {
+    max-height: calc(var(--imm-rail-bottom, 116px) - 52px);
+  }
+}
+
 /* Телефон (тикет 66): стопка занимает всю площадь под комнатой, строка
    действий стоит сверху, оглавление-список забирает остаток и листается сам.
    `min-height: 0` обязателен — без него потомок с прокруткой распирает
@@ -260,8 +334,9 @@
   margin: 15px 18px 0;
 }
 
-/* Плитка миниатюры: серая заливка — «нет фотографии», состояние ею не
-   кодируется (инвариант №3). Пунктир — и только он — означает «хочу». */
+/* Плитка миниатюры: серая заливка — «нет фотографии», и это единственное, что
+   она означает. Пунктирной разновидности («хочу») больше нет — инвариант №3
+   отменён целиком вместе с состояниями (тикет 124). */
 .thumb {
   width: 64px;
   height: 64px;
@@ -270,11 +345,6 @@
   background-color: rgba(255, 255, 255, 0.05);
   background-position: center;
   background-size: cover;
-}
-
-.thumbWant {
-  border: 1px dashed var(--zi-accent);
-  box-shadow: inset 0 -2px 0 0 var(--zi-accent);
 }
 
 .thumbMore {

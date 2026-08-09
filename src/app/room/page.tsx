@@ -5,7 +5,7 @@ import { getTranslations } from "next-intl/server";
 import { redirect } from "next/navigation";
 import { auth } from "@/server/auth";
 import { getOwnerProfile, getRoomForUser, getSessionUserId } from "@/server/services/rooms";
-import { listZoneItems } from "@/server/services/items";
+import { hallCountsByZone, listZoneItems } from "@/server/services/items";
 import { getHardenState, shouldAskToHarden } from "@/server/services/harden";
 import { ownerTakenTotal } from "@/server/services/goal";
 import { occasionBannerVisible } from "@/server/services/occasions";
@@ -16,7 +16,7 @@ import {
   zoneSummaryForOwner,
   type ZoneSummaryDto,
 } from "@/server/dto/zone-summary";
-import { MONEY_ZONE_KEY, rooms, type Room, type RoomZone } from "@/config/design";
+import { MONEY_ZONE_KEY, rooms, zoneInfo, type Room, type RoomZone } from "@/config/design";
 import { roomImageUrl } from "@/app/rooms/room-image";
 import { SceneStage } from "@/components/scene/SceneStage";
 import { asLightColor, asTimeOfDay, NATIVE_TIME_OF_DAY } from "@/components/scene/grading";
@@ -28,11 +28,12 @@ import {
 } from "@/components/scene/scene-corner";
 import { ZoneIndexProvider } from "@/components/scene/zone-index-context";
 import { ZoneRail } from "@/components/scene/zone-rail";
-import { IconList, IconTreasury } from "@/components/icons";
+import { IconTreasury } from "@/components/icons";
 import { TabBar } from "@/components/tab-bar/tab-bar";
 import { visibleZones } from "@/components/scene/zones";
 import { SHEET_TILES, ZoneGrid } from "@/components/zone/ZoneGrid";
 import { zoneDisplayItems } from "@/components/zone/zone-display-items";
+import { RoomListView, type RoomListGroup } from "@/components/room-list/room-list-view";
 import { ShareButton } from "./share-button";
 import { StarterPack } from "./starter-pack";
 
@@ -67,7 +68,6 @@ export default async function RoomPage() {
   if (!room) redirect("/onboarding");
 
   const t = await getTranslations("Room");
-  const tList = await getTranslations("RoomList");
   // Слово «Сокровищница» для знака в углу берётся из её собственного словаря
   // (тикет 119): своей строки вход не заводит — она бы разошлась с названием
   // раздела при следующем переименовании.
@@ -257,10 +257,11 @@ export default async function RoomPage() {
                 экране они легли бы прямо на этот ряд: он идёт от того же
                 правого края и на той же высоте. Числа и обе ветки —
                 globals.css → .imm-corner. */}
+            {/* ЗНАК «СПИСКОМ» ОТСЮДА УШЁЛ (тикет 129, приёмка 09.08): он
+                переехал в полосу под кадром, к правому краю, и переключает
+                содержимое той же полосы вместо того, чтобы уводить на
+                отдельную страницу. В углу осталась одна шкатулка. */}
             <SceneCorner>
-              <CornerMark href="/room/list" label={tList("toList")}>
-                <IconList size={CORNER_ICON_SIZE} />
-              </CornerMark>
               <CornerMark href="/room/hall" label={tHall("toHall")}>
                 <IconTreasury size={CORNER_ICON_SIZE} />
               </CornerMark>
@@ -268,7 +269,9 @@ export default async function RoomPage() {
           </div>
         </header>
 
-        {/* Нижняя полоса: действия и под ними указатель зон (тикет 34). */}
+        {/* Нижняя полоса: действия и под ними ЛИБО указатель зон, ЛИБО все
+            вещи комнаты списком (тикеты 34 и 129). Переключает знак справа в
+            той же строке — зеркально «поделиться» слева. */}
         <div className="imm-rail imm-rail-bottom">
           <ZoneRail
             zones={preset?.zones ?? []}
@@ -276,9 +279,41 @@ export default async function RoomPage() {
             summaries={zones?.summaries}
             viewer="owner"
             accent={accent}
-            // Слота `below` у хозяйки больше нет: пилюля «Списком» стояла тут
-            // с тикета 67 и ушла знаком в угол сцены (тикет 118). Второй вход
-            // в то же содержимое остался — он просто перестал быть словом.
+            roomList={
+              <RoomListView
+                groups={zones?.listGroups ?? []}
+                accent={accent}
+                embedded
+                zoneHrefBase="/room/zone/"
+              />
+            }
+            // БЛОКИ ПУСТОЙ КОМНАТЫ СТОЯТ ЗДЕСЬ, В ПОТОКЕ (починка наложения,
+            // приёмка 09.08). Прежде «Или начни с готового» и плашка про пять
+            // вещей были `position: fixed` с высотами, отмеренными на глаз от
+            // таб-бара, и ложились прямо на строки зон: в пустой комнате на
+            // одном месте оказывались три слоя, ничего не знающих друг о
+            // друге. Теперь они дети той же стопки — список отдаёт им место.
+            below={
+              itemCount < SHARE_READY_ITEMS ? (
+                <div className="imm-empty-slot">
+                  {/* «Или начни с готового · +40» (тикет 100, доска Б23) —
+                      только в ПУСТОЙ комнате: как только появилась первая
+                      вещь, человек уже умеет, и предлагать ему чужую подборку
+                      поверх своей нечего. */}
+                  {itemCount === 0 && preset && (
+                    <StarterPack
+                      size={starterPackSize(preset.id, room.zonesOff)}
+                      accent={accent}
+                    />
+                  )}
+                  {/* «Ссылку лучше отдавать, когда наберётся хотя бы пять
+                      вещей» (решение владельца 09.08, task15.json →
+                      emptyStates.sharePlaque). Не запрет и не счётчик
+                      достижений: тихая строка, которая исчезает с пятой вещью. */}
+                  <p className="imm-share-plaque">{t("sharePlaque")}</p>
+                </div>
+              ) : null
+            }
           >
             {/* Вход в добавление вещи (полировка 16). «Полоса света» — главная
                 кнопка везде (турн 22), здесь тихого размера. ТОЛЬКО НА
@@ -291,11 +326,11 @@ export default async function RoomPage() {
             >
               {t("addItem")} →
             </Link>
-            {/* В строке НАД оглавлением — только значок «поделиться». По центру
-                той же полосы висит подсказка «коснись зоны», и второй вещи там
-                места нет: тикет 73 поставил рядом «Списком →», и подсказка
-                легла прямо на неё (приёмка 07.08). Адрес комнаты живёт в
-                «Настройках», рядом с ником, которым его и меняют (тикет 24). */}
+            {/* Слева в строке — значок «поделиться», справа знак «Списком»
+                (тикет 129). По центру той же полосы висит подсказка «коснись
+                зоны», и середина занята ею: тикет 73 поставил туда «Списком →»
+                словом, и подсказка легла прямо на него (приёмка 07.08). Адрес
+                комнаты живёт в «Настройках», рядом с ником (тикет 24). */}
             <ShareButton path={sharePath} accent={accent} harden={harden} />
           </ZoneRail>
         </div>
@@ -305,25 +340,11 @@ export default async function RoomPage() {
           снизу всегда видимый нижний сайд-бар — базовая подготовка для будущей
           вёрстки приложения». Оверлей: раскладку сцены не двигает
           (immersive-layout как был), нижняя полоса встаёт над ним сама.
-          На десктопе бара нет — там те же ссылки стоят строкой в шапке. */}
-      {/* «Ссылку лучше отдавать, когда наберётся хотя бы пять вещей»
-          (решение владельца 09.08, task15.json → emptyStates.sharePlaque).
-          Не запрет и не счётчик достижений: тихая строка над таб-баром,
-          которая исчезает с пятой вещью. */}
-      {itemCount < SHARE_READY_ITEMS && (
-        <p className="imm-share-plaque">{t("sharePlaque")}</p>
-      )}
+          На десктопе бара нет — там те же ссылки стоят строкой в шапке.
 
-      {/* «Или начни с готового · +40» (тикет 100, доска Б23) — только в ПУСТОЙ
-          комнате: как только появилась первая вещь, человек уже умеет, и
-          предлагать ему чужую подборку поверх своей нечего. */}
-      {itemCount === 0 && preset && (
-        <StarterPack
-          size={starterPackSize(preset.id, room.zonesOff)}
-          accent={accent}
-        />
-      )}
-
+          БЛОКОВ ПУСТОЙ КОМНАТЫ ЗДЕСЬ БОЛЬШЕ НЕТ: они переехали в слот `below`
+          нижней полосы, в общий поток со списком зон. Стоя рядом с баром
+          отдельными `fixed`-слоями, они ложились на строки зон. */}
       <TabBar active="room" accent={accent} ink={preset?.ink ?? "#241A0E"} phoneOnly />
     </main>
   );
@@ -354,10 +375,22 @@ async function buildZoneContent(
    * сцену под карточкой цели было бы неправдой.
    */
   emptyKeys: string[];
+  /**
+   * Те же вещи, сгруппированные по зонам, — второе положение переключателя
+   * полосы (тикет 129: «все вещи комнаты списком»). Собирается из ТОГО ЖЕ
+   * прохода по зонам: второй раз ходить в базу за теми же строками незачем.
+   * Пустые зоны секциями не рисуются — правило дизайна (task31.json →
+   * headers.roomList): «список про вещи, полки живут в комнате».
+   */
+  listGroups: RoomListGroup[];
 }> {
   const tZone = await getTranslations("ZoneGrid");
   const tScene = await getTranslations("Scene");
+  const tHall = await getTranslations("Hall");
   const zones = visibleZones(preset.zones, zonesOff);
+  // Мост из зоны в витрину (раунд 29): сколько вещей ЭТОЙ зоны лежит в
+  // сокровищнице. Один запрос на всю комнату, а не по зоне.
+  const hallByZone = await hallCountsByZone(roomId);
 
   const entries = await Promise.all(
     zones.map(async (zone: RoomZone) => {
@@ -381,6 +414,12 @@ async function buildZoneContent(
       // не несём по той же причине, по которой её не несёт заголовок экрана
       // зоны: там числа настоящие (полировка 16).
       const beyondSheet = Math.max(0, summary.count - SHEET_TILES);
+      // Мост подвалом зоны — ТОЛЬКО хозяйке и только если в витрине правда
+      // есть вещи этой зоны (task31.json → treasuryBridge.whenShown). Это
+      // ответ на послемиграционное «куда делась половина моих вещей»: комната
+      // после отмены состояний похудела вдвое, а карточек витрины в зоне мы
+      // не показываем — чутьё дизайн принял, место размывать нечем.
+      const inTreasury = hallByZone[zone.key] ?? 0;
       const node = (
         <div key={zone.key}>
           {/* zoneKey отдаётся ТОЛЬКО здесь, в комнате хозяйки: по нему пустая
@@ -394,6 +433,13 @@ async function buildZoneContent(
               pool={zone.pool}
               zoneKey={zone.key}
               ownerEmpty
+              footer={
+                inTreasury > 0 ? (
+                  <Link href="/room/hall" className="pressable imm-zone-bridge">
+                    {tHall("zoneBridge", { count: inTreasury })}
+                  </Link>
+                ) : null
+              }
             />
           )}
           {/* Оба перехода — тихие пилюли акцентом комнаты (тикет 86): текст
@@ -419,7 +465,16 @@ async function buildZoneContent(
           </div>
         </div>
       );
-      return [zone.key, node, summary, own.length] as const;
+      const group: RoomListGroup | null =
+        own.length === 0
+          ? null
+          : {
+              key: zone.key,
+              label: zoneInfo(zone.key)?.label ?? zone.label,
+              pool: zone.pool,
+              items: own,
+            };
+      return [zone.key, node, summary, own.length, group] as const;
     }),
   );
 
@@ -430,5 +485,8 @@ async function buildZoneContent(
     emptyKeys: entries
       .filter(([key, , , count]) => count === 0 && key !== MONEY_ZONE_KEY)
       .map(([key]) => key),
+    listGroups: entries
+      .map(([, , , , group]) => group)
+      .filter((group): group is RoomListGroup => group !== null),
   };
 }

@@ -116,12 +116,6 @@
   background-position: center;
 }
 
-/* Пунктир кодирует «хочу», а не отсутствие фото (инвариант №3) — тот же
-   язык, что у плитки вещи и у миниатюр сводки. */
-.thumbWant {
-  border: 1px dashed var(--zl-accent, #e7c9a9);
-}
-
 .list .row:focus-visible {
   outline: 1px dashed var(--zl-accent, #e7c9a9);
   outline-offset: 2px;

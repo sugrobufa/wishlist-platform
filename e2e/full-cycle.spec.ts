@@ -240,22 +240,21 @@ test("полный цикл дарения: хозяйка → гость → с
     await hostessPage.waitForURL(/\/onboarding/);
   });
 
-  await test.step("онбординг: набор «Все 10» → «Дерзкая» → «что хочется» мимо → дата «пока не знаю»", async () => {
+  await test.step("онбординг: набор «Все 10» → «Дерзкая» → дата «пока не знаю»", async () => {
+    // ОНБОРДИНГ СТАЛ ТРЁХШАГОВЫМ (тикет 134, письмо 33 · турн 40b): набор →
+    // интерьер → дата. Шага «что чаще всего хочется» здесь БОЛЬШЕ НЕТ — вопрос
+    // уехал в первое открытие «начни с готового», где ответ сразу виден в
+    // подборке (`src/app/room/starter-pack.tsx`). Поэтому исчезли и заголовок
+    // «Что чаще всего хочется?», и кнопка «Пропустить», которую этот прогон
+    // жал третьим действием: пропуск теперь — просто листать дальше.
     await hostessPage.getByRole("button", { name: /Всё вместе/ }).click();
     await hostessPage.getByRole("button", { name: /Дерзкая/ }).click();
     await hostessPage.getByRole("button", { name: /Дальше/ }).click();
-    // Третий шаг — «что чаще всего хочется» (тикет 113, доска 34b). На
-    // комнату он не влияет вовсе: полки не переставляются и не выключаются,
-    // ответ красит только подборку «начни с готового». Поэтому пропускаем —
-    // сценарий проверяет цикл дарения, а не онбординг.
-    await expect(
-      hostessPage.getByRole("heading", { name: "Что чаще всего хочется?" }),
-    ).toBeVisible();
-    await hostessPage.getByRole("button", { name: /Пропустить/ }).click();
-    // Четвёртый шаг — дата праздника (тикет 43). Дальше по сценарию праздник
-    // закрывается ВРУЧНУЮ, поэтому здесь осознанный пропуск: комната
+    // Третий, последний шаг — дата праздника (тикет 43). Дальше по сценарию
+    // праздник закрывается ВРУЧНУЮ, поэтому здесь осознанный пропуск: комната
     // заводится без даты, как и до появления шага.
     await expect(hostessPage.getByRole("heading", { name: "Когда праздник?" })).toBeVisible();
+    await expect(hostessPage.getByText("Шаг 3 из 3")).toBeVisible();
     await hostessPage.getByRole("button", { name: /Пока не знаю/ }).click();
     await hostessPage.waitForURL(/\/room$/);
     await expect(hostessPage.getByRole("heading", { name: "Дерзкая" })).toBeVisible();
@@ -267,8 +266,10 @@ test("полный цикл дарения: хозяйка → гость → с
     // хочется, сокровищница — что уже моё. Поэтому «уже моё» и не может
     // остаться в зоне: прежний шаг ждал `/room/zone/music`, а вещь по новой
     // модели правильно уезжает на витрину.
-    await hostessPage.goto("/room/add?zone=music");
-    await hostessPage.getByRole("button", { name: /Люблю/ }).click();
+    // Вход В ВИТРИНУ — отдельный адрес `?hall=1` (тикет 89). Переключателя
+    // «люблю \ хочу» на форме больше НЕТ: место решает то, откуда пришли, а
+    // не вопрос человеку. Это и есть модель v2 на экране.
+    await hostessPage.goto("/room/add?hall=1&zone=music");
     await hostessPage.getByLabel("Название").fill(LOVE_TITLE);
     await expect(hostessPage.getByLabel("Куда в комнате")).toHaveValue("music");
     await saveItemButton(hostessPage).click();
@@ -282,8 +283,8 @@ test("полный цикл дарения: хозяйка → гость → с
   });
 
   await test.step("вещь «хочу» по ссылке фикстурного магазина: предзаполнение и цена", async () => {
+    // Без ?hall — вещь идёт в КОМНАТУ, вопроса о состоянии не задаётся.
     await hostessPage.goto("/room/add?zone=music");
-    await hostessPage.getByRole("button", { name: /Хочу/ }).click();
     await hostessPage.locator('input[type="url"]').fill(SHOP_URL);
     await hostessPage.getByRole("button", { name: "Заполнить по ссылке" }).click();
 
@@ -309,7 +310,13 @@ test("полный цикл дарения: хозяйка → гость → с
     // Тикет 24 убрал карточку с адресом из комнаты: на экране остался значок
     // «поделиться», а сам адрес живёт в настройках, рядом с ником.
     await hostessPage.goto("/settings");
-    const sharePath = (await hostessPage.getByText(/^\/r\//).first().textContent())?.trim() ?? "";
+    const sharePath =
+      (
+        await hostessPage
+          .getByText(/^\/r\//)
+          .first()
+          .textContent()
+      )?.trim() ?? "";
     roomSlug = sharePath.replace("/r/", "");
     expect(roomSlug).not.toBe("");
   });
@@ -378,8 +385,7 @@ test("полный цикл дарения: хозяйка → гость → с
     await signInWithMagicLink(guestPage, GUEST_EMAIL);
 
     const visitPing = guestPage.waitForResponse(
-      (response) =>
-        response.url().includes("/visit") && response.request().method() === "POST",
+      (response) => response.url().includes("/visit") && response.request().method() === "POST",
     );
     await guestPage.goto(`/r/${roomSlug}`);
     expect((await visitPing).status()).toBe(204);
@@ -455,9 +461,7 @@ test("полный цикл дарения: хозяйка → гость → с
 
   await test.step("«праздник прошёл» вручную → строка с именем → «Дошло» → «уже в зале славы»", async () => {
     await hostessPage.goto("/room/occasion");
-    await expect(
-      hostessPage.getByRole("heading", { name: "Праздник ещё впереди" }),
-    ).toBeVisible();
+    await expect(hostessPage.getByRole("heading", { name: "Праздник ещё впереди" })).toBeVisible();
     await hostessPage.getByRole("button", { name: /Праздник прошёл/ }).click();
 
     // Ручное закрытие работает без даты: появляется итог с раскрытым именем.
@@ -537,8 +541,7 @@ test("перф комнаты гостя (mobile-эмуляция): вес пе�
     const size = (entry: { transferSize: number; encodedBodySize: number }) =>
       entry.transferSize || entry.encodedBodySize || 0;
     const navigation = performance.getEntriesByType("navigation")[0] as
-      | PerformanceNavigationTiming
-      | undefined;
+      PerformanceNavigationTiming | undefined;
     const resources = performance.getEntriesByType("resource") as PerformanceResourceTiming[];
 
     const isImage = (entry: PerformanceResourceTiming) =>

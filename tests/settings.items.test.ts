@@ -281,6 +281,12 @@ describe("демо-призраков нет ни у хозяйки, ни у г�
         hidden: false,
         isDemo: false,
         createdAt: "2026-01-10T10:00:00.000Z",
+        // Поля впечатления лежат в ОБЩЕЙ части owner-DTO, а не в форме
+        // комнаты (починка 09.08): `updateItem` пишет их безусловно, и
+        // карточка, которая их не знает, стирает их при первом сохранении.
+        eventWhen: null,
+        eventWhere: null,
+        validUntil: null,
         inHall: true,
         giverName: null,
         receivedAt: null,

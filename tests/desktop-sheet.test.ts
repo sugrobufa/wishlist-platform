@@ -46,7 +46,12 @@ function px(css: string, selector: string, property: string): number {
   return Number(match?.[1]);
 }
 
-/** `font: 500 11.5px/1.3 var(--font-ui)` → высота строки в px. */
+/**
+ * `font: 500 11.5px/1.3 var(--font-ui)` → высота строки в px.
+ *
+ * Осталась ради подписи и цены под плиткой: вкладки, для которых она тоже
+ * считалась, сняты вместе с состояниями (тикет 124).
+ */
 function lineHeight(css: string, selector: string): number {
   const body = ruleBody(css, selector, "font");
   const match = /font:\s*\d+\s+(\d+(?:\.\d+)?)px\/(\d+(?:\.\d+)?)/u.exec(body);
@@ -57,13 +62,18 @@ function lineHeight(css: string, selector: string): number {
 describe("десктопный лист вещей вмещает ряд плиток целиком (тикет 60)", () => {
   // --- то, что обязано влезть ---------------------------------------------
 
-  // Шапка листа: кромка сверху + поле листа + вкладки «Люблю/Хочу» + воздух
-  // над сеткой. Поле листа берётся десктопное — оно задано ниже базового.
+  // Шапка листа: кромка сверху + поле листа + воздух над сеткой. Поле листа
+  // берётся десктопное — оно задано ниже базового.
+  //
+  // ВКЛАДКИ «ЛЮБЛЮ/ХОЧУ» ИЗ СУММЫ УШЛИ (тикет 124): состояний у вещи нет,
+  // делить сетку нечем, и переключателя над ней не осталось. Шапка стала на
+  // 25.5 px ниже — потолок при этом НЕ трогаем: он про то, что обязано
+  // влезть, и лишний запас листу не вредит. Пересчитать его вниз — отдельное
+  // решение с замерами, а не побочный эффект снятия вкладок.
   const panelBorder = px(sceneCss, "panel", "border-top");
   const panelPadTop = px(sceneCss, "panelBody", "padding");
-  const tabsHeight = lineHeight(gridCss, "tab") + 2 * px(gridCss, "tab", "padding");
   const gridMarginTop = px(gridCss, "grid", "margin");
-  const head = panelBorder + panelPadTop + tabsHeight + gridMarginTop;
+  const head = panelBorder + panelPadTop + gridMarginTop;
 
   // Плитка: квадрат в ширину колонки + подпись и цена под ним.
   const tileChrome =
@@ -97,13 +107,12 @@ describe("десктопный лист вещей вмещает ряд пли�
   const ceiling = Number(/--sheet-max:\s*min\((\d+(?:\.\d+)?)px,/u.exec(sceneCss)?.[1]);
 
   it("слагаемые читаются из CSS, а не выдуманы", () => {
-    expect({ panelBorder, panelPadTop, tabsHeight, gridMarginTop }).toEqual({
+    expect({ panelBorder, panelPadTop, gridMarginTop }).toEqual({
       panelBorder: 1,
       panelPadTop: 20,
-      tabsHeight: 25.5,
       gridMarginTop: 14,
     });
-    expect(head).toBeCloseTo(60.5, 4);
+    expect(head).toBeCloseTo(35, 4);
     expect(tileChrome).toBeCloseTo(40.45, 4);
     expect({ minCol, rowGap, colGap, breakpoint, sidePad, fadeHeight }).toEqual({
       minCol: 132,

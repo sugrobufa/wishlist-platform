@@ -14,18 +14,38 @@ type GuestRoomListProps = {
   slug: string;
   groups: RoomListGroup[];
   accent: string;
-  roomHref: string;
+  roomHref?: string;
+  embedded?: boolean;
 };
 
-function Inner({ groups, accent, roomHref }: Omit<GuestRoomListProps, "slug">) {
+/**
+ * Список БЕЗ своего провайдера — для случая, когда он уже есть снаружи.
+ * Ровно это и происходит в полосе под кадром гостевой комнаты (тикет 129):
+ * там `GuestBookingProvider` стоит на всей странице, и второй завёл бы второй
+ * запрос канала «занято» на тот же экран.
+ */
+export function GuestRoomListView({
+  groups,
+  accent,
+  roomHref,
+  embedded,
+}: Omit<GuestRoomListProps, "slug">) {
   const { taken } = useGuestBooking();
-  return <RoomListView groups={groups} accent={accent} roomHref={roomHref} takenIds={taken} />;
+  return (
+    <RoomListView
+      groups={groups}
+      accent={accent}
+      roomHref={roomHref}
+      embedded={embedded}
+      takenIds={taken}
+    />
+  );
 }
 
 export function GuestRoomList({ slug, ...rest }: GuestRoomListProps) {
   return (
     <GuestBookingProvider slug={slug}>
-      <Inner {...rest} />
+      <GuestRoomListView {...rest} />
     </GuestBookingProvider>
   );
 }

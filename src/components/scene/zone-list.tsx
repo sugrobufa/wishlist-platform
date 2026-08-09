@@ -18,7 +18,7 @@
 //
 // НА ДЕСКТОПЕ ЕГО НЕТ вовсе (CSS-ворота в модуле): там под комнатой пустоты
 // нет, а сводка по наведению делает ту же работу богаче.
-import { useEffect, useMemo, useRef } from "react";
+import { useEffect, useMemo, useRef, type ReactNode } from "react";
 import { useTranslations } from "next-intl";
 import type { RoomZone } from "@/config/design";
 import type { ZoneSummaryDto } from "@/server/dto/zone-summary";
@@ -32,12 +32,20 @@ export type ZoneListProps = {
   zonesOff?: string[];
   summaries?: Record<string, ZoneSummaryDto>;
   /**
-   * Чьими глазами читается счётчик: хозяйке «в подарок», гостю «можно
-   * подарить» — одно и то же число про желания. Сколько уже забрали, здесь не
-   * появляется никогда и ни в каком виде (инвариант №1).
+   * Чьими глазами читается счётчик. Хозяйке — «N вещей», и только это:
+   * про занятость по зонам ей не показывается ничего, у неё один счётчик на
+   * всю комнату (инвариант №1). Гостю — «сколько из скольких свободно», и это
+   * второе число приходит ГОТОВЫМ УЗЛОМ в `counters`.
    */
   viewer: "owner" | "guest";
   accent: string;
+  /**
+   * Гостевая строка счётчика по ключу зоны (тикет 124). Считается на клиенте
+   * из некэшируемого канала «занято» — в кэшируемой сводке этому числу места
+   * нет (инвариант №1, разбор — dto/zone-summary.ts). Узла нет — говорим то
+   * же, что хозяйке: сколько в зоне вещей.
+   */
+  counters?: Record<string, ReactNode>;
 };
 
 /** «01», «02» … — та же нумерация, что у меток сцены и у указателя. */
@@ -45,7 +53,14 @@ function ordinal(index: number): string {
   return String(index + 1).padStart(2, "0");
 }
 
-export function ZoneList({ zones, zonesOff, summaries, viewer, accent }: ZoneListProps) {
+export function ZoneList({
+  zones,
+  zonesOff,
+  summaries,
+  viewer,
+  accent,
+  counters,
+}: ZoneListProps) {
   const t = useTranslations("Scene");
   const tCounts = useTranslations("ZoneGrid");
 
@@ -97,12 +112,16 @@ export function ZoneList({ zones, zonesOff, summaries, viewer, accent }: ZoneLis
 
                 <span className={s.text}>
                   <span className={s.label}>{label}</span>
+                  {/* Пустая зона — «Пока пусто»; дальше решает зритель.
+                      Хозяйке одно число, гостю — узел «3 из 4 свободны» из
+                      некэшируемого канала. Узла нет (гость без канала, своя
+                      комната) — говорим то же, что хозяйке: врать нечем. */}
                   <span className={s.sub}>
                     {count === 0
                       ? t("summaryEmpty")
-                      : viewer === "owner"
-                        ? tCounts("zoneCounts", { total: count, want: 0 })
-                        : t("summaryCountsGuest", { total: count, want: 0 })}
+                      : viewer === "guest" && counters?.[zone.key] != null
+                        ? counters[zone.key]
+                        : tCounts("zoneCounts", { total: count, want: 0 })}
                   </span>
                 </span>
 

@@ -19,7 +19,7 @@
 // отсеиваются целиком) и `withGiftHistory: false` в pack-seeds.
 import { z } from "zod";
 import { prisma } from "@/server/db";
-import { rooms as roomPresets } from "@/config/design";
+import { rooms as roomPresets, zoneInfo } from "@/config/design";
 import { createItem } from "@/server/services/items";
 import { putObjectViaPresign } from "@/server/s3";
 import {
@@ -47,7 +47,10 @@ function visiblePresetZones(preset: string, zonesOff: readonly string[]) {
 function orderedByWants<T extends { key: string }>(zones: T[], wants: readonly string[]): T[] {
   if (wants.length === 0) return zones;
   const wanted = new Set(wants);
-  return [...zones.filter((zone) => wanted.has(zone.key)), ...zones.filter((zone) => !wanted.has(zone.key))];
+  return [
+    ...zones.filter((zone) => wanted.has(zone.key)),
+    ...zones.filter((zone) => !wanted.has(zone.key)),
+  ];
 }
 
 /**
@@ -62,6 +65,54 @@ export function starterPackSize(preset: string, zonesOff: readonly string[]): nu
     (sum, zone) => sum + livePoolSeeds(zone.pool).length,
     0,
   );
+}
+
+// ---------- Вопрос «что чаще всего хочется» (переехал сюда, письмо 33) ------
+//
+// Был четвёртым шагом онбординга (тикет 113, доска 34b) и стоял целым экраном
+// между человеком и его комнатой. Дизайн согласился перенести и назвал причину
+// сам: «причина шага была в подборке; после v2 её стартовый набор ужался вдвое
+// — цена целого экрана выше пользы». Теперь вопрос звучит ЗДЕСЬ, при первом
+// открытии набора, — там, где ответ сразу видно.
+//
+// Что НЕ менялось: состав чипов, предел «3–4» и главное — ответ НЕ ТРОГАЕТ
+// КОМНАТУ. Полки не переставляются и не выключаются; он красит порядок
+// наполнения подборкой (`orderedByWants`) и порядок зон в форме добавления.
+
+/**
+ * Чипами не бывают две зоны. «Что угодно» ловит всё, что не влезло в
+ * категории, «Просто деньги» — копилка, а не вещи: как ответ на «что хочется»
+ * обе не значат ничего.
+ */
+const WANTS_EXCLUDED = new Set(["anything", "money"]);
+
+export type StarterWants = {
+  /** Чипы вопроса — зоны СВОЕЙ комнаты подписями из zones.json. */
+  chips: Array<{ key: string; label: string }>;
+  /** Уже сохранённый ответ (пусто — вопрос ещё не отвечали). */
+  wants: string[];
+  /** Чернила выбранного чипа — из данных комнаты (rooms.json), не из кода. */
+  ink: string;
+};
+
+/**
+ * Чипы вопроса для СВОЕЙ комнаты — чужую спросить нечем: комната берётся по
+ * userId сессии. Комнаты нет (онбординг не пройден) — вопроса нет.
+ */
+export async function starterPackWants(userId: string): Promise<StarterWants | null> {
+  const room = await prisma.room.findUnique({
+    where: { userId: idSchema.parse(userId) },
+    select: { preset: true, zonesOff: true, wants: true },
+  });
+  if (!room) return null;
+
+  return {
+    chips: visiblePresetZones(room.preset, room.zonesOff)
+      .filter((zone) => !WANTS_EXCLUDED.has(zone.key))
+      .map((zone) => ({ key: zone.key, label: zoneInfo(zone.key)?.label ?? zone.label })),
+    wants: room.wants,
+    ink: roomPresets.find((candidate) => candidate.id === room.preset)?.ink ?? "#0B0806",
+  };
 }
 
 export type StarterPackResult = {

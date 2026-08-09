@@ -462,12 +462,29 @@ body {
    09.08; числа — task15.json → emptyStates.sharePlaque). Стоит НАД постоянным
    таб-баром и уходит с пятой вещью. Не перехватывает нажатия: это подсказка,
    а не действие. */
+/* НАЛОЖЕНИЕ, КОТОРОЕ ЭТИМ ЧИНИТСЯ (приёмка владельца 09.08, пустая комната).
+   Плашка и «Или начни с готового» ниже стояли `position: fixed` с высотами,
+   отмеренными на глаз от таб-бара (+18 и +78). Под кадром в это же время
+   лежит нижняя полоса — она тоже позиционирована и тоже кончается у бара
+   (`.imm-rail-bottom` ниже 1024: top = высота кадра, bottom = таб-бар). Три
+   слоя на одном месте, и ни один не знает про остальные: в комнате С ВЕЩАМИ
+   оба блока не рисуются (плашка уходит с пятой вещи, набор — с первой), а в
+   ПУСТОЙ они ложились прямо на строки зон, и слова шли сквозь слова.
+
+   Теперь оба живут В ПОТОКЕ нижней полосы, слотом `below` (src/app/room/page).
+   Список зон — гибкий и прокручиваемый, эти двое — `flex: none`: место
+   отдаёт список, а не они друг другу. Наложиться такой стопке нечем. */
+.imm-empty-slot {
+  display: flex;
+  width: 100%;
+  min-width: 0;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 10px;
+}
+
 .imm-share-plaque {
-  position: fixed;
-  right: 20px;
-  bottom: calc(var(--imm-tab-bar) + 18px);
-  left: 20px;
-  z-index: 5;
+  margin: 0;
   padding: 13px 15px;
   border: 1px solid rgba(255, 255, 255, 0.09);
   background: rgba(255, 255, 255, 0.03);
@@ -475,15 +492,13 @@ body {
   color: rgba(255, 249, 242, 0.62);
   font-size: 12px;
   line-height: 1.45;
+  /* Подсказка, а не действие: нажатия не перехватывает (полоса раздаёт
+     `pointer-events: auto` только ссылкам и кнопкам). */
   pointer-events: none;
 }
 
 @media (min-width: 1024px) {
-  /* На десктопе постоянного бара нет — плашка встаёт к нижнему краю сама. */
   .imm-share-plaque {
-    right: auto;
-    bottom: 24px;
-    left: 24px;
     max-width: 420px;
   }
 }
@@ -491,14 +506,14 @@ body {
 /* «Или начни с готового» на пустой комнате (тикет 100, доска Б23 · турн 12c).
    Стоит НАД плашкой про пять вещей: обе живут в пустой комнате, и предложение
    что-то сделать должно быть ближе к руке, чем предупреждение про шер.
-   Числа — из `task15.json → emptyStates.emptyRoom.starterPack`. */
+   Числа — из `task15.json → emptyStates.emptyRoom.starterPack`.
+
+   `position: fixed` отсюда УБРАН вместе с отступом «таб-бар + 78»: блок стоял
+   поверх строк зон и спорил с соседями по слою (разбор — у плашки выше). */
 .imm-starter {
-  position: fixed;
-  right: 20px;
-  bottom: calc(var(--imm-tab-bar) + 78px);
-  left: 20px;
-  z-index: 5;
   display: flex;
+  width: 100%;
+  min-width: 0;
   flex-direction: column;
   align-items: flex-start;
   gap: 8px;
@@ -514,17 +529,34 @@ body {
 }
 
 .imm-starter-caption {
+  margin: 0;
   max-width: 420px;
   color: rgba(255, 249, 242, 0.62);
   font-size: 11px;
   line-height: 1.45;
 }
 
-@media (min-width: 1024px) {
-  /* Десктоп: бара нет, обе строки встают к нижнему краю друг над другом. */
-  .imm-starter {
-    right: auto;
-    bottom: 96px;
-    left: 24px;
+/* Мост из зоны в витрину — «Ещё {n} — в сокровищнице» (раунд 29, task31.json →
+   treasuryBridge). Тихая строка подвалом зоны: прозрачность .45 и цель 44,
+   числа дизайна. ТОЛЬКО хозяйке — у гостя моста нет, его дверь в витрину
+   стоит знаком в углу сцены. */
+.imm-zone-bridge {
+  display: flex;
+  align-items: center;
+  min-height: 44px;
+  margin-top: 4px;
+  font-size: 12px;
+  line-height: 1.4;
+  color: var(--color-text-primary, #fff9f2);
+  opacity: 0.45;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .imm-zone-bridge {
+    transition: opacity 160ms ease-out;
+  }
+
+  .imm-zone-bridge:hover {
+    opacity: 0.7;
   }
 }
