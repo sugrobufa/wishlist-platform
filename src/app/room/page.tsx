@@ -9,6 +9,7 @@ import { listZoneItems } from "@/server/services/items";
 import { getHardenState, shouldAskToHarden } from "@/server/services/harden";
 import { ownerTakenTotal } from "@/server/services/goal";
 import { occasionBannerVisible } from "@/server/services/occasions";
+import { starterPackSize } from "@/server/services/starter-pack";
 import { itemForOwner } from "@/server/dto/items";
 import {
   ownerSummaryItem,
@@ -27,6 +28,7 @@ import { visibleZones } from "@/components/scene/zones";
 import { SHEET_TILES, ZoneGrid } from "@/components/zone/ZoneGrid";
 import { zoneDisplayItems } from "@/components/zone/zone-display-items";
 import { ShareButton } from "./share-button";
+import { StarterPack } from "./starter-pack";
 
 export const dynamic = "force-dynamic";
 
@@ -266,6 +268,16 @@ export default async function RoomPage() {
           которая исчезает с пятой вещью. */}
       {itemCount < SHARE_READY_ITEMS && (
         <p className="imm-share-plaque">{t("sharePlaque")}</p>
+      )}
+
+      {/* «Или начни с готового · +40» (тикет 100, доска Б23) — только в ПУСТОЙ
+          комнате: как только появилась первая вещь, человек уже умеет, и
+          предлагать ему чужую подборку поверх своей нечего. */}
+      {itemCount === 0 && preset && (
+        <StarterPack
+          size={starterPackSize(preset.id, room.zonesOff)}
+          accent={accent}
+        />
       )}
 
       <TabBar active="room" accent={accent} ink={preset?.ink ?? "#241A0E"} phoneOnly />

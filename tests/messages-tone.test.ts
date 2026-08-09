@@ -815,6 +815,15 @@ describe("словарь и дизайн-пакет", () => {
       "SignIn.sentBody",
       "SignIn.sentTitle",
       "SignIn.spamHint",
+      // «Или начни с готового» (тикет 100, доска Б23 · турн 12c). С доски
+      // дословно: сам заголовок «Или начни с готового», форма «+40» числом и
+      // подпись `starterPack.caption` («Подборка по интерьеру, который ты
+      // выбрала. Можно менять и удалять потом»). В messages-ru.json пакета
+      // этого экрана нет: словарь собирали до турна 12.
+      "StarterPack.busy",
+      "StarterPack.caption",
+      "StarterPack.errGeneric",
+      "StarterPack.label",
       "TabBar.add",
       "TabBar.connections",
       "TabBar.hall",

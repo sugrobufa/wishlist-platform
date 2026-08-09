@@ -414,3 +414,44 @@ body {
     max-width: 420px;
   }
 }
+
+/* «Или начни с готового» на пустой комнате (тикет 100, доска Б23 · турн 12c).
+   Стоит НАД плашкой про пять вещей: обе живут в пустой комнате, и предложение
+   что-то сделать должно быть ближе к руке, чем предупреждение про шер.
+   Числа — из `task15.json → emptyStates.emptyRoom.starterPack`. */
+.imm-starter {
+  position: fixed;
+  right: 20px;
+  bottom: calc(var(--imm-tab-bar) + 78px);
+  left: 20px;
+  z-index: 5;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 8px;
+}
+
+.imm-starter-btn {
+  padding: 11px 18px;
+  border-bottom: 2px solid;
+  background: rgba(255, 255, 255, 0.06);
+  color: #fff9f2;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.imm-starter-caption {
+  max-width: 420px;
+  color: rgba(255, 249, 242, 0.62);
+  font-size: 11px;
+  line-height: 1.45;
+}
+
+@media (min-width: 1024px) {
+  /* Десктоп: бара нет, обе строки встают к нижнему краю друг над другом. */
+  .imm-starter {
+    right: auto;
+    bottom: 96px;
+    left: 24px;
+  }
+}

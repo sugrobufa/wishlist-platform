@@ -30,31 +30,25 @@
 // граница, на которой продукт уже принимает решения. Побочные выгоды: посев
 // не трогает то, что владелец завёл руками, и повторный клик по ссылке
 // (двойной тап, префетч браузера) не плодит дубли.
-import { readFile } from "node:fs/promises";
-import path from "node:path";
 import { z } from "zod";
 import { prisma } from "@/server/db";
 import { rooms as roomPresets, type RoomZone } from "@/config/design";
 import { demoPools } from "@/config/demo-pools";
-import { createItem, newItemPhotoKey, toggleHall } from "@/server/services/items";
+import { createItem, toggleHall } from "@/server/services/items";
 import { putObjectViaPresign } from "@/server/s3";
+import {
+  createInputFor,
+  poolSeeds,
+  storePackagePhoto,
+  type PackSeed,
+  type PackStorage,
+} from "@/server/services/pack-seeds";
 
 /** Семя пула — форма из config/demo-pools (тип там не экспортирован). */
-type DemoSeed = (typeof demoPools)[string][number];
+type DemoSeed = PackSeed;
 
 /** Шов хранилища — тестам (как StandResetStorage в services/stand-reset). */
-export type StandSeedStorage = {
-  putObject: (key: string, contentType: string, body: Uint8Array) => Promise<void>;
-};
-
-/** Предметные кадры пакета лежат там же, откуда их раздаёт /rooms/{имя}. */
-const REFS_DIR = path.join(process.cwd(), "design", "package", "refs");
-
-/** Все p-*.jpg пакета — один тип. Он же решает расширение ключа в S3. */
-const PHOTO_CONTENT_TYPE = "image/jpeg";
-
-/** Плоское имя файла пакета — та же форма, что у маршрута раздачи кадров. */
-const SAFE_REF_NAME = /^[a-z0-9][a-z0-9-]*\.jpg$/;
+export type StandSeedStorage = PackStorage;
 
 /**
  * Зона-витрина. Правило тикета 59 («ещё N» в подписи ссылки и честная кромка
@@ -129,59 +123,11 @@ function emptyResult(overrides: Partial<StandSeedResult> = {}): StandSeedResult 
   };
 }
 
-/** Пул по ключу; hasOwn — чтобы ключи прототипа не пролезали как «найденный
- * пул» (тот же приём, что в demoGhostsFor). Ключа нет — пустой список: пула
- * `money` в пакете не существует, и содержимое его мы не выдумываем. */
-function poolSeeds(poolKey: string): readonly DemoSeed[] {
-  return (Object.hasOwn(demoPools, poolKey) ? demoPools[poolKey] : undefined) ?? [];
-}
-
 /** Пул для добора витрины — первый, у которого нет своей полки в комнате. */
 function spilloverPoolFor(zones: readonly RoomZone[]): string | null {
   const taken = new Set(zones.map((zone) => zone.pool));
   const candidates = [...SPILLOVER_PREFERENCE, ...Object.keys(demoPools)];
   return candidates.find((key) => Object.hasOwn(demoPools, key) && !taken.has(key)) ?? null;
-}
-
-/**
- * Фото семени — в НАШЕ S3 (инвариант №6: чужие изображения не хотлинкуем).
- * Путь ровно тот же, каким кладёт фото обычная загрузка из браузера:
- * `newItemPhotoKey` даёт ключ `items/{roomId}/{random}.{ext}`, дальше
- * подписанный PUT (src/server/s3 → putObjectViaPresign). Второго способа
- * записи в хранилище не заводится.
- *
- * Возвращает ключ или null — «фото не доехало». Вещь при этом создаётся без
- * фото и рисует честную серую заливку: пунктир кодирует «хочу», а не
- * отсутствие фото (инвариант №3).
- */
-async function storePackagePhoto(
-  roomId: string,
-  ref: string,
-  storage: StandSeedStorage,
-): Promise<string | null> {
-  const name = ref.replace(/^refs\//, "");
-  if (!SAFE_REF_NAME.test(name)) return null;
-  const key = newItemPhotoKey(roomId, PHOTO_CONTENT_TYPE);
-  if (!key) return null;
-  const body = await readFile(path.join(REFS_DIR, name));
-  await storage.putObject(key, PHOTO_CONTENT_TYPE, body);
-  return key;
-}
-
-/** Семя пула → инпут createItem (ровно те же поля, что заполняет форма). */
-function createInputFor(zoneKey: string, seed: DemoSeed, photoKey: string | null) {
-  const common = { zone: zoneKey, title: seed.title, ...(photoKey ? { photoKey } : {}) };
-  if (seed.state === "WANT") {
-    // Деньги строкой под Decimal — float запрещён (CLAUDE.md). Валюта пулов
-    // рублёвая; своего поля валюты у комнаты нет (см. Comments тикета).
-    return { ...common, state: "WANT" as const, price: String(seed.priceRub), currency: "RUB" };
-  }
-  return {
-    ...common,
-    state: "LOVE" as const,
-    ...(seed.giverName ? { giverName: seed.giverName } : {}),
-    ...(seed.receivedYear ? { receivedYear: seed.receivedYear } : {}),
-  };
 }
 
 /**
@@ -259,7 +205,12 @@ export async function seedStandRoom(
         else result.photosFailed += 1;
       }
 
-      const item = await createItem(user.id, createInputFor(zone.key, seed, photoKey));
+      // Стенду даритель и год НУЖНЫ: без них витрине сокровищницы нечего
+      // показывать. Живому человеку набор их не приносит (тикет 100).
+      const item = await createItem(
+        user.id,
+        createInputFor(zone.key, seed, photoKey, { withGiftHistory: true }),
+      );
       result.itemsCreated += 1;
       report.created += 1;
       if (photoKey) report.photos += 1;

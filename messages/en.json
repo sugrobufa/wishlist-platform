@@ -595,5 +595,11 @@
     "removeTitle": "Take this shelf out of the room",
     "removeSub": "If this shelf is not for you. The things stay, and the shelf can come back from settings",
     "errGeneric": "Something went wrong — try again"
+  },
+  "StarterPack": {
+    "label": "Or start with a ready set · +{count}",
+    "busy": "Setting things out…",
+    "caption": "A selection for the interior you picked. You can change and delete it later",
+    "errGeneric": "Something went wrong — try again"
   }
 }
