@@ -2082,7 +2082,7 @@
         {
           "key": "grooming",
           "label": "Уход",
-          "pool": "perfume",
+          "pool": "grooming",
           "rect": {
             "x": 227,
             "y": 183,
@@ -2377,7 +2377,7 @@
         {
           "key": "grooming",
           "label": "Уход",
-          "pool": "perfume",
+          "pool": "grooming",
           "rect": {
             "x": 200,
             "y": 170,
@@ -2719,7 +2719,7 @@
         {
           "key": "grooming",
           "label": "Уход",
-          "pool": "perfume",
+          "pool": "grooming",
           "rect": {
             "x": 175,
             "y": 175,
@@ -3208,7 +3208,7 @@
         {
           "key": "grooming",
           "label": "Уход",
-          "pool": "perfume",
+          "pool": "grooming",
           "rect": {
             "x": 196,
             "y": 206,
