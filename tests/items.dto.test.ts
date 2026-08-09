@@ -1,8 +1,12 @@
 // DTO-инварианты вещи (тикет 03). Ключевые правила CLAUDE.md:
 // №1 — owner-DTO НИКОГДА не содержит booking-полей (тихая бронь);
-// №8 — цена «люблю» не сериализуется вовсе, даже если осталась в БД.
+// №8 — цена вещи СОКРОВИЩНИЦЫ не сериализуется вовсе, даже если осталась
+//      в БД от жизни вещи в комнате (тикет 124: переезд цену не стирает,
+//      он её перестаёт показывать — «Вернуть в комнату» покажет снова).
 // Ключи объекта перечислены СТРОГО: появление любого нового поля в DTO —
 // осознанное решение с правкой этого снапшота, а не случайность.
+//
+// ФОРМ ПО-ПРЕЖНЕМУ ДВЕ, но различает их МЕСТО (`inHall`), а не состояние.
 import { describe, expect, it } from "vitest";
 import { Prisma, type Item } from "@prisma/client";
 import { itemForOwner, itemPhotoUrl, type OwnerItemDto } from "../src/server/dto/items";
@@ -14,7 +18,7 @@ function dbItem(overrides: Partial<Item> = {}): Item {
     id: "item_1",
     roomId: "room_1",
     zone: "jewelry",
-    state: "WANT",
+    inHall: false,
     title: "Серьги-кольца",
     note: null,
     photoKey: null,
@@ -27,12 +31,11 @@ function dbItem(overrides: Partial<Item> = {}): Item {
     size: null,
     color: null,
     desire: null,
-  eventWhen: null,
-  eventWhere: null,
-  validUntil: null,
+    eventWhen: null,
+    eventWhere: null,
+    validUntil: null,
     giverName: null,
     receivedAt: null,
-    inHall: false,
     hiddenFromHall: false,
     hidden: false,
     source: "MANUAL",
@@ -48,30 +51,30 @@ function dbItem(overrides: Partial<Item> = {}): Item {
 // `createdAt` — «В комнате с {год}» в карточке вещи хозяйки (тикет 39,
 // турн 8c). Поле owner-only: гостевой DTO собирается своим allowlist'ом и
 // про дату появления вещи по-прежнему ничего не знает.
-const WANT_KEYS = [
+const ROOM_KEYS = [
   "color",
   "createdAt",
   "currency",
   "desire",
-  // Услуга-впечатление (тикет 97): три необязательных поля живут у «хочу»,
-  // как размер и цвет. Пустые не рисуются, но КЛЮЧИ у формы есть всегда —
-  // allowlist перечисляет форму, а не заполненность.
+  // Услуга-впечатление (тикет 97): три необязательных поля живут у вещи
+  // комнаты, как размер и цвет. Пустые не рисуются, но КЛЮЧИ у формы есть
+  // всегда — allowlist перечисляет форму, а не заполненность.
   "eventWhen",
   "eventWhere",
   "hidden",
   "id",
+  "inHall",
   "isDemo",
   "note",
   "photoUrl",
   "price",
   "priceVisibility",
   "size",
-  "state",
   "title",
   "validUntil",
   "zone",
 ];
-const LOVE_KEYS = [
+const HALL_KEYS = [
   "createdAt",
   "giverName",
   "hidden",
@@ -81,13 +84,12 @@ const LOVE_KEYS = [
   "note",
   "photoUrl",
   "receivedAt",
-  "state",
   "title",
   "zone",
 ];
 
 describe("itemForOwner — строгий состав ключей", () => {
-  it("«хочу»: ровно ключи формы WANT, цена строкой, isDemo: false", () => {
+  it("вещь комнаты: ровно ключи формы КОМНАТЫ, цена строкой, isDemo: false", () => {
     const dto = itemForOwner(
       dbItem({
         price: new Prisma.Decimal("14900"),
@@ -100,9 +102,9 @@ describe("itemForOwner — строгий состав ключей", () => {
       }),
     );
 
-    expect(Object.keys(dto).sort()).toEqual(WANT_KEYS);
-    expect(dto.state).toBe("WANT");
-    if (dto.state !== "WANT") throw new Error("unreachable");
+    expect(Object.keys(dto).sort()).toEqual(ROOM_KEYS);
+    expect(dto.inHall).toBe(false);
+    if (dto.inHall) throw new Error("unreachable");
     expect(dto.price).toBe("14900");
     expect(typeof dto.price).toBe("string");
     expect(dto.currency).toBe("RUB");
@@ -114,29 +116,27 @@ describe("itemForOwner — строгий состав ключей", () => {
     expect(dto.createdAt).toBe("2026-01-10T10:00:00.000Z");
   });
 
-  it("«люблю»: ровно ключи формы LOVE, receivedAt — ISO-строкой", () => {
+  it("вещь сокровищницы: ровно ключи формы ВИТРИНЫ, receivedAt — ISO-строкой", () => {
     const dto = itemForOwner(
       dbItem({
-        state: "LOVE",
+        inHall: true,
         title: "Теннисный браслет",
         giverName: "мама",
         receivedAt: new Date("2024-03-08T10:00:00.000Z"),
-        inHall: true,
       }),
     );
 
-    expect(Object.keys(dto).sort()).toEqual(LOVE_KEYS);
-    expect(dto.state).toBe("LOVE");
-    if (dto.state !== "LOVE") throw new Error("unreachable");
+    expect(Object.keys(dto).sort()).toEqual(HALL_KEYS);
+    expect(dto.inHall).toBe(true);
+    if (!dto.inHall) throw new Error("unreachable");
     expect(dto.giverName).toBe("мама");
     expect(dto.receivedAt).toBe("2024-03-08T10:00:00.000Z");
-    expect(dto.inHall).toBe(true);
   });
 
-  it("цена «люблю» не сериализуется вовсе — даже если в БД осталась от «хочу»", () => {
+  it("цена витринной вещи не сериализуется — хотя в БД осталась (тикет 124)", () => {
     const dto = itemForOwner(
       dbItem({
-        state: "LOVE",
+        inHall: true,
         price: new Prisma.Decimal("9900"),
         currency: "RUB",
         size: "S",
@@ -168,7 +168,7 @@ describe("itemForOwner — строгий состав ключей", () => {
     const dto = itemForOwner(polluted);
     const keys = Object.keys(dto);
 
-    expect(keys.sort()).toEqual(WANT_KEYS);
+    expect(keys.sort()).toEqual(ROOM_KEYS);
     // Пояс и подтяжки: ни одного booking-подобного ключа ни под каким именем.
     for (const key of keys) {
       expect(key).not.toMatch(/book|guest|taken|reserv|purchas|cancel/i);

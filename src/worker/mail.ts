@@ -1,13 +1,14 @@
 // Обработчик очереди mail (тикет 12): превращает джобы в письма через общий
 // mailer (src/server/mailer). Имена джоб — контракт: `occasion-owner` ставит
 // closeOccasion (тикет 10), `reminder-guest` — ежечасный тик напоминаний
-// (src/worker/reminders.ts). Неизвестные имена (в т.ч. hello при старте
+// (src/worker/reminders.ts), `item-gone` — переезд вещи в сокровищницу
+// (services/items.toggleHall, тикет 124). Неизвестные имена (в т.ч. hello при старте
 // воркера) — лог и completed: очередь общая, крутиться в ретраях на чужой
 // джобе нельзя. Чистая функция processMailJob тестируется напрямую
 // (tests/mailer.worker.test.ts); воркер (index.ts) её лишь регистрирует.
 import { z } from "zod";
 import { prisma } from "../server/db";
-import { appUrl, sendOccasionOwner, sendReminderGuest } from "../server/mailer";
+import { appUrl, sendItemGone, sendOccasionOwner, sendReminderGuest } from "../server/mailer";
 
 const occasionOwnerSchema = z.object({
   userId: z.string().min(1),
@@ -27,6 +28,14 @@ const reminderGuestSchema = z.object({
   roomSlug: z.string().min(1),
 });
 
+const itemGoneSchema = z.object({
+  bookingId: z.string().min(1),
+  email: z.string().min(1),
+  guestName: z.string().default(""),
+  itemTitle: z.string().default(""),
+  roomSlug: z.string().min(1),
+});
+
 export type MailJobSkipReason =
   | "unknown-job" // не наше имя (hello и будущие) — completed без письма
   | "bad-data" // мусор вместо payload'а — повтор не поможет
@@ -41,6 +50,7 @@ export interface MailJobDeps {
   /** Швы отправки — в тестах письма не уходят и не печатаются. */
   sendReminderGuestImpl?: typeof sendReminderGuest;
   sendOccasionOwnerImpl?: typeof sendOccasionOwner;
+  sendItemGoneImpl?: typeof sendItemGone;
   now?: () => Date;
 }
 
@@ -56,6 +66,7 @@ export async function processMailJob(
 ): Promise<MailJobResult> {
   if (name === "occasion-owner") return processOccasionOwner(data, deps);
   if (name === "reminder-guest") return processReminderGuest(data, deps);
+  if (name === "item-gone") return processItemGone(data, deps);
   console.log(`[mail] незнакомая джоба «${name}» — пропускаю`);
   return { status: "skipped", reason: "unknown-job" };
 }
@@ -110,6 +121,25 @@ async function processReminderGuest(data: unknown, deps: MailJobDeps): Promise<M
     ownerName: job.ownerName,
     itemTitle: job.itemTitle,
     occasionDate,
+    roomSlug: job.roomSlug,
+  });
+  return { status: "sent" };
+}
+
+/**
+ * Гостю: «вещь уехала — выбери другую» (тикет 124). В БД НЕ ХОДИМ ВОВСЕ, и
+ * это не оптимизация: бронь к этому моменту уже удалена — письмо ровно об
+ * этом. Проверка «жива ли бронь», как у напоминания, здесь отменила бы каждое
+ * письмо.
+ */
+async function processItemGone(data: unknown, deps: MailJobDeps): Promise<MailJobResult> {
+  const parsed = itemGoneSchema.safeParse(data);
+  if (!parsed.success) return { status: "skipped", reason: "bad-data" };
+  const job = parsed.data;
+
+  await (deps.sendItemGoneImpl ?? sendItemGone)(job.email, {
+    guestName: job.guestName,
+    itemTitle: job.itemTitle,
     roomSlug: job.roomSlug,
   });
   return { status: "sent" };

@@ -4,16 +4,17 @@
 // «куплено» — переключатель. После мутации — router.refresh(): сервер заново
 // читает cookie (отменённый токен уже вычеркнут роутом) и перерисовывает список.
 //
-// Третья строка карточки — «Показаться после праздника · да/нет» (хвост
-// тикета 98b): единственное место, где гость может передумать про связь,
-// пока праздник не наступил. Ответ хранится на броне, а не на связи: связи
-// в этот момент ещё нет (она родится на «Дошло»).
+// Третья строка карточки — «Показаться после праздника» (хвост тикета 98b,
+// слова и подача — тикет 128): единственное место, где гость может передумать
+// про связь, пока итог праздника не закрыт. Ответ хранится на броне, а не на
+// связи: связи в этот момент ещё нет (она родится на «Дошло»).
 import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { IconCheck } from "@/components/icons";
 import type { MyBookingDto } from "@/server/services/bookings";
+import { RethinkRow } from "./rethink-row";
 
 type BookingsListProps = {
   bookings: MyBookingDto[];
@@ -21,6 +22,10 @@ type BookingsListProps = {
 
 export function BookingsList({ bookings }: BookingsListProps) {
   const t = useTranslations("MyBookings");
+  // Слова «передумать» живут в словаре согласия: это тот же вопрос, что и на
+  // подтверждении брони, просто заданный позже (тикет 128).
+  const tConsent = useTranslations("Consent");
+  const tGuest = useTranslations("GuestRoom");
   const router = useRouter();
   const [confirmingId, setConfirmingId] = useState<string | null>(null);
   const [busyId, setBusyId] = useState<string | null>(null);
@@ -153,48 +158,33 @@ export function BookingsList({ bookings }: BookingsListProps) {
                   )}
                 </div>
 
-                {/* «Показаться после праздника · да/нет» (хвост тикета 98b,
-                    доска 32a). Ответ гость даёт на подтверждении брони, а
-                    передумать ему было негде: вот это место. После праздника
-                    строка остаётся, но кнопок у неё нет — вопрос отыгран, и
-                    решает это сервер (`connection.editable`), а не разметка. */}
+                {/* «Показаться после праздника» (хвост тикета 98b, доска 32a;
+                    слова и подтверждения — тикет 128). Ответ гость даёт на
+                    подтверждении брони, а передумать ему было негде: вот это
+                    место. После закрытия итога строка статична — вопрос
+                    отыгран, и решает это сервер (`connection.editable`), а не
+                    разметка. Имя в объяснении — хозяйкино: чьё имя увидят,
+                    гость и так знает, чужих сюда не приходит (инвариант №2). */}
                 {connection && (
-                  <div className="mt-3 border-t border-surface-hairline pt-3">
-                    <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
-                      <span className="text-xs text-text-muted">{t("connectionLabel")}</span>
-                      {connection.editable ? (
-                        <span
-                          role="group"
-                          aria-label={t("connectionLabel")}
-                          className="flex items-center gap-1.5"
-                        >
-                          {[true, false].map((value) => (
-                            <button
-                              key={String(value)}
-                              type="button"
-                              aria-pressed={connection.offers === value}
-                              disabled={busy}
-                              onClick={() => void setOffer(booking, value)}
-                              className={`pressable border px-3 py-2 text-xs font-semibold ${
-                                connection.offers === value
-                                  ? "border-surface-hairline-strong text-text-strong"
-                                  : "border-surface-hairline text-text-muted"
-                              }`}
-                            >
-                              {value ? t("connectionYes") : t("connectionNo")}
-                            </button>
-                          ))}
-                        </span>
-                      ) : (
-                        <span className="text-xs font-semibold text-text-strong">
-                          {connection.offers ? t("connectionYes") : t("connectionNo")}
-                        </span>
-                      )}
-                    </div>
-                    <p className="mt-1.5 text-[11px] leading-snug text-text-muted">
-                      {connection.editable ? t("connectionHint") : t("connectionLocked")}
-                    </p>
-                  </div>
+                  <RethinkRow
+                    offers={connection.offers}
+                    editable={connection.editable}
+                    busy={busy}
+                    onAnswer={(offers) => void setOffer(booking, offers)}
+                    words={{
+                      row: tConsent("rethinkRow"),
+                      onTitle: tConsent("rethinkOnTitle"),
+                      onBody: tConsent("rethinkOnBody", {
+                        name: booking.ownerName ?? tGuest("ownerFallback"),
+                      }),
+                      onYes: tConsent("rethinkOnYes"),
+                      offTitle: tConsent("rethinkOffTitle"),
+                      offBody: tConsent("rethinkOffBody"),
+                      offYes: tConsent("rethinkOffYes"),
+                      keep: tConsent("rethinkKeep"),
+                      locked: tConsent("rethinkLocked"),
+                    }}
+                  />
                 )}
 
                 {errorId === booking.itemId && (

@@ -32,7 +32,7 @@ function dbItem(overrides: Partial<Item> = {}): Item {
     id: "item_1",
     roomId: "room_1",
     zone: "jewelry",
-    state: "WANT",
+    inHall: false,
     title: "Серьги-кольца",
     note: null,
     photoKey: null,
@@ -45,12 +45,11 @@ function dbItem(overrides: Partial<Item> = {}): Item {
     size: null,
     color: null,
     desire: null,
-  eventWhen: null,
-  eventWhere: null,
-  validUntil: null,
+    eventWhen: null,
+    eventWhere: null,
+    validUntil: null,
     giverName: null,
     receivedAt: null,
-    inHall: false,
     hiddenFromHall: false,
     hidden: false,
     source: "MANUAL",
@@ -62,26 +61,30 @@ function dbItem(overrides: Partial<Item> = {}): Item {
   };
 }
 
-/** «Хочу» с ценой: цена строкой в БД — Decimal, как в проде. */
+/** Вещь КОМНАТЫ с ценой: цена строкой в БД — Decimal, как в проде. */
 function want(id: string, priceRub: number, extra: Partial<Item> = {}): Item {
   return dbItem({
     id,
-    state: "WANT",
+    inHall: false,
     price: new Prisma.Decimal(String(priceRub)),
     currency: "RUB",
     ...extra,
   });
 }
 
+/** Вещь СОКРОВИЩНИЦЫ. В сводку зоны она не входит ни одним числом (124). */
 function love(id: string, extra: Partial<Item> = {}): Item {
-  return dbItem({ id, state: "LOVE", ...extra });
+  return dbItem({ id, inHall: true, ...extra });
 }
 
 const ownerSummary = (items: Item[]) => zoneSummaryForOwner("jewelry", items.map(ownerSummaryItem));
 const guestSummary = (items: Item[]) => zoneSummaryForGuest("jewelry", items.map(guestSummaryItem));
 
-/** Ключи формы сводки — исчерпывающе. Новое поле = осознанная правка снапшота. */
-const BASE_KEYS = ["count", "more", "thumbs", "wantCount", "zone"];
+/** Ключи формы сводки — исчерпывающе. Новое поле = осознанная правка снапшота.
+ * `wantCount` убран тикетом 124: в комнате всё — желание, и число всегда
+ * равнялось бы `count`. «M свободно» гостю считает экран по каналу «занято»,
+ * и в этой форме его нет и не должно быть (шапка dto/zone-summary.ts). */
+const BASE_KEYS = ["count", "more", "thumbs", "zone"];
 
 describe("правило 1 — счётчика занятых нет ни у кого, и у гостя тем более", () => {
   // Критерий тикета: «Гость не видит счётчик занятых — тест обязателен».
@@ -132,12 +135,14 @@ describe("правило 1 — счётчика занятых нет ни у к
     expect(JSON.stringify(guestSummary(withBooking))).not.toMatch(/Оля|secret|booking|QUIET/i);
   });
 
-  it("«помечено хочу» гостю можно: это про желания, а не про брони", () => {
-    // handoff/answers-04.md: «19 в подарок» хозяйке = «19 можно подарить»
-    // гостю. Число одно и то же, слова разные — слова живут в словаре.
-    expect(guestSummary(zone).wantCount).toBe(3);
-    expect(ownerSummary(zone).wantCount).toBe(3);
-    expect(guestSummary(zone).count).toBe(4);
+  // ПЕРЕПИСАНО (тикет 124). Тест держал число «помечено хочу» — его больше
+  // нет: в комнате всё желание. Держим ЗАМЕНУ: вещь сокровищницы не считается
+  // в сводке зоны вовсе (было 4 вещи, из них одна витринная → count = 3).
+  it("вещь сокровищницы в сводку зоны не входит ни одним числом", () => {
+    expect(guestSummary(zone).count).toBe(3);
+    expect(ownerSummary(zone).count).toBe(3);
+    expect(guestSummary(zone)).not.toHaveProperty("wantCount");
+    expect(ownerSummary(zone)).not.toHaveProperty("wantCount");
   });
 });
 
@@ -187,8 +192,7 @@ describe("правило 1а — в ветке ХОЗЯЙКИ нет ни одн
   it("каждое число объясняется её собственными вещами; «7 из 8» не появляется", () => {
     const dto = ownerSummary(oneBooked);
 
-    expect(dto.count).toBe(EIGHT); // всего вещей — её данные
-    expect(dto.wantCount).toBe(EIGHT); // помечено «хочу» — тоже её, НЕ «свободно»
+    expect(dto.count).toBe(EIGHT); // всего вещей — её данные, НЕ «свободно»
     expect(dto.more).toBe(EIGHT - ZONE_SUMMARY_THUMBS); // хвост за миниатюрами
 
     // Числовые ключи — исчерпывающе: новый счётчик у хозяйки не заведётся молча.
@@ -196,7 +200,8 @@ describe("правило 1а — в ветке ХОЗЯЙКИ нет ни одн
       .filter(([, value]) => typeof value === "number")
       .map(([key]) => key)
       .sort();
-    expect(numericKeys).toEqual(["count", "more", "wantCount"]);
+    // `wantCount` убран тикетом 124 — в комнате всё желание.
+    expect(numericKeys).toEqual(["count", "more"]);
 
     // И главное: числа «свободных» (8 − 1 занятая) в сводке нет нигде.
     expect(numbersIn(dto)).not.toContain(EIGHT - 1);
@@ -211,7 +216,7 @@ describe("правило 1а — в ветке ХОЗЯЙКИ нет ни одн
   });
 });
 
-describe("правило 2 — вилка цен: только «хочу» с видимой ценой и только от трёх", () => {
+describe("правило 2 — вилка цен: только вещи КОМНАТЫ с видимой ценой, от трёх", () => {
   it("порог — три вещи: на двух вилки нет вовсе (ключа нет)", () => {
     expect(ZONE_SUMMARY_PRICE_MIN).toBe(3);
     const two = ownerSummary([want("w1", 4_000), want("w2", 90_000)]);
@@ -221,8 +226,10 @@ describe("правило 2 — вилка цен: только «хочу» с �
     expect(three.price).toEqual({ low: "4000", high: "90000", currency: "RUB" });
   });
 
-  it("цена «люблю» не входит в вилку НИКОГДА — даже если в БД осталась от «хочу»", () => {
-    // Инвариант №8 плюс ответ дизайна: вещь уже подарена, её незачем оценивать.
+  it("цена вещи СОКРОВИЩНИЦЫ не входит в вилку НИКОГДА (тикет 124)", () => {
+    // Раньше правило звучало «вещь „люблю" не входит»; теперь то же самое
+    // сказано местом. Инвариант №8: вещь уже своя, её незачем оценивать, и
+    // цены у неё в форме гостя нет в принципе.
     const loved = [
       love("l1", { price: new Prisma.Decimal("100000"), currency: "RUB" }),
       love("l2", { price: new Prisma.Decimal("200"), currency: "RUB" }),
@@ -231,7 +238,7 @@ describe("правило 2 — вилка цен: только «хочу» с �
     expect("price" in ownerSummary(loved)).toBe(false);
     expect("price" in guestSummary(loved)).toBe(false);
 
-    // И не сдвигает краёв, когда «хочу» рядом хватает на вилку.
+    // И не сдвигает краёв, когда вещей комнаты рядом хватает на вилку.
     const mixed = ownerSummary([...loved, want("w1", 4_000), want("w2", 9_000), want("w3", 12_000)]);
     expect(mixed.price).toEqual({ low: "4000", high: "12000", currency: "RUB" });
   });
@@ -359,17 +366,20 @@ describe("правило 3 — спрятанные вещи не входят �
     love("h2", { hidden: true, photoKey: "refs/p-lux.jpg" }),
   ];
 
-  it("спрятанное не считается ни в «всего», ни в «помечено хочу»", () => {
+  it("спрятанное не считается в «всего»", () => {
     const dto = ownerSummary([...visible, ...hiddenOnes]);
-    expect(dto.count).toBe(3);
-    expect(dto.wantCount).toBe(2);
+    // Витринная вещь среди видимых тоже не считается (тикет 124): было 3,
+    // из них одна `love` — остаётся 2.
+    expect(dto.count).toBe(2);
     // Сводка комнаты без спрятанных вещей — ровно та же.
     expect(dto).toEqual(ownerSummary(visible));
   });
 
   it("спрятанное не попадает в миниатюры и в «ещё N»", () => {
     const withHiddenFirst = ownerSummary([hiddenOnes[1] as Item, ...visible]);
-    expect(withHiddenFirst.thumbs).toHaveLength(3);
+    // Витринная вещь среди `visible` в миниатюры тоже не идёт (тикет 124):
+    // из трёх видимых остаётся две.
+    expect(withHiddenFirst.thumbs).toHaveLength(2);
     expect(withHiddenFirst.more).toBe(0);
     // Фотография спрятанной вещи не показалась бы даже миниатюрой.
     for (const thumb of withHiddenFirst.thumbs) {
@@ -400,13 +410,17 @@ describe("форма сводки: миниатюры, «ещё», пустая 
     ];
     const dto = ownerSummary(zone);
     expect(dto.thumbs).toHaveLength(3);
-    expect(dto.more).toBe(2);
-    // Пунктир кодирует «хочу», а не отсутствие фото (инвариант №3): у второй
-    // миниатюры фото есть, а флаг want всё равно стоит; у третьей фото нет,
-    // и флаг стоит по состоянию, а не по пустой картинке.
-    expect(dto.thumbs.map((thumb) => thumb.want)).toEqual([false, true, true]);
+    // ПЕРЕПИСАНО (тикет 124): первой строкой в зоне стояла витринная вещь —
+    // теперь она в сводку не входит вовсе, поэтому и миниатюр от неё нет, и
+    // хвост «ещё» короче на единицу.
+    expect(dto.more).toBe(1);
+    // Флага `want` у миниатюры больше нет: пунктир умер вместе с состоянием
+    // (инвариант №3 отменён). Осталась только фотография.
+    for (const thumb of dto.thumbs) {
+      expect(Object.keys(thumb)).toEqual(["photoUrl"]);
+    }
     expect(dto.thumbs[0]?.photoUrl).not.toBeNull();
-    expect(dto.thumbs[2]?.photoUrl).toBeNull();
+    expect(dto.thumbs[1]?.photoUrl).toBeNull();
   });
 
   it("демо-призраки в сводку не входят: зона без своих вещей пуста", () => {

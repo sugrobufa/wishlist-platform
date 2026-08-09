@@ -15,6 +15,7 @@ import type { Prisma } from "@prisma/client";
 
 vi.mock("@/server/queues", () => ({
   enqueueOccasionOwnerMail: vi.fn(async () => true),
+  enqueueItemGoneMail: vi.fn(async () => true),
   enqueueImageIngest: vi.fn(async () => true),
 }));
 
@@ -53,7 +54,7 @@ async function createLove(
   overrides: Partial<Prisma.ItemUncheckedCreateInput> = {},
 ) {
   return prisma.item.create({
-    data: { roomId, zone: "jewelry", state: "LOVE", title, ...overrides },
+    data: { roomId, zone: "jewelry", inHall: true, title, ...overrides },
   });
 }
 
@@ -75,8 +76,8 @@ afterAll(async () => {
   await prisma.$disconnect();
 });
 
-describe("listHallItems — витрина хозяйки: LOVE + inHall", () => {
-  it("не отдаёт не-inHall и «хочу»; спрятанные (от гостей и глазком) хозяйке — отдаёт", async () => {
+describe("listHallItems — витрина хозяйки: один фильтр inHall (тикет 124)", () => {
+  it("не отдаёт вещи комнаты; спрятанные (от гостей и глазком) хозяйке — отдаёт", async () => {
     const owner = await createOwnerWithRoom();
 
     const shown = await createLove(owner.room.id, "В витрине", {
@@ -88,17 +89,18 @@ describe("listHallItems — витрина хозяйки: LOVE + inHall", () =>
       inHall: true,
       hiddenFromHall: true,
     });
-    const notInHall = await createLove(owner.room.id, "Просто люблю", { inHall: false });
-    const wantInHall = await prisma.item.create({
-      // Прямой мусор в БД: «хочу» с inHall — витрина всё равно не показывает.
+    const notInHall = await createLove(owner.room.id, "Вернулась в комнату", { inHall: false });
+    // ПЕРЕПИСАНО (тикет 124): здесь стояла невозможная строка «хочу с inHall»,
+    // проверявшая, что витрина фильтрует ещё и по состоянию. Состояний нет —
+    // фильтр остался один, и вторая вещь КОМНАТЫ проверяет ровно его.
+    const roomItem = await prisma.item.create({
       data: {
         roomId: owner.room.id,
         zone: "bags",
-        state: "WANT",
-        title: "Хочу с мусорным флагом",
+        inHall: false,
+        title: "Вещь комнаты с ценой",
         price: "5000",
         currency: "RUB",
-        inHall: true,
       },
     });
     const hiddenFromGuests = await createLove(owner.room.id, "Спрятана от гостей", {
@@ -114,8 +116,7 @@ describe("listHallItems — витрина хозяйки: LOVE + inHall", () =>
     // Тикет 89: спрятанная глазком остаётся у хозяйки — иначе вернуть нечем.
     expect(ids).toContain(hiddenFromHall.id);
     expect(ids).not.toContain(notInHall.id);
-    expect(ids).not.toContain(wantInHall.id);
-    expect(hall.every((item) => item.state === "LOVE")).toBe(true);
+    expect(ids).not.toContain(roomItem.id);
     expect(hall.every((item) => item.inHall)).toBe(true);
 
     // …и ровно она — единственная, кого не покажут наблюдателю.
@@ -141,7 +142,7 @@ describe("listHallItems — витрина хозяйки: LOVE + inHall", () =>
       data: {
         roomId: owner.room.id,
         zone: "jewelry",
-        state: "WANT",
+        inHall: false,
         title: "Колье с жемчугом",
         price: "48000",
         currency: "RUB",
@@ -184,14 +185,17 @@ describe("setHiddenFromHall — глазок: прячет от наблюдат
     expect(hallItemShownToObservers(shownAgain)).toBe(true);
   });
 
-  it("«хочу» глазку не поддаётся (NOT_LOVE); чужая вещь — NOT_FOUND", async () => {
+  // ПЕРЕПИСАНО (тикет 124): отказ назывался NOT_LOVE и означал «глазок бывает
+  // только у „люблю"». Теперь он про МЕСТО: прятать с витрины вещь, которой
+  // там нет, нечем — NOT_IN_HALL.
+  it("вещь комнаты глазку не поддаётся (NOT_IN_HALL); чужая вещь — NOT_FOUND", async () => {
     const owner = await createOwnerWithRoom();
     const stranger = await createOwnerWithRoom();
     const want = await prisma.item.create({
       data: {
         roomId: owner.room.id,
         zone: "bags",
-        state: "WANT",
+        inHall: false,
         title: "Сумка",
         price: "12000",
         currency: "RUB",
@@ -213,37 +217,42 @@ describe("setHiddenFromHall — глазок: прячет от наблюдат
 });
 
 describe("createItem с витрины — вещь встаёт в сокровищницу сразу (тикет 89)", () => {
-  it("LOVE + inHall: вещь и в своей зоне, и на витрине; «хочу» флаг не получает", async () => {
+  it("inHall: true — вещь и в своей зоне, и на витрине; цены у неё нет", async () => {
     const owner = await createOwnerWithRoom();
 
     const treasure = await createItem(owner.user.id, {
-      state: "LOVE",
+      inHall: true,
       zone: "jewelry",
       title: "Бабушкина брошь",
-      inHall: true,
     });
     expect(treasure.inHall).toBe(true);
     expect(treasure.zone).toBe("jewelry"); // витрина зоне не замена
     expect((await listHallItems(owner.room.id)).map((row) => row.id)).toEqual([treasure.id]);
 
-    // У «хочу» ключа inHall в схеме нет вовсе — Zod отбрасывает его молча.
-    const want = await createItem(owner.user.id, {
-      state: "WANT",
+    // ПЕРЕПИСАНО (тикет 124): вторая половина теста проверяла, что «хочу» не
+    // получает флаг витрины. Дискриминатор теперь сам `inHall`, и вещь
+    // комнаты его не получает по построению — ключей витрины у её формы нет.
+    const roomItem = await createItem(owner.user.id, {
       zone: "jewelry",
-      title: "Хочу с чужим флагом",
+      title: "Кольцо",
       price: "9000",
       currency: "RUB",
-      inHall: true,
+      giverName: "мама",
     });
-    expect(want.inHall).toBe(false);
+    expect(roomItem.inHall).toBe(false);
+    expect(roomItem.giverName).toBeNull(); // ключ чужой формы Zod отбросил
   });
 
-  it("без флага вещь «люблю» на витрину не попадает (дорога из зоны не изменилась)", async () => {
+  // ПЕРЕПИСАНО (тикет 124): раньше `inHall` был необязательным флагом формы
+  // LOVE, и без него вещь оставалась в зоне. Теперь это ДИСКРИМИНАТОР места:
+  // без него вещь идёт в комнату, а не «в зону вещью „люблю"».
+  it("без флага вещь встаёт в КОМНАТУ, а не на витрину", async () => {
     const owner = await createOwnerWithRoom();
     const plain = await createItem(owner.user.id, {
-      state: "LOVE",
       zone: "jewelry",
-      title: "Просто моя вещь",
+      title: "Просто желание",
+      price: "1500",
+      currency: "RUB",
     });
     expect(plain.inHall).toBe(false);
     expect(await listHallItems(owner.room.id)).toEqual([]);

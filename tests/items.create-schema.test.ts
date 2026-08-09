@@ -1,6 +1,11 @@
 // Юнит на Zod-схему формы добавления (тикет 04) — без БД.
-// Ядро контракта items.json: у WANT цена/валюта обязательны, у LOVE ключей
-// price/currency не существует — лишнее отбрасывается ДО записи.
+//
+// ПЕРЕПИСАНО ТИКЕТОМ 124: схема больше не различает СОСТОЯНИЯ, она различает
+// МЕСТА. Ядро контракта items.json v2: у вещи КОМНАТЫ цена/валюта
+// обязательны («у всего в комнате есть цена»), у вещи СОКРОВИЩНИЦЫ ключей
+// price/currency не существует вовсе — лишнее отбрасывается ДО записи.
+// Дискриминатор — `inHall`, и по умолчанию он false: форма из зоны его не
+// шлёт, а «сразу в сокровищницу» (тикет 89) шлёт явно.
 import { describe, expect, it } from "vitest";
 import {
   createItemInputSchema,
@@ -8,8 +13,8 @@ import {
   newItemPhotoKey,
 } from "../src/server/services/items";
 
-const wantInput = (overrides: Record<string, unknown> = {}) => ({
-  state: "WANT",
+/** Вещь КОМНАТЫ: ключ места не шлём вовсе — так делает форма из зоны. */
+const roomInput = (overrides: Record<string, unknown> = {}) => ({
   zone: "jewelry",
   title: "Серьги-кольца",
   price: "14900",
@@ -17,58 +22,60 @@ const wantInput = (overrides: Record<string, unknown> = {}) => ({
   ...overrides,
 });
 
-const loveInput = (overrides: Record<string, unknown> = {}) => ({
-  state: "LOVE",
+/** Вещь СОКРОВИЩНИЦЫ: «сразу в сокровищницу» шлёт `inHall: true` явно. */
+const hallInput = (overrides: Record<string, unknown> = {}) => ({
+  inHall: true,
   zone: "jewelry",
   title: "Теннисный браслет",
   ...overrides,
 });
 
-describe("createItemInputSchema — WANT", () => {
+describe("createItemInputSchema — вещь комнаты", () => {
   it("хэппи-пас: цена нормализуется («14900,50» → «14900.50»), дефолт видимости ALL", () => {
     const parsed = createItemInputSchema.parse(
-      wantInput({ price: "14900,50", size: "M", color: "золотой", desire: 4 }),
+      roomInput({ price: "14900,50", size: "M", color: "золотой", desire: 4 }),
     );
-    if (parsed.state !== "WANT") throw new Error("unreachable");
+    if (parsed.inHall) throw new Error("unreachable");
+    expect(parsed.inHall).toBe(false); // место по умолчанию — комната
     expect(parsed.price).toBe("14900.50");
     expect(parsed.priceVisibility).toBe("ALL");
     expect(parsed.desire).toBe(4);
   });
 
-  it("без цены — ошибка валидации (цена «хочу» обязательна по продукту)", () => {
-    expect(() => createItemInputSchema.parse(wantInput({ price: undefined }))).toThrow();
-    expect(() => createItemInputSchema.parse(wantInput({ price: "" }))).toThrow();
+  it("без цены — ошибка валидации (у всего в комнате есть цена)", () => {
+    expect(() => createItemInputSchema.parse(roomInput({ price: undefined }))).toThrow();
+    expect(() => createItemInputSchema.parse(roomInput({ price: "" }))).toThrow();
   });
 
   it("без валюты — ошибка; не ISO-код — ошибка; нижний регистр приводится", () => {
-    expect(() => createItemInputSchema.parse(wantInput({ currency: undefined }))).toThrow();
-    expect(() => createItemInputSchema.parse(wantInput({ currency: "рубли" }))).toThrow();
-    const parsed = createItemInputSchema.parse(wantInput({ currency: "usd" }));
-    if (parsed.state !== "WANT") throw new Error("unreachable");
+    expect(() => createItemInputSchema.parse(roomInput({ currency: undefined }))).toThrow();
+    expect(() => createItemInputSchema.parse(roomInput({ currency: "рубли" }))).toThrow();
+    const parsed = createItemInputSchema.parse(roomInput({ currency: "usd" }));
+    if (parsed.inHall) throw new Error("unreachable");
     expect(parsed.currency).toBe("USD");
   });
 
   it("цена: ноль, минус, буквы и >2 знаков после точки — отказ", () => {
     for (const bad of ["0", "0.00", "-5", "abc", "10.999", "1e3", "10."]) {
-      expect(() => createItemInputSchema.parse(wantInput({ price: bad })), bad).toThrow();
+      expect(() => createItemInputSchema.parse(roomInput({ price: bad })), bad).toThrow();
     }
   });
 
   it("desire только 1–4; пустые строки опциональных полей становятся undefined", () => {
-    expect(() => createItemInputSchema.parse(wantInput({ desire: 0 }))).toThrow();
-    expect(() => createItemInputSchema.parse(wantInput({ desire: 5 }))).toThrow();
-    const parsed = createItemInputSchema.parse(wantInput({ size: "  ", color: "", note: "" }));
-    if (parsed.state !== "WANT") throw new Error("unreachable");
+    expect(() => createItemInputSchema.parse(roomInput({ desire: 0 }))).toThrow();
+    expect(() => createItemInputSchema.parse(roomInput({ desire: 5 }))).toThrow();
+    const parsed = createItemInputSchema.parse(roomInput({ size: "  ", color: "", note: "" }));
+    if (parsed.inHall) throw new Error("unreachable");
     expect(parsed.size).toBeUndefined();
     expect(parsed.color).toBeUndefined();
     expect(parsed.note).toBeUndefined();
   });
 });
 
-describe("createItemInputSchema — LOVE", () => {
-  it("цена/валюта/видимость/размер/desire в инпуте LOVE отбрасываются ДО записи", () => {
+describe("createItemInputSchema — вещь сокровищницы", () => {
+  it("цена/валюта/видимость/размер/desire отбрасываются ДО записи", () => {
     const parsed = createItemInputSchema.parse(
-      loveInput({
+      hallInput({
         price: "9900",
         currency: "RUB",
         priceVisibility: "NONE",
@@ -76,7 +83,7 @@ describe("createItemInputSchema — LOVE", () => {
         desire: 3,
       }),
     );
-    expect(parsed.state).toBe("LOVE");
+    expect(parsed.inHall).toBe(true);
     expect("price" in parsed).toBe(false);
     expect("currency" in parsed).toBe(false);
     expect("priceVisibility" in parsed).toBe(false);
@@ -84,56 +91,72 @@ describe("createItemInputSchema — LOVE", () => {
     expect("desire" in parsed).toBe(false);
   });
 
-  it("inHall: дефолт false, «сразу в сокровищницу» — только у LOVE (тикет 89)", () => {
-    const plain = createItemInputSchema.parse(loveInput());
-    if (plain.state !== "LOVE") throw new Error("unreachable");
-    expect(plain.inHall).toBe(false);
+  // ПЕРЕПИСАНО (тикет 124): раньше `inHall` был ключом формы LOVE со
+  // значением по умолчанию false, а у WANT его не было вовсе. Теперь это
+  // ДИСКРИМИНАТОР, и правило другое: ключа нет — вещь идёт в комнату.
+  it("место по умолчанию — комната; «сразу в сокровищницу» шлётся явно (тикет 89)", () => {
+    const fromZone = createItemInputSchema.parse(roomInput());
+    expect(fromZone.inHall).toBe(false);
 
-    const treasure = createItemInputSchema.parse(loveInput({ inHall: true }));
-    if (treasure.state !== "LOVE") throw new Error("unreachable");
+    const treasure = createItemInputSchema.parse(hallInput());
     expect(treasure.inHall).toBe(true);
 
-    // У «хочу» такого ключа в схеме нет — он отбрасывается ДО записи, и
-    // «хочу» в сокровищнице не оказывается (toggleHall тоже отвечает NOT_LOVE).
-    const want = createItemInputSchema.parse(wantInput({ inHall: true }));
-    expect(want).not.toHaveProperty("inHall");
+    // Явное `inHall: false` — то же самое, что его отсутствие.
+    const explicit = createItemInputSchema.parse(roomInput({ inHall: false }));
+    expect(explicit.inHall).toBe(false);
+
+    // Мусор вместо места — отказ: третьего места не бывает.
+    expect(() => createItemInputSchema.parse(roomInput({ inHall: "yes" }))).toThrow();
+  });
+
+  it("вещь сокровищницы заводится БЕЗ цены — она там не показывается", () => {
+    // Обратная сторона правила «у всего в комнате есть цена»: на витрине её
+    // требовать не за чем, и ключа для неё в форме нет.
+    const parsed = createItemInputSchema.parse(hallInput());
+    expect(parsed.inHall).toBe(true);
+    expect("price" in parsed).toBe(false);
+    expect("currency" in parsed).toBe(false);
   });
 
   it("даритель+год: год не раньше 1900 и не из будущего", () => {
     const year = new Date().getFullYear();
     const parsed = createItemInputSchema.parse(
-      loveInput({ giverName: "мама", receivedYear: year }),
+      hallInput({ giverName: "мама", receivedYear: year }),
     );
-    if (parsed.state !== "LOVE") throw new Error("unreachable");
+    if (!parsed.inHall) throw new Error("unreachable");
     expect(parsed.receivedYear).toBe(year);
-    expect(() => createItemInputSchema.parse(loveInput({ receivedYear: 1899 }))).toThrow();
-    expect(() => createItemInputSchema.parse(loveInput({ receivedYear: year + 1 }))).toThrow();
-    expect(() => createItemInputSchema.parse(loveInput({ receivedYear: 2024.5 }))).toThrow();
+    expect(() => createItemInputSchema.parse(hallInput({ receivedYear: 1899 }))).toThrow();
+    expect(() => createItemInputSchema.parse(hallInput({ receivedYear: year + 1 }))).toThrow();
+    expect(() => createItemInputSchema.parse(hallInput({ receivedYear: 2024.5 }))).toThrow();
   });
 });
 
 describe("createItemInputSchema — общие поля", () => {
   it("заголовок обязателен и не бывает пробельным", () => {
-    expect(() => createItemInputSchema.parse(wantInput({ title: "" }))).toThrow();
-    expect(() => createItemInputSchema.parse(wantInput({ title: "   " }))).toThrow();
+    expect(() => createItemInputSchema.parse(roomInput({ title: "" }))).toThrow();
+    expect(() => createItemInputSchema.parse(roomInput({ title: "   " }))).toThrow();
   });
 
-  it("state вне словаря — отказ (третьего состояния нет)", () => {
-    expect(() => createItemInputSchema.parse(wantInput({ state: "MAYBE" }))).toThrow();
+  // ПЕРЕПИСАНО (тикет 124): проверяли «третьего состояния нет». Состояний
+  // нет вовсе, и присланный руками `state` обязан просто исчезнуть — схема
+  // его не знает и лишние ключи отбрасывает молча.
+  it("присланный руками state в разбор не проходит и до записи не доезжает", () => {
+    const parsed = createItemInputSchema.parse(roomInput({ state: "WANT" }));
+    expect(parsed).not.toHaveProperty("state");
   });
 
   it("url: только http(s); javascript: и просто текст — отказ", () => {
-    const parsed = createItemInputSchema.parse(wantInput({ url: "https://shop.ru/x" }));
+    const parsed = createItemInputSchema.parse(roomInput({ url: "https://shop.ru/x" }));
     expect(parsed.url).toBe("https://shop.ru/x");
     expect(() =>
-      createItemInputSchema.parse(wantInput({ url: "javascript:alert(1)" })),
+      createItemInputSchema.parse(roomInput({ url: "javascript:alert(1)" })),
     ).toThrow();
-    expect(() => createItemInputSchema.parse(wantInput({ url: "не ссылка" }))).toThrow();
+    expect(() => createItemInputSchema.parse(roomInput({ url: "не ссылка" }))).toThrow();
   });
 
   it("photoKey: только наш вид items/{roomId}/{random}.{ext}; URL и refs/ — отказ", () => {
     const parsed = createItemInputSchema.parse(
-      wantInput({ photoKey: "items/room1/0123456789abcdef.jpg" }),
+      roomInput({ photoKey: "items/room1/0123456789abcdef.jpg" }),
     );
     expect(parsed.photoKey).toBe("items/room1/0123456789abcdef.jpg");
     for (const bad of [
@@ -143,7 +166,7 @@ describe("createItemInputSchema — общие поля", () => {
       "items/../secret.jpg",
       "avatars/room1/a.jpg",
     ]) {
-      expect(() => createItemInputSchema.parse(wantInput({ photoKey: bad })), bad).toThrow();
+      expect(() => createItemInputSchema.parse(roomInput({ photoKey: bad })), bad).toThrow();
     }
   });
 });
@@ -156,7 +179,7 @@ describe("фото вещи: ключ и лимит", () => {
   it("ключ items/{roomId}/{16 hex}.{ext} по типу; сам проходит photoKey-схему", () => {
     const key = newItemPhotoKey("room42", "image/jpeg");
     expect(key).toMatch(/^items\/room42\/[0-9a-f]{16}\.jpg$/);
-    const parsed = createItemInputSchema.parse(wantInput({ photoKey: key }));
+    const parsed = createItemInputSchema.parse(roomInput({ photoKey: key }));
     expect(parsed.photoKey).toBe(key);
     expect(newItemPhotoKey("room42", "image/png")).toMatch(/\.png$/);
     expect(newItemPhotoKey("room42", "IMAGE/WEBP")).toMatch(/\.webp$/);

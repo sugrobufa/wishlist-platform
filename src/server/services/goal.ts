@@ -117,13 +117,15 @@ const FALLBACK_CURRENCY = "RUB";
 
 /**
  * Валюта копилки берётся ТАК ЖЕ, как у вещей комнаты (тикет 44): самая частая
- * валюта среди вещей «хочу» с ценой. Мультивалютной копилки нет — если
- * понадобится, это отдельное решение (ADR-0008, «что осталось открытым»).
+ * валюта среди вещей КОМНАТЫ с ценой. Витринные не в счёт — цена там не
+ * показывается, и валюта подарка из них не следует (тикет 124).
+ * Мультивалютной копилки нет — если понадобится, это отдельное решение
+ * (ADR-0008, «что осталось открытым»).
  */
 async function roomCurrency(roomId: string): Promise<string> {
   const rows = await prisma.item.groupBy({
     by: ["currency"],
-    where: { roomId, state: "WANT", currency: { not: null } },
+    where: { roomId, inHall: false, currency: { not: null } },
     _count: { currency: true },
     orderBy: { _count: { currency: "desc" } },
     take: 1,

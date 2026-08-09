@@ -47,7 +47,7 @@ async function createCase(options: {
     data: {
       roomId: room.id,
       zone: "jewelry",
-      state: "WANT",
+      inHall: false,
       title: options.itemTitle ?? `Вещь-${randomUUID().slice(0, 8)}`,
       price: "5000",
       currency: "RUB",

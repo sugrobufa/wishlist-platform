@@ -114,8 +114,10 @@ export function ItemCard({ item, lovePrice, zones, zoneLabel, accent, ink }: Ite
   const locale = useLocale();
   const router = useRouter();
 
-  const want = item.state === "WANT" ? item : null;
-  const love = item.state === "LOVE" ? item : null;
+  // Форму карточки решает МЕСТО вещи (тикет 124): комната — цена и желание,
+  // сокровищница — даритель и год. Состояний у вещи больше нет.
+  const want = item.inHall ? null : item;
+  const love = item.inHall ? item : null;
 
   const [title, setTitle] = useState(item.title);
   const [zone, setZone] = useState(item.zone);
@@ -137,7 +139,7 @@ export function ItemCard({ item, lovePrice, zones, zoneLabel, accent, ink }: Ite
   const [confirmingDelete, setConfirmingDelete] = useState(false);
   const [, startTransition] = useTransition();
 
-  const canSave = title.trim() !== "" && (item.state === "LOVE" || price.trim() !== "");
+  const canSave = title.trim() !== "" && (item.inHall || price.trim() !== "");
   const currencyOptions: ReadonlyArray<{ code: string; label: string }> = CURRENCIES.some(
     (option) => option.code === currency,
   )
@@ -165,9 +167,9 @@ export function ItemCard({ item, lovePrice, zones, zoneLabel, accent, ink }: Ite
   function onSave() {
     if (busy || !canSave) return;
     const common = { zone, title: title.trim(), note: note.trim() || undefined };
-    // `state` не отправляется вовсе: правка не меняет состояние вещи.
+    // `inHall` не отправляется вовсе: правка не переселяет вещь.
     const input =
-      item.state === "WANT"
+      !item.inHall
         ? {
             ...common,
             price: price.trim(),
@@ -207,7 +209,7 @@ export function ItemCard({ item, lovePrice, zones, zoneLabel, accent, ink }: Ite
             ← {zoneLabel}
           </Link>
           <p className="overline mt-5 text-text-muted">
-            {item.state === "LOVE" ? tField("loveLabel") : tField("wantLabel")}
+            {item.inHall ? tField("loveLabel") : tField("wantLabel")}
             {item.hidden && <span className="ml-2 text-text-faint">· {t("itemHiddenBadge")}</span>}
           </p>
           <h1 className="display mt-2 text-3xl lg:text-4xl">{item.title}</h1>
@@ -217,7 +219,7 @@ export function ItemCard({ item, lovePrice, zones, zoneLabel, accent, ink }: Ite
               Шкала здесь читает то же состояние, что и поле правки ниже: она
               говорит, что у вещи есть, а поле — меняет. `null` («не скажу») не
               рисуется вовсе. */}
-          {item.state === "WANT" && (
+          {!item.inHall && (
             <div className="mt-3">
               <DesireScale desire={desire} accent={accent} place="card" />
             </div>
@@ -232,10 +234,9 @@ export function ItemCard({ item, lovePrice, zones, zoneLabel, accent, ink }: Ite
           />
         )}
 
-        {/* История вещи «люблю» (турн 8c): вместо магазинов — заметка и три
-            строки о том, откуда вещь взялась. Заметка до сих пор не
-            показывалась нигде (разбор Б21). */}
-        {item.state === "LOVE" && (
+        {/* История вещи СОКРОВИЩНИЦЫ (турн 8c): вместо магазинов — заметка и
+            три строки о том, откуда вещь взялась. */}
+        {item.inHall && (
           <section className="flex flex-col gap-3 border border-surface-hairline bg-surface-fill p-5">
             {item.note && <p className="text-sm leading-relaxed text-text-primary">{item.note}</p>}
             <dl className="flex flex-col gap-2 text-sm">
@@ -305,7 +306,7 @@ export function ItemCard({ item, lovePrice, zones, zoneLabel, accent, ink }: Ite
             </select>
           </label>
 
-          {item.state === "WANT" && (
+          {!item.inHall && (
             <>
               <div className="grid grid-cols-[1fr_128px] gap-2">
                 <label className="flex flex-col gap-1.5">
@@ -420,7 +421,7 @@ export function ItemCard({ item, lovePrice, zones, zoneLabel, accent, ink }: Ite
             </>
           )}
 
-          {item.state === "LOVE" && (
+          {item.inHall && (
             <div className="grid grid-cols-[1fr_110px] gap-2">
               <label className="flex flex-col gap-1.5">
                 <span className={LABEL_CLASS}>{tField("giverLabel")}</span>

@@ -14,6 +14,7 @@ import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 
 vi.mock("@/server/queues", () => ({
   enqueueOccasionOwnerMail: vi.fn(async () => true),
+  enqueueItemGoneMail: vi.fn(async () => true),
   enqueueImageIngest: vi.fn(async () => true),
 }));
 
@@ -88,11 +89,12 @@ describe("applyStarterPack — набор в свою комнату", () => {
     expect(items.filter((item) => item.giverName !== null)).toEqual([]);
     expect(items.filter((item) => item.receivedAt !== null)).toEqual([]);
     expect(items.filter((item) => item.inHall)).toEqual([]);
-    // Вещи свои и обычные: оба состояния на месте, «хочу» с ценой.
-    expect(items.some((item) => item.state === "LOVE")).toBe(true);
-    const wants = items.filter((item) => item.state === "WANT");
-    expect(wants.length).toBeGreaterThan(0);
-    expect(wants.every((item) => item.price !== null)).toBe(true);
+    // ПЕРЕПИСАНО (тикет 124): «оба состояния на месте» проверять нечем.
+    // Набор приносит живому человеку ТОЛЬКО желания комнаты с ценой — семена
+    // «уже своё» отсеивает `livePoolSeeds` (на витрину из набора не уезжает
+    // ничего, инвариант №2).
+    expect(items.length).toBeGreaterThan(0);
+    expect(items.every((item) => item.price !== null)).toBe(true);
     // Призраков среди них нет по построению: `isDemo` — поле DTO, а не БД,
     // и всё это — настоящие строки таблицы вещей.
   });
@@ -100,7 +102,7 @@ describe("applyStarterPack — набор в свою комнату", () => {
   it("повтор не плодит дублей и не трогает заведённое руками", async () => {
     const { user, room } = await createOwnerWithRoom();
     // Своя вещь в зоне — набор эту зону обходит целиком.
-    await createItem(user.id, { zone: "jewelry", state: "LOVE", title: "Бабушкино кольцо" });
+    await createItem(user.id, { zone: "jewelry", inHall: true, title: "Бабушкино кольцо" });
 
     const first = await applyStarterPack(user.id, noStorage);
     const afterFirst = await prisma.item.count({ where: { roomId: room.id } });

@@ -60,7 +60,7 @@ async function createBooking(roomId: string) {
     data: {
       roomId,
       zone: "jewelry",
-      state: "WANT",
+      inHall: false,
       title: `Вещь-${randomUUID().slice(0, 8)}`,
       price: "5000",
       currency: "RUB",

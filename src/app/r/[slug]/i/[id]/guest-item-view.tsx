@@ -37,7 +37,9 @@ type GuestItemViewProps = {
 
 /** Цена строкой: «14 900 ₽». Деньги в DTO — строка Decimal (CLAUDE.md). */
 function price(item: GuestItemDto, locale: string): string | null {
-  if (item.state !== "WANT" || item.price == null) return null;
+  // Цена бывает только у вещи КОМНАТЫ (тикет 124): на витрине гость её не
+  // видит вовсе, и ключа `price` у той формы просто нет.
+  if (item.inHall || item.price == null) return null;
   const value = Number(item.price);
   if (!Number.isFinite(value)) return null;
   try {
@@ -67,13 +69,14 @@ export function GuestItemView({
   const { taken, mine } = useGuestBooking();
   const [booking, setBooking] = useState(false);
 
-  const isWant = item.state === "WANT";
-  // Сужение типа руками: `shop` есть только у формы «хочу» (guest-DTO), и
-  // компилятор прав — у «люблю» такого ключа нет вовсе.
-  const shop = item.state === "WANT" ? item.shop : null;
+  // Дарится всё, что в комнате (тикет 124): вещь витрины гостю сюда не
+  // приезжает, и «подарить» у неё нет.
+  const isWant = !item.inHall;
+  // Сужение типа руками: `shop` есть только у формы вещи комнаты (guest-DTO).
+  const shop = item.inHall ? null : item.shop;
   // Степень желания приезжает гостю тем же DTO, что и цена (тикет 125), и
   // показывается ему ТАК ЖЕ, как хозяйке: по ней он и выбирает подарок.
-  const desire = item.state === "WANT" ? item.desire : null;
+  const desire = item.inHall ? null : item.desire;
   const isTaken = taken.has(item.id);
   const isMine = mine.has(item.id);
   const sum = price(item, locale);
@@ -129,7 +132,7 @@ export function GuestItemView({
 
         {/* Услуга-впечатление (тикет 97): «Когда · Где · Годен до» вместо
             размера и цвета. Пустые ячейки не рисуются. */}
-        {item.state === "WANT" && (
+        {!item.inHall && (
           <section className="mt-6">
             <ExperienceStrip item={item} />
             {/* Срок вышел — бирки нет (её убирает сетка и эта же карточка),

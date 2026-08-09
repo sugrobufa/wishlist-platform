@@ -40,7 +40,7 @@ async function createShopItem(
     data: {
       roomId,
       zone: "perfume",
-      state: "WANT",
+      inHall: false,
       title: "Nº7 Eau de Parfum",
       price: "14900",
       currency: "RUB",
@@ -124,7 +124,7 @@ describe("recordOutboundClick", () => {
 
   it("«люблю»: перехода нет — у этой вещи магазина не бывает", async () => {
     const room = await createTestRoom();
-    const item = await createShopItem(room.id, { state: "LOVE", price: null, currency: null });
+    const item = await createShopItem(room.id, { inHall: true, price: null, currency: null });
 
     expect(await recordOutboundClick({ itemId: item.id, context: "RESERVE_PAGE" })).toBe(false);
     expect(await clicksFor(item.id)).toBe(0);

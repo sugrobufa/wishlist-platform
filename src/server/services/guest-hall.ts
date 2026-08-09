@@ -1,9 +1,12 @@
 // Сервис «Сокровищница гостя» (тикет 93): чтение /r/{slug}/hall.
 //
 // Раздел заведён ради фразы доски «объясняет гостю вкус хозяйки лучше любого
-// списка» (А5), а маршрута у гостя не было вовсе: настройки показа —
-// четыре положения цены, «Кто подарил», «Округлять цены», сумма в шапке —
-// существовали только для страницы хозяйки.
+// списка» (А5), а маршрута у гостя не было вовсе.
+//
+// ЦЕНЫ ЗДЕСЬ НЕТ ВООБЩЕ (тикет 124): ни у вещи, ни суммой в шапке. Цена
+// живёт у вещи КОМНАТЫ и подчиняется её `priceVisibility`; на витрине она не
+// показывается никому, кроме самой хозяйки на её собственной странице.
+// Поэтому настройки цены зала этот сервис больше не читает вовсе.
 //
 // СЕРВЕРНАЯ фильтрация, три условия и все на чтении:
 // - `hidden` — спрятанная вещь гостю не отдаётся (инвариант №5);
@@ -22,14 +25,7 @@ import { rooms as roomPresets } from "@/config/design";
 import { visibleZones } from "@/components/scene/zones";
 import { itemPhotoUrl } from "@/server/dto/items";
 import { hallOpenToViewer } from "@/server/services/hall-access";
-import {
-  hallGuestPriced,
-  hallItemForGuest,
-  hallSettingsOf,
-  hallTotals,
-  type HallGuestItemDto,
-  type HallTotalDto,
-} from "@/server/dto/hall";
+import { hallItemForGuest, type HallGuestItemDto } from "@/server/dto/hall";
 import { findRoomBySlug } from "@/server/services/guest-room";
 
 export type GuestHallView = {
@@ -40,12 +36,6 @@ export type GuestHallView = {
   /** displayName ?? name; null — страница подставит подпись по локали. */
   ownerName: string | null;
   items: HallGuestItemDto[];
-  /**
-   * Сумма витрины по валютам — пусто, когда хозяйка выключила тумблер или
-   * когда гость не видит ни одной цены. Считается по ТОЧНЫМ значениям тех
-   * вещей, цену которых он видит: сумма по закрытым ценам выдала бы их.
-   */
-  totals: HallTotalDto[];
 };
 
 /**
@@ -85,12 +75,15 @@ export async function getGuestHall(
     nick: room.nick,
     ownerName: room.user.displayName ?? room.user.name ?? null,
     items: cached.items,
-    totals: cached.totals,
   };
 }
 
-/** Что лежит в кэше витрины: готовые формы гостя и сумма. */
-type GuestHallCache = { items: HallGuestItemDto[]; totals: HallTotalDto[] };
+/**
+ * Что лежит в кэше витрины: готовые формы гостя. Суммы витрины у гостя больше
+ * нет (тикет 124) — складывать нечего: цен вещей сокровищницы он не видит ни
+ * одной, а сумма по невидимым ценам выдала бы их все разом.
+ */
+type GuestHallCache = { items: HallGuestItemDto[] };
 
 /**
  * Витрина в Next Data Cache с тем же тегом `room-{roomId}`, что и комната:
@@ -114,20 +107,11 @@ function readGuestHallCached(roomId: string, zoneKeys: string[]): Promise<GuestH
 }
 
 async function loadGuestHall(roomId: string, zoneKeys: string[]): Promise<GuestHallCache> {
-  if (zoneKeys.length === 0) return { items: [], totals: [] };
-
-  // Настройки зала читаются ВНУТРИ кэша: от них зависит сам состав форм —
-  // при закрытой настройке цены в кэше нет вовсе. Смена настроек
-  // ревалидирует тот же тег room-{id} (services/rooms.setHallSettings),
-  // поэтому кэш не отстанет. Тот же приём, что в guest-room.
-  const room = await prisma.room.findUnique({ where: { id: roomId } });
-  if (!room) return { items: [], totals: [] };
-  const settings = hallSettingsOf(room);
+  if (zoneKeys.length === 0) return { items: [] };
 
   const items = await prisma.item.findMany({
     where: {
       roomId,
-      state: "LOVE",
       inHall: true,
       // Три фильтра гостя разом; порядок в SQL значения не имеет, значение
       // имеет то, что ни один из них не живёт в разметке.
@@ -150,9 +134,6 @@ async function loadGuestHall(roomId: string, zoneKeys: string[]): Promise<GuestH
   });
 
   return {
-    items: items.map((item) => hallItemForGuest(item, settings, itemPhotoUrl(item.photoKey))),
-    totals: settings.totalShown
-      ? hallTotals(hallGuestPriced(items, settings), { round: settings.roundPrices })
-      : [],
+    items: items.map((item) => hallItemForGuest(item, itemPhotoUrl(item.photoKey))),
   };
 }

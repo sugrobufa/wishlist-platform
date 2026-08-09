@@ -19,6 +19,7 @@ import { NextRequest } from "next/server";
 // ставит письмо, Redis тестам не нужен.
 vi.mock("@/server/queues", () => ({
   enqueueOccasionOwnerMail: vi.fn(async () => true),
+  enqueueItemGoneMail: vi.fn(async () => true),
   enqueueImageIngest: vi.fn(async () => true),
 }));
 // Сессия роутов: мок auth — роуты книги/визита живут с auth БЕЗ требования.
@@ -74,7 +75,7 @@ async function createOwnerWithRoom(displayName = "Хозяйка") {
 
 async function createWantItem(roomId: string, title = `Вещь-${randomUUID().slice(0, 8)}`) {
   return prisma.item.create({
-    data: { roomId, zone: "jewelry", state: "WANT", title, price: "5000", currency: "RUB" },
+    data: { roomId, zone: "jewelry", inHall: false, title, price: "5000", currency: "RUB" },
   });
 }
 
@@ -445,7 +446,7 @@ describe("listConnections — DTO без email, происхождение по 
     // 3) Legacy-строка тикета 10: origin gift:{itemId}, history нет.
     const legacyGiver = await createUser("Мила");
     const legacyItem = await prisma.item.create({
-      data: { roomId: owner.room.id, zone: "jewelry", state: "LOVE", title: "Колье", inHall: true },
+      data: { roomId: owner.room.id, zone: "jewelry", inHall: true, title: "Колье" },
     });
     await prisma.connection.create({
       data: {

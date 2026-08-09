@@ -63,7 +63,7 @@ async function createLove(
   overrides: Partial<Prisma.ItemUncheckedCreateInput> = {},
 ) {
   return prisma.item.create({
-    data: { roomId, zone: "jewelry", state: "LOVE", title, inHall: true, ...overrides },
+    data: { roomId, zone: "jewelry", inHall: true, title, ...overrides },
   });
 }
 

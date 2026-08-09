@@ -46,7 +46,7 @@ async function createWantItem(roomId: string, zone = "jewelry", hidden = false) 
     data: {
       roomId,
       zone,
-      state: "WANT",
+      inHall: false,
       title: `Вещь-${randomUUID().slice(0, 8)}`,
       price: "5000",
       currency: "RUB",
@@ -173,10 +173,11 @@ describe("deleteItem — бронь снимается, вещь исчезае�
 describe("шапка /room/zone/{zone}: спрятанное в счётчик не входит (инвариант №5)", () => {
   it("«N вещей · M в подарок» считает только видимые вещи — тем же срезом, что панель зоны", async () => {
     const { user, room } = await createOwnerWithRoom();
+    // ПЕРЕПИСАНО (тикет 124): третьей вещью зоны была витринная «Цепочка» —
+    // в сетку зоны она больше не приезжает и в числах не участвует. Заменена
+    // обычной вещью комнаты, чтобы счёт остался про СКРЫТИЕ, а не про место.
     const visibleWant = await createWantItem(room.id, "jewelry");
-    await prisma.item.create({
-      data: { roomId: room.id, zone: "jewelry", state: "LOVE", title: "Цепочка" },
-    });
+    await createWantItem(room.id, "jewelry");
     const hiddenWant = await createWantItem(room.id, "jewelry");
 
     // Ровно тот путь данных, которым живёт страница зоны: listZoneItems →
@@ -185,7 +186,7 @@ describe("шапка /room/zone/{zone}: спрятанное в счётчик �
       "jewelry",
       (await listZoneItems(room.id, "jewelry")).map(ownerSummaryItem),
     );
-    expect(before).toMatchObject({ count: 3, wantCount: 2 });
+    expect(before).toMatchObject({ count: 3 });
 
     await setItemHidden(user.id, hiddenWant.id, true);
 
@@ -195,7 +196,7 @@ describe("шапка /room/zone/{zone}: спрятанное в счётчик �
     );
     // Вещь никуда не делась — она осталась в списке хозяйки, но из чисел ушла.
     expect((await listZoneItems(room.id, "jewelry")).length).toBe(3);
-    expect(after).toMatchObject({ count: 2, wantCount: 1 });
+    expect(after).toMatchObject({ count: 2 });
 
     // Показали обратно — число вернулось.
     await setItemHidden(user.id, hiddenWant.id, false);
@@ -203,7 +204,7 @@ describe("шапка /room/zone/{zone}: спрятанное в счётчик �
       "jewelry",
       (await listZoneItems(room.id, "jewelry")).map(ownerSummaryItem),
     );
-    expect(back).toMatchObject({ count: 3, wantCount: 2 });
+    expect(back).toMatchObject({ count: 3 });
     expect(visibleWant.hidden).toBe(false);
   });
 });
@@ -280,10 +281,9 @@ describe("демо-призраков нет ни у хозяйки, ни у г�
         hidden: false,
         isDemo: false,
         createdAt: "2026-01-10T10:00:00.000Z",
-        state: "LOVE",
+        inHall: true,
         giverName: null,
         receivedAt: null,
-        inHall: false,
       },
     ];
     expect(zoneDisplayItems(own)).toEqual(own);

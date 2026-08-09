@@ -78,7 +78,7 @@ async function createWantItem(roomId: string, zone = "jewelry") {
     data: {
       roomId,
       zone,
-      state: "WANT",
+      inHall: false,
       title: `Вещь-${randomUUID().slice(0, 8)}`,
       price: "5000",
       currency: "RUB",
@@ -150,7 +150,7 @@ describe("цель хозяйки: задать, изменить, убрать"
         {
           roomId: owner.room.id,
           zone: "bags",
-          state: "WANT",
+          inHall: false,
           title: "Сумка",
           price: "100",
           currency: "EUR",
@@ -158,7 +158,7 @@ describe("цель хозяйки: задать, изменить, убрать"
         {
           roomId: owner.room.id,
           zone: "bags",
-          state: "WANT",
+          inHall: false,
           title: "Ремень",
           price: "50",
           currency: "EUR",
@@ -166,7 +166,7 @@ describe("цель хозяйки: задать, изменить, убрать"
         {
           roomId: owner.room.id,
           zone: "bags",
-          state: "WANT",
+          inHall: false,
           title: "Шарф",
           price: "70",
           currency: "RUB",

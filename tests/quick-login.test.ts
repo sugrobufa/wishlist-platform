@@ -160,7 +160,7 @@ async function createUserWithRoom(email: string) {
 async function fillRoom(userId: string, roomId: string) {
   const photoKey = `items/${roomId}/${hex(8)}.jpg`;
   const item = await prisma.item.create({
-    data: { roomId, zone: "jewelry", state: "WANT", title: "Серьги", photoKey },
+    data: { roomId, zone: "jewelry", inHall: false, title: "Серьги", photoKey },
   });
   const booking = await prisma.booking.create({
     data: {

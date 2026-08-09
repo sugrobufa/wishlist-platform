@@ -1,19 +1,25 @@
-// Демо-призраки первого входа (решение гриллинга №4): курируемый набор
-// демо-вещей по ключам пулов zones.json/rooms.json. Названия и цены — по
-// пулам макета (Main Screen.dc.html → POOL), состояния сбалансированы
-// «люблю»/«хочу», чтобы новичок увидел язык комнаты целиком: плотная плитка,
-// пунктирный контур, серая заливка без фото, подпись дарителя.
+// Курируемый набор демо-вещей по ключам пулов zones.json/rooms.json. Названия
+// и цены — по пулам макета (Main Screen.dc.html → POOL).
 //
-// В БД демо-призраки НЕ пишутся: генерируются на лету, показываются только
-// пока в зоне нет ни одной своей вещи (монтаж — src/app/room). Фото — только
-// предметные кадры дизайн-пакета p-*.jpg через roomImageUrl; у части вещей
-// фото нет намеренно — плитка честно рисует серую заливку.
-import type { OwnerItemDto, OwnerLoveItemDto, OwnerWantItemDto } from "@/server/dto/items";
+// СОСТОЯНИЙ У ВЕЩИ БОЛЬШЕ НЕТ (тикет 124). Раньше пулы делились на «люблю» и
+// «хочу», чтобы новичок увидел оба знака языка комнаты; теперь семя говорит о
+// МЕСТЕ: `MINE(...)` — вещь, которая уже своя (посев стенда уводит её в
+// сокровищницу, живому человеку она достаётся обычной вещью комнаты без
+// цены), `WISH(...)` — желание с ценой. Содержимое пулов — вопрос отдельного
+// захода (демо-наборы и посев стенда), здесь только форма.
+//
+// В БД призраки НЕ пишутся: генерируются на лету. Показ призраков снят
+// тикетом 104; сам набор остался — он попадает в комнату только по согласию
+// человека («начни с готового», тикет 100) и при посеве стенда (тикет 61).
+// Фото — только предметные кадры дизайн-пакета p-*.jpg через roomImageUrl;
+// у части вещей фото нет намеренно — плитка честно рисует серую заливку.
+import type { OwnerItemDto, OwnerRoomItemDto } from "@/server/dto/items";
 import { roomImageUrl } from "@/app/rooms/room-image";
 
 type DemoSeed =
   | {
-      state: "LOVE";
+      /** Вещь уже своя: на стенде уезжает в сокровищницу. */
+      mine: true;
       title: string;
       /** Путь пакета вида "refs/p-vinyl.jpg"; без него — серая заливка. */
       photo?: string;
@@ -21,12 +27,12 @@ type DemoSeed =
       /** Год «Подарен в {год}»; сериализуется серединой года (без сдвига в чужих таймзонах). */
       receivedYear?: number;
     }
-  | { state: "WANT"; title: string; photo?: string; priceRub: number };
+  | { mine: false; title: string; photo?: string; priceRub: number };
 
-const LOVE = (title: string, photo?: string, giverName?: string, receivedYear?: number) =>
-  ({ state: "LOVE", title, photo, giverName, receivedYear }) satisfies DemoSeed;
-const WANT = (title: string, priceRub: number, photo?: string) =>
-  ({ state: "WANT", title, priceRub, photo }) satisfies DemoSeed;
+const MINE = (title: string, photo?: string, giverName?: string, receivedYear?: number) =>
+  ({ mine: true, title, photo, giverName, receivedYear }) satisfies DemoSeed;
+const WISH = (title: string, priceRub: number, photo?: string) =>
+  ({ mine: false, title, priceRub, photo }) satisfies DemoSeed;
 
 /**
  * Все 19 ключей пулов из items.json → demoPools.poolKeys (и zones.json).
@@ -36,128 +42,129 @@ const WANT = (title: string, priceRub: number, photo?: string) =>
  */
 export const demoPools: Record<string, readonly DemoSeed[]> = {
   fashionF: [
-    LOVE("Кашемировый джемпер", "refs/p-cashmere.jpg"),
-    LOVE("Шёлковый платок"),
-    WANT("Пальто-халат", 39_000, "refs/p-cottage.jpg"),
-    WANT("Слип-платье", 8_700),
+    MINE("Кашемировый джемпер", "refs/p-cashmere.jpg"),
+    MINE("Шёлковый платок"),
+    WISH("Пальто-халат", 39_000, "refs/p-cottage.jpg"),
+    WISH("Слип-платье", 8_700),
   ],
   fashionM: [
-    LOVE("Кашемировый свитер", "refs/p-cashmere.jpg"),
-    LOVE("Ботинки челси", "refs/p-runners.jpg"),
-    WANT("Шерстяное пальто", 46_000),
-    WANT("Льняная рубашка", 7_900),
+    MINE("Кашемировый свитер", "refs/p-cashmere.jpg"),
+    MINE("Ботинки челси", "refs/p-runners.jpg"),
+    WISH("Шерстяное пальто", 46_000),
+    WISH("Льняная рубашка", 7_900),
   ],
   jewel: [
-    LOVE("Теннисный браслет", "refs/p-lux.jpg", "мама", 2024),
-    LOVE("Цепочка", "refs/p-cream.jpg"),
-    WANT("Колье с жемчугом", 48_000, "refs/p-emerald.jpg"),
-    WANT("Серьги-кольца", 7_900, "refs/p-earrings.jpg"),
-    WANT("Кольцо с топазом", 14_200),
+    MINE("Теннисный браслет", "refs/p-lux.jpg", "мама", 2024),
+    MINE("Цепочка", "refs/p-cream.jpg"),
+    WISH("Колье с жемчугом", 48_000, "refs/p-emerald.jpg"),
+    WISH("Серьги-кольца", 7_900, "refs/p-earrings.jpg"),
+    WISH("Кольцо с топазом", 14_200),
   ],
   beauty: [
-    LOVE("Ночной крем", "refs/p-cream.jpg"),
-    LOVE("Набор кистей", "refs/p-emerald.jpg"),
-    WANT("Сыворотка", 4_300, "refs/p-serum.jpg"),
-    WANT("Крем для рук", 1_200),
-    WANT("Палетка теней", 6_100, "refs/p-cottage.jpg"),
+    MINE("Ночной крем", "refs/p-cream.jpg"),
+    MINE("Набор кистей", "refs/p-emerald.jpg"),
+    WISH("Сыворотка", 4_300, "refs/p-serum.jpg"),
+    WISH("Крем для рук", 1_200),
+    WISH("Палетка теней", 6_100, "refs/p-cottage.jpg"),
   ],
   perfume: [
-    LOVE("Парфюм Nº7", "refs/p-warm.jpg"),
-    LOVE("Свеча с инжиром"),
-    WANT("Дорожный флакон", 5_200),
-    WANT("Диффузор для дома", 7_600),
+    MINE("Парфюм Nº7", "refs/p-warm.jpg"),
+    MINE("Свеча с инжиром"),
+    WISH("Дорожный флакон", 5_200),
+    WISH("Диффузор для дома", 7_600),
   ],
-  // Пул дизайна (ОТВЕТ-раунд-8 §4), два «люблю» намеренно: «в пуле должно быть
-  // видно оба состояния». Предметных кадров мужского ухода в пакете нет —
-  // все пять честно без фото (серая заливка, а не чужая картинка).
+  // Пул дизайна (ОТВЕТ-раунд-8 §4). Два семени «уже своё» стояли здесь ради
+  // прежних двух состояний; после тикета 124 они просто вещи без цены и
+  // содержимое пула — вопрос захода про демо-наборы. Кадров мужского ухода в
+  // пакете нет — все пять честно без фото (серая заливка, а не чужая картинка).
   grooming: [
-    WANT("Станок и лезвия", 6_400, "refs/p-razor.jpg"),
-    WANT("Триммер для бороды", 11_900, "refs/p-trimmer.jpg"),
-    LOVE("Масло для бороды", "refs/p-beard-oil.jpg"),
-    WANT("Кожаный несессер", 9_200, "refs/p-dopp.jpg"),
-    LOVE("Одеколон, 100 мл", "refs/p-cologne.jpg"),
+    WISH("Станок и лезвия", 6_400, "refs/p-razor.jpg"),
+    WISH("Триммер для бороды", 11_900, "refs/p-trimmer.jpg"),
+    MINE("Масло для бороды", "refs/p-beard-oil.jpg"),
+    WISH("Кожаный несессер", 9_200, "refs/p-dopp.jpg"),
+    MINE("Одеколон, 100 мл", "refs/p-cologne.jpg"),
   ],
   bags: [
-    LOVE("Тоут из кожи", "refs/p-tote.jpg"),
-    LOVE("Плетёная корзинка"),
-    WANT("Стёганая сумка", 62_000, "refs/p-bag.jpg"),
-    WANT("Клатч к вечернему", 19_000),
+    MINE("Тоут из кожи", "refs/p-tote.jpg"),
+    MINE("Плетёная корзинка"),
+    WISH("Стёганая сумка", 62_000, "refs/p-bag.jpg"),
+    WISH("Клатч к вечернему", 19_000),
   ],
   tech: [
-    LOVE("Умные часы", "refs/p-watch.jpg"),
-    LOVE("Механическая клавиатура"),
-    WANT("Наушники с шумодавом", 34_900, "refs/p-headphones.jpg"),
-    WANT("Экшн-камера", 41_000),
+    MINE("Умные часы", "refs/p-watch.jpg"),
+    MINE("Механическая клавиатура"),
+    WISH("Наушники с шумодавом", 34_900, "refs/p-headphones.jpg"),
+    WISH("Экшн-камера", 41_000),
   ],
   watches: [
-    LOVE("Дайвер, механика", "refs/p-watch.jpg", "папа", 2023),
-    LOVE("Полевые часы"),
-    WANT("Хронограф", 140_000),
-    WANT("Подставка для часов", 6_000),
+    MINE("Дайвер, механика", "refs/p-watch.jpg", "папа", 2023),
+    MINE("Полевые часы"),
+    WISH("Хронограф", 140_000),
+    WISH("Подставка для часов", 6_000),
   ],
   music: [
-    LOVE("Пластинка Coltrane — Blue Train", "refs/p-vinyl.jpg"),
-    LOVE("Наушники открытые", "refs/p-headphones.jpg"),
-    WANT("Стойка для пластинок", 18_000),
-    WANT("Винил Nina Simone — первопресс", 12_000),
-    WANT("Второй динамик", 46_000),
+    MINE("Пластинка Coltrane — Blue Train", "refs/p-vinyl.jpg"),
+    MINE("Наушники открытые", "refs/p-headphones.jpg"),
+    WISH("Стойка для пластинок", 18_000),
+    WISH("Винил Nina Simone — первопресс", 12_000),
+    WISH("Второй динамик", 46_000),
   ],
   sneakers: [
-    LOVE("Ретро-раннеры", "refs/p-runners.jpg"),
-    LOVE("Городской рюкзак"),
-    WANT("Платформы", 11_400, "refs/p-bold.jpg"),
-    WANT("Высокие кеды", 14_900),
+    MINE("Ретро-раннеры", "refs/p-runners.jpg"),
+    MINE("Городской рюкзак"),
+    WISH("Платформы", 11_400, "refs/p-bold.jpg"),
+    WISH("Высокие кеды", 14_900),
   ],
   sport: [
-    LOVE("Беговые кроссовки", "refs/p-runners.jpg"),
-    LOVE("Коврик для йоги"),
-    WANT("Гантели 12 кг", 11_000),
-    WANT("Фитнес-браслет", 16_000),
+    MINE("Беговые кроссовки", "refs/p-runners.jpg"),
+    MINE("Коврик для йоги"),
+    WISH("Гантели 12 кг", 11_000),
+    WISH("Фитнес-браслет", 16_000),
   ],
   gaming: [
-    LOVE("Ретро-приставка", "refs/p-console.jpg"),
-    LOVE("Второй геймпад", "refs/p-gamepad.jpg"),
-    WANT("Игра года", 5_400, "refs/p-game-box.jpg"),
-    WANT("Игровое кресло", 54_000, "refs/p-gaming-chair.jpg"),
+    MINE("Ретро-приставка", "refs/p-console.jpg"),
+    MINE("Второй геймпад", "refs/p-gamepad.jpg"),
+    WISH("Игра года", 5_400, "refs/p-game-box.jpg"),
+    WISH("Игровое кресло", 54_000, "refs/p-gaming-chair.jpg"),
   ],
   books: [
-    LOVE("Монография о свете", "refs/p-artbook.jpg"),
-    LOVE("Сборник рассказов Довлатова", "refs/p-paperback.jpg"),
-    WANT("Лампа для чтения", 9_600, "refs/p-reading-lamp.jpg"),
-    WANT("Подписка на книги", 1_900, "refs/p-book-sub.jpg"),
+    MINE("Монография о свете", "refs/p-artbook.jpg"),
+    MINE("Сборник рассказов Довлатова", "refs/p-paperback.jpg"),
+    WISH("Лампа для чтения", 9_600, "refs/p-reading-lamp.jpg"),
+    WISH("Подписка на книги", 1_900, "refs/p-book-sub.jpg"),
   ],
   // Шесть впечатлений сняты СИМВОЛОМ, а не событием (задание 09): плитка
   // 160 px, на ней читается один предмет. Конверт с сургучом вместо пейзажа
   // Тбилиси, тиснёный лавр вместо зала филармонии, камера вместо съёмки.
   events: [
-    LOVE("Абонемент в филармонию", "refs/p-philharmonic.jpg"),
-    LOVE("Карта музеев", "refs/p-museum-card.jpg"),
-    WANT("Билеты в оперу", 9_400, "refs/p-opera-tickets.jpg"),
-    WANT("Фотосессия", 18_000, "refs/p-photoshoot.jpg"),
+    MINE("Абонемент в филармонию", "refs/p-philharmonic.jpg"),
+    MINE("Карта музеев", "refs/p-museum-card.jpg"),
+    WISH("Билеты в оперу", 9_400, "refs/p-opera-tickets.jpg"),
+    WISH("Фотосессия", 18_000, "refs/p-photoshoot.jpg"),
   ],
   travel: [
-    LOVE("Чемодан 55 см", "refs/p-suitcase.jpg"),
-    LOVE("Дорожная подушка", "refs/p-travel-pillow.jpg"),
-    WANT("Три дня в Тбилиси", 34_000, "refs/p-tbilisi.jpg"),
-    WANT("Поход в Дагестан", 48_000, "refs/p-hike.jpg"),
+    MINE("Чемодан 55 см", "refs/p-suitcase.jpg"),
+    MINE("Дорожная подушка", "refs/p-travel-pillow.jpg"),
+    WISH("Три дня в Тбилиси", 34_000, "refs/p-tbilisi.jpg"),
+    WISH("Поход в Дагестан", 48_000, "refs/p-hike.jpg"),
   ],
   home: [
-    LOVE("Керамика ручной работы", "refs/p-ceramic.jpg"),
-    LOVE("Плед крупной вязки"),
-    WANT("Постель из льна", 18_000),
-    WANT("Свечи для ужина", 3_400),
+    MINE("Керамика ручной работы", "refs/p-ceramic.jpg"),
+    MINE("Плед крупной вязки"),
+    WISH("Постель из льна", 18_000),
+    WISH("Свечи для ужина", 3_400),
   ],
   anything: [
-    LOVE("Ваза с букетом", "refs/p-cottage.jpg"),
-    LOVE("Настольная игра"),
-    WANT("Сертификат в гончарную мастерскую", 7_000),
-    WANT("Подписка на кофе", 3_600),
+    MINE("Ваза с букетом", "refs/p-cottage.jpg"),
+    MINE("Настольная игра"),
+    WISH("Сертификат в гончарную мастерскую", 7_000),
+    WISH("Подписка на кофе", 3_600),
   ],
   flowers: [
-    LOVE("Букет пионов", "refs/p-cottage.jpg"),
-    LOVE("Орхидея"),
-    WANT("Подписка на цветы", 4_200),
-    WANT("Ваза для букетов", 6_800),
+    MINE("Букет пионов", "refs/p-cottage.jpg"),
+    MINE("Орхидея"),
+    WISH("Подписка на цветы", 4_200),
+    WISH("Ваза для букетов", 6_800),
   ],
 };
 
@@ -173,7 +180,7 @@ export type DemoGhostDto = OwnerItemDto & { isDemo: true };
  * `demoPools` остаются как объявлены — по ним же идёт посев стенда
  * (services/stand-seed), и менять ему порядок создания вещей незачем.
  * Сортировка устойчивая (`Array.prototype.sort` таким и обязан быть), значит
- * состояния внутри групп по-прежнему чередуются, как задумано пулом.
+ * порядок внутри групп по-прежнему такой, как задумано пулом.
  */
 function orderByPhotoFirst(seeds: readonly DemoSeed[]): DemoSeed[] {
   return [...seeds].sort((a, b) => Number(Boolean(b.photo)) - Number(Boolean(a.photo)));
@@ -212,10 +219,10 @@ export function demoGhostsFor(zoneKey: string, poolKey: string): DemoGhostDto[] 
       createdAt: DEMO_CREATED_AT,
     };
 
-    if (seed.state === "WANT") {
-      const want: OwnerWantItemDto & { isDemo: true } = {
+    if (!seed.mine) {
+      const wish: OwnerRoomItemDto & { isDemo: true } = {
         ...base,
-        state: "WANT",
+        inHall: false,
         price: String(seed.priceRub),
         currency: "RUB",
         priceVisibility: "ALL",
@@ -226,17 +233,25 @@ export function demoGhostsFor(zoneKey: string, poolKey: string): DemoGhostDto[] 
         eventWhere: null,
         validUntil: null,
       };
-      return want;
+      return wish;
     }
 
-    const love: OwnerLoveItemDto & { isDemo: true } = {
+    // Призрак «уже своей» вещи показывается В ЗОНЕ, а не на витрине: он
+    // никуда не переезжает и в БД не живёт. Поэтому форма — вещь комнаты без
+    // цены, а не витринная (тикет 124).
+    const mine: OwnerRoomItemDto & { isDemo: true } = {
       ...base,
-      state: "LOVE",
-      giverName: seed.giverName ?? null,
-      // Середина года: год не «уезжает» при переводе в локальное время.
-      receivedAt: seed.receivedYear ? `${seed.receivedYear}-06-15T12:00:00.000Z` : null,
       inHall: false,
+      price: null,
+      currency: null,
+      priceVisibility: "ALL",
+      size: null,
+      color: null,
+      desire: null,
+      eventWhen: null,
+      eventWhere: null,
+      validUntil: null,
     };
-    return love;
+    return mine;
   });
 }

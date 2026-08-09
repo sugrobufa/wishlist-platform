@@ -1,9 +1,18 @@
-// Сервис «Вещь» (Item): чтение зоны для сетки «Люблю»/«Хочу» (тикет 03),
-// создание вещи вручную (тикет 04, source=MANUAL) и по ссылке (тикет 06,
-// source=URL: canonicalUrl/domain + очередь image.ingest + дедуп),
-// скрытие/удаление вещи хозяйкой (тикет 13), правка вещи и перенос между
-// зонами (тикет 39).
+// Сервис «Вещь» (Item): чтение зоны комнаты (тикет 03), создание вещи вручную
+// (тикет 04, source=MANUAL) и по ссылке (тикет 06, source=URL: canonicalUrl/
+// domain + очередь image.ingest + дедуп), скрытие/удаление вещи хозяйкой
+// (тикет 13), правка вещи и перенос между зонами (тикет 39), переезд между
+// комнатой и сокровищницей (тикет 124).
 // Бизнес-логика живёт здесь, роуты/страницы остаются тонкими (CLAUDE.md).
+//
+// СОСТОЯНИЙ У ВЕЩИ БОЛЬШЕ НЕТ (тикет 124, решение владельца 09.08.2026).
+// Есть два МЕСТА, и место — это `inHall`:
+//   комната (`inHall = false`) — чего хочется: бронируется, цена по
+//     `priceVisibility`, степень желания `desire`;
+//   сокровищница (`inHall = true`) — что уже моё: не бронируется, цены гостю
+//     не видно вовсе.
+// `zone` вещь держит в обоих местах — иначе «Вернуть в комнату» некуда
+// возвращать.
 import { randomBytes } from "node:crypto";
 import { revalidateTag } from "next/cache";
 import { Prisma, type Item } from "@prisma/client";
@@ -18,34 +27,33 @@ import { releaseBookingForItem } from "@/server/services/bookings";
 const idSchema = z.string().min(1);
 
 /**
- * Вещи одной зоны комнаты для хозяйки (включая спрятанные — их видит
+ * Вещи одной зоны КОМНАТЫ для хозяйки (включая спрятанные — их видит
  * только она; фильтр для гостя — тикет 07).
  *
- * Порядок (контракт тикета 03):
- * - группа «люблю» — по createdAt (новые выше);
- * - группа «хочу» — по desire по убыванию (без desire — в конец), затем
- *   по createdAt (новые выше).
- * Группы отдаются подряд: сначала «люблю», затем «хочу» — как вкладки в UI.
+ * ВЕЩИ СОКРОВИЩНИЦЫ СЮДА НЕ ПОПАДАЮТ (тикет 124): комната — чего хочется,
+ * витрина — что уже моё, и если бы витрина показывалась ещё и в зоне,
+ * различие мест не значило бы ничего. `zone` у такой вещи остаётся, но
+ * читает его витрина (`listHallItems`) и «Вернуть в комнату».
+ *
+ * Порядок (контракт тикета 03, без деления на состояния): desire по убыванию
+ * (без desire — в конец), затем createdAt (новые выше).
  */
 export async function listZoneItems(roomId: string, zoneKey: string): Promise<Item[]> {
   const items = await prisma.item.findMany({
-    where: { roomId: idSchema.parse(roomId), zone: idSchema.parse(zoneKey) },
+    where: { roomId: idSchema.parse(roomId), zone: idSchema.parse(zoneKey), inHall: false },
   });
   return items.sort(compareZoneItems);
 }
 
 /**
- * Единый порядок вещей в сетке (контракт тикета 03): группа «люблю» —
- * новые выше; группа «хочу» — desire ↓ (без desire — в конец), затем новые
- * выше. Экспортирован для guest-room (тикет 07 держал дубль — полировка 16).
- */
-/**
  * Сколько СВОИХ вещей в каждой зоне комнаты — одним запросом (доска В2,
  * турн 11e: «Красота и уход · 31»). Нужен настройкам: выключая полку,
  * человек должен видеть, сколько на ней стоит.
  *
- * Считаются ВСЕ вещи зоны, включая спрятанные: это счётчик хозяйки, а не
- * гостевой (у гостя своё число — `guest-room`, там фильтр на чтении).
+ * Считаются ВСЕ вещи зоны, включая спрятанные и уехавшие в сокровищницу:
+ * это счётчик того, ЧТО ИСЧЕЗНЕТ ВМЕСТЕ С ПОЛКОЙ, а выключенная зона уносит
+ * и витринные вещи тоже (guest-hall фильтрует по видимым зонам). У гостя
+ * своё число — `guest-room`, там фильтр на чтении.
  * Зоны без вещей в карте отсутствуют — вызывающий читает их как ноль.
  */
 export async function countItemsByZone(roomId: string): Promise<Map<string, number>> {
@@ -57,14 +65,20 @@ export async function countItemsByZone(roomId: string): Promise<Map<string, numb
   return new Map(rows.map((row) => [row.zone, row._count._all]));
 }
 
+/**
+ * Единый порядок вещей в сетке зоны. Экспортирован для guest-room (тикет 07
+ * держал дубль — полировка 16).
+ *
+ * ГРУПП БОЛЬШЕ НЕТ (тикет 124): делить сетку было нечем — состояние ушло, а
+ * витринные вещи в зону не приезжают вовсе. Осталась ЕДИНСТВЕННАЯ градация
+ * вещи — степень желания: desire 4 → 1, без desire («не скажу») — в конец,
+ * дальше новые выше.
+ */
 export function compareZoneItems(a: Item, b: Item): number {
-  if (a.state !== b.state) return a.state === "LOVE" ? -1 : 1;
-  if (a.state === "WANT") {
-    // desire: 4 → 1, null — в конец (степень желания не указана).
-    const desireA = a.desire ?? -1;
-    const desireB = b.desire ?? -1;
-    if (desireA !== desireB) return desireB - desireA;
-  }
+  // desire: 4 → 1, null — в конец (степень желания не указана).
+  const desireA = a.desire ?? -1;
+  const desireB = b.desire ?? -1;
+  if (desireA !== desireB) return desireB - desireA;
   const byDate = b.createdAt.getTime() - a.createdAt.getTime();
   if (byDate !== 0) return byDate;
   // Детерминированный добивочный ключ на случай равных таймстампов.
@@ -190,7 +204,7 @@ const receivedYearSchema = z.preprocess(
  */
 const sourceSchema = z.enum(["MANUAL", "URL"]).default("MANUAL");
 
-/** Поля, общие обеим формам состояния (турн 8: шаг 2). */
+/** Поля, общие обеим формам МЕСТА (турн 8: шаг 2). */
 const commonItemFields = {
   zone: z.string().min(1),
   title: z.string().trim().min(1, "заголовок обязателен").max(200),
@@ -204,49 +218,65 @@ const commonItemFields = {
 };
 
 /**
- * Дискриминированная схема по state (items.json: два состояния — два словаря
- * полей). У WANT цена и валюта ОБЯЗАТЕЛЬНЫ (продукт), у LOVE ключей
- * price/currency нет вовсе: лишние поля инпута отбрасываются ДО записи —
- * цена «люблю» не существует даже в БД при создании (инвариант §8).
+ * Дискриминированная схема по МЕСТУ, а не по состоянию (items.json v2,
+ * тикет 124). Переключателя «люблю \ хочу» на экране добавления больше нет —
+ * есть два входа: из зоны (вещь встаёт в комнату) и с витрины (`?hall=1`,
+ * тикет 89 — вещь сразу в сокровищнице).
+ *
+ * У вещи КОМНАТЫ цена и валюта ОБЯЗАТЕЛЬНЫ: комната и есть список желаний,
+ * и «у всего в комнате есть цена» — правило продукта (тикет 124 §3).
+ * У вещи СОКРОВИЩНИЦЫ ключей price/currency нет вовсе: цена там не
+ * показывается никому, и заводить её при создании незачем (инвариант №8).
+ * Лишние ключи Zod отбрасывает молча — цена в новую витринную вещь не
+ * попадает даже в БД.
  */
-export const createItemInputSchema = z
-  .discriminatedUnion("state", [
-    z.object({
-      state: z.literal("WANT"),
-      ...commonItemFields,
-      price: priceSchema,
-      currency: currencySchema,
-      priceVisibility: z.enum(["ALL", "FRIENDS", "ME", "NONE"]).default("ALL"),
-      size: optionalTrimmed(80),
-      color: optionalTrimmed(80),
-      desire: desireSchema,
-      // Услуга-впечатление (тикет 97): «Когда · Где · Годен до». Все три
-      // необязательны и живут у «хочу» — как размер и цвет.
-      eventWhen: optionalTrimmed(80),
-      eventWhere: optionalTrimmed(80),
-      validUntil: validUntilSchema,
+const createRoomItemSchema = z.object({
+  inHall: z.literal(false),
+  ...commonItemFields,
+  price: priceSchema,
+  currency: currencySchema,
+  priceVisibility: z.enum(["ALL", "FRIENDS", "ME", "NONE"]).default("ALL"),
+  size: optionalTrimmed(80),
+  color: optionalTrimmed(80),
+  desire: desireSchema,
+  // Услуга-впечатление (тикет 97): «Когда · Где · Годен до». Все три
+  // необязательны и живут у вещи комнаты — как размер и цвет.
+  eventWhen: optionalTrimmed(80),
+  eventWhere: optionalTrimmed(80),
+  validUntil: validUntilSchema,
+});
+
+const createHallItemSchema = z.object({
+  /**
+   * «Сразу в сокровищницу» (тикет 89): вещь заводят с витрины, а не из зоны.
+   * Зону вещь всё равно занимает — витрина зоне не замена, и «Вернуть в
+   * комнату» без зоны не работает.
+   */
+  inHall: z.literal(true),
+  ...commonItemFields,
+  giverName: optionalTrimmed(120),
+  /** Год «подарен в …»; в БД пишется как receivedAt (полдень UTC 1 января —
+   * год не съезжает ни в одном реальном часовом поясе). */
+  receivedYear: receivedYearSchema,
+});
+
+export const createItemInputSchema = z.preprocess(
+  // Место по умолчанию — комната: форма из зоны ключа `inHall` не шлёт вовсе,
+  // и требовать его от неё значило бы усложнить самый частый путь ради
+  // самого редкого. Дискриминатор Zod обязан существовать до разбора,
+  // поэтому подставляем его здесь, а не `.default()` внутри ветки.
+  (value) =>
+    typeof value === "object" && value !== null && !Array.isArray(value) && !("inHall" in value)
+      ? { ...value, inHall: false }
+      : value,
+  z
+    .discriminatedUnion("inHall", [createRoomItemSchema, createHallItemSchema])
+    // «Родилась из ссылки» без ссылки не бывает: source=URL требует url.
+    .refine((data) => data.source !== "URL" || data.url !== undefined, {
+      path: ["url"],
+      message: "source=URL требует ссылку",
     }),
-    z.object({
-      state: z.literal("LOVE"),
-      ...commonItemFields,
-      giverName: optionalTrimmed(120),
-      /** Год «подарен в …»; в БД пишется как receivedAt (полдень UTC 1 января —
-       * год не съезжает ни в одном реальном часовом поясе). */
-      receivedYear: receivedYearSchema,
-      /**
-       * «Сразу в сокровищницу» (тикет 89): вещь заводят с витрины, а не из
-       * зоны. Ключ есть ТОЛЬКО у LOVE — у «хочу» его нет вовсе, и Zod
-       * отбросит его молча: «хочу» в сокровищнице не живёт (toggleHall →
-       * NOT_LOVE). Зону вещь всё равно занимает: витрина зоне не замена.
-       */
-      inHall: z.boolean().default(false),
-    }),
-  ])
-  // «Родилась из ссылки» без ссылки не бывает: source=URL требует url.
-  .refine((data) => data.source !== "URL" || data.url !== undefined, {
-    path: ["url"],
-    message: "source=URL требует ссылку",
-  });
+);
 
 export type CreateItemInput = z.input<typeof createItemInputSchema>;
 
@@ -323,7 +353,6 @@ export async function createItem(userId: string, input: unknown): Promise<Item> 
     data: {
       roomId: room.id,
       zone: data.zone,
-      state: data.state,
       title: data.title,
       note: data.note ?? null,
       photoKey: data.photoKey ?? null,
@@ -331,8 +360,14 @@ export async function createItem(userId: string, input: unknown): Promise<Item> 
       canonicalUrl,
       domain,
       source: data.source,
-      ...(data.state === "WANT"
+      inHall: data.inHall,
+      ...(data.inHall
         ? {
+            giverName: data.giverName ?? null,
+            receivedAt:
+              data.receivedYear == null ? null : new Date(Date.UTC(data.receivedYear, 0, 1, 12)),
+          }
+        : {
             price: new Prisma.Decimal(data.price),
             currency: data.currency,
             priceVisibility: data.priceVisibility,
@@ -342,12 +377,6 @@ export async function createItem(userId: string, input: unknown): Promise<Item> 
             eventWhen: data.eventWhen ?? null,
             eventWhere: data.eventWhere ?? null,
             validUntil: dayToUtc(data.validUntil),
-          }
-        : {
-            giverName: data.giverName ?? null,
-            receivedAt:
-              data.receivedYear == null ? null : new Date(Date.UTC(data.receivedYear, 0, 1, 12)),
-            inHall: data.inHall,
           }),
     },
   });
@@ -370,14 +399,20 @@ export async function createItem(userId: string, input: unknown): Promise<Item> 
 
 // ---------- Скрытие и удаление вещи (тикет 13) ----------
 
-/** Отказы мутаций вещи. NOT_FOUND и для чужой вещи — существование чужого
- * id владельцу другой комнаты не подтверждаем. NOT_WANT/NOT_LOVE — операции
- * строго одного состояния (тикет 10): «уже моё» только у «хочу», зал славы
- * только у «люблю». ZONE_NOT_VISIBLE — перенос в полку, которой в комнате
- * нет или которая выключена (тикет 39). */
+/**
+ * Отказы мутаций вещи. NOT_FOUND и для чужой вещи — существование чужого id
+ * владельцу другой комнаты не подтверждаем. ZONE_NOT_VISIBLE — перенос в
+ * полку, которой в комнате нет или которая выключена (тикет 39).
+ * NOT_IN_HALL — глазок «скрыть от гостей» у вещи, которая на витрине не
+ * лежит: прятать её оттуда нечем.
+ *
+ * КОДОВ NOT_WANT/NOT_LOVE БОЛЬШЕ НЕТ (тикет 124): они означали «операция
+ * бывает только у одного состояния», а состояний не осталось. Переезд между
+ * комнатой и сокровищницей доступен ЛЮБОЙ вещи в обе стороны.
+ */
 export class ItemMutationError extends Error {
   constructor(
-    readonly code: "NOT_FOUND" | "NOT_WANT" | "NOT_LOVE" | "ZONE_NOT_VISIBLE",
+    readonly code: "NOT_FOUND" | "NOT_IN_HALL" | "ZONE_NOT_VISIBLE",
     message: string,
   ) {
     super(message);
@@ -481,12 +516,11 @@ export async function deleteItem(userId: string, itemId: string): Promise<void> 
 
 /**
  * Поля правки — те же, что человек заполнял при добавлении, и ровно они.
- * Ключа `state` в схемах НЕТ ВОВСЕ: правка не меняет состояние вещи. Zod
- * отбрасывает лишние ключи молча, поэтому `{state:"WANT"}`, присланный
- * руками вещи «люблю», не доедет до БД — переход «хочу → люблю» остаётся
- * необратимым (инвариант №2, тест в tests/items.update.test.ts).
- * Схемы намеренно НЕ экспортируются: в поверхности сервиса не должно быть
- * имён с «want» (замок инварианта №2 в tests/occasions.test.ts).
+ * Ключа `inHall` в схемах НЕТ ВОВСЕ: правка не переселяет вещь. Zod
+ * отбрасывает лишние ключи молча, поэтому `{inHall:true}`, присланный руками
+ * в форме правки, до БД не доедет — переезд бывает только явным действием
+ * («В сокровищницу» / «Вернуть в комнату», `toggleHall`) или системным
+ * («Дошло», `receiveGift`). Тест в tests/items.update.test.ts.
  */
 const updateCommonFields = {
   zone: z.string().min(1),
@@ -494,7 +528,8 @@ const updateCommonFields = {
   note: optionalTrimmed(2000),
 };
 
-const updateDesiredSchema = z.object({
+/** Форма правки вещи КОМНАТЫ: цена, размеры, степень желания, впечатление. */
+const updateRoomSchema = z.object({
   ...updateCommonFields,
   price: priceSchema,
   currency: currencySchema,
@@ -507,23 +542,26 @@ const updateDesiredSchema = z.object({
   validUntil: validUntilSchema,
 });
 
-const updateOwnedSchema = z.object({
+/** Форма правки вещи СОКРОВИЩНИЦЫ: даритель и год, цены там нет. */
+const updateHallSchema = z.object({
   ...updateCommonFields,
   giverName: optionalTrimmed(120),
   receivedYear: receivedYearSchema,
 });
 
-export type UpdateItemInput = z.input<typeof updateDesiredSchema> | z.input<typeof updateOwnedSchema>;
+export type UpdateItemInput = z.input<typeof updateRoomSchema> | z.input<typeof updateHallSchema>;
 
 /**
  * Правка вещи и перенос между зонами (тикет 39, турны 11e и 8c). До неё
  * опечатку в названии или ошибку парсера в зоне можно было исправить только
  * удалением и заведением заново.
  *
- * Что правится: название, заметка, зона; у «хочу» — цена, валюта, видимость
- * цены, размер, цвет, степень желания; у «люблю» — даритель и год. Набор
- * полей выбирается по СОСТОЯНИЮ ИЗ БД, а не по инпуту: цена в строку «люблю»
- * не попадает даже полем (инвариант №8), а «хочу» не получает дарителя.
+ * Что правится: название, заметка, зона; у вещи КОМНАТЫ — цена, валюта,
+ * видимость цены, размер, цвет, степень желания, поля впечатления; у вещи
+ * СОКРОВИЩНИЦЫ — даритель и год. Набор полей выбирается по МЕСТУ ИЗ БД, а не
+ * по инпуту: витринная вещь не получает цену полем правки (цены там нет —
+ * инвариант №8), а вещь комнаты не получает дарителя (имя раскрывается ровно
+ * одним путём — инвариант №2).
  *
  * Перенос: целевая зона обязана быть видимой зоной этой комнаты — есть в
  * пресете (`rooms.json` минус скрытые продуктом, ADR-0004) и не выключена
@@ -540,15 +578,14 @@ export type UpdateItemInput = z.input<typeof updateDesiredSchema> | z.input<type
  * зона назначения проверена на видимость, вещь не проваливается в невидимую
  * полку. Покрыто тестом (бронь и счётчик после правки не двигаются).
  *
- * Гонка с «уже моё»: guard `state` прямо в updateMany — если вещь успела
- * стать «люблю», правка формы «хочу» не запишется ни одним полем.
+ * Гонка с переездом: guard `inHall` прямо в updateMany — если вещь успела
+ * уехать на витрину, правка формы комнаты не запишется ни одним полем.
  * После записи инвалидируется кэш комнаты (roomCacheTag): без этого гость
  * видел бы вещь на старой полке до конца окна ISR.
  */
 export async function updateItem(userId: string, itemId: string, input: unknown): Promise<Item> {
   const item = await requireOwnItem(userId, itemId);
-  const data =
-    item.state === "WANT" ? updateDesiredSchema.parse(input) : updateOwnedSchema.parse(input);
+  const data = item.inHall ? updateHallSchema.parse(input) : updateRoomSchema.parse(input);
 
   const room = await prisma.room.findUniqueOrThrow({ where: { id: item.roomId } });
   if (!visibleZoneKeys(room.preset, room.zonesOff).has(data.zone)) {
@@ -557,7 +594,7 @@ export async function updateItem(userId: string, itemId: string, input: unknown)
 
   const common = { zone: data.zone, title: data.title, note: data.note ?? null };
   const changed = await prisma.item.updateMany({
-    where: { id: item.id, state: item.state },
+    where: { id: item.id, inHall: item.inHall },
     data:
       "price" in data
         ? {
@@ -598,85 +635,73 @@ function nextReceivedAt(current: Date | null, year: number | undefined): Date | 
   return new Date(Date.UTC(year, 0, 1, 12));
 }
 
-// ---------- Ручные переходы и зал славы (тикет 10) ----------
-// Переход LOVE → WANT НЕ СУЩЕСТВУЕТ (правило items.json, решение гриллинга
-// №6): ни одна функция сервиса не пишет state=WANT существующей вещи —
-// закреплено тестом tests/occasions.test.ts.
+// ---------- Переезд «комната ↔ сокровищница» (тикеты 10 и 124) ----------
+//
+// РУЧНОЙ ПЕРЕЕЗД ОДИН, И ОН В ОБЕ СТОРОНЫ. «Уже моё» (`selfFulfill`) больше
+// не существует: оно переводило вещь из «хочу» в «люблю», а состояний нет —
+// то же самое теперь означает «положить в сокровищницу», и двух дорог в одно
+// место мы не держим (тикет 124 §7). Осталось `toggleHall`:
+//   on = true  — «В сокровищницу»;
+//   on = false — «Вернуть в комнату» (решение владельца 09.08: вещь попадает
+//                на витрину и по ошибке, дорога назад обязана быть).
+//
+// СИСТЕМНЫЙ переезд ровно один и живёт отдельно — «Дошло» (`receiveGift`,
+// services/occasions): только он раскрывает имя дарителя, и только один раз.
 
 /**
- * «Уже моё» (US 15): ручной перевод WANT → LOVE без дарителя, раскрытий и
- * связи — хозяйка купила сама. inHall=false: в зал славы — руками, если
- * захочет (там подпись «уже моё»). Активная бронь, если была, тихо снимается
- * releaseBookingForItem (контракт тикета 09: одиночное снятие вне транзакций;
- * порядок «сначала переход, потом снятие» — чтобы гонка двух кликов не могла
- * снять бронь без перехода). Guard state=WANT в самом updateMany: повтор или
- * вызов на «люблю» — отказ NOT_WANT, ничего не меняется (переход необратим).
- */
-export async function selfFulfill(userId: string, itemId: string): Promise<Item> {
-  const item = await requireOwnItem(userId, itemId);
-  if (item.state !== "WANT") {
-    throw new ItemMutationError("NOT_WANT", "«уже моё» бывает только у вещи «хочу»");
-  }
-
-  const flipped = await prisma.item.updateMany({
-    where: { id: item.id, state: "WANT" },
-    data: { state: "LOVE", receivedAt: new Date(), giverName: null, inHall: false },
-  });
-  if (flipped.count === 0) {
-    throw new ItemMutationError("NOT_WANT", "«уже моё» бывает только у вещи «хочу»");
-  }
-  await releaseBookingForItem(item.id);
-
-  revalidateRoom(item.roomId);
-  return prisma.item.findUniqueOrThrow({ where: { id: item.id } });
-}
-
-/**
- * Добавить/убрать вещь «люблю» в витрину зала славы (US 16). Только LOVE:
- * «хочу» в зале не живёт (NOT_LOVE). При on=true сбрасывается hiddenFromHall —
- * возврат в витрину показывает вещь, как бы её раньше ни прятали.
+ * Переезд вещи между комнатой и сокровищницей (US 16, тикет 124).
+ *
+ * ДЕЙСТВИЕ ДОСТУПНО ВСЕГДА И ВЕДЁТ СЕБЯ ОДИНАКОВО НА ЛЮБОЙ ВЕЩИ. Дизайн
+ * просил блокировать переезд, пока на вещи висит бронь, и блокировать молча;
+ * мы это отклонили (разбор — тикет 124): недоступное действие само сообщает
+ * хозяйке, что вещь занята, а инвариант №1 запрещает ей узнавать это «ни в
+ * API, ни в кэше». Поэтому:
+ * - никаких проверок брони и никаких отказов из-за неё;
+ * - бронь при переезде НА ВИТРИНУ снимается молча ДЛЯ ХОЗЯЙКИ — ровно так же,
+ *   как её снимают скрытие и удаление (контракт тикета 09);
+ * - возврат `Item` не зависит от того, была бронь или нет. `releaseBookingForItem`
+ *   возвращает boolean, и этот boolean НИКУДА отсюда не уходит.
+ *
+ * «МОЛЧА» — ЭТО ПРО ХОЗЯЙКУ, А НЕ ПРО ГОСТЯ (раунд 28 дизайна, дополнение к
+ * тикету 124). Гость обязан узнать: иначе он придёт на праздник с подарком,
+ * который у хозяйки уже есть. Поэтому снятие идёт с `notifyGuest: true` —
+ * ему уходит письмо «вещь уехала, выбери другую», а взносы складчины
+ * возвращаются тем же каскадом, что у несобравшейся складчины (обе механики
+ * живут в `releaseBookingForItem`, второй дороги нет). Хозяйка об этом письме
+ * не узнаёт ничем: оно ставится в очередь, ничего сюда не возвращает и не
+ * может уронить переезд.
+ * По сути это тоже верно: хозяйка, переносящая вещь на витрину, говорит «она
+ * уже у меня» — подарок потерял смысл, и снятие брони здесь правильное
+ * поведение, а не потеря.
+ *
+ * Что происходит с полями:
+ * - `inHall` — единственное, что меняется по смыслу;
+ * - `hiddenFromHall` сбрасывается при въезде: витрина показывает вещь, как бы
+ *   её раньше ни прятали глазком;
+ * - `receivedAt` проставляется, только если его ещё нет: у подарка это момент
+ *   «Дошло», и переезд не имеет права его переписать (по нему сортируется
+ *   витрина и по нему считается «Подарок {year} года»);
+ * - `giverName` НЕ ТРОГАЕТСЯ НИКОГДА — ни при въезде, ни при возврате.
+ *   Раскрытие имени необратимо (инвариант №2), а место вещи обратимо: это две
+ *   разные вещи, и связывать их было ошибкой;
+ * - `zone`, цена и остальное сохраняются: вернувшаяся вещь встаёт на свою
+ *   полку со своей ценой («цена снова видна»).
+ * Порядок «сначала переезд, потом снятие брони» — чтобы гонка двух кликов не
+ * могла снять бронь без переезда.
  */
 export async function toggleHall(userId: string, itemId: string, on: boolean): Promise<Item> {
-  const wantOn = z.boolean().parse(on);
+  const toHall = z.boolean().parse(on);
   const item = await requireOwnItem(userId, itemId);
-  if (item.state !== "LOVE") {
-    throw new ItemMutationError("NOT_LOVE", "в зал славы попадают только вещи «люблю»");
-  }
 
   const updated = await prisma.item.update({
     where: { id: item.id },
-    data: wantOn ? { inHall: true, hiddenFromHall: false } : { inHall: false },
+    data: toHall
+      ? { inHall: true, hiddenFromHall: false, receivedAt: item.receivedAt ?? new Date() }
+      : { inHall: false },
   });
-  revalidateRoom(item.roomId);
-  return updated;
-}
-
-/**
- * Скрыть/показать цену ОТДЕЛЬНОЙ вещи в зале славы (тикет 35, доска 12d:
- * «у любой вещи можно скрыть цену отдельно — даже если весь зал её
- * показывает»).
- *
- * Отдельной колонки под это нет: `Item.priceVisibility` уже отвечает на
- * вопрос «кто видит цену этой вещи», переживает переход «хочу → люблю» и
- * читается залом теми же четырьмя значениями, что и комнатой. Скрыть =
- * NONE, показать = ALL; шире, чем открыт сам зал, вещь всё равно не станет
- * (dto/hall.guestSeesHallItemPrice). Хозяйке цена видна всегда.
- */
-export async function setHallPriceHidden(
-  userId: string,
-  itemId: string,
-  hidden: boolean,
-): Promise<Item> {
-  const wantHidden = z.boolean().parse(hidden);
-  const item = await requireOwnItem(userId, itemId);
-  if (item.state !== "LOVE") {
-    throw new ItemMutationError("NOT_LOVE", "в зал славы попадают только вещи «люблю»");
+  if (toHall) {
+    await releaseBookingForItem(item.id, { notifyGuest: true });
   }
-
-  const updated = await prisma.item.update({
-    where: { id: item.id },
-    data: { priceVisibility: wantHidden ? "NONE" : "ALL" },
-  });
   revalidateRoom(item.roomId);
   return updated;
 }
@@ -686,10 +711,13 @@ export async function setHallPriceHidden(
  * До него колонка `hiddenFromHall` писалась только в false (сбросом в
  * toggleHall): механика была в данных и в чтении, а нажать было не на что.
  *
- * Это НЕ «скрыть цену» (`setHallPriceHidden`) и НЕ «убрать из сокровищницы»
- * (`toggleHall`): вещь остаётся на витрине ХОЗЯЙКИ приглушённой — иначе
- * вернуть её было бы нечем, — и просто пропадает у наблюдателей
- * (`hallItemShownToObservers`, dto/hall.ts). Обратимо тем же глазком.
+ * Это НЕ «Вернуть в комнату» (`toggleHall`): вещь остаётся на витрине
+ * ХОЗЯЙКИ приглушённой — иначе снять скрытие было бы нечем, — и просто
+ * пропадает у наблюдателей (`hallItemShownToObservers`, dto/hall.ts).
+ * Обратимо тем же глазком.
+ *
+ * Отдельного «скрыть цену» рядом больше нет (тикет 124): цену вещи
+ * сокровищницы гость не видит вовсе, и прятать было нечего.
  */
 export async function setHiddenFromHall(
   userId: string,
@@ -698,8 +726,8 @@ export async function setHiddenFromHall(
 ): Promise<Item> {
   const wantHidden = z.boolean().parse(hidden);
   const item = await requireOwnItem(userId, itemId);
-  if (item.state !== "LOVE") {
-    throw new ItemMutationError("NOT_LOVE", "в сокровищнице живут только вещи «люблю»");
+  if (!item.inHall) {
+    throw new ItemMutationError("NOT_IN_HALL", "эта вещь не на витрине — прятать её оттуда нечем");
   }
 
   const updated = await prisma.item.update({
@@ -711,8 +739,9 @@ export async function setHiddenFromHall(
 }
 
 /**
- * Витрина сокровищницы ГЛАЗАМИ ХОЗЯЙКИ: вещи LOVE с inHall — один фильтр
- * (тест tests/hall.test.ts). `hiddenFromHall` здесь НЕ фильтруется с тикета
+ * Витрина сокровищницы ГЛАЗАМИ ХОЗЯЙКИ: вещи с `inHall` — один фильтр, и с
+ * тикета 124 он же единственный (тест tests/hall.test.ts). `hiddenFromHall`
+ * здесь НЕ фильтруется с тикета
  * 89: /room/hall — её собственная страница, и спрятанная глазком вещь обязана
  * остаться на ней (приглушённой), иначе снять скрытие было бы нечем. Фильтр
  * наблюдателя живёт в `hallItemShownToObservers` (dto/hall.ts).
@@ -721,7 +750,7 @@ export async function setHiddenFromHall(
  */
 export async function listHallItems(roomId: string): Promise<Item[]> {
   const items = await prisma.item.findMany({
-    where: { roomId: idSchema.parse(roomId), state: "LOVE", inHall: true },
+    where: { roomId: idSchema.parse(roomId), inHall: true },
   });
   return items.sort((a, b) => {
     const at = a.receivedAt?.getTime() ?? -1;

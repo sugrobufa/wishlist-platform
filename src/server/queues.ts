@@ -47,6 +47,23 @@ export interface ReminderGuestMailJobData {
 }
 
 /**
+ * Гостю: «вещь уехала — выбери другую» (тикет 124, раунд 28). Джоба
+ * `item-gone` в очереди mail. Payload самодостаточен: бронь к моменту
+ * отправки уже удалена, и добирать из БД нечего — в этом весь смысл письма.
+ *
+ * ИНВАРИАНТ №1: адресат — ГОСТЬ. Ни одного поля о хозяйке здесь нет, кроме
+ * слага её комнаты, который гость и так знает (он по нему и пришёл).
+ */
+export interface ItemGoneMailJobData {
+  /** Только для лога и дедупа — сама бронь уже удалена. */
+  bookingId: string;
+  email: string;
+  guestName: string;
+  itemTitle: string;
+  roomSlug: string;
+}
+
+/**
  * Хранение выполненных джоб очереди mail: 14 суток. Это не уборка ради
  * уборки, а ОКНО ДЕДУПЛИКАЦИИ напоминаний: reminder-guest ставится с
  * детерминированным jobId (reminderGuestJobId), и повторный add с тем же
@@ -168,6 +185,33 @@ export async function enqueueReminderGuest(data: ReminderGuestMailJobData): Prom
   } catch (error) {
     console.warn(
       `queues: mail недоступна — бронь ${data.bookingId} пока без напоминания (тик повторит)`,
+      error instanceof Error ? error.message : error,
+    );
+    return false;
+  }
+}
+
+/**
+ * Поставить письмо гостю «вещь уехала — выбери другую» (тикет 124).
+ * Никогда не бросает: очередь недоступна → false, и ПЕРЕЕЗД ВЕЩИ ВСЁ РАВНО
+ * СОСТОЯЛСЯ — иначе действие хозяйки зависело бы от того, была ли на вещи
+ * бронь, а этого инвариант №1 не допускает. `jobId` детерминированный: один
+ * гость × одна снятая бронь = максимум одно письмо даже под двойным кликом.
+ */
+export async function enqueueItemGoneMail(data: ItemGoneMailJobData): Promise<boolean> {
+  try {
+    const queue = await getMailQueue();
+    await queue.add("item-gone", data, {
+      jobId: `item-gone-${data.bookingId}`,
+      attempts: 3,
+      backoff: { type: "exponential", delay: 3_000 },
+      removeOnComplete: MAIL_KEEP_COMPLETED,
+      removeOnFail: 5_000,
+    });
+    return true;
+  } catch (error) {
+    console.warn(
+      `queues: mail недоступна — гость брони ${data.bookingId} не узнает, что вещь уехала`,
       error instanceof Error ? error.message : error,
     );
     return false;

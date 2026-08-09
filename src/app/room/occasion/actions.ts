@@ -9,12 +9,13 @@ import { getRoomForUser, getSessionUserId } from "@/server/services/rooms";
 import { OccasionError, closeOccasion, receiveGift } from "@/server/services/occasions";
 
 export type OccasionActionResult =
-  | { error: "AUTH" | "NOT_FOUND" | "NOT_WANT" | "NO_SUMMARY" | "NO_ROOM" | "GENERIC" }
+  | { error: "AUTH" | "NOT_FOUND" | "ALREADY_IN_HALL" | "NO_SUMMARY" | "NO_ROOM" | "GENERIC" }
   | undefined;
 
 /**
- * «Дошло» на строке подарка: одна транзакция receiveGift — LOVE + зал славы +
- * раскрытие дарителя + закрытие брони + связь. Повтор на уже LOVE → NOT_WANT.
+ * «Дошло» на строке подарка: одна транзакция receiveGift — переезд в
+ * сокровищницу + раскрытие дарителя + закрытие брони + связь. Повтор на вещи,
+ * которая уже на витрине, → ALREADY_IN_HALL.
  */
 export async function receiveGiftAction(itemId: string): Promise<OccasionActionResult> {
   const session = await auth();

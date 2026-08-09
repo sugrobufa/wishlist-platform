@@ -61,7 +61,9 @@ export type RoomListViewProps = {
   takenIds?: ReadonlySet<string>;
 };
 
-type Filter = "all" | "want" | "love";
+// Ряда «Хочу · Люблю · Все» больше нет (тикет 124): делить список нечем —
+// состояний у вещи не осталось, а в комнате лежит только то, чего хочется.
+// «Только свободные» остался: он про БРОНИ, а не про состояния.
 
 /** Цена строкой: "14 900 ₽". Деньги в DTO — строка Decimal (CLAUDE.md). */
 function formatPrice(item: ZoneGridItem, locale: string): string | null {
@@ -89,42 +91,22 @@ export function RoomListView({
   takenIds,
 }: RoomListViewProps) {
   const t = useTranslations("RoomList");
-  const tGrid = useTranslations("ZoneGrid");
   const tZone = useTranslations("ZoneList");
   const locale = useLocale();
   const [freeOnly, setFreeOnly] = useState(false);
-  // «Хочу» по умолчанию и первым (тикет 78) — то же правило, что во вкладках
-  // зоны: список затевался, чтобы выбрать подарок, а не листать витрину.
-  const [filter, setFilter] = useState<Filter>("want");
 
   const shown = useMemo(() => {
-    // «Только свободные» — фильтр по ОТСУТСТВИЮ брони, поверх вкладки.
-    // Свободным может быть только «хочу»: «люблю» уже своё, дарить нечего.
+    // «Только свободные» — фильтр по ОТСУТСТВИЮ брони. Он про брони, а не про
+    // состояния, и потому пережил тикет 124: в списке лежат вещи комнаты, и
+    // свободна та, которую ещё не заняли.
     const free = (items: ZoneGridItem[]) =>
-      freeOnly && takenIds
-        ? items.filter((item) => item.state === "WANT" && !takenIds.has(item.id))
-        : items;
-    if (filter === "all") {
-      return groups
-        .map((group) => ({ ...group, items: free(group.items) }))
-        .filter((group) => group.items.length > 0);
-    }
-    const want = filter === "want";
+      freeOnly && takenIds ? items.filter((item) => !takenIds.has(item.id)) : items;
     return groups
-      .map((group) => ({
-        ...group,
-        items: free(group.items.filter((item) => (item.state === "WANT") === want)),
-      }))
+      .map((group) => ({ ...group, items: free(group.items) }))
       .filter((group) => group.items.length > 0);
-  }, [groups, filter, freeOnly, takenIds]);
+  }, [groups, freeOnly, takenIds]);
 
   const total = useMemo(() => shown.reduce((sum, group) => sum + group.items.length, 0), [shown]);
-
-  const filters: Array<[Filter, string]> = [
-    ["want", t("filterWant")],
-    ["love", t("filterLove")],
-    ["all", t("filterAll")],
-  ];
 
   return (
     <div style={{ "--rl-accent": accent } as React.CSSProperties}>
@@ -140,24 +122,10 @@ export function RoomListView({
       </div>
 
       <div className={s.filters} role="group" aria-label={t("filterAria")}>
-        {filters.map(([key, label]) => (
-          <button
-            key={key}
-            type="button"
-            aria-pressed={filter === key}
-            className={
-              filter === key ? `pressable ${s.filter} ${s.filterOn}` : `pressable ${s.filter}`
-            }
-            onClick={() => setFilter(key)}
-          >
-            {label}
-          </button>
-        ))}
-        {/* «Только свободные» (турн 29b-guest): отдельный переключатель, а не
-            четвёртая вкладка — он ортогонален «Хочу/Люблю» и складывается с
-            ними. Гостю знать о бронях можно: инвариант №1 закрывает их от
-            ХОЗЯЙКИ, и набор занятых сюда приходит только на её половине
-            отсутствующим. */}
+        {/* «Только свободные» (турн 29b-guest) — единственный фильтр, который
+            пережил тикет 124: он про БРОНИ, а не про состояния. Гостю знать о
+            бронях можно: инвариант №1 закрывает их от ХОЗЯЙКИ, и набор занятых
+            сюда приходит только на её половине отсутствующим. */}
         {takenIds && (
           <button
             type="button"
@@ -188,7 +156,7 @@ export function RoomListView({
             <ul className={s.rows}>
               {group.items.map((item) => {
                 const look = tileAppearance(item, group.pool);
-                const price = item.state === "WANT" ? formatPrice(item, locale) : null;
+                const price = item.inHall === true ? null : formatPrice(item, locale);
                 return (
                   <li key={item.id} className={s.row}>
                     <div
@@ -200,8 +168,7 @@ export function RoomListView({
                     >
                       {/* Значок ЗОНЫ вместо чёрной дыры — тот же приём, что
                           на плитке (тикеты 68 и 82); где значка нет, остаётся
-                          буква. Инвариант №3 не затронут: оба знака ходят с
-                          отсутствием фото, пунктир — с «хочу». */}
+                          буква. Оба знака ходят с отсутствием фото. */}
                       {look.poolIcon && (
                         <span className={s.monogram}>
                           <PoolIcon pool={look.poolIcon} />
@@ -211,9 +178,9 @@ export function RoomListView({
                     </div>
                     <div className={s.body}>
                       <p className={s.title}>{item.title}</p>
-                      <span className={item.state === "WANT" ? `${s.chip} ${s.chipWant}` : s.chip}>
-                        {item.state === "WANT" ? tGrid("tabWant") : tGrid("loveCaption")}
-                      </span>
+                      {/* Чип состояния («Хочу» / «Люблю») тикет 124 отменил:
+                          в комнате все вещи одинаковы. Строку убирает заход
+                          про экраны — здесь она просто перестала рисоваться. */}
                     </div>
                     {price && <span className={s.price}>{price}</span>}
                   </li>

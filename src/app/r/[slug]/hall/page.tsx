@@ -1,12 +1,11 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { getLocale, getTranslations } from "next-intl/server";
+import { getTranslations } from "next-intl/server";
 import { notFound } from "next/navigation";
 import { getGuestHall } from "@/server/services/guest-hall";
 import { getSessionUserId } from "@/server/services/rooms";
 import { rooms } from "@/config/design";
 import { roomImageUrl } from "@/app/rooms/room-image";
-import { formatHallMoney } from "@/app/room/hall/money";
 import s from "@/components/hall/hall.module.css";
 
 type Params = { params: Promise<{ slug: string }> };
@@ -74,18 +73,13 @@ export default async function GuestHallPage({ params }: Params) {
   if (!preset) notFound();
 
   const t = await getTranslations("Hall");
-  const locale = await getLocale();
   const accent = preset.accent;
   const back = `/r/${hall.nick ?? hall.shareSlug}`;
 
-  const totalLine =
-    hall.totals.length === 0
-      ? null
-      : hall.totals
-          .map((total) =>
-            t("total", { sum: formatHallMoney(total.amount, total.currency, locale) }),
-          )
-          .join(" · ");
+  // Суммы витрины у гостя больше нет (тикет 124): цен вещей сокровищницы он
+  // не видит ни одной, и складывать нечего. Строка остаётся местом, чтобы
+  // разметку не переписывать в этом заходе, — заход про экраны её снимет.
+  const totalLine: string | null = null;
 
   return (
     <main className="min-h-screen bg-surface-hall-ground pb-16">
@@ -136,16 +130,8 @@ export default async function GuestHallPage({ params }: Params) {
                   {item.title}
                 </p>
 
-                {/* Ключа цены может не быть вовсе — тогда и строки нет. */}
-                {item.price != null && (
-                  <p className="mt-2 text-[15px] font-bold" style={{ color: accent }}>
-                    {item.rounded
-                      ? t("priceAbout", {
-                          price: formatHallMoney(item.price, item.currency ?? "RUB", locale),
-                        })
-                      : formatHallMoney(item.price, item.currency ?? "RUB", locale)}
-                  </p>
-                )}
+                {/* Цены здесь нет и не будет (тикет 124): витрина
+                    рассказывает о человеке, а не продаёт. */}
 
                 {/* Подпись гостю — только год: имени дарителя здесь нет и
                     быть не может (раунд 19, см. dto/hall.HallGuestItemDto). */}

@@ -44,10 +44,12 @@ export function ItemTile({ item, staggerIndex, action, pool }: ItemTileProps) {
   const locale = useLocale();
   const look = tileAppearance(item, pool);
 
-  // Подпись под названием: у «хочу» цена; у «люблю» — «люблю» либо
-  // «Подарен в {год} · {даритель}» (cardCopy из items.json).
+  // Подпись под названием: у вещи КОМНАТЫ цена; у вещи сокровищницы —
+  // «Подарок {год} года · от {даритель}» (cardCopy из items.json).
+  // Витринная вещь в сетку зоны не приезжает (тикет 124) — ветка ниже жива
+  // ради списка комнаты, где формы обеих сторон встречаются вместе.
   let meta: string | null;
-  if (item.state === "WANT") {
+  if (item.inHall !== true) {
     meta = formatPrice(item, locale);
   } else if (item.receivedAt) {
     // Год — строкой, чтобы ICU не расставил разряды («2 024»).
@@ -97,9 +99,9 @@ export function ItemTile({ item, staggerIndex, action, pool }: ItemTileProps) {
         {look.ghost && <span className={s.badge}>{t("demoBadge")}</span>}
       </div>
       <p className={s.title}>{item.title}</p>
-      {meta && <p className={item.state === "LOVE" ? `${s.meta} ${s.metaLove}` : s.meta}>{meta}</p>}
+      {meta && <p className={item.inHall === true ? `${s.meta} ${s.metaLove}` : s.meta}>{meta}</p>}
       {/* «Где купить» (тикет 37): ключ shop приезжает только из гостевого DTO
-          и только у «хочу» с видимой ценой — плитка ничего не решает сама. */}
+          и только у вещи комнаты с видимой ценой — плитка ничего не решает сама. */}
       {item.shop && (
         <ShopLink itemId={item.id} url={item.shop.url} domain={item.shop.domain} place="tile" />
       )}

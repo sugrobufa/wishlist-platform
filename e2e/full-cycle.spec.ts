@@ -261,19 +261,24 @@ test("полный цикл дарения: хозяйка → гость → с
     await expect(hostessPage.getByRole("heading", { name: "Дерзкая" })).toBeVisible();
   });
 
-  await test.step("вещь «люблю» вручную в зону музыки", async () => {
+  await test.step("вещь «уже моё» вручную — уезжает в сокровищницу, а не в зону", async () => {
+    // ПЕРЕПИСАНО тикетом 124 (отмена «хочу/люблю», решение владельца 09.08).
+    // Состояний у вещи больше нет, различие живёт в МЕСТЕ: комната — чего
+    // хочется, сокровищница — что уже моё. Поэтому «уже моё» и не может
+    // остаться в зоне: прежний шаг ждал `/room/zone/music`, а вещь по новой
+    // модели правильно уезжает на витрину.
     await hostessPage.goto("/room/add?zone=music");
     await hostessPage.getByRole("button", { name: /Люблю/ }).click();
     await hostessPage.getByLabel("Название").fill(LOVE_TITLE);
     await expect(hostessPage.getByLabel("Куда в комнате")).toHaveValue("music");
     await saveItemButton(hostessPage).click();
-    await hostessPage.waitForURL(/\/room\/zone\/music/);
-    // Вкладок «Люблю · N» на экране зоны больше нет: тикет 88 переложил зону
-    // строками по турну 29b — счётчик в шапке и чипы порядка. Проверяем то,
-    // что экран действительно обещает: вещь на месте и она одна.
-    await expect(hostessPage.getByRole("heading", { name: "Музыка" })).toBeVisible();
+    await hostessPage.waitForURL(/\/room\/hall/);
     await expect(hostessPage.getByText(LOVE_TITLE)).toBeVisible();
-    await expect(hostessPage.getByText("1 вещь").first()).toBeVisible();
+
+    // И в зоне её нет: место одно, показывается вещь ровно там, где лежит.
+    await hostessPage.goto("/room/zone/music");
+    await expect(hostessPage.getByRole("heading", { name: "Музыка" })).toBeVisible();
+    await expect(hostessPage.getByText(LOVE_TITLE)).toHaveCount(0);
   });
 
   await test.step("вещь «хочу» по ссылке фикстурного магазина: предзаполнение и цена", async () => {
@@ -309,8 +314,10 @@ test("полный цикл дарения: хозяйка → гость → с
     expect(roomSlug).not.toBe("");
   });
 
+  // Вещь КОМНАТЫ (тикет 124): состояний больше нет, бронируется всё, что не
+  // уехало в сокровищницу. Прогон целиком — работа отдельного захода.
   const wantItem = await prisma.item.findFirstOrThrow({
-    where: { state: "WANT", room: { user: { email: HOSTESS_EMAIL } } },
+    where: { inHall: false, room: { user: { email: HOSTESS_EMAIL } } },
     select: { id: true },
   });
 
@@ -339,20 +346,27 @@ test("полный цикл дарения: хозяйка → гость → с
     await expect(guestPage.getByText(/Праздник через/)).toHaveCount(0);
 
     await sceneHotspot(guestPage, "Музыка").click();
-    await guestPage.getByRole("tab", { name: /Хочу · 1/ }).click();
+    // Вкладки состояний сняты тикетом 124: панель зоны показывает один список.
     const wantTile = guestPage.locator("li", { hasText: WANT_TITLE });
     await expect(wantTile).toBeVisible();
     await expect(wantTile).toContainText(/74\s?990/); // цена «хочу» при видимости «все»
     await expect(wantTile.getByRole("button", { name: /Подарить$/ })).toBeVisible();
 
-    // Цена «люблю» не существует ни у кого (инвариант №8): у вещи «люблю»
-    // подпись «люблю» и никакого намёка на деньги в плитке.
-    await guestPage.getByRole("tab", { name: /Люблю · 1/ }).click();
-    const loveTile = guestPage.locator("li", { hasText: LOVE_TITLE });
-    await expect(loveTile).toBeVisible();
-    await expect(loveTile).toContainText("люблю");
-    await expect(loveTile).not.toContainText("₽");
-    await expect(loveTile).not.toContainText(/\d{3}/); // ни одной суммы в плитке
+    // ПЕРЕПИСАНО тикетом 124. Вкладок «Хочу/Люблю» больше нет — делить нечем,
+    // и проверять теперь надо не подпись, а МЕСТО: вещь «уже моё» в зоне у
+    // гостя не показывается вовсе, она живёт на витрине.
+    await expect(guestPage.getByText(LOVE_TITLE)).toHaveCount(0);
+  });
+
+  await test.step("гость видит витрину — и ни одной цены на ней (инвариант №8)", async () => {
+    await guestPage.goto(`/r/${roomSlug}/hall`);
+    const shelfItem = guestPage.getByText(LOVE_TITLE);
+    await expect(shelfItem).toBeVisible();
+    // Цена в сокровищнице гостю не показывается вовсе — не по настройке, а
+    // по устройству модели v2: витрина рассказывает о человеке, а не торгует.
+    const hall = guestPage.locator("main");
+    await expect(hall).not.toContainText("₽");
+    await expect(hall).not.toContainText(/\d{3}\s?\d{3}/);
   });
 
   await test.step("негатив: /r/nonexistent → 404", async () => {
@@ -378,7 +392,7 @@ test("полный цикл дарения: хозяйка → гость → с
 
   await test.step("гость тихо бронирует: «уже даришь ты» и «Мои подарки · 1»", async () => {
     await sceneHotspot(guestPage, "Музыка").click();
-    await guestPage.getByRole("tab", { name: /Хочу · 1/ }).click();
+    // Вкладок состояний нет (тикет 124) — бирка «Подарить» видна сразу.
     await guestPage.getByRole("button", { name: /Подарить$/ }).click();
 
     const dialog = guestPage.getByRole("dialog");

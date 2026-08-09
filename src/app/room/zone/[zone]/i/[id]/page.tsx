@@ -74,7 +74,7 @@ export default async function OwnerItemPage({ params }: Params) {
   if (!zone) notFound();
 
   // Фотография здесь своя, из карточки; витрине зала она в этом месте не нужна.
-  const hall = item.state === "LOVE" ? hallItemForOwner(item, hallSettingsOf(room), null) : null;
+  const hall = item.inHall ? hallItemForOwner(item, hallSettingsOf(room), null) : null;
 
   return (
     <ItemCard

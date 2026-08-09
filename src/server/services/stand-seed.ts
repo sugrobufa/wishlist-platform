@@ -10,15 +10,16 @@
 // для почты из окружения. Ни один параметр запроса не выбирает, кого наполнять.
 //
 // ЧЕМ СЕЮТ. Курируемый набор уже существует — `src/config/demo-pools.ts`
-// (названия, цены, состояния «люблю/хочу», дарители, годы, предметные кадры
+// (названия, цены, признак «уже своё», дарители, годы, предметные кадры
 // `refs/p-*.jpg`). Посев не выдумывает вещи: он берёт те же семена, что
 // показывались призраками, и превращает их в строки БД.
 //
 // ЧЕМ НЕ СЕЮТ. Прямой записи в prisma.item здесь нет ни одной: вещи создаёт
 // `createItem` — тот же сервис, что стоит за формой «Добавить вещь», с той же
 // Zod-схемой, теми же проверками зоны и photoKey и той же инвалидацией кэша.
-// В зал славы вещь уезжает через `toggleHall` — ту же операцию, что кнопка
-// хозяйки (US 16). Посев ходит по продуктовым дверям, а не мимо них.
+// В сокровищницу вещь кладёт сам `createItem` (вход «сразу в сокровищницу»,
+// тикет 89) — той же дверью, которой пользуется хозяйка. Посев ходит по
+// продуктовым дверям, а не мимо них.
 //
 // ПОСЕВ ТОЛЬКО ДОБАВЛЯЕТ. Ни одного удаления и ни одного update чужого поля:
 // стирание — отдельная существующая операция (stand-reset, /dev-login?fresh=1).
@@ -34,18 +35,14 @@ import { z } from "zod";
 import { prisma } from "@/server/db";
 import { rooms as roomPresets, type RoomZone } from "@/config/design";
 import { demoPools } from "@/config/demo-pools";
-import { createItem, toggleHall } from "@/server/services/items";
+import { createItem } from "@/server/services/items";
 import { putObjectViaPresign } from "@/server/s3";
 import {
   createInputFor,
   poolSeeds,
   storePackagePhoto,
-  type PackSeed,
   type PackStorage,
 } from "@/server/services/pack-seeds";
-
-/** Семя пула — форма из config/demo-pools (тип там не экспортирован). */
-type DemoSeed = PackSeed;
 
 /** Шов хранилища — тестам (как StandResetStorage в services/stand-reset). */
 export type StandSeedStorage = PackStorage;
@@ -65,8 +62,8 @@ export type StandSeedStorage = PackStorage;
 const SHOWCASE_ZONE_KEY = "anything";
 
 /**
- * Какой пул брать в добор. Первые два — единственные пулы с подарком «люблю»,
- * у которого есть даритель и год («Теннисный браслет» от мамы, «Дайвер» от
+ * Какой пул брать в добор. Первые два — единственные пулы с вещью «уже своё»,
+ * у которой есть даритель и год («Теннисный браслет» от мамы, «Дайвер» от
  * папы). Женским пресетам не достаётся полка `watches`, мужским — `jewel`,
  * поэтому один из двух свободен всегда, и зал славы получает ДВЕ вещи вместо
  * одной. Если оба уже с полками — берём первый свободный пул в порядке
@@ -84,8 +81,10 @@ export type StandSeedZoneReport = {
   /** null — сеяли; иначе почему пропустили. */
   skipped: StandSeedSkip | null;
   created: number;
-  love: number;
-  want: number;
+  /** Сколько вещей зоны легло СРАЗУ В СОКРОВИЩНИЦУ («уже своё»). */
+  hall: number;
+  /** Сколько осталось в комнате — желания с ценой. */
+  room: number;
   /** Сколько вещей зоны получили настоящее фото в нашем S3. */
   photos: number;
 };
@@ -99,7 +98,7 @@ export type StandSeedResult = {
   photosStored: number;
   /** Фото, которое не доехало до S3: вещь всё равно создана, но без фото. */
   photosFailed: number;
-  /** Сколько «люблю» с дарителем и годом уехало в витрину зала славы. */
+  /** Сколько вещей «уже своё» легло в витрину сокровищницы. */
   hallItems: number;
   /** Зона-витрина, если её сеяли в этот раз (иначе null). */
   showcaseZone: string | null;
@@ -171,8 +170,8 @@ export async function seedStandRoom(
       pool: zone.pool,
       skipped: null,
       created: 0,
-      love: 0,
-      want: 0,
+      hall: 0,
+      room: 0,
       photos: 0,
     };
     result.zones.push(report);
@@ -207,25 +206,21 @@ export async function seedStandRoom(
 
       // Стенду даритель и год НУЖНЫ: без них витрине сокровищницы нечего
       // показывать. Живому человеку набор их не приносит (тикет 100).
-      const item = await createItem(
+      // С тикета 124 семя «уже своё» ложится на витрину самим createItem —
+      // отдельного toggleHall после создания не нужно.
+      await createItem(
         user.id,
         createInputFor(zone.key, seed, photoKey, { withGiftHistory: true }),
       );
       result.itemsCreated += 1;
       report.created += 1;
       if (photoKey) report.photos += 1;
-      if (seed.state === "WANT") {
-        report.want += 1;
+      if (!seed.mine) {
+        report.room += 1;
         continue;
       }
-      report.love += 1;
-      // Подарок с дарителем и годом — в витрину зала славы. createItem этого
-      // поля не знает (см. Comments тикета): в зал вещь уводит toggleHall —
-      // та же операция, что кнопка хозяйки.
-      if (seed.giverName && seed.receivedYear) {
-        await toggleHall(user.id, item.id, true);
-        result.hallItems += 1;
-      }
+      report.hall += 1;
+      result.hallItems += 1;
     }
   }
 

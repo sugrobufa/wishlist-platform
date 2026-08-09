@@ -286,19 +286,21 @@ describe("состав посева", () => {
     expect(await prisma.item.count({ where: { roomId, zone: "money" } })).toBe(0);
   });
 
-  it("в зонах есть и «люблю», и «хочу» — язык комнаты виден целиком", async () => {
-    expect(await prisma.item.count({ where: { roomId, state: "LOVE" } })).toBeGreaterThan(0);
-    expect(await prisma.item.count({ where: { roomId, state: "WANT" } })).toBeGreaterThan(0);
+  // ПЕРЕПИСАНО (тикет 124): «оба состояния в каждой зоне» проверять нечем.
+  // Стенду по-прежнему нужны ОБА МЕСТА — иначе показывать нечего ни комнате,
+  // ни сокровищнице, — и пулы дают их той же парой семян.
+  it("на стенде есть и вещи комнаты, и вещи сокровищницы", async () => {
+    expect(await prisma.item.count({ where: { roomId, inHall: true } })).toBeGreaterThan(0);
+    expect(await prisma.item.count({ where: { roomId, inHall: false } })).toBeGreaterThan(0);
 
-    // И в каждой засеянной зоне тоже оба состояния: баланс заложен в пулах.
     for (const zone of result.zones.filter((entry) => entry.created > 0)) {
-      expect(zone.love, `«люблю» в ${zone.zone}`).toBeGreaterThan(0);
-      expect(zone.want, `«хочу» в ${zone.zone}`).toBeGreaterThan(0);
+      expect(zone.hall, `сокровищница в ${zone.zone}`).toBeGreaterThan(0);
+      expect(zone.room, `комната в ${zone.zone}`).toBeGreaterThan(0);
     }
   });
 
   it("у «хочу» есть цена и валюта, у «люблю» цены нет вовсе (инвариант №8)", async () => {
-    const wants = await prisma.item.findMany({ where: { roomId, state: "WANT" } });
+    const wants = await prisma.item.findMany({ where: { roomId, inHall: false } });
     expect(wants.length).toBeGreaterThan(0);
     for (const item of wants) {
       expect(item.price, item.title).not.toBeNull();
@@ -306,7 +308,7 @@ describe("состав посева", () => {
       expect(item.currency).toBe("RUB");
     }
 
-    const loves = await prisma.item.findMany({ where: { roomId, state: "LOVE" } });
+    const loves = await prisma.item.findMany({ where: { roomId, inHall: true } });
     for (const item of loves) {
       expect(item.price, item.title).toBeNull();
       expect(item.currency, item.title).toBeNull();
@@ -332,7 +334,7 @@ describe("состав посева", () => {
 
   it("«люблю» с дарителем и годом уехали в зал славы — витрина не пустая", async () => {
     const gifts = await prisma.item.findMany({
-      where: { roomId, state: "LOVE", giverName: { not: null } },
+      where: { roomId, inHall: true, giverName: { not: null } },
     });
     expect(gifts.length).toBeGreaterThanOrEqual(2);
     for (const gift of gifts) {
@@ -425,7 +427,7 @@ describe("посев только добавляет", () => {
     vi.spyOn(console, "info").mockImplementation(() => undefined);
     const owner = await createUserWithRoom(OWNER_EMAIL);
     const mine = await prisma.item.create({
-      data: { roomId: owner.room.id, zone: "books", state: "LOVE", title: "Моя книга" },
+      data: { roomId: owner.room.id, zone: "books", inHall: true, title: "Моя книга" },
     });
 
     const result = await seedStandRoom(OWNER_EMAIL, spyStorage());
@@ -445,7 +447,7 @@ describe("посев только добавляет", () => {
     const owner = await createUserWithRoom(OWNER_EMAIL);
     const stranger = await createUserWithRoom(STRANGER_EMAIL);
     const strangerItem = await prisma.item.create({
-      data: { roomId: stranger.room.id, zone: "home", state: "WANT", title: "Чужая ваза", price: "100", currency: "RUB" },
+      data: { roomId: stranger.room.id, zone: "home", inHall: false, title: "Чужая ваза", price: "100", currency: "RUB" },
     });
 
     await seedStandRoom(OWNER_EMAIL, spyStorage());

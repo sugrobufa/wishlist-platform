@@ -120,7 +120,8 @@ describe("где показ обязан быть", () => {
     const card = read("../src/app/room/zone/[zone]/i/[id]/item-card.tsx");
     expect(card).toContain("<DesireScale");
     expect(card).toContain('place="card"');
-    expect(card).toContain('item.state === "WANT" && (');
+    // Тикет 124: место вместо состояния — шкала у вещи КОМНАТЫ.
+    expect(card).toContain("!item.inHall && (");
   });
 
   it("в карточке вещи у ГОСТЯ — тем же видом: он по шкале выбирает подарок", () => {
@@ -128,7 +129,7 @@ describe("где показ обязан быть", () => {
     expect(guest).toContain("<DesireScale");
     expect(guest).toContain('place="card"');
     // Значение берётся из гостевого DTO, а не досочиняется на клиенте.
-    expect(guest).toContain('const desire = item.state === "WANT" ? item.desire : null');
+    expect(guest).toContain("const desire = item.inHall ? null : item.desire;");
   });
 
   it("в строке зоны — без слова и рядом с ценой", () => {

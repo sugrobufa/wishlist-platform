@@ -60,11 +60,11 @@ export default async function GuestRoomAsListPage({ params }: Params) {
   // Шапка гостя говорит именем хозяйки, а не «Моя комната»: это её комната,
   // и на 29a-guest подпись такая же. Счётчик забранных гостю не показывается
   // никогда и ни в каком виде (инвариант №1) — здесь его нет и не было.
+  // «N вещей», и только оно (тикет 124): второе число говорило, сколько вещей
+  // помечено «хочу», а в комнате теперь всё — желание, и оно всегда равнялось
+  // бы первому. `want: 0` гасит вторую половину строки словаря (ветка `=0`).
+  // Гостевое «M свободно» придёт из канала «занято» — заход про экраны.
   const items = groups.reduce((sum, group) => sum + group.items.length, 0);
-  const wants = groups.reduce(
-    (sum, group) => sum + group.items.filter((item) => item.state === "WANT").length,
-    0,
-  );
   const tGrid = await getTranslations("ZoneGrid");
 
   return (
@@ -74,7 +74,7 @@ export default async function GuestRoomAsListPage({ params }: Params) {
           <h1 className="display text-3xl lg:text-4xl">{room.ownerName ?? t("title")}</h1>
           {items > 0 && (
             <p className="overline mt-2 text-text-muted">
-              {tGrid("zoneCounts", { total: items, want: wants })}
+              {tGrid("zoneCounts", { total: items, want: 0 })}
             </p>
           )}
         </header>

@@ -710,7 +710,7 @@ export async function listConnections(
   const giftItems = giftItemIds.size
     ? await prisma.item.findMany({
         where: { id: { in: [...giftItemIds] } },
-        select: { id: true, title: true, state: true, inHall: true, hiddenFromHall: true },
+        select: { id: true, title: true, inHall: true, hiddenFromHall: true },
       })
     : [];
   const itemById = new Map(giftItems.map((item) => [item.id, item]));

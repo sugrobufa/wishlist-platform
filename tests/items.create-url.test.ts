@@ -8,7 +8,10 @@ import { randomUUID } from "node:crypto";
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { ZodError } from "zod";
 
-vi.mock("@/server/queues", () => ({ enqueueImageIngest: vi.fn(async () => true) }));
+vi.mock("@/server/queues", () => ({
+  enqueueImageIngest: vi.fn(async () => true),
+  enqueueItemGoneMail: vi.fn(async () => true),
+}));
 
 import { prisma } from "../src/server/db";
 import { enqueueImageIngest } from "../src/server/queues";
@@ -53,7 +56,7 @@ beforeEach(() => {
 });
 
 const urlInput = (overrides: Record<string, unknown> = {}) => ({
-  state: "WANT",
+  inHall: false,
   zone: "jewelry",
   title: "Серьги-кольца",
   price: "14900",
@@ -78,7 +81,7 @@ describe("createItem — source=URL", () => {
   it("контракт тикета 04 не тронут: без source — MANUAL, canonicalUrl/domain пусты", async () => {
     const { user } = await createTestRoom();
     const item = await createItem(user.id, {
-      state: "WANT",
+      inHall: false,
       zone: "jewelry",
       title: "Браслет",
       price: "9900",
@@ -101,7 +104,7 @@ describe("createItem — source=URL", () => {
   it("LOVE по ссылке тоже работает: source=URL, цены нет даже в инпуте после strip", async () => {
     const { user } = await createTestRoom();
     const item = await createItem(user.id, {
-      state: "LOVE",
+      inHall: true,
       zone: "jewelry",
       title: "Колье",
       source: "URL",
@@ -152,7 +155,7 @@ describe("createItem — очередь image.ingest", () => {
     const { user } = await createTestRoom();
     await createItem(user.id, urlInput());
     await createItem(user.id, {
-      state: "WANT",
+      inHall: false,
       zone: "jewelry",
       title: "Ручная",
       price: "100",
@@ -187,7 +190,7 @@ describe("findDuplicateByUrl — дедуп по canonicalUrl", () => {
   it("MANUAL-вещь с url, но без canonicalUrl, дубликатом не считается", async () => {
     const { user } = await createTestRoom();
     await createItem(user.id, {
-      state: "WANT",
+      inHall: false,
       zone: "jewelry",
       title: "Ручная с url",
       price: "100",

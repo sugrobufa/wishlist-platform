@@ -14,6 +14,7 @@ import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 
 vi.mock("@/server/queues", () => ({
   enqueueOccasionOwnerMail: vi.fn(async () => true),
+  enqueueItemGoneMail: vi.fn(async () => true),
   enqueueImageIngest: vi.fn(async () => true),
 }));
 
@@ -57,14 +58,14 @@ afterAll(async () => {
 describe("запись событий комнаты (тикет 114)", () => {
   it("первая вещь зоны открывает полку, вторая — только «добавлена»", async () => {
     const { user, room } = await ownerWithRoom();
-    await createItem(user.id, { zone: "jewelry", state: "WANT", title: "Серьги", price: "5000", currency: "RUB" });
+    await createItem(user.id, { zone: "jewelry", inHall: false, title: "Серьги", price: "5000", currency: "RUB" });
     expect(await kindsOf(room.id)).toEqual(["ITEMS_ADDED", "SHELF_OPENED"]);
 
-    await createItem(user.id, { zone: "jewelry", state: "WANT", title: "Кольцо", price: "3000", currency: "RUB" });
+    await createItem(user.id, { zone: "jewelry", inHall: false, title: "Кольцо", price: "3000", currency: "RUB" });
     expect(await kindsOf(room.id)).toEqual(["ITEMS_ADDED", "SHELF_OPENED", "ITEMS_ADDED"]);
 
     // Другая зона — своя полка открывается заново.
-    await createItem(user.id, { zone: "books", state: "LOVE", title: "Сборник" });
+    await createItem(user.id, { zone: "books", inHall: true, title: "Сборник" });
     expect((await kindsOf(room.id)).filter((kind) => kind === "SHELF_OPENED")).toHaveLength(2);
   });
 
@@ -117,7 +118,7 @@ describe("запись событий комнаты (тикет 114)", () => {
 
   it("ПОДАРОЧНЫЙ СЛОЙ в ленту не попадает: бронь события не создаёт", async () => {
     const { user, room } = await ownerWithRoom();
-    const item = await createItem(user.id, { zone: "jewelry", state: "WANT", title: "Колье", price: "9000", currency: "RUB" });
+    const item = await createItem(user.id, { zone: "jewelry", inHall: false, title: "Колье", price: "9000", currency: "RUB" });
     const before = await kindsOf(room.id);
 
     await bookItem({ itemId: item.id, name: "Гость" });
@@ -131,7 +132,7 @@ describe("запись событий комнаты (тикет 114)", () => {
 
   it("в событиях нет ни имён, ни вещей — только ключ зоны и id интерьера", async () => {
     const { user, room } = await ownerWithRoom();
-    await createItem(user.id, { zone: "jewelry", state: "WANT", title: "Секретное колье", price: "9000", currency: "RUB" });
+    await createItem(user.id, { zone: "jewelry", inHall: false, title: "Секретное колье", price: "9000", currency: "RUB" });
     await changeRoomPreset(user.id, "warm");
 
     const events = await prisma.roomEvent.findMany({ where: { roomId: room.id } });

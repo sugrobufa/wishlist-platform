@@ -13,9 +13,10 @@
 // подборка „начни с готового" по согласию».
 //
 // ЧЕГО НАБОР НЕ ПРИНОСИТ. Дарителей и годов («Подарок от мамы, 2024») и
-// витрины сокровищницы: выдуманное воспоминание — не стартовый контент.
+// вещей сокровищницы: выдуманное воспоминание — не стартовый контент.
 // Имя дарителя попадает в комнату ровно одним путём — через «Дошло»
-// (инвариант №2). За это отвечает `withGiftHistory: false` в pack-seeds.
+// (инвариант №2). За это отвечает `livePoolSeeds` (семена «уже своё»
+// отсеиваются целиком) и `withGiftHistory: false` в pack-seeds.
 import { z } from "zod";
 import { prisma } from "@/server/db";
 import { rooms as roomPresets } from "@/config/design";
@@ -23,7 +24,7 @@ import { createItem } from "@/server/services/items";
 import { putObjectViaPresign } from "@/server/s3";
 import {
   createInputFor,
-  poolSeeds,
+  livePoolSeeds,
   storePackagePhoto,
   type PackStorage,
 } from "@/server/services/pack-seeds";
@@ -58,7 +59,7 @@ function orderedByWants<T extends { key: string }>(zones: T[], wants: readonly s
  */
 export function starterPackSize(preset: string, zonesOff: readonly string[]): number {
   return visiblePresetZones(preset, zonesOff).reduce(
-    (sum, zone) => sum + poolSeeds(zone.pool).length,
+    (sum, zone) => sum + livePoolSeeds(zone.pool).length,
     0,
   );
 }
@@ -90,7 +91,7 @@ export async function applyStarterPack(
   const result: StarterPackResult = { roomFound: true, created: 0, photos: 0 };
 
   for (const zone of orderedByWants(visiblePresetZones(room.preset, room.zonesOff), room.wants)) {
-    const seeds = poolSeeds(zone.pool);
+    const seeds = livePoolSeeds(zone.pool);
     if (seeds.length === 0) continue; // у зоны нет пула (money) — не выдумываем
     if ((await prisma.item.count({ where: { roomId: room.id, zone: zone.key } })) > 0) continue;
 

@@ -58,7 +58,6 @@ export type AccountExport = {
   items: Array<{
     id: string;
     zone: string;
-    state: "LOVE" | "WANT";
     title: string;
     note: string | null;
     photoKey: string | null;
@@ -74,6 +73,7 @@ export type AccountExport = {
     /** Раскрытый даритель («что подарили») — уже данные хозяйки. */
     giverName: string | null;
     receivedAt: string | null;
+    /** Место вещи: false — комната, true — сокровищница (тикет 124). */
     inHall: boolean;
     hiddenFromHall: boolean;
     hidden: boolean;
@@ -168,7 +168,6 @@ export async function buildExport(userId: string): Promise<AccountExport | null>
     items: items.map((item) => ({
       id: item.id,
       zone: item.zone,
-      state: item.state,
       title: item.title,
       note: item.note,
       photoKey: item.photoKey,

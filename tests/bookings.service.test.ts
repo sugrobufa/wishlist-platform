@@ -54,7 +54,7 @@ function wantItem(
   return {
     roomId,
     zone: "jewelry",
-    state: "WANT",
+    inHall: false,
     title,
     price: "7900",
     currency: "RUB",
@@ -139,12 +139,27 @@ describe("bookItem", () => {
     expect(await prisma.booking.count({ where: { itemId: item.id } })).toBe(1);
   });
 
-  it("вещь «люблю» → NOT_WANT (бронируются только «хочу»)", async () => {
+  // ПЕРЕПИСАНО (тикет 124): раньше отказ означал «вещь не „хочу"». Состояний
+  // нет — бронируется ВСЁ, что в комнате, и отказ остался ровно один: вещь
+  // уже своя, лежит в сокровищнице, дарить нечего.
+  it("вещь сокровищницы → IN_HALL (в комнате бронируется всё остальное)", async () => {
     const room = await createTestRoom();
-    const love = await prisma.item.create({
-      data: { roomId: room.id, zone: "jewelry", state: "LOVE", title: "Цепочка" },
+    const mine = await prisma.item.create({
+      data: { roomId: room.id, zone: "jewelry", inHall: true, title: "Цепочка" },
     });
-    await expectBookingError(bookItem(bookingInput(love.id)), "NOT_WANT");
+    await expectBookingError(bookItem(bookingInput(mine.id)), "IN_HALL");
+  });
+
+  it("вещь комнаты БЕЗ цены бронируется как любая другая (тикет 124)", async () => {
+    // Вещь без цены появляется законно — например, вернулась из сокровищницы
+    // («Вернуть в комнату»). Комната = список желаний, и в ней бронируется всё.
+    const room = await createTestRoom();
+    const priceless = await prisma.item.create({
+      data: { roomId: room.id, zone: "jewelry", inHall: false, title: "Без цены" },
+    });
+    await expect(bookItem(bookingInput(priceless.id))).resolves.toMatchObject({
+      cancelToken: expect.any(String) as unknown as string,
+    });
   });
 
   it("демо-призрак (id demo:…) → DEMO_ITEM, в БД не ходим", async () => {

@@ -7,7 +7,12 @@
 // не отдаёт ни имён, ни вещей с бронями — ВООБЩЕ ничего повещного о бронях
 // (инвариант №1 продолжает действовать). receiveGift без summary отказывает:
 // вне «что подарили» перехода с раскрытием не существует.
-// Переход «хочу → люблю» необратим: LOVE→WANT нет ни здесь, ни в items.
+//
+// НЕОБРАТИМО ТОЛЬКО РАСКРЫТИЕ ИМЕНИ, А НЕ МЕСТО ВЕЩИ (тикет 124). Прежняя
+// формулировка «переход хочу → люблю необратим» умерла вместе с состояниями:
+// вещь, уехавшую «Дошло» в сокровищницу, хозяйка может вернуть в комнату
+// (items.toggleHall) — и это ничего не меняет в именах. `giverName` пишется
+// здесь один раз и после этого не трогается ни переездом, ни возвратом.
 import { revalidateTag } from "next/cache";
 import { Prisma, type Item, type OccasionSummary } from "@prisma/client";
 import { z } from "zod";
@@ -29,7 +34,7 @@ const idSchema = z.string().min(1).max(64);
 export type OccasionErrorCode =
   | "NO_ROOM" // комнаты нет (или чужой roomId)
   | "NOT_FOUND" // вещи нет — или она чужая (не подтверждаем существование)
-  | "NOT_WANT" // «Дошло» бывает только у «хочу»: повтор на LOVE — отказ
+  | "ALREADY_IN_HALL" // «Дошло» уже отмечено: вещь в сокровищнице, повтор — отказ
   | "NO_SUMMARY"; // праздник не закрыт — раскрытия вне summary не существует
 
 export class OccasionError extends Error {
@@ -173,7 +178,7 @@ export type OccasionView = {
   summary: { id: string; date: string; revealedAt: string | null } | null;
   pending: OccasionPendingGift[];
   received: OccasionReceivedGift[];
-  /** «Осталось незабранным · N» — вещи «хочу» без брони (голое число). */
+  /** «Осталось незабранным · N» — вещи комнаты без брони (голое число). */
   unclaimedCount: number;
   /** Копилка с раскрытыми участниками; null — цели нет или в неё не скидывались. */
   goal: OccasionGoal | null;
@@ -205,10 +210,10 @@ export async function getOccasionView(userId: string): Promise<OccasionView> {
     throw new OccasionError("NO_ROOM", "у пользователя нет комнаты — сначала онбординг");
   }
 
-  // Незабранные «хочу» остаются в комнате до следующего повода (спрятанные
+  // Незабранные вещи комнаты остаются в ней до следующего повода (спрятанные
   // хозяйкой в подарочном цикле не участвуют — их бронь снята при скрытии).
   const unclaimedCount = await prisma.item.count({
-    where: { roomId: room.id, state: "WANT", hidden: false, booking: null },
+    where: { roomId: room.id, inHall: false, hidden: false, booking: null },
   });
 
   const summary = await prisma.occasionSummary.findFirst({
@@ -229,8 +234,8 @@ export async function getOccasionView(userId: string): Promise<OccasionView> {
   });
   const revealed = await prisma.occasionSummary.findUniqueOrThrow({ where: { id: summary.id } });
 
-  // Живые брони комнаты. Брони бывают только у «хочу» (bookItem), а «Дошло»
-  // закрывает бронь в той же транзакции — фильтр по state не нужен.
+  // Живые брони комнаты. Брони бывают только у вещи комнаты (bookItem), а
+  // «Дошло» закрывает бронь в той же транзакции — фильтра по месту не нужно.
   const bookings = await prisma.booking.findMany({
     where: { item: { roomId: room.id } },
     orderBy: { createdAt: "asc" },
@@ -243,12 +248,12 @@ export async function getOccasionView(userId: string): Promise<OccasionView> {
 
   // «Дошло» этого праздника: receiveGift существует только после summary,
   // поэтому receivedAt >= createdAt summary отсекает и прошлые праздники, и
-  // ручные «уже моё»/«подарила мама» (giverName у selfFulfill всегда null,
-  // у ручных «люблю» receivedAt — прошлый год).
+  // ручные переезды на витрину (`giverName` при ручном переезде не
+  // проставляется никогда — его пишет только «Дошло»).
   const receivedItems = await prisma.item.findMany({
     where: {
       roomId: room.id,
-      state: "LOVE",
+      inHall: true,
       giverName: { not: null },
       receivedAt: { gte: revealed.createdAt },
     },
@@ -323,10 +328,11 @@ async function revealedGoal(roomId: string): Promise<OccasionGoal | null> {
 // ---------- Переход «Дошло» (receiveGift) ----------
 
 /**
- * «Дошло»: единственный переход WANT → LOVE с раскрытием дарителя. ОДНА
- * транзакция — все эффекты вместе или никакие:
- * - state=LOVE, receivedAt=now, giverName из брони (или null — брони не было),
- *   inHall=true (вещь уезжает в зал славы);
+ * «Дошло»: ЕДИНСТВЕННЫЙ системный переезд «комната → сокровищница», и
+ * единственное место, где раскрывается имя дарителя. ОДНА транзакция — все
+ * эффекты вместе или никакие:
+ * - inHall=true (вещь уезжает из комнаты на витрину), receivedAt=now,
+ *   giverName из брони (или null — брони не было);
  * - бронь закрывается (tx.booking.deleteMany — контракт тикета 09);
  * - Связь: если у брони есть guestUserId (гость дарил залогиненным) — у
  *   хозяйки появляется Connection с гостем, origin `gift:{itemId}`, kind
@@ -339,8 +345,16 @@ async function revealedGoal(roomId: string): Promise<OccasionGoal | null> {
  *   экране (хозяйке) и на странице друзей (дарителю).
  *
  * Требует существующего OccasionSummary комнаты: раскрытие живёт только
- * в рамках «что подарили» (инвариант №2). Повторный вызов на уже LOVE —
- * отказ NOT_WANT, ничего не меняется (переход необратим и не повторяется).
+ * в рамках «что подарили» (инвариант №2). Повторный вызов на вещи, которая
+ * уже на витрине, — отказ ALREADY_IN_HALL, ничего не меняется: раскрытие
+ * бывает ровно один раз.
+ *
+ * ЧТО ИМЕННО НЕОБРАТИМО. Не место вещи: хозяйка вправе вернуть её в комнату
+ * («Вернуть в комнату», items.toggleHall) — и `giverName` при этом остаётся
+ * как был, ни второй раз не раскрываясь, ни прячась. Необратимо САМО
+ * РАСКРЫТИЕ, и держится оно на двух вещах: `revealedAt` у summary ставится
+ * один раз, а имя в `giverName` пишет только эта функция и только у вещи,
+ * которая на витрине ещё не лежит.
  */
 export async function receiveGift(userId: string, itemId: string): Promise<Item> {
   const ownerId = idSchema.parse(userId);
@@ -355,8 +369,8 @@ export async function receiveGift(userId: string, itemId: string): Promise<Item>
     if (!item) {
       throw new OccasionError("NOT_FOUND", "такой вещи нет");
     }
-    if (item.state !== "WANT") {
-      throw new OccasionError("NOT_WANT", "«Дошло» уже отмечено — переход необратим");
+    if (item.inHall) {
+      throw new OccasionError("ALREADY_IN_HALL", "«Дошло» уже отмечено — имя раскрыто один раз");
     }
     const summary = await tx.occasionSummary.findFirst({ where: { roomId: item.roomId } });
     if (!summary) {
@@ -367,19 +381,20 @@ export async function receiveGift(userId: string, itemId: string): Promise<Item>
     }
 
     const booking = item.booking;
-    // Guard state=WANT в самом updateMany: параллельный двойной клик вторым
-    // вызовом получает count=0 → NOT_WANT → откат, giverName не затирается.
+    // Guard `inHall: false` в самом updateMany: параллельный двойной клик
+    // вторым вызовом получает count=0 → ALREADY_IN_HALL → откат, giverName не
+    // затирается.
     const flipped = await tx.item.updateMany({
-      where: { id: item.id, state: "WANT" },
+      where: { id: item.id, inHall: false },
       data: {
-        state: "LOVE",
+        inHall: true,
+        hiddenFromHall: false,
         receivedAt: new Date(),
         giverName: booking?.guestName ?? null,
-        inHall: true,
       },
     });
     if (flipped.count === 0) {
-      throw new OccasionError("NOT_WANT", "«Дошло» уже отмечено — переход необратим");
+      throw new OccasionError("ALREADY_IN_HALL", "«Дошло» уже отмечено — имя раскрыто один раз");
     }
 
     await tx.booking.deleteMany({ where: { itemId: item.id } });

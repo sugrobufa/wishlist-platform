@@ -101,22 +101,19 @@ export function ZoneList({ zones, zonesOff, summaries, viewer, accent }: ZoneLis
                     {count === 0
                       ? t("summaryEmpty")
                       : viewer === "owner"
-                        ? tCounts("zoneCounts", { total: count, want: summary?.wantCount ?? 0 })
-                        : t("summaryCountsGuest", {
-                            total: count,
-                            want: summary?.wantCount ?? 0,
-                          })}
+                        ? tCounts("zoneCounts", { total: count, want: 0 })
+                        : t("summaryCountsGuest", { total: count, want: 0 })}
                   </span>
                 </span>
 
-                {/* Миниатюры — те же три, что показывает сводка на десктопе;
-                    пунктир кодирует «хочу», а не отсутствие фото (инвариант №3). */}
+                {/* Миниатюры — те же три, что показывает сводка на десктопе.
+                    Пунктира нет ни у одной (тикет 124, инвариант №3 отменён). */}
                 {summary && summary.thumbs.length > 0 && (
                   <span className={s.thumbs} aria-hidden>
                     {summary.thumbs.map((thumb, i) => (
                       <span
                         key={i}
-                        className={thumb.want ? `${s.thumb} ${s.thumbWant}` : s.thumb}
+                        className={s.thumb}
                         style={
                           thumb.photoUrl ? { backgroundImage: `url(${thumb.photoUrl})` } : undefined
                         }

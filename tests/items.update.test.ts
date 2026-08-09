@@ -46,7 +46,7 @@ async function createWantItem(roomId: string, zone = "jewelry") {
     data: {
       roomId,
       zone,
-      state: "WANT",
+      inHall: false,
       title: "Серьги-кольца",
       price: "7900",
       currency: "RUB",
@@ -60,7 +60,7 @@ async function createWantItem(roomId: string, zone = "jewelry") {
 
 async function createLoveItem(roomId: string, zone = "jewelry", receivedAt: Date | null = null) {
   return prisma.item.create({
-    data: { roomId, zone, state: "LOVE", title: "Теннисный браслет", receivedAt },
+    data: { roomId, zone, inHall: true, title: "Теннисный браслет", receivedAt },
   });
 }
 
@@ -119,7 +119,7 @@ describe("updateItem — правка полей вещи", () => {
     expect(updated.color).toBe("белое золото");
     expect(updated.desire).toBe(4);
     expect(updated.note).toBe("на день рождения");
-    expect(updated.state).toBe("WANT");
+    expect(updated.inHall).toBe(false);
   });
 
   it("цена — Decimal, а не float: «14900,50» из формы доезжает копейка в копейку", async () => {
@@ -243,28 +243,33 @@ describe("updateItem — перенос на другую полку", () => {
 
 // ---------- Инвариант №2: «хочу → люблю» правкой не отменить ----------
 
-describe("updateItem и необратимость перехода (инвариант №2)", () => {
-  it("state в инпуте игнорируется: «люблю» остаётся «люблю», «хочу» — «хочу»", async () => {
+// ПЕРЕПИСАНО (тикет 124). Тест защищал «переход хочу → люблю необратим»;
+// состояний нет, и защищать надо другое — что ПРАВКА НЕ ПЕРЕСЕЛЯЕТ ВЕЩЬ.
+// Переезд бывает только явным действием («В сокровищницу» / «Вернуть в
+// комнату») или системным («Дошло»), и присланный руками `inHall` до БД не
+// доезжает: ключа в схемах правки нет вовсе.
+describe("updateItem не переселяет вещь (тикет 124)", () => {
+  it("inHall в инпуте игнорируется в обе стороны", async () => {
     const { user, room } = await createOwnerWithRoom();
     const love = await createLoveItem(room.id);
     const want = await createWantItem(room.id, "bags");
 
-    const stillLove = await updateItem(user.id, love.id, {
+    const stillHall = await updateItem(user.id, love.id, {
       zone: "jewelry",
       title: "Теннисный браслет",
-      state: "WANT",
+      inHall: false,
       price: "9900",
       currency: "RUB",
     });
-    expect(stillLove.state).toBe("LOVE");
+    expect(stillHall.inHall).toBe(true);
 
-    const stillWant = await updateItem(
+    const stillRoom = await updateItem(
       user.id,
       want.id,
-      wantForm({ zone: "bags", state: "LOVE", giverName: "мама" }),
+      wantForm({ zone: "bags", inHall: true, giverName: "мама" }),
     );
-    expect(stillWant.state).toBe("WANT");
-    expect(stillWant.giverName).toBeNull();
+    expect(stillRoom.inHall).toBe(false);
+    expect(stillRoom.giverName).toBeNull();
   });
 
   it("цена «люблю» не пишется даже полем (инвариант №8) и не сериализуется", async () => {

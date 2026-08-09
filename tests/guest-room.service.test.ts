@@ -61,7 +61,7 @@ function wantItem(
   return {
     roomId,
     zone,
-    state: "WANT",
+    inHall: false,
     title,
     price: "4300",
     currency: "RUB",
@@ -187,7 +187,7 @@ describe("getGuestRoom", () => {
       data: {
         roomId: room.id,
         zone: "jewelry",
-        state: "LOVE",
+        inHall: true,
         title: "Браслет с историей",
         price: "77777.77",
         currency: "RUB",
@@ -197,11 +197,12 @@ describe("getGuestRoom", () => {
       },
     });
 
+    // ПЕРЕПИСАНО (тикет 124). Раньше вещь «люблю» приезжала гостю прямо в
+    // зону и проверялось, что цены у неё нет. Теперь её там нет ВООБЩЕ:
+    // сокровищница — отдельное место, и в комнату гостя она не попадает.
+    // Проверка стала сильнее: не «без цены», а «без вещи и без числа».
     const view = await getGuestRoom(room.shareSlug);
-    const love = view?.itemsByZone.jewelry?.[0];
-    expect(love?.state).toBe("LOVE");
-    expect(love && "price" in love).toBe(false);
-    expect(love && "currency" in love).toBe(false);
+    expect(view?.itemsByZone.jewelry ?? []).toEqual([]);
     expect(JSON.stringify(view)).not.toContain("77777.77");
   });
 
@@ -251,7 +252,7 @@ describe("getGuestRoom — свободные подарки", () => {
     const room = await createTestRoom();
     await prisma.item.create({ data: wantItem(room.id, "jewelry", "Браслет") });
     await prisma.item.create({
-      data: { roomId: room.id, zone: "jewelry", state: "LOVE", title: "Кольцо бабушки" },
+      data: { roomId: room.id, zone: "jewelry", inHall: true, title: "Кольцо бабушки" },
     });
 
     expect((await getGuestRoom(room.shareSlug))?.freeGiftCount).toBe(1);

@@ -1,12 +1,22 @@
-// Стоимость в зале славы (тикет 35, ADR-0004, доска — турн 12d).
+// Стоимость в сокровищнице (тикет 35, ADR-0004, доска — турн 12d;
+// ПЕРЕПИСАН тикетом 124).
 //
-// Что здесь защищается:
-// - ГОСТЬ не видит цену подарка, пока хозяйка не открыла её настройкой зала
-//   (инвариант №8 в формулировке ADR-0004) — обязательный тест тикета;
-// - скрытие цены у ОТДЕЛЬНОЙ вещи перекрывает открытый зал («даже если весь
-//   зал её показывает»), а обратно — не расширяет;
-// - хозяйке её собственные цены видны ВСЕГДА, при любом положении настройки;
-// - округление — только показ: сумма зала складывается по точным Decimal и
+// ЧТО ИЗМЕНИЛОСЬ. Раньше половина файла защищала ДВЕРЬ: гость видит цену
+// подарка, когда хозяйка откроет её настройкой зала, скрытие у отдельной вещи
+// перекрывает открытый зал, вещь шире зала не становится. Двери больше нет —
+// цену вещи сокровищницы гость не видит НИКОГДА и ни при каком положении
+// настройки (инвариант №8 в новой редакции). Вместе с дверью ушло и
+// «скрыть цену у отдельной вещи» (`setHallPriceHidden`): прятать не от кого,
+// а писать `priceVisibility: NONE` было бы прямо вредно — эта колонка теперь
+// управляет ценой вещи В КОМНАТЕ, и «Вернуть в комнату» показало бы вещь без
+// цены.
+//
+// Что защищается сейчас:
+// - ГОСТЬ не видит цену вещи сокровищницы ни при каком положении настройки;
+// - ХОЗЯЙКЕ её собственные цены видны ВСЕГДА (эта половина №8 не менялась);
+// - цена вещи КОМНАТЫ живёт своим правилом (`priceVisibility`) и настройкой
+//   витрины не задета — ни в одну, ни в другую сторону;
+// - округление — только показ: сумма складывается по точным Decimal и
 //   округляется уже готовой (иначе «около» каждой вещи копится в ошибку);
 // - деньги остаются Decimal-строкой и во float по дороге не превращаются.
 import "dotenv/config";
@@ -26,9 +36,9 @@ vi.mock("next/cache", () => ({
 
 import { prisma } from "../src/server/db";
 import {
-  guestSeesHallItemPrice,
   guestSeesHallPrice,
   hallItemForOwner,
+  hallItemForGuest,
   hallSettingsOf,
   hallTotals,
   priceAudienceHidden,
@@ -37,8 +47,8 @@ import {
 } from "../src/server/dto/hall";
 import { itemForGuest } from "../src/server/dto/guest-items";
 import { getGuestRoom } from "../src/server/services/guest-room";
+import { getGuestHall } from "../src/server/services/guest-hall";
 import { setHallSettings } from "../src/server/services/rooms";
-import { ItemMutationError, setHallPriceHidden } from "../src/server/services/items";
 
 const TEST_EMAIL_DOMAIN = "@hall-prices.test";
 
@@ -48,7 +58,7 @@ function dbItem(overrides: Partial<Item> = {}): Item {
     id: "item_1",
     roomId: "room_1",
     zone: "bags",
-    state: "LOVE",
+    inHall: true,
     title: "Стёганая сумка, кремовая кожа",
     note: null,
     photoKey: null,
@@ -66,7 +76,6 @@ function dbItem(overrides: Partial<Item> = {}): Item {
   validUntil: null,
     giverName: "мама",
     receivedAt: new Date("2025-03-14T12:00:00.000Z"),
-    inHall: true,
     hiddenFromHall: false,
     hidden: false,
     source: "MANUAL",
@@ -89,66 +98,37 @@ const OPEN_HALL: HallSettings = {
 // Гость: дверь открывает настройка зала, и только она
 // ====================================================================
 
-describe("гость и цена подарка", () => {
-  it("без контекста зала цены нет вовсе — форма ведёт себя как до тикета 35", () => {
-    const dto = itemForGuest(dbItem());
+describe("гость и цена вещи сокровищницы: её нет никогда", () => {
+  it("форма витрины не знает ключей price/currency вовсе", () => {
+    const dto = hallItemForGuest(dbItem(), null);
     expect("price" in dto).toBe(false);
     expect("currency" in dto).toBe(false);
+    expect("rounded" in dto).toBe(false);
     expect(JSON.stringify(dto)).not.toContain("62000");
   });
 
-  it.each(["FRIENDS", "ME", "NONE"] as const)(
-    "настройка зала %s: ключей price/currency у гостя НЕТ",
-    (visibility) => {
-      const dto = itemForGuest(dbItem(), { priceVisibility: visibility });
+  it("правило одно и без доводов: guestSeesHallPrice() === false", () => {
+    // Аргументов у функции нет сознательно — любая настройка в сигнатуре
+    // читалась бы как дверь, которой больше не существует.
+    expect(guestSeesHallPrice()).toBe(false);
+  });
+
+  it("вещь сокровищницы в форме комнаты тоже без цены — при любом её priceVisibility", () => {
+    for (const visibility of ["ALL", "FRIENDS", "ME", "NONE"] as const) {
+      const dto = itemForGuest(dbItem({ priceVisibility: visibility }));
       expect("price" in dto).toBe(false);
       expect("currency" in dto).toBe(false);
       expect(JSON.stringify(dto)).not.toContain("62000");
-    },
-  );
-
-  it("FRIENDS в Phase 1 закрыт — иначе дефолт настройки стал бы «всем»", () => {
-    // ADR-0004: дефолт обязан быть «только друзьям», а не «всем». Связей,
-    // по которым можно отличить своего, в Phase 1 ещё нет.
-    expect(guestSeesHallPrice("FRIENDS")).toBe(false);
-    expect(guestSeesHallPrice("ME")).toBe(false);
-    expect(guestSeesHallPrice("NONE")).toBe(false);
-    expect(guestSeesHallPrice("ALL")).toBe(true);
+    }
   });
 
-  it("настройка зала ALL: цена приезжает строкой Decimal, валюта — отдельным полем", () => {
-    const dto = itemForGuest(dbItem(), { priceVisibility: "ALL" });
-    if (dto.state !== "LOVE") throw new Error("unreachable");
-    expect(dto.price).toBe("62000");
-    expect(typeof dto.price).toBe("string");
-    expect(dto.currency).toBe("RUB");
-  });
-
-  it.each(["ME", "NONE"] as const)(
-    "цена скрыта у самой вещи (%s) — открытый зал её не открывает",
-    (itemVisibility) => {
-      expect(guestSeesHallItemPrice("ALL", itemVisibility)).toBe(false);
-      const dto = itemForGuest(dbItem({ priceVisibility: itemVisibility }), {
-        priceVisibility: "ALL",
-      });
-      expect("price" in dto).toBe(false);
-      expect("currency" in dto).toBe(false);
-    },
-  );
-
-  it("вещь шире зала не становится: ALL у вещи при закрытом зале ничего не даёт", () => {
-    expect(guestSeesHallItemPrice("NONE", "ALL")).toBe(false);
-    expect(guestSeesHallItemPrice("FRIENDS", "ALL")).toBe(false);
-  });
-
-  it("цена «хочу» живёт по своему правилу — настройка зала её не трогает", () => {
-    // Инвариант №8 в части «хочу» не менялся: ALL/FRIENDS отдают цену.
-    const want = itemForGuest(
-      dbItem({ state: "WANT", priceVisibility: "FRIENDS", giverName: null, receivedAt: null }),
-      { priceVisibility: "NONE" },
+  it("цена вещи КОМНАТЫ живёт своим правилом — витрина её не трогает", () => {
+    // Инвариант №8 в части комнаты не менялся: ALL/FRIENDS отдают цену.
+    const roomItem = itemForGuest(
+      dbItem({ inHall: false, priceVisibility: "FRIENDS", giverName: null, receivedAt: null }),
     );
-    if (want.state !== "WANT") throw new Error("unreachable");
-    expect(want.price).toBe("62000");
+    if (roomItem.inHall) throw new Error("unreachable");
+    expect(roomItem.price).toBe("62000");
   });
 });
 
@@ -166,23 +146,17 @@ describe("витрина глазами хозяйки", () => {
     },
   );
 
-  it("значок повторяет настройку зала — «кто видит цену» без похода в настройки", () => {
-    const view = hallItemForOwner(dbItem(), { ...OPEN_HALL, priceVisibility: "FRIENDS" }, null);
-    expect(view.priceAudience).toBe("FRIENDS");
-  });
-
-  it.each(["ME", "NONE"] as const)(
-    "цена скрыта у вещи (%s): значок говорит про вещь, а не про зал",
-    (itemVisibility) => {
-      const view = hallItemForOwner(
-        dbItem({ priceVisibility: itemVisibility }),
-        OPEN_HALL,
-        null,
-      );
-      expect(view.priceAudience).toBe("ITEM");
+  // ПЕРЕПИСАНО (тикет 124): значок повторял настройку зала и умел говорить
+  // «скрыто у этой вещи». Теперь ответ один у любой вещи и при любой
+  // настройке — «от гостей закрыто», потому что так оно и есть.
+  it("значок всегда говорит «гость цену не видит» — и это правда", () => {
+    for (const visibility of ["ALL", "FRIENDS", "ME", "NONE"] as const) {
+      const view = hallItemForOwner(dbItem(), { ...OPEN_HALL, priceVisibility: visibility }, null);
+      expect(view.priceAudience).toBe("NONE");
+      expect(priceAudienceHidden(view.priceAudience)).toBe(true);
       expect(view.price).toBe("62000"); // хозяйке — всё равно видно
-    },
-  );
+    }
+  });
 
   it("тумблер «Кто подарил» прячет имя в витрине, но вещь остаётся подарком", () => {
     const shown = hallItemForOwner(dbItem(), OPEN_HALL, null);
@@ -381,158 +355,121 @@ describe("настройки зала в БД", () => {
   });
 });
 
-describe("скрыть цену у отдельной вещи", () => {
-  it("скрывает и возвращает — через собственную видимость вещи", async () => {
+// ПЕРЕПИСАН ЦЕЛИКОМ (тикет 124). Здесь было три теста про
+// `setHallPriceHidden` — «скрыть/показать цену отдельной вещи в зале». Сервис
+// удалён: цену в сокровищнице не видит ни один гость, прятать не от кого, а
+// колонка `priceVisibility`, которую он переписывал в NONE, теперь отвечает за
+// цену вещи В КОМНАТЕ — «Вернуть в комнату» вернуло бы вещь без цены.
+// Проверяем ЗАМЕНУ: переезд туда-обратно цену не портит.
+describe("переезд не портит цену вещи (тикет 124)", () => {
+  it("«Вернуть в комнату» показывает цену снова — priceVisibility не тронут", async () => {
     const { user, room } = await createOwnerWithRoom();
     const item = await prisma.item.create({
       data: {
         roomId: room.id,
         zone: "bags",
-        state: "LOVE",
+        inHall: false,
         title: "Сумка",
         price: "62000",
         currency: "RUB",
-        inHall: true,
+        priceVisibility: "ALL",
       },
     });
 
-    const hidden = await setHallPriceHidden(user.id, item.id, true);
-    expect(hidden.priceVisibility).toBe("NONE");
-    expect(guestSeesHallItemPrice("ALL", hidden.priceVisibility)).toBe(false);
+    const { toggleHall } = await import("../src/server/services/items");
+    const moved = await toggleHall(user.id, item.id, true);
+    expect(moved.inHall).toBe(true);
+    // Цена в БД никуда не делась — её просто перестают показывать.
+    expect(moved.price?.toString()).toBe("62000");
+    expect(moved.priceVisibility).toBe("ALL");
 
-    const shown = await setHallPriceHidden(user.id, item.id, false);
-    expect(shown.priceVisibility).toBe("ALL");
-    expect(guestSeesHallItemPrice("ALL", shown.priceVisibility)).toBe(true);
-  });
+    const back = await toggleHall(user.id, item.id, false);
+    expect(back.inHall).toBe(false);
+    expect(back.priceVisibility).toBe("ALL");
 
-  it("«хочу» этой кнопкой не трогается — зал состоит из «люблю»", async () => {
-    const { user, room } = await createOwnerWithRoom();
-    const want = await prisma.item.create({
-      data: {
-        roomId: room.id,
-        zone: "bags",
-        state: "WANT",
-        title: "Хочу сумку",
-        price: "62000",
-        currency: "RUB",
-      },
-    });
-    await expect(setHallPriceHidden(user.id, want.id, true)).rejects.toBeInstanceOf(
-      ItemMutationError,
-    );
-  });
-
-  it("чужую вещь не тронуть", async () => {
-    const mine = await createOwnerWithRoom();
-    const stranger = await createOwnerWithRoom();
-    const item = await prisma.item.create({
-      data: {
-        roomId: stranger.room.id,
-        zone: "bags",
-        state: "LOVE",
-        title: "Чужая сумка",
-        price: "1000",
-        currency: "RUB",
-        inHall: true,
-      },
-    });
-    await expect(setHallPriceHidden(mine.user.id, item.id, true)).rejects.toBeInstanceOf(
-      ItemMutationError,
-    );
+    // …и гость снова видит её в комнате.
+    const view = await getGuestRoom(room.shareSlug);
+    const guestItem = Object.values(view?.itemsByZone ?? {})
+      .flat()
+      .find((row) => row.title === "Сумка");
+    expect(guestItem).toBeDefined();
+    expect(guestItem).toHaveProperty("price", "62000");
   });
 });
 
-describe("сквозной путь: комната по ссылке", () => {
-  /** Найти вещь в выдаче гостя по названию. */
-  function findGuestItem(
-    view: Awaited<ReturnType<typeof getGuestRoom>>,
-    title: string,
-  ): Record<string, unknown> {
-    const found = Object.values(view?.itemsByZone ?? {})
-      .flat()
-      .find((item) => item.title === title);
-    if (!found) throw new Error(`вещи «${title}» нет в комнате гостя`);
-    return found as unknown as Record<string, unknown>;
-  }
-
-  it("гость не видит цену подарка, пока настройка закрыта, и видит, когда открыта", async () => {
+describe("сквозной путь: витрина по ссылке", () => {
+  // ПЕРЕПИСАНО (тикет 124). Три теста проверяли дверь настройки на живой БД:
+  // закрыто по умолчанию, открывается при ALL, скрытие у вещи перекрывает.
+  // Двери нет — проверяем, что её нет НА САМОМ ДЕЛЕ, на самом открытом
+  // положении и сквозь весь путь до гостя.
+  it("ни одно положение настройки не выдаёт гостю цену витрины", async () => {
     const { user, room } = await createOwnerWithRoom();
     await prisma.item.create({
       data: {
         roomId: room.id,
         zone: "bags",
-        state: "LOVE",
-        title: "Подарок в зале",
+        inHall: true,
+        title: "Подарок в витрине",
         price: "62000",
         currency: "RUB",
         giverName: "мама",
         receivedAt: new Date("2025-03-14T12:00:00.000Z"),
-        inHall: true,
       },
     });
 
-    // Дефолт комнаты — FRIENDS: цены у гостя нет ни ключом, ни значением.
-    const byDefault = await getGuestRoom(room.shareSlug);
-    const closed = findGuestItem(byDefault, "Подарок в зале");
-    expect("price" in closed).toBe(false);
-    expect(JSON.stringify(byDefault)).not.toContain("62000");
-
-    // «Только мне» и «никому» — тоже закрыто.
-    for (const visibility of ["ME", "NONE"] as const) {
+    for (const visibility of ["FRIENDS", "ME", "NONE", "ALL"] as const) {
       await setHallSettings(user.id, { priceVisibility: visibility });
-      const view = await getGuestRoom(room.shareSlug);
-      expect("price" in findGuestItem(view, "Подарок в зале")).toBe(false);
-      expect(JSON.stringify(view)).not.toContain("62000");
+      const hall = await getGuestHall(room.shareSlug);
+      const item = hall?.items.find((row) => row.title === "Подарок в витрине");
+      expect(item, `настройка ${visibility}`).toBeDefined();
+      expect("price" in (item ?? {})).toBe(false);
+      expect(JSON.stringify(hall)).not.toContain("62000");
+      // Имени дарителя гостю тоже нет ни при каком положении (раунд 19).
+      expect(JSON.stringify(hall)).not.toContain("мама");
     }
-
-    // «Всем, у кого есть ссылка» — дверь открыта.
-    await setHallSettings(user.id, { priceVisibility: "ALL" });
-    const opened = findGuestItem(await getGuestRoom(room.shareSlug), "Подарок в зале");
-    expect(opened.price).toBe("62000");
-    expect(opened.currency).toBe("RUB");
   });
 
-  it("скрытая у вещи цена не течёт гостю даже при открытом зале", async () => {
-    const { user, room } = await createOwnerWithRoom();
-    const item = await prisma.item.create({
+  it("вещь витрины не приезжает в комнату гостя вовсе", async () => {
+    const { room } = await createOwnerWithRoom();
+    await prisma.item.create({
       data: {
         roomId: room.id,
         zone: "bags",
-        state: "LOVE",
-        title: "Подарок с тихой ценой",
+        inHall: true,
+        title: "Только в витрине",
         price: "77000",
         currency: "RUB",
-        inHall: true,
       },
     });
-    await setHallSettings(user.id, { priceVisibility: "ALL" });
-    await setHallPriceHidden(user.id, item.id, true);
 
     const view = await getGuestRoom(room.shareSlug);
-    expect("price" in findGuestItem(view, "Подарок с тихой ценой")).toBe(false);
+    const inRoom = Object.values(view?.itemsByZone ?? {})
+      .flat()
+      .map((row) => row.title);
+    expect(inRoom).not.toContain("Только в витрине");
     expect(JSON.stringify(view)).not.toContain("77000");
   });
 
-  it("настройка зала гостю не отдаётся — ни значением, ни ключом", async () => {
+  it("настройки хозяйки гостю не отдаются — ни значением, ни ключом", async () => {
     const { user, room } = await createOwnerWithRoom();
     await prisma.item.create({
       data: {
         roomId: room.id,
         zone: "bags",
-        state: "LOVE",
+        inHall: true,
         title: "Подарок",
         price: "1000",
         currency: "RUB",
-        inHall: true,
       },
     });
     await setHallSettings(user.id, { priceVisibility: "ALL" });
 
-    const view = await getGuestRoom(room.shareSlug);
-    const item = findGuestItem(view, "Подарок");
-    expect("priceVisibility" in item).toBe(false);
-    expect("hidden" in item).toBe(false);
-    expect(JSON.stringify(view)).not.toContain("hallPriceVisibility");
+    const hall = await getGuestHall(room.shareSlug);
+    const item = hall?.items[0];
+    expect(item).toBeDefined();
+    expect("priceVisibility" in (item ?? {})).toBe(false);
+    expect("hidden" in (item ?? {})).toBe(false);
+    expect(JSON.stringify(hall)).not.toContain("hallPriceVisibility");
   });
 });
 
@@ -552,10 +489,7 @@ describe("значок «кто видит цену»", () => {
 
   it("не спорит с подписью: закрытому адресату — закрытый глаз", () => {
     // Ровно этот случай и был сломан: «цену не видит никто» с открытым глазом.
-    const hiddenToGuest = (["ME", "NONE", "ITEM"] as const).every((audience) =>
-      audience === "ITEM" ? true : !guestSeesHallPrice(audience),
-    );
-    expect(hiddenToGuest).toBe(true);
+    expect(guestSeesHallPrice()).toBe(false);
     for (const audience of ["ME", "NONE", "ITEM"] as const) {
       expect(priceAudienceHidden(audience)).toBe(true);
     }

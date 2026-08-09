@@ -1,11 +1,14 @@
 // Общий почтовый транспорт (тикет 12) — единственное место, откуда проект
 // отправляет письма. EMAIL_SERVER задан → nodemailer (динамический импорт,
 // как в auth.ts Phase 0); не задан (dev) → письмо печатается в консоль
-// рамкой «✉ [письмо] кому / тема / текст». Здесь же живут шаблоны двух
-// писем цикла дарения (spec, решение гриллинга №7): reminderGuestMail —
-// гостю за 3 дня до праздника, occasionOwnerMail — хозяйке после. Тон —
-// тихий и тёплый (CLAUDE.md), только ru (Phase 1); писем про САМИ брони
-// не существует — только эти два.
+// рамкой «✉ [письмо] кому / тема / текст». Здесь же живут шаблоны писем
+// цикла дарения (spec, решение гриллинга №7): reminderGuestMail — гостю за
+// 3 дня до праздника, occasionOwnerMail — хозяйке после, itemGoneMail —
+// гостю, когда занятая им вещь уехала в сокровищницу (тикет 124, раунд 28).
+// Тон — тихий и тёплый (CLAUDE.md), только ru (Phase 1).
+//
+// ПИСЬМА ПРО БРОНИ ЕСТЬ ТОЛЬКО У ГОСТЯ. Хозяйке о бронях не пишет ни один
+// шаблон — ни о появлении, ни о снятии (инвариант №1).
 //
 // СЛОВА ЖИВУТ НЕ ЗДЕСЬ (тикет 32): все строки писем — в `mail-messages.ts`,
 // серверном словаре вне next-intl (почему именно там — комментарий в самом
@@ -266,6 +269,65 @@ export function reminderGuestMail(params: ReminderGuestParams): MailContent {
 
 export async function sendReminderGuest(to: string, params: ReminderGuestParams): Promise<void> {
   await sendMail({ to, ...reminderGuestMail(params) });
+}
+
+// ---------- Шаблон: гостю, когда вещь уехала в сокровищницу ----------
+
+export interface ItemGoneParams {
+  /** Имя гостя из его же брони; пустое — письмо здоровается без имени. */
+  guestName: string;
+  itemTitle: string;
+  roomSlug: string;
+}
+
+/**
+ * «Подарок больше не нужен» (тикет 124, раунд 28): хозяйка перенесла вещь в
+ * сокровищницу, бронь снялась молча, и гость обязан узнать об этом ДО
+ * праздника — иначе он придёт с подарком, который у хозяйки уже есть.
+ *
+ * ПИСЬМО ИДЁТ ТОЛЬКО ГОСТЮ и ничего не говорит о других бронях. Хозяйке о нём
+ * не сообщается ничем, и ни один её экран от него не зависит (инвариант №1):
+ * сервер отвечает на переезд одинаково независимо от того, была бронь или нет.
+ */
+export function itemGoneMail(params: ItemGoneParams): MailContent {
+  const t = mailMessages.ItemGoneMail;
+  const myBookingsUrl = appUrl("/my-bookings");
+  const roomUrl = appUrl(`/r/${params.roomSlug}`);
+  const values = { name: params.guestName, item: params.itemTitle };
+  // Имени нет — здороваемся без него и называем вещь общей фразой.
+  const greeting = params.guestName ? fillMail(t.greeting, values) : null;
+  const body = params.itemTitle ? fillMail(t.body, values) : t.bodyNoName;
+
+  const text = [
+    ...(greeting ? [greeting, ``] : []),
+    body,
+    ``,
+    `${t.room}: ${roomUrl}`,
+    `${t.bookings} — ${t.bookingsHint}: ${myBookingsUrl}`,
+    ``,
+    t.quiet,
+    ``,
+    signature(),
+  ].join("\n");
+
+  const html = [
+    HTML_WRAP,
+    ...(greeting ? [`<p style="margin:0 0 16px;">${escapeHtml(greeting)}</p>`] : []),
+    `<p style="margin:0 0 16px;">${escapeHtml(body)}</p>`,
+    `<p style="margin:0 0 16px;">`,
+    `<a href="${escapeHtml(roomUrl)}" style="color:#333333;">${escapeHtml(t.room)}</a><br/>`,
+    `<a href="${escapeHtml(myBookingsUrl)}" style="color:#333333;">${escapeHtml(t.bookings)}</a>`,
+    ` — ${escapeHtml(t.bookingsHint)}</p>`,
+    `<p style="margin:0;color:#888888;font-size:13px;">${escapeHtml(t.quiet)}</p>`,
+    signatureHtml(),
+    `</div>`,
+  ].join("");
+
+  return { subject: fillMail(t.subject, values), text, html };
+}
+
+export async function sendItemGone(to: string, params: ItemGoneParams): Promise<void> {
+  await sendMail({ to, ...itemGoneMail(params) });
 }
 
 // ---------- Шаблон: хозяйке после праздника ----------

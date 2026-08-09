@@ -14,11 +14,7 @@ import { z } from "zod";
 import { prisma } from "@/server/db";
 import { MONEY_ZONE_KEY, rooms as roomPresets } from "@/config/design";
 import { visibleZones } from "@/components/scene/zones";
-import {
-  itemForGuest,
-  type GuestHallContext,
-  type GuestItemDto,
-} from "@/server/dto/guest-items";
+import { itemForGuest, type GuestItemDto } from "@/server/dto/guest-items";
 import { itemPhotoUrl } from "@/server/dto/items";
 import {
   emptyZoneSummary,
@@ -51,8 +47,13 @@ export type GuestRoomView = {
   /** Маленький аватар хозяйки в шапке (раздача /media) — если загружен. */
   ownerAvatarUrl: string | null;
   /**
-   * Вещи по видимым зонам (порядок зон — rooms.json). Пустая зона так и
-   * приезжает пустой (тикет 104).
+   * Вещи КОМНАТЫ по видимым зонам (порядок зон — rooms.json). Пустая зона так
+   * и приезжает пустой (тикет 104).
+   *
+   * Вещей сокровищницы здесь НЕТ (тикет 124): комната — чего хочется, витрина
+   * — что уже моё, и показывать витринную вещь ещё и на полке значило бы
+   * стереть разницу мест. Витрину гость смотрит своим маршрутом
+   * (services/guest-hall, тикет 93).
    */
   itemsByZone: Record<string, GuestItemDto[]>;
   /**
@@ -71,11 +72,22 @@ export type GuestRoomView = {
   occasionDate: string | null;
   /**
    * Сколько подарков комнаты ЕЩЁ СВОБОДНЫ — «7 подарков ещё свободны»
-   * (турн 12b). Считается по вещам «хочу» БЕЗ брони среди тех, что гость и
+   * (турн 12b). Считается по вещам КОМНАТЫ без брони среди тех, что гость и
    * так видит. Обратного числа — сколько уже забрали — в этой форме нет и
    * быть не может; почему это безопасно, написано у `countFreeGifts`.
    */
   freeGiftCount: number;
+  /**
+   * Есть ли на витрине хоть что-то, что гость увидит (тикет 93): звать его в
+   * пустую комнату-в-комнате незачем.
+   *
+   * Считается СЕРВИСОМ, а не страницей (тикет 124): до отмены состояний
+   * страница выводила это из вещей самой комнаты — витринные вещи приезжали
+   * к ней вперемешку с остальными. Теперь их там нет, и вопрос обязан быть
+   * задан отдельно. Свойство КОМНАТЫ, а не зрителя: кэшу не мешает, дверь
+   * («кто вообще входит») решается ниже, `hallVisibility`.
+   */
+  hasHall: boolean;
   /**
    * Свет комнаты, который выбрала ХОЗЯЙКА (тикет 96). Своей ручки у гостя нет
    * и не будет: он смотрит её комнату, а не настраивает свою.
@@ -158,6 +170,7 @@ export async function getGuestRoom(slug: string): Promise<GuestRoomView | null> 
       room.id,
       visible.map((zone) => zone.key),
     ),
+    hasHall: cached.hasHall,
     timeOfDay: room.timeOfDay,
     lightColor: room.lightColor,
     hallVisibility: room.hallVisibility,
@@ -192,8 +205,8 @@ export async function findRoomBySlug(slug: string) {
 }
 
 /**
- * «7 подарков ещё свободны» (турн 12b): вещи «хочу», которые гость может взять
- * прямо сейчас, — не спрятанные, в видимой зоне и без брони.
+ * «7 подарков ещё свободны» (турн 12b): вещи КОМНАТЫ, которые гость может
+ * взять прямо сейчас, — не спрятанные, в видимой зоне и без брони.
  *
  * ПОЧЕМУ ЭТО НЕ ЛОМАЕТ ТИХУЮ БРОНЬ (инвариант №1) — три отдельные причины,
  * и держится оно на всех трёх сразу:
@@ -246,10 +259,12 @@ export async function countFreeGiftsByRoom(
   const free = await prisma.item.groupBy({
     by: ["roomId"],
     where: {
-      // Те же два фильтра, что прячут вещь от гостя (инвариант №5): считаем
+      // Те же фильтры, что прячут вещь от гостя (инвариант №5): считаем
       // только то, что он видит своими глазами. Зоны — по каждой комнате свои,
       // поэтому пары «комната + её видимые зоны» идут через OR.
-      state: "WANT",
+      // `inHall: false` — витрина не про подарки: вещь оттуда уже своя, и
+      // «свободной» она не бывает (тикет 124).
+      inHall: false,
       hidden: false,
       // Демо-призраки в БД не живут — в счёт не попадают и выдуманных
       // подарков не обещают.
@@ -280,10 +295,12 @@ function startOfTodayUtc(): Date {
   return new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()));
 }
 
-/** Что лежит в кэше комнаты: вещи по зонам и сводка по каждой зоне. */
+/** Что лежит в кэше комнаты: вещи по зонам, сводка по зоне и «витрина непуста». */
 type GuestRoomCache = {
   itemsByZone: Record<string, GuestItemDto[]>;
   summariesByZone: Record<string, ZoneSummaryDto>;
+  /** Есть ли на витрине хоть одна вещь, видная наблюдателю (тикет 93). */
+  hasHall: boolean;
 };
 
 /**
@@ -306,19 +323,13 @@ function readGuestItemsCached(roomId: string): Promise<GuestRoomCache> {
 }
 
 async function loadGuestItems(roomId: string): Promise<GuestRoomCache> {
-  // Настройка зала славы (тикет 35) читается ВНУТРИ кэша: от неё зависит сам
-  // состав guest-DTO — при закрытой настройке цены подарка в кэше нет вовсе,
-  // как и у спрятанных вещей. Смена настройки ревалидирует тот же тег
-  // room-{id} (services/rooms.setHallSettings), поэтому кэш не отстанет.
-  const hallRoom = await prisma.room.findUnique({
-    where: { id: roomId },
-    select: { hallPriceVisibility: true },
+  // Вещи КОМНАТЫ: `inHall: false` — витринные сюда не приезжают (тикет 124).
+  // Настройка цены зала (тикет 35) больше не читается: цену вещи
+  // сокровищницы гость не видит ни при каком её положении, а цена вещи
+  // комнаты подчиняется собственному `priceVisibility` вещи.
+  const items = await prisma.item.findMany({
+    where: { roomId, hidden: false, inHall: false },
   });
-  const hall: GuestHallContext = {
-    priceVisibility: hallRoom?.hallPriceVisibility ?? "NONE",
-  };
-
-  const items = await prisma.item.findMany({ where: { roomId, hidden: false } });
   // Порядок — контракт тикета 03, ТОТ ЖЕ компаратор, что у хозяйки
   // (дубль compareGuestItems объединён в полировке — тикет 16).
   items.sort(compareZoneItems);
@@ -328,7 +339,7 @@ async function loadGuestItems(roomId: string): Promise<GuestRoomCache> {
   // ей нужен ещё домен магазина (марки), а гостю поштучно он не отдаётся.
   const sourcesByZone: Record<string, ReturnType<typeof guestSummaryItem>[]> = {};
   for (const item of items) {
-    (itemsByZone[item.zone] ??= []).push(itemForGuest(item, hall));
+    (itemsByZone[item.zone] ??= []).push(itemForGuest(item));
     (sourcesByZone[item.zone] ??= []).push(guestSummaryItem(item));
   }
 
@@ -337,5 +348,14 @@ async function loadGuestItems(roomId: string): Promise<GuestRoomCache> {
     summariesByZone[zoneKey] = zoneSummaryForGuest(zoneKey, sources);
   }
 
-  return { itemsByZone, summariesByZone };
+  // «Витрине есть что показать» — отдельным дешёвым счётом по тем же трём
+  // условиям, что у гостевой витрины (services/guest-hall): лежит на витрине,
+  // не спрятана глазком, не спрятана от гостей вообще. Зоны здесь не
+  // фильтруются — состав видимых зон меняется мимо кэша, и ссылка на
+  // почти-пустую витрину дешевле, чем зависимость кэша от `zonesOff`.
+  const hallCount = await prisma.item.count({
+    where: { roomId, inHall: true, hiddenFromHall: false, hidden: false },
+  });
+
+  return { itemsByZone, summariesByZone, hasHall: hallCount > 0 };
 }

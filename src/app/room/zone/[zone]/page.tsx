@@ -83,7 +83,9 @@ export default async function ZoneListPage({ params }: Params) {
           <h1 className="display mt-5 text-3xl lg:text-4xl">{info?.label ?? zone.label}</h1>
           {summary.count > 0 && (
             <p className="mt-2 text-sm text-text-muted">
-              {t("zoneCounts", { total: summary.count, want: summary.wantCount })}
+              {/* Хозяйке — только «N вещей» (тикет 124): `want: 0` гасит вторую
+                  половину строки словаря. */}
+              {t("zoneCounts", { total: summary.count, want: 0 })}
             </p>
           )}
         </header>

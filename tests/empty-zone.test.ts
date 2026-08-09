@@ -60,7 +60,7 @@ describe("«убрать полку из комнаты» — вещи оста�
   it("выключение зоны не трогает вещи, включение возвращает их на место", async () => {
     const { user, room } = await createOwnerWithRoom();
     const item = await prisma.item.create({
-      data: { roomId: room.id, zone: "flowers", state: "WANT", title: "Пионы" },
+      data: { roomId: room.id, zone: "flowers", inHall: false, title: "Пионы" },
     });
 
     const off = await setZoneOff(user.id, "flowers", true);
@@ -68,7 +68,7 @@ describe("«убрать полку из комнаты» — вещи оста�
 
     // Вещь на месте: выключение зоны — про мебель, а не про содержимое.
     const kept = await prisma.item.findUnique({ where: { id: item.id } });
-    expect(kept).toMatchObject({ zone: "flowers", state: "WANT" });
+    expect(kept).toMatchObject({ zone: "flowers", inHall: false });
 
     const back = await setZoneOff(user.id, "flowers", false);
     expect(back.zonesOff).not.toContain("flowers");

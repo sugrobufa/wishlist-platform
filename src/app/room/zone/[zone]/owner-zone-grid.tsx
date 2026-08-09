@@ -39,14 +39,12 @@ import rl from "@/components/room-list/room-list.module.css";
 import type { ZoneGridItem } from "@/components/zone/types";
 import {
   deleteItemAction,
-  selfFulfillAction,
   setItemHiddenAction,
   setItemsHiddenAction,
   toggleHallAction,
-  type ItemActionResult,
 } from "./actions";
 
-/** Owner-DTO несёт inHall у «люблю»; общий контракт сетки его не знает. */
+/** Owner-DTO несёт inHall у любой вещи; общий контракт сетки его не требует. */
 type OwnerGridItem = ZoneGridItem & { inHall?: boolean };
 
 type OwnerZoneGridProps = {
@@ -64,12 +62,12 @@ type OwnerZoneGridProps = {
   pool?: string | null;
 };
 
-/** Двухшаговые подтверждения: удаление и необратимое «уже моё». */
-type Confirming = { id: string; kind: "delete" | "own" };
+/** Двухшаговые подтверждения: удаление и переезд в сокровищницу. */
+type Confirming = { id: string; kind: "delete" | "toHall" };
 
 /** Цена строкой: «14 900 ₽». Деньги в DTO — строка Decimal (CLAUDE.md). */
 function formatPrice(item: ZoneGridItem, locale: string): string | null {
-  if (item.state !== "WANT" || item.price == null) return null;
+  if (item.inHall === true || item.price == null) return null;
   const value = Number(item.price);
   if (!Number.isFinite(value)) return null;
   try {
@@ -87,20 +85,9 @@ function formatPrice(item: ZoneGridItem, locale: string): string | null {
 /** Чипы порядка из турна 29b. `hidden` — не порядок, а фильтр, чип общий. */
 type Sort = "date" | "price" | "hidden";
 
-/**
- * «В сокровищницу» у вещи «хочу» — двумя сервисами подряд, потому что в этой
- * модели дорога туда идёт через «уже моё»: сперва переход WANT → LOVE
- * (`selfFulfill`, необратим — инвариант №2, оттого и вопрос перед ним), потом
- * витрина (`toggleHall`). Своего сервиса не заводим: оба уже есть и оба
- * снимают что положено (бронь — первый, `hiddenFromHall` — второй). Подпись
- * листа обещает сокровищницу, и вещь обязана оказаться именно там, а не
- * остаться «люблю» посреди зоны.
- */
-async function sendToTreasury(itemId: string): Promise<ItemActionResult> {
-  const flipped = await selfFulfillAction(itemId);
-  if (flipped?.error) return flipped;
-  return toggleHallAction(itemId, true);
-}
+// «В сокровищницу» — ОДНО действие и один сервис (тикет 124): дороги через
+// «уже моё» больше нет, состояний не осталось. Действие доступно у любой вещи
+// и отвечает одинаково независимо от того, занята она или нет.
 
 export function OwnerZoneGrid({ items, accent, zoneKey, pool }: OwnerZoneGridProps) {
   const t = useTranslations("Settings");
@@ -214,12 +201,10 @@ export function OwnerZoneGrid({ items, accent, zoneKey, pool }: OwnerZoneGridPro
           icon: <IconActionTreasury size={SIGN_SIZE} />,
           title: t("itemHallAdd"),
           hint: t("itemHallAddHint"),
-          onSelect: () =>
-            item.state === "WANT"
-              ? // «Хочу» переезжает через «уже моё», а это необратимо
-                // (инвариант №2) — спрашиваем до, а не после.
-                setConfirming({ id: item.id, kind: "own" })
-              : run(item.id, () => toggleHallAction(item.id, true)),
+          // Вопрос перед переездом общий и ПРО ВЕЩЬ, а не про бронь: он
+          // одинаков у всех вещей, и по нему нельзя догадаться, занята эта
+          // или нет (инвариант №1).
+          onSelect: () => setConfirming({ id: item.id, kind: "toHall" }),
         };
 
     return [
@@ -259,7 +244,7 @@ export function OwnerZoneGrid({ items, accent, zoneKey, pool }: OwnerZoneGridPro
     );
   };
 
-  /** Двухшаговое согласие: удаление и переезд «хочу» на витрину. */
+  /** Двухшаговое согласие: удаление и переезд вещи на витрину. */
   const renderConfirm = (item: ZoneGridItem, kind: Confirming["kind"]): ReactNode => {
     const busy = busyId === item.id;
     const isDelete = kind === "delete";
@@ -272,7 +257,9 @@ export function OwnerZoneGrid({ items, accent, zoneKey, pool }: OwnerZoneGridPro
           type="button"
           disabled={busy}
           onClick={() =>
-            run(item.id, () => (isDelete ? deleteItemAction(item.id) : sendToTreasury(item.id)))
+            run(item.id, () =>
+              isDelete ? deleteItemAction(item.id) : toggleHallAction(item.id, true),
+            )
           }
           className="pressable font-semibold text-text-strong disabled:opacity-60"
         >
@@ -375,9 +362,9 @@ export function OwnerZoneGrid({ items, accent, zoneKey, pool }: OwnerZoneGridPro
               </div>
               <div className={rl.body}>
                 <p className={rl.title}>{item.title}</p>
-                <span className={item.state === "WANT" ? `${rl.chip} ${rl.chipWant}` : rl.chip}>
-                  {item.state === "WANT" ? tg("tabWant") : tg("loveCaption")}
-                </span>
+                {/* Чип состояния («Хочу» / «Люблю») отменён тикетом 124 —
+                    в комнате все вещи одинаковы. Строку снимает заход про
+                    экраны; здесь она просто перестала рисоваться. */}
                 {item.hidden && (
                   <span className="overline text-text-faint">{t("itemHiddenBadge")}</span>
                 )}

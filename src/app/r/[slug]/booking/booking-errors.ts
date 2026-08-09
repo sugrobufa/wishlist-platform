@@ -10,7 +10,7 @@
 // Сервер при этом отвечал прямым текстом «это твоя вещь» — мы его выбрасывали.
 //
 // Статуса мало и по второй причине: 409 несут ДВА разных случая —
-// `ALREADY_BOOKED` («кто-то успел раньше») и `NOT_WANT` («вещь не „хочу"»).
+// `ALREADY_BOOKED` («кто-то успел раньше») и `IN_HALL` («вещь уже своя»).
 // По статусу их не различить, по коду видно сразу.
 
 export type BookingErrorKey = "taken" | "rate" | "validation" | "own" | "gone" | "generic";
@@ -36,7 +36,7 @@ const BY_CODE: Record<string, BookingErrorKey> = {
   RATE_LIMITED: "rate",
   VALIDATION: "validation",
   NOT_FOUND: "gone",
-  NOT_WANT: "gone",
+  IN_HALL: "gone",
   DEMO_ITEM: "gone",
   POOL_NOT_SUPPORTED: "gone",
   TOKEN_NOT_FOUND: "gone",

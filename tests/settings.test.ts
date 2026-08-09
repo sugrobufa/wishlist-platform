@@ -198,7 +198,7 @@ describe("changeRoomPreset — вещи не теряются (решение г
         data: {
           roomId: room.id,
           zone,
-          state: "WANT",
+          inHall: false,
           title: `Вещь ${zone}`,
           price: "1000",
           currency: "RUB",
@@ -228,10 +228,10 @@ describe("changeRoomPreset — вещи не теряются (решение г
     expect(zonesById.get(jewelry.id)).toBe("anything");
     expect(zonesById.get(travel.id)).toBe("travel"); // тоже общий с раунда 2
 
-    // hidden пережил переезд, состояние вещи не изменилось.
+    // hidden пережил переезд, место вещи не изменилось.
     const hidden = after.find((item) => item.id === beautyHidden.id);
     expect(hidden?.hidden).toBe(true);
-    expect(hidden?.state).toBe("WANT");
+    expect(hidden?.inHall).toBe(false);
 
     // Все вещи — в зонах нового пресета (из выдачи ничего не выпало).
     const loftZones = new Set(
@@ -252,7 +252,7 @@ describe("changeRoomPreset — вещи не теряются (решение г
   it("незнакомый пресет → ZodError, ничего не записано", async () => {
     const { user, room } = await createOwnerWithRoom("cream");
     await prisma.item.create({
-      data: { roomId: room.id, zone: "beauty", state: "LOVE", title: "Крем" },
+      data: { roomId: room.id, zone: "beauty", inHall: true, title: "Крем" },
     });
 
     await expect(changeRoomPreset(user.id, "kitchen")).rejects.toThrow();

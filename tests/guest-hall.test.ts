@@ -3,11 +3,10 @@
 // Что здесь защищается:
 // - три фильтра на чтении и все на сервере: спрятанная вещь (инвариант №5),
 //   вещь выключенной зоны (там же) и вещь, спрятанная глазком (тикет 89);
-// - цена появляется КЛЮЧОМ только по настройке зала, и скрытие цены у
-//   отдельной вещи перекрывает открытый зал (инвариант №8, ADR-0004);
-// - сумма витрины считается по тем ценам, которые гость и так видит: сумма
-//   по закрытым ценам выдала бы их;
-// - «Кто подарил» и «Округлять цены» слушаются своих тумблеров;
+// - ЦЕНЫ У ГОСТЯ НЕТ ВОВСЕ — ни ключом, ни суммой (инвариант №8 в редакции
+//   тикета 124: «цена в сокровищнице не показывается»). Раньше здесь жили
+//   четыре положения настройки зала; гостю они больше не открывают ничего;
+// - «Кто подарил» гостю не показывается ни при каком тумблере;
 // - формы гостя не существует ключей inHall/hiddenFromHall/booking.
 import "dotenv/config";
 import { randomUUID } from "node:crypto";
@@ -29,6 +28,7 @@ vi.mock("next/cache", () => ({
 
 import { prisma } from "../src/server/db";
 import { getGuestHall } from "../src/server/services/guest-hall";
+import { getGuestRoom } from "../src/server/services/guest-room";
 import { setHallSettings } from "../src/server/services/rooms";
 
 const TEST_EMAIL_DOMAIN = "@guest-hall.test";
@@ -43,8 +43,8 @@ async function createRoom(displayName: string | null = "Ирина") {
       preset: "cream",
       zoneSet: "F",
       shareSlug: `gh-${randomUUID().slice(0, 12)}`,
-      // Витрина гостю интересна ценами — открываем зал сразу, где не сказано
-      // иначе. Дефолт FRIENDS проверяется отдельным тестом.
+      // Самое ОТКРЫТОЕ положение настройки цены — нарочно: тесты ниже
+      // показывают, что даже оно гостю цены не даёт (тикет 124).
       hallPriceVisibility: "ALL",
     },
   });
@@ -57,7 +57,7 @@ async function createLove(
   overrides: Partial<Prisma.ItemUncheckedCreateInput> = {},
 ) {
   return prisma.item.create({
-    data: { roomId, zone: "jewelry", state: "LOVE", title, inHall: true, ...overrides },
+    data: { roomId, zone: "jewelry", inHall: true, title, ...overrides },
   });
 }
 
@@ -83,15 +83,18 @@ describe("getGuestHall — что вообще доезжает до гостя"
     await createLove(room.id, "Спрятана от гостей", { hidden: true });
     await createLove(room.id, "Из выключенной зоны", { zone: "perfume" });
     await createLove(room.id, "Не на витрине", { inHall: false });
+    // ПЕРЕПИСАНО тикетом 124. Здесь стояла невозможная строка «вещь „хочу" с
+    // inHall: true» — она проверяла, что витрина фильтрует ещё и по состоянию.
+    // Состояний нет, фильтровать по ним нечего. Вместо неё обычная вещь
+    // КОМНАТЫ с ценой: на витрину она не попадает, потому что не `inHall`.
     await prisma.item.create({
       data: {
         roomId: room.id,
         zone: "jewelry",
-        state: "WANT",
-        title: "Хочу с мусорным флагом",
+        inHall: false,
+        title: "Вещь комнаты с ценой",
         price: "5000",
         currency: "RUB",
-        inHall: true,
       },
     });
 
@@ -135,22 +138,17 @@ describe("getGuestHall — что вообще доезжает до гостя"
     const hall = await getGuestHall(room.shareSlug);
     expect(hall).not.toBeNull();
     expect(hall?.items).toEqual([]);
-    expect(hall?.totals).toEqual([]);
   });
 });
 
-describe("getGuestHall — цена по настройке зала (инвариант №8)", () => {
-  it("дефолт FRIENDS: ключа цены нет вовсе", async () => {
-    const { user, room } = await createRoom();
-    await setHallSettings(user.id, { priceVisibility: "FRIENDS" });
-    await createLove(room.id, "Браслет", { price: "62000", currency: "RUB" });
-
-    const item = (await getGuestHall(room.shareSlug))?.items[0];
-    expect(item).not.toHaveProperty("price");
-    expect(item).not.toHaveProperty("currency");
-  });
-
-  it("ALL открывает цену; скрытая у ОТДЕЛЬНОЙ вещи остаётся закрытой", async () => {
+// ПЕРЕПИСАНО ЦЕЛИКОМ (тикет 124). Здесь было четыре теста про настройку цены
+// зала: дефолт FRIENDS закрывает, ALL открывает, скрытие у отдельной вещи
+// перекрывает открытый зал, сумма складывает только видимое. Всё это описывало
+// ДВЕРЬ, которой больше нет: цену вещи сокровищницы гость не видит ни при
+// каком положении настройки, а суммы витрины у него нет вовсе. Проверяем
+// теперь ровно это — и на самом ОТКРЫТОМ положении, какое только бывает.
+describe("getGuestHall — цены в сокровищнице у гостя нет вовсе (инвариант №8)", () => {
+  it("даже при hallPriceVisibility=ALL ключей price/currency нет ни у одной вещи", async () => {
     const { room } = await createRoom();
     await createLove(room.id, "Открытая", {
       price: "62000",
@@ -165,30 +163,57 @@ describe("getGuestHall — цена по настройке зала (инвар
     });
 
     const items = (await getGuestHall(room.shareSlug))?.items ?? [];
-    expect(items[0]?.price).toBe("62000");
-    expect(items[0]?.currency).toBe("RUB");
-    expect(items[1]).not.toHaveProperty("price");
+    expect(items).toHaveLength(2);
+    for (const item of items) {
+      expect(item).not.toHaveProperty("price");
+      expect(item).not.toHaveProperty("currency");
+    }
+    // И цифр в выдаче нет вовсе: сумма могла бы выдать то, что скрыли ключи.
+    expect(JSON.stringify(items)).not.toContain("62000");
+    expect(JSON.stringify(items)).not.toContain("48000");
   });
 
-  it("сумма витрины складывает только видимые гостю цены", async () => {
-    const { room } = await createRoom();
-    await createLove(room.id, "Открытая", { price: "62000", currency: "RUB" });
-    await createLove(room.id, "Закрытая у вещи", {
-      price: "48000",
-      currency: "RUB",
-      priceVisibility: "NONE",
-    });
+  it("ни одно положение настройки цены гостю витрину не открывает", async () => {
+    const { user, room } = await createRoom();
+    await createLove(room.id, "Браслет", { price: "62000", currency: "RUB" });
 
-    const hall = await getGuestHall(room.shareSlug);
-    expect(hall?.totals).toEqual([{ currency: "RUB", amount: "62000" }]);
+    for (const priceVisibility of ["ALL", "FRIENDS", "ME", "NONE"] as const) {
+      await setHallSettings(user.id, { priceVisibility });
+      const item = (await getGuestHall(room.shareSlug))?.items[0];
+      expect(item).not.toHaveProperty("price");
+      expect(item).not.toHaveProperty("currency");
+    }
   });
 
-  it("тумблер суммы выключен — сумма не считается вовсе", async () => {
+  it("суммы витрины у гостя нет ключом — складывать нечего", async () => {
     const { user, room } = await createRoom();
     await createLove(room.id, "Открытая", { price: "62000", currency: "RUB" });
-    await setHallSettings(user.id, { totalShown: false });
+    await setHallSettings(user.id, { totalShown: true });
 
-    expect((await getGuestHall(room.shareSlug))?.totals).toEqual([]);
+    const hall = await getGuestHall(room.shareSlug);
+    expect(hall).not.toHaveProperty("totals");
+  });
+
+  it("цена ВЕЩИ КОМНАТЫ этим правилом не задета — она у гостя своя", async () => {
+    // Инвариант №8 закрыл витрину, а не комнату: там цена живёт по
+    // `priceVisibility` вещи и обязана доезжать до гостя, как раньше.
+    const { room } = await createRoom();
+    await prisma.item.create({
+      data: {
+        roomId: room.id,
+        zone: "jewelry",
+        inHall: false,
+        title: "Серьги",
+        price: "7900",
+        currency: "RUB",
+        priceVisibility: "ALL",
+      },
+    });
+
+    const guestRoom = await getGuestRoom(room.shareSlug);
+    const item = guestRoom?.itemsByZone.jewelry?.[0];
+    expect(item).toBeDefined();
+    expect(item).toHaveProperty("price", "7900");
   });
 });
 
@@ -213,16 +238,17 @@ describe("getGuestHall — «Кто подарил», «около» и заме
     }
   });
 
-  it("«Округлять цены» даёт «около» и помечает признаком rounded", async () => {
+  // ПЕРЕПИСАНО (тикет 124): тест проверял «около 60 000» у гостя. Округление
+  // осталось, но живёт только на витрине ХОЗЯЙКИ — гостю показывать нечего.
+  it("«Округлять цены» гостю ничего не даёт: цены у него нет", async () => {
     const { user, room } = await createRoom();
     await createLove(room.id, "Сумка", { price: "62000", currency: "RUB" });
     await setHallSettings(user.id, { roundPrices: true });
 
-    const hall = await getGuestHall(room.shareSlug);
-    expect(hall?.items[0]?.price).toBe("60000");
-    expect(hall?.items[0]?.rounded).toBe(true);
-    // Сумма считается по ТОЧНЫМ ценам и округляется уже готовой.
-    expect(hall?.totals).toEqual([{ currency: "RUB", amount: "60000" }]);
+    const item = (await getGuestHall(room.shareSlug))?.items[0];
+    expect(item).not.toHaveProperty("price");
+    expect(item).not.toHaveProperty("rounded");
+    expect(JSON.stringify(item)).not.toContain("60000");
   });
 
   it("заметка едет гостю очищенной; пробельная — это её отсутствие", async () => {

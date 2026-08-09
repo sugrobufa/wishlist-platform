@@ -58,12 +58,16 @@ export async function recordOutboundClick(input: OutboundClickInput): Promise<bo
 
   // Спрятанное отсекается здесь, в сервисе, как во всём гостевом чтении
   // (инвариант №5): форма вещи про hidden не знает — ключа у неё нет вовсе.
-  const item = await prisma.item.findFirst({ where: { id: itemId, hidden: false } });
+  // Витринное — там же и по той же причине: ссылки «где купить» у вещи
+  // сокровищницы нет и быть не может (тикет 124).
+  const item = await prisma.item.findFirst({
+    where: { id: itemId, hidden: false, inHall: false },
+  });
   if (!item) return false;
 
   // Та же развилка, что у плитки: ключ shop есть — ссылку гостю отдавали.
   const asGuestSees = itemForGuest(item);
-  if (asGuestSees.state !== "WANT" || !asGuestSees.shop) return false;
+  if (!("shop" in asGuestSees) || !asGuestSees.shop) return false;
 
   await prisma.outboundClick.create({
     data: { itemId: item.id, context, subId: subId ?? null },

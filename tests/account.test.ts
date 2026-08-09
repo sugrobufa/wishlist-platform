@@ -52,7 +52,7 @@ async function createWantItem(roomId: string, zone = "jewelry", data?: Record<st
     data: {
       roomId,
       zone,
-      state: "WANT",
+      inHall: false,
       title: `Вещь-${randomUUID().slice(0, 8)}`,
       price: "4900",
       currency: "RUB",
@@ -131,11 +131,10 @@ describe("buildExport — полнота", () => {
       data: {
         roomId: room.id,
         zone: "jewelry",
-        state: "LOVE",
+        inHall: true,
         title: "Серьги от бабушки",
         giverName: "Бабушка Аня",
         receivedAt: new Date("2026-01-07T00:00:00.000Z"),
-        inHall: true,
       },
     });
 
@@ -176,7 +175,7 @@ describe("buildExport — полнота", () => {
     const byId = new Map(exported.items.map((item) => [item.id, item]));
     expect(byId.get(hiddenItem.id)).toMatchObject({ hidden: true, title: "Спрятанная сумка" });
     expect(byId.get(wantItem.id)).toMatchObject({
-      state: "WANT",
+      inHall: false,
       price: "4900",
       currency: "RUB",
       desire: 3,
@@ -184,10 +183,9 @@ describe("buildExport — полнота", () => {
     });
     // giverName РАСКРЫТОЙ вещи присутствует — раскрытие уже случилось.
     expect(byId.get(lovedItem.id)).toMatchObject({
-      state: "LOVE",
+      inHall: true,
       giverName: "Бабушка Аня",
       receivedAt: "2026-01-07T00:00:00.000Z",
-      inHall: true,
     });
 
     // О бронях — только агрегат.

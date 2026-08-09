@@ -191,18 +191,14 @@ export function ZoneIndex({ zones, zonesOff, summaries, viewer, accent }: ZoneIn
                       <span className={s.cardTitle}>{label}</span>
                       {summary && summary.count > 0 && (
                         <span className={s.cardSub}>
-                          {/* Одно и то же число двумя словами: хозяйке «в
-                              подарок», гостю «можно подарить». Строка хозяйки —
-                              дословно из пакета (ZoneGrid.zoneCounts). */}
+                          {/* «N вещей» обоим (тикет 124): второе число
+                              говорило «сколько помечено хочу», а в комнате
+                              теперь всё — желание. `want: 0` гасит вторую
+                              половину строки. Гостевое «M свободно» придёт из
+                              канала «занято» — заход про экраны. */}
                           {viewer === "owner"
-                            ? tCounts("zoneCounts", {
-                                total: summary.count,
-                                want: summary.wantCount,
-                              })
-                            : t("summaryCountsGuest", {
-                                total: summary.count,
-                                want: summary.wantCount,
-                              })}
+                            ? tCounts("zoneCounts", { total: summary.count, want: 0 })
+                            : t("summaryCountsGuest", { total: summary.count, want: 0 })}
                         </span>
                       )}
                     </div>
@@ -215,9 +211,9 @@ export function ZoneIndex({ zones, zonesOff, summaries, viewer, accent }: ZoneIn
                           {summary.thumbs.map((thumb, i) => (
                             <div
                               key={i}
-                              // Пунктир кодирует «хочу», а не отсутствие фото
-                              // (инвариант №3) — тот же язык, что у плитки.
-                              className={thumb.want ? `${s.thumb} ${s.thumbWant}` : s.thumb}
+                              // Пунктира больше нет ни у одной вещи (тикет 124,
+                              // инвариант №3 отменён) — миниатюры одинаковы.
+                              className={s.thumb}
                               style={
                                 thumb.photoUrl
                                   ? { backgroundImage: `url(${thumb.photoUrl})` }

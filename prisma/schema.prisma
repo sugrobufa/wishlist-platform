@@ -198,12 +198,17 @@ model GoalPledge {
   @@index([goalId])
 }
 
-// ---------- Вещь: одно тело, два состояния (items.json) ----------
-
-enum ItemState {
-  LOVE
-  WANT
-}
+// ---------- Вещь: одно тело, два МЕСТА (items.json v2, тикет 124) ----------
+//
+// Состояний у вещи больше нет. `ItemState` (LOVE | WANT) убран решением
+// владельца 09.08.2026: «всё, что хочет хозяин, и есть его любовь». Различие
+// переехало из ПОЛЯ в МЕСТО, и место у нас уже было названо:
+//   `inHall = false` — КОМНАТА: чего хочется. Бронируется, цена по
+//                      `priceVisibility`, степень желания `desire`;
+//   `inHall = true`  — СОКРОВИЩНИЦА: что уже моё. Не бронируется, цена гостю
+//                      не показывается вовсе.
+// `zone` вещь держит В ОБОИХ местах — иначе «Вернуть в комнату» некуда
+// возвращать (решение владельца 09.08).
 
 enum PriceVisibility {
   ALL
@@ -223,18 +228,20 @@ enum ItemSource {
 }
 
 model Item {
-  id           String    @id @default(cuid())
+  id           String  @id @default(cuid())
   roomId       String
-  zone         String // ключ зоны из zones.json
-  state        ItemState
+  zone         String // ключ зоны из zones.json — и в комнате, и в сокровищнице
   title        String
   note         String?
-  photoKey     String? // техническое поле, на состояние не влияет
+  photoKey     String? // техническое поле, на место вещи не влияет
   url          String?
   canonicalUrl String?
   domain       String?
 
-  // WANT
+  // ---- Вещь комнаты: цена, размеры, степень желания ----
+  // Живут у всего, но показываются только пока вещь в комнате: в
+  // сокровищнице цены нет вовсе (инвариант №8). Значения при переезде
+  // СОХРАНЯЮТСЯ — «Вернуть в комнату» показывает цену снова.
   price           Decimal?        @db.Decimal(12, 2)
   currency        String?
   priceVisibility PriceVisibility @default(ALL)
@@ -253,7 +260,12 @@ model Item {
   // Дата, а не строка: по ней вещь уходит из «можно подарить» наутро после.
   validUntil DateTime?
 
-  // LOVE
+  // ---- Сокровищница: место вещи и история подарка ----
+  // `inHall` — ЕДИНСТВЕННЫЙ признак места (тикет 124). Обратим: «Дошло»
+  // уводит вещь на витрину, «Вернуть в комнату» приводит обратно в её `zone`.
+  // Необратимо ДРУГОЕ — раскрытие имени дарителя (инвариант №2): `giverName`
+  // проставляется ровно один раз, на экране «что подарили», и переезды его
+  // не трогают.
   giverName      String?
   receivedAt     DateTime?
   inHall         Boolean   @default(false)
@@ -270,7 +282,7 @@ model Item {
   booking        Booking?
   priceSnapshots PriceSnapshot[]
 
-  @@index([roomId, zone, state])
+  @@index([roomId, zone, inHall])
   @@index([canonicalUrl])
 }
 
@@ -333,7 +345,7 @@ model OccasionSummary {
 // ---------- Лента «Что происходит» (тикет 114, доска 34c) ----------
 
 enum RoomEventKind {
-  ITEMS_ADDED // друг добавил вещи «хочу» (склеивается за день на чтении)
+  ITEMS_ADDED // друг добавил вещи в комнату (склеивается за день на чтении)
   SHELF_OPENED // в зоне появилась первая вещь
   TREASURY_OPENED // открыл видимость сокровищницы
   ROOM_CHANGED // сменил интерьер

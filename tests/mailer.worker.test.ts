@@ -1,5 +1,5 @@
 // Обработчик очереди mail (тикет 12, src/worker/mail.ts) — реальная тест-БД,
-// отправка подменена швами deps. Разруливает оба имени джоб и незнакомое;
+// отправка подменена швами deps. Разруливает все три имени джоб и незнакомое;
 // email хозяйки добирается из БД при пустом payload'е; снятая бронь и
 // прошедший праздник не рождают писем. Плюс инвариант тихой брони: письмо
 // хозяйке не содержит ни имён гостей, ни названий вещей.
@@ -32,7 +32,7 @@ async function createOwnerWithBooking(options: { displayName?: string | null } =
     data: {
       roomId: room.id,
       zone: "jewelry",
-      state: "WANT",
+      inHall: false,
       title: "Тайная вещь",
       price: "5000",
       currency: "RUB",
@@ -53,6 +53,7 @@ function sendSeams() {
   return {
     sendReminderGuestImpl: vi.fn(async () => undefined),
     sendOccasionOwnerImpl: vi.fn(async () => undefined),
+    sendItemGoneImpl: vi.fn(async () => undefined),
   };
 }
 
@@ -235,5 +236,52 @@ describe("processMailJob — незнакомые имена", () => {
     expect(deps.sendReminderGuestImpl).not.toHaveBeenCalled();
     expect(deps.sendOccasionOwnerImpl).not.toHaveBeenCalled();
     expect(log.mock.calls.some((call) => String(call[0]).includes("hello"))).toBe(true);
+  });
+});
+
+// Письмо гостю «вещь уехала — выбери другую» (тикет 124, раунд 28 дизайна).
+// Хозяйка о нём не узнаёт ничем: адресат — гость, и в payload'е нет ни одного
+// её поля, кроме слага комнаты, по которому гость и пришёл (инвариант №1).
+describe("processMailJob — item-gone (вещь уехала в сокровищницу)", () => {
+  const payload = (overrides: Record<string, unknown> = {}) => ({
+    bookingId: "booking_1",
+    email: "guest@mail.test",
+    guestName: "Оля",
+    itemTitle: "Стёганая сумка",
+    roomSlug: "mila",
+    ...overrides,
+  });
+
+  it("шлёт письмо гостю и НЕ ходит в БД: брони к этому моменту уже нет", async () => {
+    const deps = sendSeams();
+    // Никаких строк в БД специально не заводим — джоба самодостаточна.
+    expect(await processMailJob("item-gone", payload(), deps)).toEqual({ status: "sent" });
+    expect(deps.sendItemGoneImpl).toHaveBeenCalledWith("guest@mail.test", {
+      guestName: "Оля",
+      itemTitle: "Стёганая сумка",
+      roomSlug: "mila",
+    });
+  });
+
+  it("мусор вместо payload'а → skipped bad-data, письма нет", async () => {
+    const deps = sendSeams();
+    expect(await processMailJob("item-gone", { email: "" }, deps)).toEqual({
+      status: "skipped",
+      reason: "bad-data",
+    });
+    expect(deps.sendItemGoneImpl).not.toHaveBeenCalled();
+  });
+
+  it("хозяйке это письмо не уходит ни при каких данных", () => {
+    // Форма джобы физически не несёт адреса хозяйки: её email в payload'е
+    // просто негде взять. Проверка на самой форме — дешевле и надёжнее, чем
+    // ловить это по строкам письма.
+    expect(Object.keys(payload()).sort()).toEqual([
+      "bookingId",
+      "email",
+      "guestName",
+      "itemTitle",
+      "roomSlug",
+    ]);
   });
 });

@@ -37,7 +37,7 @@ import {
 import { ItemActions, SIGN_SIZE, type ItemActionRow } from "@/components/item/item-actions";
 import { zoneInfo } from "@/config/design";
 import type { HallItemDto } from "@/server/dto/hall";
-import { setHallHiddenAction, setHallPriceHiddenAction } from "./actions";
+import { setHallHiddenAction } from "./actions";
 import { formatHallMoney } from "./money";
 import { PriceSeenBadge } from "./price-seen-badge";
 import s from "@/components/hall/hall.module.css";
@@ -127,7 +127,6 @@ export function HallShowcase({ items, accent }: { items: HallItemView[]; accent:
       {failed && <p className="mb-3 text-sm text-text-muted">{t("errGeneric")}</p>}
       <ul className="grid grid-cols-2 gap-4 sm:grid-cols-3">
         {items.map((item) => {
-          const hiddenPrice = item.priceAudience === "ITEM";
           const busy = busyId === item.id;
           const hidden = item.hiddenFromObservers;
           return (
@@ -152,12 +151,11 @@ export function HallShowcase({ items, accent }: { items: HallItemView[]; accent:
                 </p>
               )}
 
-              {/* Цена и значок «кто её видит» — рядом всегда, чтобы хозяйке
-                  не приходилось лезть в настройки, чтобы вспомнить (12d).
-                  Тумблер цены живёт ЗДЕСЬ ЖЕ, а не в листе «⋯»: он про цену, а
-                  не про вещь, и по правилу 36b лист вещи держит ровно три
-                  строки действий. Рядом со значком «кто видит цену» он и
-                  читается — обе настройки об одном (инвариант №8). */}
+              {/* Цена — только ХОЗЯЙКЕ и только здесь: её собственные цены
+                  видны ей всегда (инвариант №8). Значок рядом теперь говорит
+                  одно и то же у любой вещи — «гость цену не видит»: тикет 124
+                  закрыл витрину для чужих цен целиком, и тумблера «скрыть
+                  цену» рядом больше нет — прятать её не от кого. */}
               {item.price !== null && (
                 <div className="mt-2 flex flex-wrap items-center gap-x-2 gap-y-1.5">
                   <span className="text-[15px] font-bold" style={{ color: accent }}>
@@ -168,16 +166,6 @@ export function HallShowcase({ items, accent }: { items: HallItemView[]; accent:
                       : formatHallMoney(item.price, item.currency, locale)}
                   </span>
                   <PriceSeenBadge audience={item.priceAudience} />
-                  <button
-                    type="button"
-                    disabled={busy}
-                    onClick={() =>
-                      run(item.id, () => setHallPriceHiddenAction(item.id, !hiddenPrice))
-                    }
-                    className="pressable text-xs font-semibold text-text-muted hover:text-text-strong disabled:opacity-60"
-                  >
-                    {hiddenPrice ? t("priceShow") : t("priceHide")}
-                  </button>
                 </div>
               )}
 

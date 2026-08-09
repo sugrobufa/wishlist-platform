@@ -35,7 +35,7 @@ async function createTestItem(photoKey: string | null = null) {
     data: {
       roomId: room.id,
       zone: "jewelry",
-      state: "WANT",
+      inHall: false,
       title: "Серьги по ссылке",
       photoKey,
       source: "URL",

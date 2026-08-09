@@ -5,13 +5,16 @@ import { describe, expect, it } from "vitest";
 import { existsSync } from "node:fs";
 import { resolve } from "node:path";
 import zonesJson from "@design/zones.json";
-import itemsJson from "@design/items.json";
 import { rooms, zoneKeysHiddenByProduct } from "../src/config/design";
 import { demoGhostsFor, demoPools } from "../src/config/demo-pools";
 
 // `createdAt` приехал вместе с карточкой вещи хозяйки (тикет 39): у призрака
 // он постоянный — призрака нет в БД, и «В комнате с» ему нечем считать.
-const WANT_KEYS = [
+// ПЕРЕПИСАНО (тикет 124): наборов ключей было два — по одному на состояние.
+// Состояний нет, и все призраки теперь одной формы — вещь КОМНАТЫ
+// (`inHall: false`). Витринных призраков не бывает: призрак рисуется в зоне,
+// а зона показывает комнату.
+const ROOM_KEYS = [
   "color",
   "createdAt",
   "currency",
@@ -22,33 +25,23 @@ const WANT_KEYS = [
   "eventWhere",
   "hidden",
   "id",
+  "inHall",
   "isDemo",
   "note",
   "photoUrl",
   "price",
   "priceVisibility",
   "size",
-  "state",
   "title",
   "validUntil",
   "zone",
 ];
-const LOVE_KEYS = [
-  "createdAt",
-  "giverName",
-  "hidden",
-  "id",
-  "inHall",
-  "isDemo",
-  "note",
-  "photoUrl",
-  "receivedAt",
-  "state",
-  "title",
-  "zone",
-];
 
-const packagePoolKeys = (itemsJson as { demoPools: { poolKeys: string[] } }).demoPools.poolKeys;
+// Список ключей пулов брался из `items.json → demoPools.poolKeys`; в модели
+// v2 (раунд 28) этого раздела в контракте нет вовсе — дизайн описывает вещь,
+// а не наши демо-наборы. Ключи проверяем по СПРАВОЧНИКУ ЗОН, который их и
+// назначает: он остаётся источником правды, и лишний пул он тоже поймает.
+const PACKAGE_POOL_COUNT = 19;
 
 /**
  * Пулы зон справочника — кроме тех зон, которые продукт не показывает вовсе,
@@ -73,9 +66,10 @@ const roomPoolKeys = rooms
   .filter((pool) => pool !== MONEY_POOL);
 
 describe("demoPools — покрытие пулов дизайн-пакета", () => {
-  it("есть все 19 ключей из items.json → demoPools.poolKeys, лишних нет", () => {
-    expect(Object.keys(demoPools).sort()).toEqual([...packagePoolKeys].sort());
-    expect(packagePoolKeys).toHaveLength(19);
+  it("есть все 19 ключей справочника зон, лишних нет", () => {
+    const fromPackage = [...new Set([...zonesPoolKeys, ...roomPoolKeys])].sort();
+    expect(Object.keys(demoPools).sort()).toEqual(fromPackage);
+    expect(fromPackage).toHaveLength(PACKAGE_POOL_COUNT);
   });
 
   it("«Уход» смотрит в свой пул grooming — мужская комната без свечи с инжиром", () => {
@@ -90,8 +84,8 @@ describe("demoPools — покрытие пулов дизайн-пакета", 
 
     const ghosts = demoGhostsFor("grooming", "grooming");
     expect(ghosts).toHaveLength(5);
-    // Два «люблю» намеренно: «в пуле должно быть видно оба состояния».
-    expect(ghosts.filter((ghost) => ghost.state === "LOVE")).toHaveLength(2);
+    // ПЕРЕПИСАНО (тикет 124): проверка «два „люблю" в пуле» умерла вместе с
+    // состояниями. Осталось то, ради чего пул и заводили, — свой состав.
     const titles = ghosts.map((ghost) => ghost.title);
     expect(titles).not.toContain("Свеча с инжиром");
     expect(titles).not.toContain("Диффузор для дома");
@@ -103,19 +97,19 @@ describe("demoPools — покрытие пулов дизайн-пакета", 
     }
   });
 
-  it("в пуле 3–5 вещей, есть и «люблю», и «хочу»; у «хочу» — цена в рублях", () => {
+  // ПЕРЕПИСАНО (тикет 124): «в пуле есть оба состояния» проверять нечем.
+  // Осталось два требования и оба про содержимое: размер пула и то, что
+  // названная цена — настоящие рубли (семя без цены её и не называет).
+  it("в пуле 3–5 вещей; у названной цены — рубли и число больше нуля", () => {
     for (const poolKey of Object.keys(demoPools)) {
       const ghosts = demoGhostsFor("test-zone", poolKey);
       expect(ghosts.length, `пул ${poolKey}`).toBeGreaterThanOrEqual(3);
       expect(ghosts.length, `пул ${poolKey}`).toBeLessThanOrEqual(5);
 
-      const love = ghosts.filter((ghost) => ghost.state === "LOVE");
-      const want = ghosts.filter((ghost) => ghost.state === "WANT");
-      expect(love.length, `«люблю» в пуле ${poolKey}`).toBeGreaterThan(0);
-      expect(want.length, `«хочу» в пуле ${poolKey}`).toBeGreaterThan(0);
-
-      for (const ghost of want) {
-        if (ghost.state !== "WANT") continue;
+      const priced = ghosts.filter((ghost) => !ghost.inHall && ghost.price !== null);
+      expect(priced.length, `цены в пуле ${poolKey}`).toBeGreaterThan(0);
+      for (const ghost of priced) {
+        if (ghost.inHall) continue;
         expect(Number(ghost.price), `цена «${ghost.title}»`).toBeGreaterThan(0);
         expect(ghost.currency).toBe("RUB");
       }
@@ -127,7 +121,9 @@ describe("demoGhostsFor — DTO-совместимость", () => {
   it("ключи призраков совпадают со строгими наборами owner-DTO, isDemo: true", () => {
     for (const poolKey of Object.keys(demoPools)) {
       for (const ghost of demoGhostsFor("jewelry", poolKey)) {
-        expect(Object.keys(ghost).sort()).toEqual(ghost.state === "WANT" ? WANT_KEYS : LOVE_KEYS);
+        // Форма одна: призрак всегда вещь КОМНАТЫ (тикет 124).
+        expect(Object.keys(ghost).sort()).toEqual(ROOM_KEYS);
+        expect(ghost.inHall).toBe(false);
         expect(ghost.isDemo).toBe(true);
         expect(ghost.hidden).toBe(false);
         expect(ghost.zone).toBe("jewelry");

@@ -47,7 +47,7 @@ async function createWantItem(roomId: string) {
   const data: Prisma.ItemUncheckedCreateInput = {
     roomId,
     zone: "jewelry",
-    state: "WANT",
+    inHall: false,
     title: "Колье с жемчугом",
     price: "48000",
     currency: "RUB",

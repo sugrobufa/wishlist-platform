@@ -11,6 +11,7 @@ import { Prisma } from "@prisma/client";
 // проверяется по вызовам enqueueOccasionOwnerMail (паттерн tests/occasions).
 vi.mock("@/server/queues", () => ({
   enqueueOccasionOwnerMail: vi.fn(async () => true),
+  enqueueItemGoneMail: vi.fn(async () => true),
   enqueueImageIngest: vi.fn(async () => true),
 }));
 

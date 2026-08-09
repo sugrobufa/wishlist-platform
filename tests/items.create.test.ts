@@ -48,7 +48,7 @@ afterAll(async () => {
 });
 
 const wantInput = (overrides: Record<string, unknown> = {}) => ({
-  state: "WANT",
+  inHall: false,
   zone: "jewelry",
   title: "Серьги-кольца",
   price: "14900,50",
@@ -72,7 +72,7 @@ describe("createItem — WANT", () => {
     );
 
     expect(item.roomId).toBe(room.id);
-    expect(item.state).toBe("WANT");
+    expect(item.inHall).toBe(false);
     expect(item.source).toBe("MANUAL");
     expect(item.price?.toFixed(2)).toBe("14900.50");
     expect(item.currency).toBe("RUB");
@@ -97,7 +97,7 @@ describe("createItem — LOVE", () => {
   it("цена в инпуте LOVE не записывается: в БД price/currency/desire — null", async () => {
     const { user, room } = await createTestRoom();
     const item = await createItem(user.id, {
-      state: "LOVE",
+      inHall: true,
       zone: "jewelry",
       title: "Теннисный браслет",
       // Лишние для LOVE поля — отбрасываются ДО записи (инвариант §8).
@@ -109,7 +109,7 @@ describe("createItem — LOVE", () => {
     });
 
     const row = await prisma.item.findUniqueOrThrow({ where: { id: item.id } });
-    expect(row.state).toBe("LOVE");
+    expect(row.inHall).toBe(true);
     expect(row.price).toBeNull();
     expect(row.currency).toBeNull();
     expect(row.size).toBeNull();
@@ -117,19 +117,21 @@ describe("createItem — LOVE", () => {
     expect(row.roomId).toBe(room.id);
   });
 
-  it("«уже моё» — без дарителя и даты; даритель+год — receivedAt хранит год", async () => {
+  it("вещь витрины без дарителя и даты; даритель+год — receivedAt хранит год", async () => {
     const { user } = await createTestRoom();
     const mine = await createItem(user.id, {
-      state: "LOVE",
+      inHall: true,
       zone: "bags",
       title: "Кожаный шопер",
     });
     expect(mine.giverName).toBeNull();
     expect(mine.receivedAt).toBeNull();
-    expect(mine.inHall).toBe(false);
+    // ПЕРЕПИСАНО (тикет 124): было `inHall: false` — «в зал руками, если
+    // захочет». Теперь `inHall: true` в инпуте и означает витрину.
+    expect(mine.inHall).toBe(true);
 
     const gifted = await createItem(user.id, {
-      state: "LOVE",
+      inHall: true,
       zone: "bags",
       title: "Платок",
       giverName: "мама",

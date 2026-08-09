@@ -62,7 +62,7 @@ async function createWantItem(
     data: {
       roomId,
       zone,
-      state: "WANT",
+      inHall: false,
       title: `Вещь-${randomUUID().slice(0, 8)}`,
       price: "5000",
       currency: "RUB",
@@ -159,14 +159,14 @@ describe("ИНВАРИАНТ-СЕРИАЛИЗАЦИЯ: страница хозя
     const preset = roomPresets.find((candidate) => candidate.id === owner.room.preset);
     expect(preset).toBeDefined();
 
-    // Вещи в нескольких зонах: три «хочу» (будут заняты), свободная и «люблю».
+    // Вещи в нескольких зонах: три занятых, свободная и ещё одна в «fashion».
+    // ПЕРЕПИСАНО (тикет 124): пятой была вещь «люблю»; вещи сокровищницы в
+    // сетку зоны больше не приезжают, а тест смотрит именно на неё.
     const ring = await createWantItem(owner.room.id, "jewelry");
     const bag = await createWantItem(owner.room.id, "bags");
     const scent = await createWantItem(owner.room.id, "perfume");
     await createWantItem(owner.room.id, "travel"); // свободная
-    await prisma.item.create({
-      data: { roomId: owner.room.id, zone: "fashion", state: "LOVE", title: "Пальто" },
-    });
+    await createWantItem(owner.room.id, "fashion");
 
     // Три брони с сочными секретами — им нельзя всплыть нигде.
     await bookItem({
@@ -190,7 +190,7 @@ describe("ИНВАРИАНТ-СЕРИАЛИЗАЦИЯ: страница хозя
 
     // Мы сериализовали не пустоту: вещи на странице есть, включая занятые.
     expect(pageData.jewelry?.map((dto) => dto.id)).toContain(ring.id);
-    expect(pageData.fashion?.[0]?.state).toBe("LOVE");
+    expect(pageData.fashion?.[0]?.inHall).toBe(false);
 
     const serialized = JSON.stringify(pageData);
     // Ни ключей брони, ни производных — нигде, ни под каким именем.

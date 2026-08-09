@@ -5,6 +5,9 @@
 // Критичный инвариант №1 (тихая бронь): owner-DTO НИКОГДА не содержит
 // booking-полей — ни имени, ни факта брони. Покрыто строгим снапшотом ключей
 // в tests/items.dto.test.ts.
+//
+// ФОРМ ДВЕ, И РАЗЛИЧАЕТ ИХ МЕСТО, А НЕ СОСТОЯНИЕ (items.json v2, тикет 124):
+// вещь комнаты (`inHall: false`) и вещь сокровищницы (`inHall: true`).
 import type { Item } from "@prisma/client";
 import { roomImageUrl } from "@/app/rooms/room-image";
 
@@ -13,7 +16,8 @@ export type PriceVisibilityDto = "ALL" | "FRIENDS" | "ME" | "NONE";
 /** Общие поля обеих форм вещи. */
 type OwnerItemBaseDto = {
   id: string;
-  /** Ключ зоны из zones.json. */
+  /** Ключ зоны из zones.json. Есть и у витринной вещи — «Вернуть в комнату»
+   * возвращает именно на эту полку. */
   zone: string;
   title: string;
   note: string | null;
@@ -24,19 +28,20 @@ type OwnerItemBaseDto = {
   isDemo: boolean;
   /**
    * Когда вещь появилась в комнате, ISO-строкой — строка «В комнате с {год}»
-   * в карточке вещи хозяйки (турн 8c, тикет 39). У «люблю» с известной датой
-   * подарка карточка предпочитает receivedAt, здесь — запасной путь для
-   * вещей «уже моё» и всех «хочу». Гостю это поле не отдаётся.
+   * в карточке вещи хозяйки (турн 8c, тикет 39). У вещи сокровищницы с
+   * известной датой подарка карточка предпочитает receivedAt, здесь —
+   * запасной путь. Гостю это поле не отдаётся.
    */
   createdAt: string;
 };
 
 /**
- * «Хочу»: цена обязательна по продукту (показ — по priceVisibility,
+ * Вещь КОМНАТЫ: цена обязательна по продукту (показ — по priceVisibility,
  * хозяйке всегда), плюс размер/цвет/степень желания (items.json extraFields).
+ * Комната и есть список желаний — бронируется здесь всё.
  */
-export type OwnerWantItemDto = OwnerItemBaseDto & {
-  state: "WANT";
+export type OwnerRoomItemDto = OwnerItemBaseDto & {
+  inHall: false;
   /** Decimal сериализуем строкой — float для денег запрещён (CLAUDE.md). */
   price: string | null;
   /** ISO 4217. */
@@ -45,7 +50,7 @@ export type OwnerWantItemDto = OwnerItemBaseDto & {
   priceVisibility: PriceVisibilityDto;
   size: string | null;
   color: string | null;
-  /** «Насколько хочется», 1–4. */
+  /** «Насколько хочется», 1–4 — единственная градация вещи (тикет 125). */
   desire: number | null;
   /** Услуга-впечатление (тикет 97): «Когда · Где · Годен до». */
   eventWhen: string | null;
@@ -55,18 +60,19 @@ export type OwnerWantItemDto = OwnerItemBaseDto & {
 };
 
 /**
- * «Люблю»: цены НЕТ ВООБЩЕ — ключи price/currency у этой формы отсутствуют,
- * даже если в БД значение осталось от прежнего «хочу» (инвариант §8, тест).
+ * Вещь СОКРОВИЩНИЦЫ: цены НЕТ ВООБЩЕ — ключи price/currency у этой формы
+ * отсутствуют, даже если значение осталось в БД от жизни вещи в комнате
+ * (инвариант №8, тест). Возврат в комнату покажет цену снова: в базе она
+ * никуда не девалась, её просто не сериализуют здесь.
  */
-export type OwnerLoveItemDto = OwnerItemBaseDto & {
-  state: "LOVE";
+export type OwnerHallItemDto = OwnerItemBaseDto & {
+  inHall: true;
   giverName: string | null;
-  /** ISO-строка — дата «Дошло» или ручного «уже моё». */
+  /** ISO-строка — дата «Дошло» или ручного переезда на витрину. */
   receivedAt: string | null;
-  inHall: boolean;
 };
 
-export type OwnerItemDto = OwnerWantItemDto | OwnerLoveItemDto;
+export type OwnerItemDto = OwnerRoomItemDto | OwnerHallItemDto;
 
 /**
  * photoKey → URL. Поддержаны: путь дизайн-пакета ("refs/p-vinyl.jpg" — демо),
@@ -81,9 +87,9 @@ export function itemPhotoUrl(photoKey: string | null): string | null {
 }
 
 /**
- * Сериализация вещи для хозяйки. Форма зависит от состояния (items.json:
- * два состояния — два словаря полей), ключи за пределами формы не попадают
- * в объект вовсе.
+ * Сериализация вещи для хозяйки. Форма зависит от МЕСТА (items.json v2: два
+ * места — два словаря полей), ключи за пределами формы не попадают в объект
+ * вовсе.
  */
 export function itemForOwner(item: Item): OwnerItemDto {
   const base: OwnerItemBaseDto = {
@@ -97,27 +103,26 @@ export function itemForOwner(item: Item): OwnerItemDto {
     createdAt: item.createdAt.toISOString(),
   };
 
-  if (item.state === "WANT") {
+  if (item.inHall) {
     return {
       ...base,
-      state: "WANT",
-      price: item.price === null ? null : item.price.toString(),
-      currency: item.currency,
-      priceVisibility: item.priceVisibility,
-      size: item.size,
-      color: item.color,
-      desire: item.desire,
-      eventWhen: item.eventWhen,
-      eventWhere: item.eventWhere,
-      validUntil: item.validUntil === null ? null : item.validUntil.toISOString().slice(0, 10),
+      inHall: true,
+      giverName: item.giverName,
+      receivedAt: item.receivedAt === null ? null : item.receivedAt.toISOString(),
     };
   }
 
   return {
     ...base,
-    state: "LOVE",
-    giverName: item.giverName,
-    receivedAt: item.receivedAt === null ? null : item.receivedAt.toISOString(),
-    inHall: item.inHall,
+    inHall: false,
+    price: item.price === null ? null : item.price.toString(),
+    currency: item.currency,
+    priceVisibility: item.priceVisibility,
+    size: item.size,
+    color: item.color,
+    desire: item.desire,
+    eventWhen: item.eventWhen,
+    eventWhere: item.eventWhere,
+    validUntil: item.validUntil === null ? null : item.validUntil.toISOString().slice(0, 10),
   };
 }

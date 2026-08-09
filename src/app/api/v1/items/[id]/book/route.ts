@@ -26,7 +26,7 @@ type Ctx = { params: Promise<{ id: string }> };
 const BOOKING_ERROR_STATUS: Record<BookingError["code"], number> = {
   NOT_FOUND: 404,
   DEMO_ITEM: 400,
-  NOT_WANT: 409,
+  IN_HALL: 409,
   OWN_ITEM: 403,
   ALREADY_BOOKED: 409,
   // Срок впечатления вышел (тикет 97) — тот же класс, что «уже занято»:

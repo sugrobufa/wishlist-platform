@@ -1,5 +1,9 @@
-// Сервис «Тихая бронь» (тикет 08): гость занимает вещь «хочу» без регистрации
-// и управляет своими бронями по cancelToken из HTTP-only cookie.
+// Сервис «Тихая бронь» (тикет 08): гость занимает вещь комнаты без
+// регистрации и управляет своими бронями по cancelToken из HTTP-only cookie.
+//
+// БРОНИРУЕТСЯ ВСЁ, ЧТО В КОМНАТЕ (тикет 124). Состояний у вещи нет; комната и
+// есть список желаний. Не бронируется только то, что уже своё, — вещь
+// сокровищницы (`inHall`).
 //
 // ИНВАРИАНТ №1 (CLAUDE.md, никогда не нарушать): хозяйке — НИЧЕГО. Ни одна
 // функция этого сервиса не шлёт уведомлений, не пишет ничего видимого хозяйке
@@ -14,6 +18,7 @@ import { Prisma } from "@prisma/client";
 import { z } from "zod";
 import { prisma } from "@/server/db";
 import { itemPhotoUrl } from "@/server/dto/items";
+import { enqueueItemGoneMail } from "@/server/queues";
 import { hallOpenToViewer } from "@/server/services/hall-access";
 
 const idSchema = z.string().min(1).max(64);
@@ -28,7 +33,7 @@ const TOKEN_RE = /^[0-9a-f]{48}$/;
 export type BookingErrorCode =
   | "NOT_FOUND" // вещи нет (или гостю её «не существует»: hidden / зона выключена)
   | "DEMO_ITEM" // демо-призрак «пример» — не бронируется (гриллинг №4)
-  | "NOT_WANT" // бронируются только вещи «хочу»
+  | "IN_HALL" // вещь уже своя (в сокровищнице) — дарить нечего
   | "OWN_ITEM" // хозяйка «бронирует» свою вещь — подарок себе не бывает (тикет 11)
   | "ALREADY_BOOKED" // уникальность Booking.itemId (P2002) — уже занято
   | "EXPIRED" // впечатление с вышедшим сроком (тикет 97)
@@ -75,15 +80,16 @@ export const bookItemInputSchema = z.object({
 export type BookItemInput = z.input<typeof bookItemInputSchema>;
 
 /**
- * Гость тихо занимает вещь «хочу». Возврат — ТОЛЬКО cancelToken: единственный
+ * Гость тихо занимает вещь комнаты. Возврат — ТОЛЬКО cancelToken: единственный
  * ключ гостя к своей брони (уйдёт в HTTP-only cookie на роуте).
  *
  * Правила:
  * - демо-призраки (id `demo:...`) не бронируются — их нет в БД, отказ честный;
  * - спрятанная вещь и вещь выключенной зоны для гостя «не существуют»
  *   (инвариант №5) — тот же NOT_FOUND, что у незнакомого id, без утечки факта;
- * - только state=WANT; только без активной брони — уникальность Booking.itemId
- *   держит СХЕМА (гонка двух гостей решается P2002, не проверкой заранее);
+ * - только вещь КОМНАТЫ (`inHall: false`); только без активной брони —
+ *   уникальность Booking.itemId держит СХЕМА (гонка двух гостей решается
+ *   P2002, не проверкой заранее);
  * - режим QUIET|SIGNED; POOL — Phase 2, отказ с честным сообщением.
  *
  * options.sessionUserId (тикет 11) — userId сессии, если гость залогинен
@@ -115,7 +121,7 @@ export async function bookItem(
     where: { id: data.itemId },
     select: {
       id: true,
-      state: true,
+      inHall: true,
       hidden: true,
       zone: true,
       validUntil: true,
@@ -130,8 +136,10 @@ export async function bookItem(
   if (sessionUserId && sessionUserId === item.room.userId) {
     throw new BookingError("OWN_ITEM", "это твоя вещь — подарить её себе нельзя");
   }
-  if (item.state !== "WANT") {
-    throw new BookingError("NOT_WANT", "подарить можно только вещь «хочу»");
+  // Вещь сокровищницы уже своя — дарить её нечего (тикет 124). Всё
+  // остальное, что лежит в комнате, бронируется без исключений.
+  if (item.inHall) {
+    throw new BookingError("IN_HALL", "эта вещь уже у хозяйки — подарить её нельзя");
   }
   // Впечатление с вышедшим сроком не бронируется (тикет 97): сертификат,
   // годный до вчера, дарить нечем. Вещь при этом остаётся видной — хозяйка
@@ -588,13 +596,57 @@ export async function ownerTakenCount(userId: string): Promise<number> {
  *
  * Это МЕХАНИЗМ для мутаций хозяйки: UI скрытия/удаления вещи (тикет 13)
  * обязан звать эту функцию, чтобы спрятанная вещь не осталась «занятой» и
- * счётчик не врал. Гостю не шлём ничего — бронь тихо исчезает из его
- * «моих броней» (симметрично тому, что хозяйка не знала о её появлении).
+ * счётчик не врал.
+ *
+ * СКЛАДЧИНА ВОЗВРАЩАЕТСЯ ЗДЕСЬ ЖЕ И ДРУГОГО МЕХАНИЗМА НЕТ. Взносы
+ * (`PoolContribution`) висят на брони и уходят вместе с ней каскадом схемы —
+ * ровно тот же «автовозврат», что у несобравшейся складчины (PRD §12а:
+ * «не собрали к дате — автовозврат»). Денег сервис не держит и не переводит,
+ * поэтому вернуть = перестать считать договорённость живой.
+ *
+ * `options.notifyGuest` (тикет 124, раунд 28) — сказать ГОСТЮ, что вещь
+ * уехала, и предложить выбрать другую. Зовёт это только переезд в
+ * сокровищницу: там вещь у хозяйки уже есть, и молчание отправило бы человека
+ * на праздник с ненужным подарком. Скрытие и удаление остаются молчаливыми,
+ * как были.
+ *
+ * ХОЗЯЙКЕ ОТСЮДА НЕ УХОДИТ НИЧЕГО И НИКОГДА (инвариант №1): письмо адресовано
+ * гостю, ставится ПОСЛЕ удаления и не влияет ни на возврат, ни на ошибки —
+ * `enqueueItemGoneMail` не бросает по построению. Вызывающая сторона не имеет
+ * права показывать хозяйке результат этой функции: он говорит, была ли бронь.
  */
-export async function releaseBookingForItem(itemId: string): Promise<boolean> {
-  const { count } = await prisma.booking.deleteMany({
-    where: { itemId: idSchema.parse(itemId) },
-  });
+export async function releaseBookingForItem(
+  itemId: string,
+  options: { notifyGuest?: boolean } = {},
+): Promise<boolean> {
+  const id = idSchema.parse(itemId);
+  // Читаем ДО удаления: после него писать некому и не о чем. Почта гостя
+  // наружу из этой функции не выходит — она уезжает прямо в очередь.
+  const doomed = options.notifyGuest
+    ? await prisma.booking.findUnique({
+        where: { itemId: id },
+        select: {
+          id: true,
+          guestName: true,
+          guestEmail: true,
+          item: { select: { title: true, room: { select: { shareSlug: true, nick: true } } } },
+        },
+      })
+    : null;
+
+  const { count } = await prisma.booking.deleteMany({ where: { itemId: id } });
+
+  // Гость без почты остаётся без письма — писать некуда. Это не потеря
+  // тишины, а её отсутствие: он и бронировал анонимно.
+  if (doomed && count > 0 && doomed.guestEmail) {
+    await enqueueItemGoneMail({
+      bookingId: doomed.id,
+      email: doomed.guestEmail,
+      guestName: doomed.guestName,
+      itemTitle: doomed.item.title,
+      roomSlug: doomed.item.room.nick ?? doomed.item.room.shareSlug,
+    });
+  }
   return count > 0;
 }
 

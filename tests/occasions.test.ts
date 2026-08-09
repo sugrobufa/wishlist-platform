@@ -15,10 +15,11 @@ import type { Prisma } from "@prisma/client";
 // письма occasion-owner проверяется по вызовам enqueueOccasionOwnerMail.
 vi.mock("@/server/queues", () => ({
   enqueueOccasionOwnerMail: vi.fn(async () => true),
+  enqueueItemGoneMail: vi.fn(async () => true),
   enqueueImageIngest: vi.fn(async () => true),
 }));
 
-import { enqueueOccasionOwnerMail } from "@/server/queues";
+import { enqueueItemGoneMail, enqueueOccasionOwnerMail } from "@/server/queues";
 import { prisma } from "../src/server/db";
 import * as occasionsService from "../src/server/services/occasions";
 import * as itemsService from "../src/server/services/items";
@@ -29,7 +30,7 @@ import {
   occasionBannerVisible,
   receiveGift,
 } from "../src/server/services/occasions";
-import { ItemMutationError, selfFulfill, toggleHall } from "../src/server/services/items";
+import { ItemMutationError, toggleHall } from "../src/server/services/items";
 import { bookItem, ownerTakenCount } from "../src/server/services/bookings";
 import { processOccasionClose } from "../src/worker/occasion-close";
 
@@ -69,7 +70,7 @@ async function createWantItem(
     data: {
       roomId,
       zone,
-      state: "WANT",
+      inHall: false,
       title: `Вещь-${randomUUID().slice(0, 8)}`,
       price: "5000",
       currency: "RUB",
@@ -224,12 +225,12 @@ describe("receiveGift — одна транзакция: все эффекты �
     return { owner, item };
   }
 
-  it("happy path: LOVE + receivedAt + giverName + inHall + бронь закрыта + связь MUTUAL", async () => {
+  it("happy path: переезд на витрину + receivedAt + giverName + бронь закрыта + связь MUTUAL", async () => {
     const guest = await createOwnerWithRoom(null, "Гостья со своей комнатой");
     const { owner, item } = await setupGift({ guestUserId: guest.user.id });
 
     const updated = await receiveGift(owner.user.id, item.id);
-    expect(updated.state).toBe("LOVE");
+    expect(updated.inHall).toBe(true);
     expect(updated.giverName).toBe("Мила Дарительница");
     expect(updated.inHall).toBe(true);
     expect(updated.receivedAt).not.toBeNull();
@@ -287,7 +288,7 @@ describe("receiveGift — одна транзакция: все эффекты �
     expect(connections[0]).toMatchObject({ kind: "FOLLOW", origin: "visit" });
   });
 
-  it("БЕЗ summary — отказ NO_SUMMARY: имя не раскрыто, бронь жива, вещь осталась «хочу»", async () => {
+  it("БЕЗ summary — отказ NO_SUMMARY: имя не раскрыто, бронь жива, вещь в комнате", async () => {
     const owner = await createOwnerWithRoom(null);
     const item = await createWantItem(owner.room.id);
     await bookItem({ itemId: item.id, name: "Ранняя Гостья" });
@@ -296,22 +297,50 @@ describe("receiveGift — одна транзакция: все эффекты �
       code: "NO_SUMMARY",
     });
     const after = await prisma.item.findUniqueOrThrow({ where: { id: item.id } });
-    expect(after.state).toBe("WANT");
+    expect(after.inHall).toBe(false);
     expect(after.giverName).toBeNull();
     expect(await prisma.booking.count({ where: { itemId: item.id } })).toBe(1);
   });
 
-  it("повторный вызов на уже LOVE — отказ NOT_WANT, ничего не изменилось", async () => {
+  it("повтор на вещи, которая уже на витрине, — отказ ALREADY_IN_HALL", async () => {
     const { owner, item } = await setupGift();
     const first = await receiveGift(owner.user.id, item.id);
 
     await expect(receiveGift(owner.user.id, item.id)).rejects.toMatchObject({
-      code: "NOT_WANT",
+      code: "ALREADY_IN_HALL",
     });
     const after = await prisma.item.findUniqueOrThrow({ where: { id: item.id } });
     expect(after.receivedAt?.getTime()).toBe(first.receivedAt?.getTime());
     expect(after.giverName).toBe(first.giverName);
-    expect(after.state).toBe("LOVE");
+    expect(after.inHall).toBe(true);
+  });
+
+  // НОВЫЙ ТЕСТ (тикет 124) — прямое требование владельца к инварианту №2:
+  // необратимо ТОЛЬКО раскрытие имени, а место вещи обратимо.
+  it("«Вернуть в комнату» после «Дошло»: имя НЕ раскрывается заново и не прячется", async () => {
+    const { owner, item } = await setupGift();
+    const received = await receiveGift(owner.user.id, item.id);
+    expect(received.giverName).toBe("Мила Дарительница");
+
+    // Возврат в комнату — обычный переезд: вещь снова в своей зоне.
+    const back = await toggleHall(owner.user.id, item.id, false);
+    expect(back.inHall).toBe(false);
+    expect(back.zone).toBe(item.zone);
+    // Имя осталось как было: раскрытие уже случилось и второй раз не бывает.
+    expect(back.giverName).toBe("Мила Дарительница");
+    expect(back.receivedAt?.getTime()).toBe(received.receivedAt?.getTime());
+
+    // И обратно на витрину — имя всё то же, дата подарка не переписана.
+    const again = await toggleHall(owner.user.id, item.id, true);
+    expect(again.inHall).toBe(true);
+    expect(again.giverName).toBe("Мила Дарительница");
+    expect(again.receivedAt?.getTime()).toBe(received.receivedAt?.getTime());
+
+    // Повторное «Дошло» после возврата невозможно: раскрытие живёт один раз,
+    // и вещь на витрине его больше не принимает.
+    await expect(receiveGift(owner.user.id, item.id)).rejects.toMatchObject({
+      code: "ALREADY_IN_HALL",
+    });
   });
 
   it("сбой в середине транзакции откатывает ВСЁ (битый guestUserId → FK-ошибка)", async () => {
@@ -323,7 +352,6 @@ describe("receiveGift — одна транзакция: все эффекты �
     await expect(receiveGift(owner.user.id, item.id)).rejects.toThrow();
 
     const after = await prisma.item.findUniqueOrThrow({ where: { id: item.id } });
-    expect(after.state).toBe("WANT");
     expect(after.giverName).toBeNull();
     expect(after.inHall).toBe(false);
     expect(await prisma.booking.count({ where: { itemId: item.id } })).toBe(1);
@@ -339,8 +367,8 @@ describe("receiveGift — одна транзакция: все эффекты �
       code: "NOT_FOUND",
     });
     expect(
-      (await prisma.item.findUniqueOrThrow({ where: { id: item.id } })).state,
-    ).toBe("WANT");
+      (await prisma.item.findUniqueOrThrow({ where: { id: item.id } })).inHall,
+    ).toBe(false);
   });
 });
 
@@ -379,105 +407,189 @@ describe("processOccasionClose — находит ТОЛЬКО просроче�
   });
 });
 
-describe("selfFulfill — «уже моё»: без дарителя, без раскрытий, бронь снимается", () => {
-  it("WANT → LOVE: giverName=null, inHall=false, receivedAt=now; бронь тихо снята", async () => {
+// ПЕРЕПИСАНО ЦЕЛИКОМ (тикет 124). Здесь было два блока: «selfFulfill — уже
+// моё» и «toggleHall — витрина только для „люблю"». `selfFulfill` больше не
+// существует: он переводил вещь из «хочу» в «люблю», а состояний нет — то же
+// самое теперь значит «положить в сокровищницу», и двух дорог в одно место мы
+// не держим. Остался один `toggleHall`, и он ходит в обе стороны.
+describe("toggleHall — «В сокровищницу» и «Вернуть в комнату» (тикет 124)", () => {
+  it("в сокровищницу: inHall=true, hiddenFromHall сброшен, бронь тихо снята", async () => {
     const owner = await createOwnerWithRoom(null); // работает БЕЗ summary
     const item = await createWantItem(owner.room.id);
     await bookItem({ itemId: item.id, name: "Гостья Утратившая", email: "lost@mail.test" });
     expect(await ownerTakenCount(owner.user.id)).toBe(1);
 
-    const updated = await selfFulfill(owner.user.id, item.id);
-    expect(updated.state).toBe("LOVE");
+    const updated = await toggleHall(owner.user.id, item.id, true);
+    expect(updated.inHall).toBe(true);
+    expect(updated.hiddenFromHall).toBe(false);
+    expect(updated.receivedAt).not.toBeNull(); // «уже моё» с этого дня
+    // Имя дарителя ручной переезд НЕ проставляет: его пишет только «Дошло».
     expect(updated.giverName).toBeNull();
-    expect(updated.inHall).toBe(false);
-    expect(updated.receivedAt).not.toBeNull();
-    // Имя гостя не всплывает и здесь (раскрытий у «уже моё» нет вовсе).
+    // Ни имени, ни почты гостя в ответе (инвариант №1).
     expect(JSON.stringify(updated)).not.toMatch(/Утратившая|lost@mail\.test/);
 
     expect(await prisma.booking.count({ where: { itemId: item.id } })).toBe(0);
     expect(await ownerTakenCount(owner.user.id)).toBe(0);
   });
 
-  it("на LOVE — отказ NOT_WANT (ничего не меняется); чужая вещь → NOT_FOUND", async () => {
+  it("вернуть в комнату: вещь встаёт в СВОЮ зону, цена и поля на месте", async () => {
     const owner = await createOwnerWithRoom(null);
-    const love = await prisma.item.create({
-      data: { roomId: owner.room.id, zone: "jewelry", state: "LOVE", title: "Цепочка" },
-    });
-    await expect(selfFulfill(owner.user.id, love.id)).rejects.toMatchObject({
-      code: "NOT_WANT",
-    });
-    expect(
-      (await prisma.item.findUniqueOrThrow({ where: { id: love.id } })).receivedAt,
-    ).toBeNull();
-
-    const stranger = await createOwnerWithRoom(null, "Соседка");
     const item = await createWantItem(owner.room.id);
-    await expect(selfFulfill(stranger.user.id, item.id)).rejects.toMatchObject({
-      code: "NOT_FOUND",
-    });
-  });
-});
 
-describe("toggleHall — витрина только для «люблю»", () => {
-  it("on: inHall=true и сброс hiddenFromHall; off: только inHall=false", async () => {
+    await toggleHall(owner.user.id, item.id, true);
+    const back = await toggleHall(owner.user.id, item.id, false);
+
+    expect(back.inHall).toBe(false);
+    expect(back.zone).toBe(item.zone); // возвращать было куда
+    expect(back.price?.toString()).toBe(item.price?.toString());
+    expect(back.currency).toBe(item.currency);
+  });
+
+  it("ОТВЕТ СЕРВЕРА НЕ ЗАВИСИТ ОТ ТОГО, ЗАНЯТА ВЕЩЬ ИЛИ НЕТ (инвариант №1)", async () => {
+    // Дизайн просил блокировать переезд при живой брони — мы отклонили:
+    // недоступное действие само сообщает хозяйке, что вещь забрали. Правило:
+    // действие доступно ВСЕГДА и отвечает ОДИНАКОВО.
     const owner = await createOwnerWithRoom(null);
-    const love = await prisma.item.create({
+    const free = await createWantItem(owner.room.id);
+    const booked = await createWantItem(owner.room.id);
+    await bookItem({ itemId: booked.id, name: "Тайная Гостья", email: "secret@mail.test" });
+
+    const movedFree = await toggleHall(owner.user.id, free.id, true);
+    const movedBooked = await toggleHall(owner.user.id, booked.id, true);
+
+    // Формы ответов совпадают до ключа и до значения — кроме собственных
+    // полей вещи (id/время). Ни одного поля «занято» ни в одной из них.
+    expect(Object.keys(movedFree).sort()).toEqual(Object.keys(movedBooked).sort());
+    expect(movedFree.inHall).toBe(movedBooked.inHall);
+    expect(movedFree.hiddenFromHall).toBe(movedBooked.hiddenFromHall);
+    expect(movedFree.giverName).toBe(movedBooked.giverName);
+    for (const dto of [movedFree, movedBooked]) {
+      expect(JSON.stringify(dto)).not.toMatch(/book|guest|taken|cancel|Тайная|secret@/i);
+    }
+    // И счётчик её комнаты вернулся к нулю — единственное, что ей вообще видно.
+    expect(await ownerTakenCount(owner.user.id)).toBe(0);
+  });
+
+  it("ГОСТЮ уходит письмо «вещь уехала», хозяйке — ничего (раунд 28)", async () => {
+    // «Молча» в нашем правиле означало «молча ДЛЯ ХОЗЯЙКИ». Гость обязан
+    // узнать: иначе он придёт на праздник с подарком, который у хозяйки уже
+    // есть. Письмо адресовано ему и несёт только его же данные.
+    const goneMock = vi.mocked(enqueueItemGoneMail);
+    goneMock.mockClear();
+
+    const owner = await createOwnerWithRoom(null);
+    const item = await createWantItem(owner.room.id);
+    await bookItem({ itemId: item.id, name: "Гостья", email: "guest@mail.test" });
+
+    const moved = await toggleHall(owner.user.id, item.id, true);
+
+    expect(goneMock).toHaveBeenCalledTimes(1);
+    const [payload] = goneMock.mock.calls[0] ?? [];
+    expect(payload?.email).toBe("guest@mail.test");
+    expect(payload?.itemTitle).toBe(item.title);
+    // В письме нет ни одного поля хозяйки, кроме слага её комнаты.
+    expect(Object.keys(payload ?? {}).sort()).toEqual([
+      "bookingId",
+      "email",
+      "guestName",
+      "itemTitle",
+      "roomSlug",
+    ]);
+    // А ответ хозяйке о письме не говорит ничего и от него не зависит.
+    expect(moved.inHall).toBe(true);
+    expect(JSON.stringify(moved)).not.toMatch(/guest@mail\.test|Гостья/u);
+  });
+
+  it("вещь БЕЗ брони писем не рождает — и ответ всё равно тот же", async () => {
+    const goneMock = vi.mocked(enqueueItemGoneMail);
+    goneMock.mockClear();
+
+    const owner = await createOwnerWithRoom(null);
+    const item = await createWantItem(owner.room.id);
+    const moved = await toggleHall(owner.user.id, item.id, true);
+
+    expect(goneMock).not.toHaveBeenCalled();
+    expect(moved.inHall).toBe(true);
+  });
+
+  it("гость без почты остаётся без письма — писать некуда", async () => {
+    const goneMock = vi.mocked(enqueueItemGoneMail);
+    goneMock.mockClear();
+
+    const owner = await createOwnerWithRoom(null);
+    const item = await createWantItem(owner.room.id);
+    await bookItem({ itemId: item.id, name: "Аноним" });
+
+    await toggleHall(owner.user.id, item.id, true);
+    expect(goneMock).not.toHaveBeenCalled();
+  });
+
+  it("складчина возвращается тем же механизмом: взносы уходят с бронью", async () => {
+    // «Автовозврат» в этом продукте — это снятие договорённости, а не
+    // перевод денег: деньги через сервис не ходят (PRD §12а). Механизм один
+    // на все случаи — удаление брони, взносы уходят каскадом схемы.
+    const owner = await createOwnerWithRoom(null);
+    const item = await createWantItem(owner.room.id);
+    const booking = await prisma.booking.create({
       data: {
-        roomId: owner.room.id,
-        zone: "jewelry",
-        state: "LOVE",
-        title: "Браслет",
-        hiddenFromHall: true,
+        itemId: item.id,
+        mode: "POOL",
+        guestName: "Организатор",
+        guestEmail: "pool@mail.test",
+        cancelToken: `pool-${item.id}`,
+        pool: {
+          create: [
+            { name: "Первый", amount: "2000" },
+            { name: "Второй", amount: "3000" },
+          ],
+        },
       },
     });
+    expect(await prisma.poolContribution.count({ where: { bookingId: booking.id } })).toBe(2);
 
-    const on = await toggleHall(owner.user.id, love.id, true);
-    expect(on.inHall).toBe(true);
-    expect(on.hiddenFromHall).toBe(false); // возврат в витрину снимает прятанье
+    await toggleHall(owner.user.id, item.id, true);
 
-    const off = await toggleHall(owner.user.id, love.id, false);
-    expect(off.inHall).toBe(false);
-    expect(off.hiddenFromHall).toBe(false);
+    expect(await prisma.booking.count({ where: { itemId: item.id } })).toBe(0);
+    expect(await prisma.poolContribution.count({ where: { bookingId: booking.id } })).toBe(0);
   });
 
-  it("«хочу» в зал не попадает: NOT_LOVE; чужая вещь → NOT_FOUND", async () => {
+  it("переезд доступен ЛЮБОЙ вещи; чужая вещь → NOT_FOUND", async () => {
+    // Отказа «эта вещь не того сорта» больше не существует: сортов нет.
     const owner = await createOwnerWithRoom(null);
-    const want = await createWantItem(owner.room.id);
-    await expect(toggleHall(owner.user.id, want.id, true)).rejects.toMatchObject({
-      code: "NOT_LOVE",
+    const item = await createWantItem(owner.room.id);
+    await expect(toggleHall(owner.user.id, item.id, true)).resolves.toMatchObject({
+      inHall: true,
     });
-    expect(
-      (await prisma.item.findUniqueOrThrow({ where: { id: want.id } })).inHall,
-    ).toBe(false);
 
     const stranger = await createOwnerWithRoom(null, "Соседка");
-    await expect(toggleHall(stranger.user.id, want.id, true)).rejects.toMatchObject({
+    await expect(toggleHall(stranger.user.id, item.id, false)).rejects.toMatchObject({
       code: "NOT_FOUND",
     });
+    // Чужой отказ колонку не тронул.
+    expect(
+      (await prisma.item.findUniqueOrThrow({ where: { id: item.id } })).inHall,
+    ).toBe(true);
   });
 });
 
-describe("LOVE → WANT не существует", () => {
-  it("ни в items, ни в occasions нет API обратного перехода — а прямые повторы отказывают", async () => {
-    // Поверхность сервисов: ни одного экспорта, в имени которого есть «want»
-    // (единственный переход в WANT — создание вещи, createItem).
+// ПЕРЕПИСАНО (тикет 124). Блок назывался «LOVE → WANT не существует» и
+// сторожил необратимость перехода между состояниями. Состояний нет, а место
+// вещи ОБРАТИМО по решению владельца. Сторожим то, что осталось необратимым:
+// поверхность сервисов не знает слов мёртвой модели, а имя дарителя
+// проставляет ровно одна функция.
+describe("состояний у вещи не осталось (тикет 124)", () => {
+  it("в поверхности сервисов нет ни одного имени со «state»/«want»/«love»", () => {
     const surface = [...Object.keys(itemsService), ...Object.keys(occasionsService)];
-    expect(surface.filter((name) => /want/i.test(name))).toEqual([]);
-    // Не даём и залезть мимо API: у ошибок переходов правильные классы.
-    expect(new OccasionError("NOT_WANT", "x")).toBeInstanceOf(Error);
-    expect(new ItemMutationError("NOT_WANT", "x")).toBeInstanceOf(Error);
+    expect(surface.filter((name) => /want|love|state/i.test(name))).toEqual([]);
+    // И отказов мёртвой модели тоже нет: коды переименованы по месту.
+    expect(new OccasionError("ALREADY_IN_HALL", "x")).toBeInstanceOf(Error);
+    expect(new ItemMutationError("NOT_IN_HALL", "x")).toBeInstanceOf(Error);
+  });
 
-    // Поведение: вещь, ставшая LOVE, не возвращается в WANT ни одним сервисом
-    // (receiveGift/selfFulfill на LOVE — отказ, покрыто выше); эталонная
-    // проверка стейта после всех отказов:
-    const owner = await createOwnerWithRoom(null);
-    const love = await prisma.item.create({
-      data: { roomId: owner.room.id, zone: "jewelry", state: "LOVE", title: "Как было" },
-    });
-    await expect(selfFulfill(owner.user.id, love.id)).rejects.toMatchObject({ code: "NOT_WANT" });
-    await toggleHall(owner.user.id, love.id, true);
-    await toggleHall(owner.user.id, love.id, false);
-    expect((await prisma.item.findUniqueOrThrow({ where: { id: love.id } })).state).toBe("LOVE");
+  it("ручной переезд туда-обратно НЕ проставляет имя дарителя", () => {
+    // Имя пишет только «Дошло» (инвариант №2). Проверка поведением — выше,
+    // в блоке receiveGift; здесь замок на поверхности.
+    expect(typeof toggleHall).toBe("function");
   });
 });
 

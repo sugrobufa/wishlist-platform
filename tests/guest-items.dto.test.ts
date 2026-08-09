@@ -1,8 +1,9 @@
 // Guest-DTO-инварианты вещи (тикет 07). Ключевые правила CLAUDE.md:
 // №1 — никаких booking-полей (тихая бронь; «занято» — отдельный канал, тикет 08);
 // №5 — флаг hidden гостю не отдаётся даже ключом (фильтр — в сервисе);
-// №8 — цена «люблю» не сериализуется никому; цена «хочу» — по priceVisibility,
-//      причём скрытая цена = ключей price/currency нет вовсе;
+// №8 — цена вещи СОКРОВИЩНИЦЫ не сериализуется гостю никогда; цена вещи
+//      КОМНАТЫ — по priceVisibility, причём скрытая цена = ключей
+//      price/currency нет вовсе (тикет 124: различают МЕСТА, не состояния);
 // №6 — ссылка на магазин (тикет 37) отдаётся только канонической, а домен —
 //      из неё же, а не из пользовательского ввода и не из колонки domain.
 // Ключи объекта перечислены СТРОГО: новое поле в guest-DTO — осознанное
@@ -25,7 +26,7 @@ function dbItem(overrides: Partial<Item> = {}): Item {
     id: "item_1",
     roomId: "room_1",
     zone: "jewelry",
-    state: "WANT",
+    inHall: false,
     title: "Серьги-кольца",
     note: null,
     photoKey: null,
@@ -38,12 +39,11 @@ function dbItem(overrides: Partial<Item> = {}): Item {
     size: null,
     color: null,
     desire: null,
-  eventWhen: null,
-  eventWhere: null,
-  validUntil: null,
+    eventWhen: null,
+    eventWhere: null,
+    validUntil: null,
     giverName: null,
     receivedAt: null,
-    inHall: false,
     hiddenFromHall: false,
     hidden: false,
     source: "MANUAL",
@@ -56,7 +56,7 @@ function dbItem(overrides: Partial<Item> = {}): Item {
 }
 
 // Допустимые ключи guest-DTO — исчерпывающие списки по форме.
-const WANT_KEYS_PRICED = [
+const ROOM_KEYS_PRICED = [
   "color",
   "currency",
   "desire",
@@ -66,43 +66,47 @@ const WANT_KEYS_PRICED = [
   "eventWhere",
   "expired",
   "id",
+  "inHall",
   "isDemo",
   "note",
   "photoUrl",
   "price",
   "size",
-  "state",
   "title",
   "validUntil",
   "zone",
 ];
-const WANT_KEYS_PRICE_HIDDEN = [
+const ROOM_KEYS_PRICE_HIDDEN = [
   "color",
   "desire",
   "eventWhen",
   "eventWhere",
   "expired",
   "id",
+  "inHall",
   "isDemo",
   "note",
   "photoUrl",
   "size",
-  "state",
   "title",
   "validUntil",
   "zone",
 ];
-/** То же «хочу» с видимой ценой, но пришедшее по ссылке из магазина. */
-const WANT_KEYS_PRICED_SHOP = [...WANT_KEYS_PRICED, "shop"].sort();
-const LOVE_KEYS = [
-  "giverName",
+/** Та же вещь комнаты с видимой ценой, но пришедшая по ссылке из магазина. */
+const ROOM_KEYS_PRICED_SHOP = [...ROOM_KEYS_PRICED, "shop"].sort();
+/**
+ * Форма вещи СОКРОВИЩНИЦЫ у гостя. ПЕРЕПИСАНА тикетом 124: из неё ушли
+ * `giverName` (даритель открывается ровно один раз и ровно хозяйке —
+ * инвариант №2, то же правило, что в dto/hall.HallGuestItemDto) и, разумеется,
+ * цена. Осталось то, что про ВЕЩЬ: год, заметка, фотография.
+ */
+const HALL_KEYS = [
   "id",
   "inHall",
   "isDemo",
   "note",
   "photoUrl",
   "receivedAt",
-  "state",
   "title",
   "zone",
 ];
@@ -128,7 +132,7 @@ function expectNoOwnerOrBookingKeys(dto: GuestItemDto) {
 }
 
 describe("itemForGuest — строгий состав ключей", () => {
-  it("«хочу» с ценой ALL: ровно ключи формы, цена строкой", () => {
+  it("вещь комнаты с ценой ALL: ровно ключи формы, цена строкой", () => {
     const dto = itemForGuest(
       dbItem({
         price: new Prisma.Decimal("14900"),
@@ -141,9 +145,9 @@ describe("itemForGuest — строгий состав ключей", () => {
       }),
     );
 
-    expect(Object.keys(dto).sort()).toEqual(WANT_KEYS_PRICED);
-    expect(dto.state).toBe("WANT");
-    if (dto.state !== "WANT") throw new Error("unreachable");
+    expect(Object.keys(dto).sort()).toEqual(ROOM_KEYS_PRICED);
+    expect(dto.inHall).toBe(false);
+    if (dto.inHall) throw new Error("unreachable");
     expect(dto.price).toBe("14900");
     expect(typeof dto.price).toBe("string");
     expect(dto.currency).toBe("RUB");
@@ -157,11 +161,11 @@ describe("itemForGuest — строгий состав ключей", () => {
     const dto = itemForGuest(
       dbItem({ price: new Prisma.Decimal("500"), currency: "RUB", priceVisibility: "FRIENDS" }),
     );
-    expect(Object.keys(dto).sort()).toEqual(WANT_KEYS_PRICED);
+    expect(Object.keys(dto).sort()).toEqual(ROOM_KEYS_PRICED);
   });
 
   it.each(["ME", "NONE"] as const)(
-    "«хочу» с priceVisibility=%s: ключей price/currency НЕТ вовсе",
+    "вещь комнаты с priceVisibility=%s: ключей price/currency НЕТ вовсе",
     (visibility) => {
       expect(guestSeesPrice(visibility)).toBe(false);
       const dto = itemForGuest(
@@ -172,37 +176,37 @@ describe("itemForGuest — строгий состав ключей", () => {
         }),
       );
 
-      expect(Object.keys(dto).sort()).toEqual(WANT_KEYS_PRICE_HIDDEN);
+      expect(Object.keys(dto).sort()).toEqual(ROOM_KEYS_PRICE_HIDDEN);
       expect("price" in dto).toBe(false);
       expect("currency" in dto).toBe(false);
       expectNoOwnerOrBookingKeys(dto);
     },
   );
 
-  it("«люблю»: ровно ключи формы LOVE, receivedAt — ISO-строкой", () => {
+  it("вещь сокровищницы: ровно ключи формы ВИТРИНЫ, БЕЗ ИМЕНИ ДАРИТЕЛЯ", () => {
     const dto = itemForGuest(
       dbItem({
-        state: "LOVE",
+        inHall: true,
         title: "Теннисный браслет",
         giverName: "мама",
         receivedAt: new Date("2024-03-08T10:00:00.000Z"),
-        inHall: true,
       }),
     );
 
-    expect(Object.keys(dto).sort()).toEqual(LOVE_KEYS);
-    expect(dto.state).toBe("LOVE");
-    if (dto.state !== "LOVE") throw new Error("unreachable");
-    expect(dto.giverName).toBe("мама");
-    expect(dto.receivedAt).toBe("2024-03-08T10:00:00.000Z");
+    expect(Object.keys(dto).sort()).toEqual(HALL_KEYS);
     expect(dto.inHall).toBe(true);
+    if (!dto.inHall) throw new Error("unreachable");
+    expect(dto.receivedAt).toBe("2024-03-08T10:00:00.000Z");
+    // Имя дарителя гостю не уезжает ни ключом, ни строкой (инвариант №2).
+    expect("giverName" in dto).toBe(false);
+    expect(JSON.stringify(dto)).not.toContain("мама");
     expectNoOwnerOrBookingKeys(dto);
   });
 
-  it("цена «люблю» не течёт гостю — даже если в БД осталась от «хочу» и стоит ALL", () => {
+  it("цена вещи сокровищницы не течёт гостю — даже при priceVisibility=ALL", () => {
     const dto = itemForGuest(
       dbItem({
-        state: "LOVE",
+        inHall: true,
         price: new Prisma.Decimal("9900"),
         currency: "RUB",
         priceVisibility: "ALL",
@@ -211,7 +215,7 @@ describe("itemForGuest — строгий состав ключей", () => {
       }),
     );
 
-    expect(Object.keys(dto).sort()).toEqual(LOVE_KEYS);
+    expect(Object.keys(dto).sort()).toEqual(HALL_KEYS);
     expect("price" in dto).toBe(false);
     expect("currency" in dto).toBe(false);
     expect("size" in dto).toBe(false);
@@ -222,7 +226,7 @@ describe("itemForGuest — строгий состав ключей", () => {
     // Фильтр hidden — в сервисе; DTO страхует второй линией (allowlist).
     const dto = itemForGuest(dbItem({ hidden: true }));
     expect("hidden" in dto).toBe(false);
-    expect(Object.keys(dto).sort()).toEqual(WANT_KEYS_PRICED);
+    expect(Object.keys(dto).sort()).toEqual(ROOM_KEYS_PRICED);
   });
 
   it("НИКОГДА никаких полей брони — даже если relation booking загружен", () => {
@@ -238,7 +242,7 @@ describe("itemForGuest — строгий состав ключей", () => {
     });
 
     const dto = itemForGuest(polluted);
-    expect(Object.keys(dto).sort()).toEqual(WANT_KEYS_PRICED);
+    expect(Object.keys(dto).sort()).toEqual(ROOM_KEYS_PRICED);
     expectNoOwnerOrBookingKeys(dto);
   });
 
@@ -271,11 +275,11 @@ describe("guestShop — ссылка на магазин (тикет 37)", () =>
 });
 
 describe("itemForGuest — где купить (тикет 37)", () => {
-  it("«хочу» с открытой ценой: ключ shop есть, домен из canonicalUrl", () => {
+  it("вещь комнаты с открытой ценой: ключ shop есть, домен из canonicalUrl", () => {
     const dto = itemForGuest(dbItem(fromShop()));
 
-    expect(Object.keys(dto).sort()).toEqual(WANT_KEYS_PRICED_SHOP);
-    if (dto.state !== "WANT") throw new Error("unreachable");
+    expect(Object.keys(dto).sort()).toEqual(ROOM_KEYS_PRICED_SHOP);
+    if (dto.inHall) throw new Error("unreachable");
     expect(dto.shop).toEqual({
       url: "https://www.goldapple.ru/19000175823",
       domain: "goldapple.ru",
@@ -285,7 +289,7 @@ describe("itemForGuest — где купить (тикет 37)", () => {
 
   it("сырой Item.url наружу не идёт ни адресом, ни доменом (инвариант №6)", () => {
     const dto = itemForGuest(dbItem(fromShop()));
-    if (dto.state !== "WANT") throw new Error("unreachable");
+    if (dto.inHall) throw new Error("unreachable");
     // Пользовательский ввод нёс трекинг-параметр, фрагмент и верхний регистр —
     // гостю уезжает только то, что посчитал сервер.
     expect(JSON.stringify(dto)).not.toContain("utm_source");
@@ -307,7 +311,7 @@ describe("itemForGuest — где купить (тикет 37)", () => {
       }),
     );
 
-    expect(Object.keys(dto).sort()).toEqual(WANT_KEYS_PRICED);
+    expect(Object.keys(dto).sort()).toEqual(ROOM_KEYS_PRICED);
     expect("shop" in dto).toBe(false);
   });
 
@@ -316,7 +320,7 @@ describe("itemForGuest — где купить (тикет 37)", () => {
     (visibility) => {
       const dto = itemForGuest(dbItem(fromShop({ priceVisibility: visibility })));
 
-      expect(Object.keys(dto).sort()).toEqual(WANT_KEYS_PRICE_HIDDEN);
+      expect(Object.keys(dto).sort()).toEqual(ROOM_KEYS_PRICE_HIDDEN);
       expect("shop" in dto).toBe(false);
       expect(JSON.stringify(dto)).not.toContain("goldapple");
     },
@@ -325,9 +329,9 @@ describe("itemForGuest — где купить (тикет 37)", () => {
   it("«люблю»: ссылки нет никогда — даже с ценой ALL и живым canonicalUrl", () => {
     // ADR-0004: дверь для «люблю» открывает настройка зала (тикет 35), а не
     // отдельное правило про ссылки. Пока настройки нет — нет и ссылки.
-    const dto = itemForGuest(dbItem(fromShop({ state: "LOVE", priceVisibility: "ALL" })));
+    const dto = itemForGuest(dbItem(fromShop({ inHall: true, priceVisibility: "ALL" })));
 
-    expect(Object.keys(dto).sort()).toEqual(LOVE_KEYS);
+    expect(Object.keys(dto).sort()).toEqual(HALL_KEYS);
     expect("shop" in dto).toBe(false);
     expect(JSON.stringify(dto)).not.toContain("goldapple");
   });
@@ -337,7 +341,7 @@ describe("itemForGuest — где купить (тикет 37)", () => {
     // здесь — вторая линия: форма не несёт ни hidden, ни следа настроек.
     const dto = itemForGuest(dbItem(fromShop({ hidden: true, priceVisibility: "NONE" })));
 
-    expect(Object.keys(dto).sort()).toEqual(WANT_KEYS_PRICE_HIDDEN);
+    expect(Object.keys(dto).sort()).toEqual(ROOM_KEYS_PRICE_HIDDEN);
     expect("hidden" in dto).toBe(false);
     expect("shop" in dto).toBe(false);
     expect(JSON.stringify(dto)).not.toContain("goldapple");
@@ -355,17 +359,20 @@ describe("ghostForGuest — демо-призраки в guest-форме", () =
     }
   });
 
-  it("формы призраков — те же строгие словари, что у настоящих вещей", () => {
+  // ПЕРЕПИСАНО (тикет 124): форма у призрака одна — вещь КОМНАТЫ. Призрак
+  // рисуется В ЗОНЕ, а зона показывает комнату; витринных призраков не бывает.
+  it("формы призраков — тот же строгий словарь, что у настоящей вещи комнаты", () => {
     for (const ghost of ghosts) {
       const keys = Object.keys(ghost).sort();
-      if (ghost.state === "WANT") {
-        // Цены пулов открыты (ALL в demo-pools) — у WANT-призрака цена есть.
-        expect(keys).toEqual(WANT_KEYS_PRICED);
+      expect(ghost.inHall).toBe(false);
+      if (ghost.inHall) throw new Error("unreachable");
+      // Цены пулов открыты (ALL в demo-pools); у семени без цены её нет.
+      if (ghost.price == null) {
+        expect(keys).toEqual(ROOM_KEYS_PRICE_HIDDEN.concat(["currency", "price"]).sort());
+      } else {
+        expect(keys).toEqual(ROOM_KEYS_PRICED);
         expect(typeof ghost.price).toBe("string");
         expect(ghost.currency).toBe("RUB");
-      } else {
-        expect(keys).toEqual(LOVE_KEYS);
-        expect("price" in ghost).toBe(false);
       }
     }
   });

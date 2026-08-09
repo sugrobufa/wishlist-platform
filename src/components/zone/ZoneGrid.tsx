@@ -1,13 +1,16 @@
 "use client";
 
-// Сетка вещей зоны (тикет 03): вкладки «Хочу» / «Люблю» со счётчиками
-// («Хочу» первой и открытой — тикет 78),
-// стаггер появления по партитуре motion.json → openZone[3] («вещи встают
-// в сетку»). Используется в панели открытой зоны сцены (проп zoneContent
-// SceneStage) и на странице «зона целиком списком» /room/zone/[zone].
-// Данные приходят DTO-объектами (владелец — itemForOwner, гость — тикет 07);
-// пустые зоны новичка наполняет demoGhostsFor до первой своей вещи.
-import { useId, useState, type CSSProperties, type ReactNode } from "react";
+// Сетка вещей зоны (тикет 03) со стаггером появления по партитуре
+// motion.json → openZone[3] («вещи встают в сетку»). Используется в панели
+// открытой зоны сцены (проп zoneContent SceneStage) и на странице «зона
+// целиком списком» /room/zone/[zone].
+// Данные приходят DTO-объектами (владелец — itemForOwner, гость — тикет 07).
+//
+// ВКЛАДОК «ХОЧУ / ЛЮБЛЮ» БОЛЬШЕ НЕТ (тикет 124). Они показывали два состояния
+// вещи, а состояний не осталось: в зоне лежит только то, чего хочется, —
+// список один. Вещи сокровищницы сюда не приезжают вовсе (фильтр в сервисе).
+// Слова вкладок и пустых состояний — работа захода про строки.
+import { useId, type CSSProperties, type ReactNode } from "react";
 import { useTranslations } from "next-intl";
 import { sceneMotion } from "@/config/design";
 import { ItemTile } from "./ItemTile";
@@ -44,9 +47,9 @@ export const SHEET_TILES = 5;
 export type ZoneGridProps = {
   /** Вещи зоны (DTO). Демо-призраки — с isDemo: true. */
   items: ZoneGridItem[];
-  /** Акцент комнаты из rooms.json — пунктир, полоса, активная вкладка. */
+  /** Акцент комнаты из rooms.json. */
   accent: string;
-  /** ink комнаты из rooms.json — текст на акценте (активная вкладка). */
+  /** ink комнаты из rooms.json — текст на акценте. */
   ink: string;
   /**
    * Задержка первого появления: "scene" — по партитуре openZone[3]
@@ -83,8 +86,6 @@ export type ZoneGridProps = {
   ownerEmpty?: boolean;
 };
 
-type Tab = "LOVE" | "WANT";
-
 export function ZoneGrid({
   items,
   accent,
@@ -99,35 +100,8 @@ export function ZoneGrid({
   const t = useTranslations("ZoneGrid");
   const baseId = useId();
 
-  const love = items.filter((item) => item.state === "LOVE");
-  const want = items.filter((item) => item.state === "WANT");
-
-  // ДЕФОЛТ — «ХОЧУ» (тикет 78, приёмка 07.08: «сделать акцент на „Хочу" и
-  // сделать выбором по умолчанию»). Продукт про подарки: гость пришёл
-  // выбрать, что подарить, хозяйка завела комнату, чтобы её желания увидели.
-  // «Люблю» — витрина, она ничего не запускает, и открывать зону ею значило
-  // показывать первым делом то, что подарить нельзя.
-  //
-  // Пустая «Хочу» — падаем на «Люблю». Выбор между «всегда открывать „Хочу"»
-  // и «открывать непустую» решён в пользу второго: пустое состояние на входе
-  // в зону, где вещи ЕСТЬ, читается как «здесь ничего нет» — человек не станет
-  // проверять вторую вкладку. Когда пусты обе, открыта всё равно «Хочу»: её
-  // пустое состояние («Добавь первое желание») зовёт к делу, а «Расскажи, что
-  // ты любишь» — нет.
-  const [tab, setTab] = useState<Tab>(() =>
-    want.length === 0 && love.length > 0 ? "LOVE" : "WANT",
-  );
-  // После первого переключения партитурная задержка не нужна — сцена уже открыта.
-  const [switched, setSwitched] = useState(false);
-
-  const selectTab = (next: Tab) => {
-    if (next === tab) return;
-    setSwitched(true);
-    setTab(next);
-  };
-
-  const immediate = enterDelay === "none" || switched;
-  const shown = tab === "LOVE" ? love : want;
+  const immediate = enterDelay === "none";
+  const shown = items;
   const hasDemo = items.some((item) => item.isDemo);
 
   // Вся партитура — CSS-переменными из motion.json (в css-модуле чисел нет).
@@ -144,45 +118,14 @@ export function ZoneGrid({
     "--zg-reduced": `${sceneMotion.reducedTransitionMs}ms`,
   } as CSSProperties;
 
-  // «Хочу» стоит ПЕРВЫМ, а не просто выбрано (тикет 78): порядок читается
-  // раньше подсветки, и в списке кнопок для читалки он тоже первый.
-  const tabs: Array<{ key: Tab; label: string; count: number }> = [
-    { key: "WANT", label: t("tabWant"), count: want.length },
-    { key: "LOVE", label: t("tabLove"), count: love.length },
-  ];
-
   return (
     <div className={className ? `${s.root} ${className}` : s.root} style={style}>
-      <div className={s.tabs} role="tablist" aria-label={t("tabsAria")}>
-        {tabs.map(({ key, label, count }) => (
-          <button
-            key={key}
-            id={`${baseId}-tab-${key}`}
-            type="button"
-            role="tab"
-            aria-selected={tab === key}
-            aria-controls={`${baseId}-panel`}
-            className={`pressable ${s.tab}${tab === key ? ` ${s.tabActive}` : ""}`}
-            onClick={() => selectTab(key)}
-          >
-            {label} · {count}
-          </button>
-        ))}
-      </div>
-
-      <div
-        key={tab}
-        id={`${baseId}-panel`}
-        role="tabpanel"
-        aria-labelledby={`${baseId}-tab-${tab}`}
-      >
-        {shown.length === 0 && items.length === 0 && zoneKey && ownerEmpty ? (
-          // ВСЯ зона пуста — три места (тикет 99). Пустая вкладка при
-          // непустой зоне остаётся строкой: это пустая вкладка, а не полка,
-          // которая ждёт первую вещь.
+      <div id={`${baseId}-panel`}>
+        {shown.length === 0 && zoneKey && ownerEmpty ? (
+          // Зона пуста — три места (тикет 99).
           <EmptyZone zoneKey={zoneKey} accent={accent} compact />
         ) : shown.length === 0 ? (
-          <p className={s.empty}>{tab === "LOVE" ? t("emptyLove") : t("emptyWant")}</p>
+          <p className={s.empty}>{t("emptyWant")}</p>
         ) : zoneKey === EXPERIENCE_ZONE ? (
           // Форму выбирает ЗОНА (тикет 115, доска 34d): «Впечатления» —
           // всегда строками, и у гостя, и у хозяйки. Смешанной сетки нет.
