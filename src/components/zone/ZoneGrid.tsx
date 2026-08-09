@@ -12,12 +12,16 @@ import { useTranslations } from "next-intl";
 import { sceneMotion } from "@/config/design";
 import { ItemTile } from "./ItemTile";
 import { EmptyZone } from "./empty-zone";
+import { ExperienceRows } from "./experience-rows";
 import type { ZoneGridItem } from "./types";
 import s from "./zone-grid.module.css";
 
 // Стаггер не длиннее двух рядов: дальше вещи встают вместе с последней
 // (партитура написана для ленты из 6 плиток, не для сетки на 50).
 const STAGGER_CAP = 11;
+
+/** Зона, у которой форма списка своя — строки вместо плиток (тикет 115). */
+const EXPERIENCE_ZONE = "events";
 
 /**
  * Сколько вещей зоны лист на комнате показывает «на виду» — число ДИЗАЙНА, а
@@ -66,11 +70,17 @@ export type ZoneGridProps = {
    */
   pool?: string | null;
   /**
-   * Ключ зоны — нужен пустой зоне (тикет 99): три места вместо сетки ведут
-   * в добавление именно сюда. Без ключа пустая зона остаётся строкой текста,
-   * как была: гостевая панель судьбу чужой полки не решает.
+   * Ключ зоны. Решает ДВЕ вещи, и обе про форму, а не про данные:
+   * форму списка («Впечатления» — строками, тикет 115) и адрес добавления
+   * у пустой зоны (тикет 99).
    */
   zoneKey?: string;
+  /**
+   * Пустая зона показывается тремя местами (тикет 99) — только ХОЗЯЙКЕ.
+   * Гостю чужая пустая полка предлагать «положить сюда первую» не должна:
+   * судьбу её решает не он.
+   */
+  ownerEmpty?: boolean;
 };
 
 type Tab = "LOVE" | "WANT";
@@ -84,6 +94,7 @@ export function ZoneGrid({
   renderItemAction,
   pool,
   zoneKey,
+  ownerEmpty = false,
 }: ZoneGridProps) {
   const t = useTranslations("ZoneGrid");
   const baseId = useId();
@@ -165,13 +176,17 @@ export function ZoneGrid({
         role="tabpanel"
         aria-labelledby={`${baseId}-tab-${tab}`}
       >
-        {shown.length === 0 && items.length === 0 && zoneKey ? (
+        {shown.length === 0 && items.length === 0 && zoneKey && ownerEmpty ? (
           // ВСЯ зона пуста — три места (тикет 99). Пустая вкладка при
           // непустой зоне остаётся строкой: это пустая вкладка, а не полка,
           // которая ждёт первую вещь.
           <EmptyZone zoneKey={zoneKey} accent={accent} compact />
         ) : shown.length === 0 ? (
           <p className={s.empty}>{tab === "LOVE" ? t("emptyLove") : t("emptyWant")}</p>
+        ) : zoneKey === EXPERIENCE_ZONE ? (
+          // Форму выбирает ЗОНА (тикет 115, доска 34d): «Впечатления» —
+          // всегда строками, и у гостя, и у хозяйки. Смешанной сетки нет.
+          <ExperienceRows items={shown} renderItemAction={renderItemAction} />
         ) : (
           <ul className={s.grid}>
             {shown.map((item, index) => (

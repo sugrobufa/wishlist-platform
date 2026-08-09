@@ -1,0 +1,64 @@
+/* Строка впечатления (тикет 115, доска 34d). Числа — task18.json →
+   experienceRows.row: высота 92, отступы 12/15, зазор 13, миниатюра 96×68. */
+.list {
+  display: flex;
+  flex-direction: column;
+}
+
+.row {
+  display: flex;
+  align-items: center;
+  gap: 13px;
+  min-height: 92px;
+  padding: 12px 15px;
+}
+
+/* Разделитель между строками — не рамка вокруг каждой: у последней его нет. */
+.row + .row {
+  border-top: 1px solid rgba(255, 255, 255, 0.07);
+}
+
+.thumb {
+  flex: none;
+  width: 96px;
+  height: 68px;
+  background-color: var(--color-surface-fill);
+  background-position: center;
+  background-size: cover;
+}
+
+.body {
+  display: flex;
+  min-width: 0;
+  flex: 1;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.title {
+  display: -webkit-box;
+  overflow: hidden;
+  font: 600 13.5px/1.3 var(--font-ui);
+  color: #fff8ee;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
+
+.meta {
+  font: 400 11px/1 var(--font-ui);
+  color: rgba(255, 249, 242, 0.55);
+}
+
+.action {
+  flex: none;
+}
+
+/* Просрочка: миниатюра гаснет, подпись тише — услуга ушла из «можно
+   подарить», но со стены не снята (тикет 97). */
+.rowExpired .thumb {
+  filter: grayscale(0.55) brightness(0.55);
+}
+
+.rowExpired .meta {
+  color: rgba(255, 249, 242, 0.45);
+}

@@ -355,6 +355,7 @@ async function buildZoneContent(
               ink={preset.ink}
               pool={zone.pool}
               zoneKey={zone.key}
+              ownerEmpty
             />
           )}
           {/* Оба перехода — тихие пилюли акцентом комнаты (тикет 86): текст

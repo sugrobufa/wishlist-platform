@@ -18,6 +18,8 @@ import { GiftTag } from "./gift-tag";
 import s from "./guest-booking.module.css";
 
 type GuestZoneGridProps = {
+  /** Ключ зоны — форму списка выбирает она («Впечатления» строками). */
+  zoneKey: string;
   items: ZoneGridItem[];
   accent: string;
   ink: string;
@@ -30,6 +32,7 @@ type GuestZoneGridProps = {
 };
 
 export function GuestZoneGrid({
+  zoneKey,
   items,
   accent,
   ink,
@@ -100,6 +103,7 @@ export function GuestZoneGrid({
   return (
     <>
       <ZoneGrid
+        zoneKey={zoneKey}
         items={items}
         accent={accent}
         ink={ink}

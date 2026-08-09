@@ -160,6 +160,7 @@ export default async function GuestRoomPage({ params }: Params) {
       zoneKey,
       <GuestZoneGrid
         key={zoneKey}
+        zoneKey={zoneKey}
         items={items}
         accent={preset.accent}
         ink={preset.ink}
