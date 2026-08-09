@@ -125,6 +125,16 @@
     "zoneCounts": "{total, plural, one {# item} other {# items}}{want, plural, =0 {} other { · # to gift}}",
     "backToRoom": "Back to the room"
   },
+  "Experience": {
+    "when": "When",
+    "where": "Where",
+    "validUntil": "Valid until",
+    "expiredOwner": "The date has passed — {date}",
+    "expiredGuest": "the date has passed",
+    "extend": "Extend the date",
+    "takeOff": "Take off the shelf",
+    "certHint": "You arrange the certificate in her name — Grace sells nothing"
+  },
   "Shop": {
     "title": "Where to buy",
     "go": "Go to the store →",
@@ -170,6 +180,8 @@
     "visFRIENDS": "Friends only",
     "visME": "Only me",
     "visNONE": "No one",
+    "whenPlaceholder": "March 14 · a weekend",
+    "wherePlaceholder": "Moscow · online",
     "sizeLabel": "Size",
     "sizePlaceholder": "M · 38 · one size",
     "colorLabel": "Color",

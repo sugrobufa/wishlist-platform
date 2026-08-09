@@ -9,6 +9,7 @@
 // гостя, — и даже там их сейчас нет: DTO собирается allowlist'ом без
 // guestName/guestEmail (под тестом).
 import { randomBytes } from "node:crypto";
+import { isExpired } from "@/server/dto/experience";
 import { Prisma } from "@prisma/client";
 import { z } from "zod";
 import { prisma } from "@/server/db";
@@ -29,6 +30,7 @@ export type BookingErrorCode =
   | "NOT_WANT" // бронируются только вещи «хочу»
   | "OWN_ITEM" // хозяйка «бронирует» свою вещь — подарок себе не бывает (тикет 11)
   | "ALREADY_BOOKED" // уникальность Booking.itemId (P2002) — уже занято
+  | "EXPIRED" // впечатление с вышедшим сроком (тикет 97)
   | "POOL_NOT_SUPPORTED" // складчина — Phase 2 (каркас в БД есть, UI нет)
   | "TOKEN_NOT_FOUND"; // операция по чужому/несуществующему токену
 
@@ -108,6 +110,7 @@ export async function bookItem(
       state: true,
       hidden: true,
       zone: true,
+      validUntil: true,
       room: { select: { zonesOff: true, userId: true } },
     },
   });
@@ -121,6 +124,12 @@ export async function bookItem(
   }
   if (item.state !== "WANT") {
     throw new BookingError("NOT_WANT", "подарить можно только вещь «хочу»");
+  }
+  // Впечатление с вышедшим сроком не бронируется (тикет 97): сертификат,
+  // годный до вчера, дарить нечем. Вещь при этом остаётся видной — хозяйка
+  // её не убирала, и прятать её за нас никто не просил.
+  if (isExpired(item.validUntil, new Date())) {
+    throw new BookingError("EXPIRED", "срок этого впечатления уже вышел");
   }
 
   const cancelToken = randomBytes(24).toString("hex");

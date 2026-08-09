@@ -32,6 +32,7 @@
 import type { Item } from "@prisma/client";
 import { itemPhotoUrl, type PriceVisibilityDto } from "@/server/dto/items";
 import { guestSeesHallItemPrice, hallItemShownToObservers } from "@/server/dto/hall";
+import { isExpired } from "@/server/dto/experience";
 import type { DemoGhostDto } from "@/config/demo-pools";
 
 /** Общие поля обеих форм вещи глазами гостя. */
@@ -73,6 +74,17 @@ export type GuestWantItemDto = GuestItemBaseDto & {
   /** Где купить. Ключ есть только при видимой цене И разбираемом canonicalUrl. */
   shop?: GuestShopDto;
   size: string | null;
+  /** Услуга-впечатление (тикет 97): «Когда · Где · Годен до». */
+  eventWhen: string | null;
+  eventWhere: string | null;
+  /** Календарный день `YYYY-MM-DD` или null. */
+  validUntil: string | null;
+  /**
+   * Срок вышел (наутро после `validUntil`). Гостю вещь остаётся ВИДНОЙ —
+   * впечатление никуда не делось, — но уходит из «можно подарить»: бирки нет,
+   * карточка приглушена. Прятать её было бы враньём: хозяйка её не убирала.
+   */
+  expired: boolean;
   color: string | null;
   /** «Насколько хочется», 1–4. */
   desire: number | null;
@@ -169,6 +181,14 @@ export function itemForGuest(item: Item, hall?: GuestHallContext): GuestItemDto 
       size: item.size,
       color: item.color,
       desire: item.desire,
+      eventWhen: item.eventWhen,
+      eventWhere: item.eventWhere,
+      validUntil: item.validUntil === null ? null : item.validUntil.toISOString().slice(0, 10),
+      // «Наутро после срока» считается ОТ ТЕКУЩЕГО дня, а не от кэша: DTO
+      // складывается при сборке кэша комнаты, и вещь протухнет в нём на сутки.
+      // Окно устаревания — то же, что у всей гостевой комнаты (ISR 300 +
+      // ревалидация тегом), и это честнее, чем считать срок на клиенте.
+      expired: isExpired(item.validUntil, new Date()),
     };
     if (guestSeesPrice(item.priceVisibility)) {
       want.price = item.price === null ? null : item.price.toString();
@@ -223,6 +243,10 @@ export function ghostForGuest(ghost: DemoGhostDto): GuestItemDto {
       ...base,
       state: "WANT",
       size: ghost.size,
+      eventWhen: null,
+      eventWhere: null,
+      validUntil: null,
+      expired: false,
       color: ghost.color,
       desire: ghost.desire,
     };

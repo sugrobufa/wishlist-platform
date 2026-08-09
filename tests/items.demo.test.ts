@@ -16,6 +16,10 @@ const WANT_KEYS = [
   "createdAt",
   "currency",
   "desire",
+  // Услуга-впечатление (тикет 97): у призрака поля пусты, но форма owner-DTO
+  // одна на всех — ключи есть.
+  "eventWhen",
+  "eventWhere",
   "hidden",
   "id",
   "isDemo",
@@ -26,6 +30,7 @@ const WANT_KEYS = [
   "size",
   "state",
   "title",
+  "validUntil",
   "zone",
 ];
 const LOVE_KEYS = [

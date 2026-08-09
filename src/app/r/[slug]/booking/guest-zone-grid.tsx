@@ -38,6 +38,7 @@ export function GuestZoneGrid({
   roomSlug,
 }: GuestZoneGridProps) {
   const t = useTranslations("Booking");
+  const tExp = useTranslations("Experience");
   const { taken, mine } = useGuestBooking();
   const [bookingItem, setBookingItem] = useState<ZoneGridItem | null>(null);
 
@@ -54,6 +55,17 @@ export function GuestZoneGrid({
       </Link>
     );
     if (item.state !== "WANT" || item.isDemo) return card;
+    // Впечатление с вышедшим сроком уходит из «можно подарить» (тикет 97):
+    // бирки нет, вместо неё честная строка. Саму вещь не прячем — хозяйка её
+    // не убирала, и решать за неё нечего.
+    if ("expired" in item && item.expired === true) {
+      return (
+        <div className="flex flex-wrap items-center gap-3">
+          <p className={s.taken}>{tExp("expiredGuest")}</p>
+          {card}
+        </div>
+      );
+    }
     if (mine.has(item.id)) {
       return (
         <div className="flex flex-wrap items-center gap-3">

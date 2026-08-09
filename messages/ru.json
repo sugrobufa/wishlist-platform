@@ -125,6 +125,16 @@
     "zoneCounts": "{total, plural, one {# вещь} few {# вещи} many {# вещей} other {# вещи}}{want, plural, =0 {} other { · # в подарок}}",
     "backToRoom": "В комнату"
   },
+  "Experience": {
+    "when": "Когда",
+    "where": "Где",
+    "validUntil": "Годен до",
+    "expiredOwner": "Срок вышел {date}",
+    "expiredGuest": "срок вышел",
+    "extend": "Продлить срок",
+    "takeOff": "Снять с полки",
+    "certHint": "Сертификат оформляешь на её имя — Grace ничего не продаёт"
+  },
   "Shop": {
     "title": "Где купить",
     "go": "Перейти →",
@@ -170,6 +180,8 @@
     "visFRIENDS": "Только друзья",
     "visME": "Только я",
     "visNONE": "Никто",
+    "whenPlaceholder": "14 марта · выходные",
+    "wherePlaceholder": "Москва · онлайн",
     "sizeLabel": "Размер",
     "sizePlaceholder": "M · 38 · один размер",
     "colorLabel": "Цвет",

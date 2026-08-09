@@ -241,13 +241,30 @@ export async function countFreeGiftsByRoom(
       // Демо-призраки в БД не живут — в счёт не попадают и выдуманных
       // подарков не обещают.
       booking: { is: null },
-      OR: asked.map((room) => ({ roomId: room.roomId, zone: { in: [...room.zoneKeys] } })),
+      // Просроченное впечатление (тикет 97) уходит из «можно подарить»:
+      // обещать подарок, который уже нельзя вручить, — то же враньё, что
+      // считать занятую вещь свободной. `validUntil` = null у всего
+      // остального, поэтому условие не задевает предметы.
+      AND: [
+        { OR: [{ validUntil: null }, { validUntil: { gte: startOfTodayUtc() } }] },
+        { OR: asked.map((room) => ({ roomId: room.roomId, zone: { in: [...room.zoneKeys] } })) },
+      ],
     },
     _count: { _all: true },
   });
 
   for (const row of free) counts.set(row.roomId, row._count._all);
   return counts;
+}
+
+/**
+ * Полночь СЕГОДНЯШНЕГО дня в UTC. Срок «годен до 14 марта» держится весь день
+ * 14-го и выходит наутро 15-го (dto/experience.isExpired) — в SQL это
+ * `validUntil >= сегодня`.
+ */
+function startOfTodayUtc(): Date {
+  const now = new Date();
+  return new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()));
 }
 
 /** Что лежит в кэше комнаты: вещи по зонам и сводка по каждой зоне. */

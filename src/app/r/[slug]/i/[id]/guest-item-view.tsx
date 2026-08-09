@@ -17,6 +17,7 @@ import { useLocale, useTranslations } from "next-intl";
 import type { GuestItemDto } from "@/server/dto/guest-items";
 import { IconLock } from "@/components/icons";
 import { ShopLink } from "@/components/zone/shop-link";
+import { ExperienceStrip } from "@/components/zone/experience-strip";
 import { PoolIcon } from "@/components/pool-icons";
 import { useGuestBooking } from "../../booking/booking-context";
 import { BookingDialog } from "../../booking/booking-dialog";
@@ -60,6 +61,7 @@ export function GuestItemView({
 }: GuestItemViewProps) {
   const t = useTranslations("GuestItem");
   const tb = useTranslations("Booking");
+  const tExp = useTranslations("Experience");
   const locale = useLocale();
   const { taken, mine } = useGuestBooking();
   const [booking, setBooking] = useState(false);
@@ -113,6 +115,19 @@ export function GuestItemView({
             </span>
           )}
         </div>
+
+        {/* Услуга-впечатление (тикет 97): «Когда · Где · Годен до» вместо
+            размера и цвета. Пустые ячейки не рисуются. */}
+        {item.state === "WANT" && (
+          <section className="mt-6">
+            <ExperienceStrip item={item} />
+            {/* Срок вышел — бирки нет (её убирает сетка и эта же карточка),
+                и человеку честно сказано почему. */}
+            {item.expired && (
+              <p className="mt-3 text-sm text-text-muted">{tExp("expiredGuest")}</p>
+            )}
+          </section>
+        )}
 
         {/* Заметка хозяйки — то, чего в сетке нет вовсе: «Ждала её два года».
             Поле есть в гостевом DTO и до этого экрана нигде не показывалось. */}

@@ -27,6 +27,9 @@ function dbItem(overrides: Partial<Item> = {}): Item {
     size: null,
     color: null,
     desire: null,
+  eventWhen: null,
+  eventWhere: null,
+  validUntil: null,
     giverName: null,
     receivedAt: null,
     inHall: false,
@@ -50,6 +53,11 @@ const WANT_KEYS = [
   "createdAt",
   "currency",
   "desire",
+  // Услуга-впечатление (тикет 97): три необязательных поля живут у «хочу»,
+  // как размер и цвет. Пустые не рисуются, но КЛЮЧИ у формы есть всегда —
+  // allowlist перечисляет форму, а не заполненность.
+  "eventWhen",
+  "eventWhere",
   "hidden",
   "id",
   "isDemo",
@@ -60,6 +68,7 @@ const WANT_KEYS = [
   "size",
   "state",
   "title",
+  "validUntil",
   "zone",
 ];
 const LOVE_KEYS = [

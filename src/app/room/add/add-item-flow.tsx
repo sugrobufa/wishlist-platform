@@ -31,6 +31,7 @@ import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { sceneMotion, type ZoneRect } from "@/config/design";
 import { IconGallery } from "@/components/icons";
+import { isExperienceZone } from "@/server/dto/experience";
 import { useMediaQuery } from "@/components/scene/use-media-query";
 import type { ParsedProduct } from "@/server/parser";
 import type { DuplicateItem } from "@/server/services/items";
@@ -110,6 +111,7 @@ export function AddItemFlow({
   ink,
 }: AddItemFlowProps) {
   const t = useTranslations("AddItem");
+  const tExp = useTranslations("Experience");
   const router = useRouter();
 
   // С витрины экран начинается сразу с формы «люблю»: состояние выбрано за
@@ -149,6 +151,12 @@ export function AddItemFlow({
   const [priceVisibility, setPriceVisibility] = useState<PriceVisibility>("ALL");
   const [size, setSize] = useState("");
   const [color, setColor] = useState("");
+  // Услуга-впечатление (тикет 97): у зоны «Впечатления» вместо размера и
+  // цвета спрашивается «Когда · Где · Годен до» — у мастер-класса нет
+  // размера, а у сертификата есть срок.
+  const [eventWhen, setEventWhen] = useState("");
+  const [eventWhere, setEventWhere] = useState("");
+  const [validUntil, setValidUntil] = useState("");
   const [desire, setDesire] = useState<number | null>(null);
 
   // LOVE.
@@ -158,6 +166,9 @@ export function AddItemFlow({
 
   const [errorKey, setErrorKey] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+
+  /** Зона впечатлений спрашивает другое — правило по зоне, не по галочке. */
+  const experience = isExperienceZone(zone);
 
   const reducedMotion = useMediaQuery(REDUCED_MQ);
   /** Название — единственное обязательное поле; без него сохранять нечего. */
@@ -355,8 +366,15 @@ export function AddItemFlow({
         price: price.trim(),
         currency,
         priceVisibility,
-        size: size.trim() || undefined,
-        color: color.trim() || undefined,
+        // Поля зависят от зоны, а не от галочки: впечатление отличается от
+        // предмета местом в комнате, и лишние ключи Zod отбросит сам.
+        ...(experience
+          ? {
+              eventWhen: eventWhen.trim() || undefined,
+              eventWhere: eventWhere.trim() || undefined,
+              validUntil: validUntil || undefined,
+            }
+          : { size: size.trim() || undefined, color: color.trim() || undefined }),
         desire: desire ?? undefined,
       };
     }
@@ -648,6 +666,43 @@ export function AddItemFlow({
               </div>
             </div>
 
+            {experience ? (
+              <>
+                <div className="grid grid-cols-2 gap-2">
+                  <label>
+                    <span className={s.fieldLabel}>{tExp("when")}</span>
+                    <input
+                      className={s.input}
+                      type="text"
+                      maxLength={80}
+                      value={eventWhen}
+                      onChange={(event) => setEventWhen(event.target.value)}
+                      placeholder={t("whenPlaceholder")}
+                    />
+                  </label>
+                  <label>
+                    <span className={s.fieldLabel}>{tExp("where")}</span>
+                    <input
+                      className={s.input}
+                      type="text"
+                      maxLength={80}
+                      value={eventWhere}
+                      onChange={(event) => setEventWhere(event.target.value)}
+                      placeholder={t("wherePlaceholder")}
+                    />
+                  </label>
+                </div>
+                <label>
+                  <span className={s.fieldLabel}>{tExp("validUntil")}</span>
+                  <input
+                    className={s.input}
+                    type="date"
+                    value={validUntil}
+                    onChange={(event) => setValidUntil(event.target.value)}
+                  />
+                </label>
+              </>
+            ) : (
             <div className="grid grid-cols-2 gap-2">
               <label>
                 <span className={s.fieldLabel}>{t("sizeLabel")}</span>
@@ -672,6 +727,7 @@ export function AddItemFlow({
                 />
               </label>
             </div>
+            )}
 
             <div>
               <span className={s.fieldLabel}>{t("desireLabel")}</span>

@@ -222,6 +222,9 @@ export function demoGhostsFor(zoneKey: string, poolKey: string): DemoGhostDto[] 
         size: null,
         color: null,
         desire: null,
+        eventWhen: null,
+        eventWhere: null,
+        validUntil: null,
       };
       return want;
     }

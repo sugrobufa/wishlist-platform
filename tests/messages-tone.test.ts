@@ -503,6 +503,11 @@ describe("словарь и дизайн-пакет", () => {
       "AddItem.hallHint",
       "AddItem.hallLabel",
       "AddItem.saveHint",
+      // Услуга-впечатление (тикет 97): подсказки полей «Когда» и «Где».
+      // Примеры с доски («выходные», «онлайн»), самих подписей полей в
+      // пакете нет — экрана впечатления дизайн словами не занимался.
+      "AddItem.whenPlaceholder",
+      "AddItem.wherePlaceholder",
       // Тикет 76: два новых отказа брони. Пакет знает `errTaken`/`errRate`/
       // `errValidation`/`errGeneric`, а этих двух у него нет — оба про случаи,
       // которых доска не рисовала. `errOwn` — владелец открыл СВОЮ комнату по
@@ -551,6 +556,17 @@ describe("словарь и дизайн-пакет", () => {
       "Connections.feedInDays",
       "Connections.feedNoDate",
       "Connections.feedToday",
+      // Услуга-впечатление (тикет 97, доска Б20 · турн 8e): «Когда · Где ·
+      // Годен до», плашка вышедшего срока и два действия хозяйки. Слова с
+      // доски по смыслу; в messages-ru.json этого экрана нет.
+      "Experience.certHint",
+      "Experience.expiredGuest",
+      "Experience.expiredOwner",
+      "Experience.extend",
+      "Experience.takeOff",
+      "Experience.validUntil",
+      "Experience.when",
+      "Experience.where",
       "Goal.amountLabel",
       "Goal.badge",
       "Goal.cancel",

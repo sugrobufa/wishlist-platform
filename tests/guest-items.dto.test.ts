@@ -38,6 +38,9 @@ function dbItem(overrides: Partial<Item> = {}): Item {
     size: null,
     color: null,
     desire: null,
+  eventWhen: null,
+  eventWhere: null,
+  validUntil: null,
     giverName: null,
     receivedAt: null,
     inHall: false,
@@ -57,6 +60,11 @@ const WANT_KEYS_PRICED = [
   "color",
   "currency",
   "desire",
+  // Услуга-впечатление (тикет 97). `expired` — производная от срока, а не
+  // настройка хозяйки: гость обязан видеть, что дарить это уже нельзя.
+  "eventWhen",
+  "eventWhere",
+  "expired",
   "id",
   "isDemo",
   "note",
@@ -65,11 +73,15 @@ const WANT_KEYS_PRICED = [
   "size",
   "state",
   "title",
+  "validUntil",
   "zone",
 ];
 const WANT_KEYS_PRICE_HIDDEN = [
   "color",
   "desire",
+  "eventWhen",
+  "eventWhere",
+  "expired",
   "id",
   "isDemo",
   "note",
@@ -77,6 +89,7 @@ const WANT_KEYS_PRICE_HIDDEN = [
   "size",
   "state",
   "title",
+  "validUntil",
   "zone",
 ];
 /** То же «хочу» с видимой ценой, но пришедшее по ссылке из магазина. */

@@ -47,6 +47,11 @@ export type OwnerWantItemDto = OwnerItemBaseDto & {
   color: string | null;
   /** «Насколько хочется», 1–4. */
   desire: number | null;
+  /** Услуга-впечатление (тикет 97): «Когда · Где · Годен до». */
+  eventWhen: string | null;
+  eventWhere: string | null;
+  /** Календарный день `YYYY-MM-DD` или null. */
+  validUntil: string | null;
 };
 
 /**
@@ -102,6 +107,9 @@ export function itemForOwner(item: Item): OwnerItemDto {
       size: item.size,
       color: item.color,
       desire: item.desire,
+      eventWhen: item.eventWhen,
+      eventWhere: item.eventWhere,
+      validUntil: item.validUntil === null ? null : item.validUntil.toISOString().slice(0, 10),
     };
   }
 

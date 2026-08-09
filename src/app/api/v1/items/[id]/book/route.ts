@@ -29,6 +29,9 @@ const BOOKING_ERROR_STATUS: Record<BookingError["code"], number> = {
   NOT_WANT: 409,
   OWN_ITEM: 403,
   ALREADY_BOOKED: 409,
+  // Срок впечатления вышел (тикет 97) — тот же класс, что «уже занято»:
+  // вещь есть, но взять её нельзя.
+  EXPIRED: 409,
   POOL_NOT_SUPPORTED: 400,
   TOKEN_NOT_FOUND: 404,
 };

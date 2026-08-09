@@ -125,6 +125,30 @@ const urlSchema = z.preprocess(
     .optional(),
 );
 
+/**
+ * «Годен до» (тикет 97) — календарный день `YYYY-MM-DD`, как дата праздника.
+ * Пишется полночью UTC и читается тем же поясом: иначе срок уедет на сутки
+ * на машине восточнее Гринвича. Несуществующий день (31 февраля разбором
+ * «переезжает» на 3 марта) сроком не считается — то же правило, что в
+ * онбординге.
+ */
+const validUntilSchema = z.preprocess(
+  (value) => (value == null || (typeof value === "string" && value.trim() === "") ? undefined : value),
+  z
+    .string()
+    .regex(/^\d{4}-\d{2}-\d{2}$/u, "срок — календарный день ГГГГ-ММ-ДД")
+    .refine(
+      (day) => new Date(`${day}T00:00:00.000Z`).toISOString().slice(0, 10) === day,
+      "такого дня не существует",
+    )
+    .optional(),
+);
+
+/** Календарный день `YYYY-MM-DD` → полночь UTC; пусто — null. */
+function dayToUtc(day: string | undefined): Date | null {
+  return day === undefined ? null : new Date(`${day}T00:00:00.000Z`);
+}
+
 const desireSchema = z.preprocess(
   (value) => (value == null ? undefined : value),
   z.number().int().min(1).max(4).optional(),
@@ -177,6 +201,11 @@ export const createItemInputSchema = z
       size: optionalTrimmed(80),
       color: optionalTrimmed(80),
       desire: desireSchema,
+      // Услуга-впечатление (тикет 97): «Когда · Где · Годен до». Все три
+      // необязательны и живут у «хочу» — как размер и цвет.
+      eventWhen: optionalTrimmed(80),
+      eventWhere: optionalTrimmed(80),
+      validUntil: validUntilSchema,
     }),
     z.object({
       state: z.literal("LOVE"),
@@ -284,6 +313,9 @@ export async function createItem(userId: string, input: unknown): Promise<Item> 
             size: data.size ?? null,
             color: data.color ?? null,
             desire: data.desire ?? null,
+            eventWhen: data.eventWhen ?? null,
+            eventWhere: data.eventWhere ?? null,
+            validUntil: dayToUtc(data.validUntil),
           }
         : {
             giverName: data.giverName ?? null,
@@ -439,6 +471,9 @@ const updateDesiredSchema = z.object({
   size: optionalTrimmed(80),
   color: optionalTrimmed(80),
   desire: desireSchema,
+  eventWhen: optionalTrimmed(80),
+  eventWhere: optionalTrimmed(80),
+  validUntil: validUntilSchema,
 });
 
 const updateOwnedSchema = z.object({
@@ -502,6 +537,9 @@ export async function updateItem(userId: string, itemId: string, input: unknown)
             size: data.size ?? null,
             color: data.color ?? null,
             desire: data.desire ?? null,
+            eventWhen: data.eventWhen ?? null,
+            eventWhere: data.eventWhere ?? null,
+            validUntil: dayToUtc(data.validUntil),
           }
         : {
             ...common,
