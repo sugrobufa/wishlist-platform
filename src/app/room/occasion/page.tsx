@@ -7,6 +7,7 @@ import { getRoomForUser, getSessionUserId } from "@/server/services/rooms";
 import { getOccasionView } from "@/server/services/occasions";
 import { rooms } from "@/config/design";
 import { formatHallMoney } from "@/app/room/hall/money";
+import { StayInTouch } from "@/components/consent/stay-in-touch";
 import { CloseOccasionButton, OccasionRows } from "./occasion-client";
 
 export const dynamic = "force-dynamic";
@@ -108,6 +109,10 @@ export default async function OccasionPage() {
                 received={view.received}
                 accent={accent}
                 ink={ink}
+                // Висящий вопрос = друга ещё нет (тикет 98). Проверять
+                // список друзей ради одной ссылки не идём: вопрос и есть
+                // ровно то состояние, в котором обещать друга нельзя.
+                connectionReady={view.consent.length === 0}
               />
             ) : (
               <p className="text-sm text-text-muted">{t("emptyHint")}</p>
@@ -136,6 +141,11 @@ export default async function OccasionPage() {
                 </p>
               </div>
             )}
+
+            {/* «Остаться на связи?» (тикет 98, доска Б12) — здесь и только
+                здесь вопрос возникает сам: связь родил подарок, отмеченный
+                строкой выше. Форма доски: «Со всеми N» плюс выбор поштучно. */}
+            <StayInTouch rows={view.consent} accent={accent} ink={ink} variant="bulk" />
 
             {view.unclaimedCount > 0 && (
               <div className="mt-8 border-t border-surface-hairline pt-5">

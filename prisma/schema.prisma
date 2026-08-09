@@ -303,6 +303,17 @@ model Connection {
   history   Json?
   createdAt DateTime       @default(now())
 
+  // Согласие обеих сторон остаться на связи (тикет 98, доска Б12). Вопрос
+  // задаётся ТОЛЬКО у связи из подарка и ровно после праздника: момент —
+  // consentAskedAt. null у него значит «не спрашивали» (связь из визита и
+  // все строки до этого тикета) — такие связи ведут себя как раньше.
+  // consentA/consentB: null — сторона ещё не ответила, false — «не в этот
+  // раз». Согласие НЕ создаёт связь и не ищет людей (инвариант №4): оно
+  // отвечает про уже существующую строку.
+  consentAskedAt DateTime?
+  consentA       Boolean?
+  consentB       Boolean?
+
   a User @relation("ConnA", fields: [aUserId], references: [id], onDelete: Cascade)
   b User @relation("ConnB", fields: [bUserId], references: [id], onDelete: Cascade)
 

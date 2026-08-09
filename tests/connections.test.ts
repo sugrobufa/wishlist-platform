@@ -10,7 +10,7 @@
 // - listConnections — DTO без email, строка происхождения по каждому виду.
 import "dotenv/config";
 import { randomUUID } from "node:crypto";
-import { readdirSync } from "node:fs";
+import { readdirSync, readFileSync } from "node:fs";
 import path from "node:path";
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { NextRequest } from "next/server";
@@ -28,9 +28,14 @@ import { auth } from "@/server/auth";
 import { prisma } from "../src/server/db";
 import * as connectionsService from "../src/server/services/connections";
 import {
+  connectionStatus,
+  isConsentedConnection,
   listConnections,
+  listPendingConsent,
   recordVisit,
   recordVisitBySlug,
+  respondToAllPending,
+  respondToConnection,
 } from "../src/server/services/connections";
 import { BookingError, bookItem } from "../src/server/services/bookings";
 import { setHiddenFromHall } from "../src/server/services/items";
@@ -80,12 +85,26 @@ async function pairRows(userA: string, userB: string) {
   });
 }
 
-/** Полный путь «гость подарил»: бронь с сессией → закрытие → «Дошло». */
-async function giftFlow(owner: { user: { id: string }; room: { id: string } }, giverId: string) {
+/**
+ * Полный путь «гость подарил»: бронь с сессией → закрытие → «Дошло» → ОБА
+ * согласились остаться на связи (тикет 98). Согласие входит в путь по
+ * умолчанию: с тикета 98 связь без него не состоится, а тесты происхождения,
+ * видов и карточек проверяют именно состоявшуюся связь.
+ * `{ consent: false }` — оставить вопрос висеть (тесты самого согласия).
+ */
+async function giftFlow(
+  owner: { user: { id: string }; room: { id: string } },
+  giverId: string,
+  options: { consent?: boolean } = {},
+) {
   const item = await createWantItem(owner.room.id);
   await bookItem({ itemId: item.id, name: "Дарительница" }, { sessionUserId: giverId });
   await closeOccasion(owner.room.id, { manual: true });
   await receiveGift(owner.user.id, item.id);
+  if (options.consent !== false) {
+    await respondToAllPending(owner.user.id, true);
+    await respondToAllPending(giverId, true);
+  }
   return item;
 }
 
@@ -594,13 +613,183 @@ describe("listConnections — DTO без email, происхождение по 
   });
 });
 
+describe("тикет 98 — согласие обеих сторон на связь (доска Б12)", () => {
+  it("связь из подарка рождается ждущей: её нет в списках, пока не ответили ОБА", async () => {
+    const owner = await createOwnerWithRoom();
+    const giver = await createOwnerWithRoom("Катя");
+    await giftFlow(owner, giver.user.id, { consent: false });
+
+    // Строка существует, но состоявшейся связью не считается.
+    const [row] = await pairRows(owner.user.id, giver.user.id);
+    expect(row?.consentAskedAt).not.toBeNull();
+    expect(connectionStatus(row!)).toBe("pending");
+    expect(isConsentedConnection(row!)).toBe(false);
+
+    // Ни у кого в друзьях — зато у обоих висит вопрос.
+    expect(await listConnections(owner.user.id)).toHaveLength(0);
+    expect(await listConnections(giver.user.id)).toHaveLength(0);
+    expect(await listPendingConsent(owner.user.id)).toMatchObject([
+      { displayName: "Катя", answered: false },
+    ]);
+    expect(await listPendingConsent(giver.user.id)).toMatchObject([
+      { displayName: "Хозяйка", answered: false },
+    ]);
+
+    // Ответила одна сторона — связи всё ещё нет, вопрос ждёт вторую.
+    await respondToConnection(owner.user.id, row!.id, true);
+    expect(await listConnections(owner.user.id)).toHaveLength(0);
+    expect(await listPendingConsent(owner.user.id)).toMatchObject([{ answered: true }]);
+
+    // Ответила вторая — связь состоялась у обоих, вопрос исчез.
+    await respondToConnection(giver.user.id, row!.id, true);
+    expect(await listConnections(owner.user.id)).toHaveLength(1);
+    expect(await listConnections(giver.user.id)).toHaveLength(1);
+    expect(await listPendingConsent(owner.user.id)).toEqual([]);
+    expect(await listPendingConsent(giver.user.id)).toEqual([]);
+  });
+
+  it("отказ уводит связь у ОБОИХ и молча: второй стороне об отказе не говорят", async () => {
+    const owner = await createOwnerWithRoom();
+    const giver = await createOwnerWithRoom("Катя");
+    await giftFlow(owner, giver.user.id, { consent: false });
+    const [row] = await pairRows(owner.user.id, giver.user.id);
+
+    // Даритель сказал «не в этот раз» — хозяйка своё «да» ещё не сказала.
+    await respondToConnection(giver.user.id, row!.id, false);
+
+    expect(connectionStatus((await pairRows(owner.user.id, giver.user.id))[0]!)).toBe("declined");
+    expect(await listConnections(owner.user.id)).toHaveLength(0);
+    expect(await listConnections(giver.user.id)).toHaveLength(0);
+    // Вопрос снят у обоих: никакой строки «он отказался» не существует.
+    expect(await listPendingConsent(owner.user.id)).toEqual([]);
+    expect(await listPendingConsent(giver.user.id)).toEqual([]);
+
+    // «Со всеми» уже ничего не воскрешает: согласие нужно обоюдное.
+    expect(await respondToAllPending(owner.user.id, true)).toBe(0);
+    expect(await listConnections(owner.user.id)).toHaveLength(0);
+
+    // История подарка при этом цела — строка живёт, просто не дружба.
+    const kept = (await pairRows(owner.user.id, giver.user.id))[0];
+    expect(kept?.history).toMatchObject({ giftsToA: 1 });
+  });
+
+  it("«Со всеми N» отвечает разом и только за себя", async () => {
+    const owner = await createOwnerWithRoom();
+    const first = await createOwnerWithRoom("Катя");
+    const second = await createUser("Мила");
+    await giftFlow(owner, first.user.id, { consent: false });
+    await giftFlow(owner, second.id, { consent: false });
+
+    expect(await respondToAllPending(owner.user.id, true)).toBe(2);
+    // Хозяйка ответила за себя — дарители ещё нет, связей нет.
+    expect(await listConnections(owner.user.id)).toHaveLength(0);
+    expect(await listPendingConsent(owner.user.id)).toMatchObject([
+      { answered: true },
+      { answered: true },
+    ]);
+
+    await respondToAllPending(first.user.id, true);
+    await respondToAllPending(second.id, true);
+    expect(await listConnections(owner.user.id)).toHaveLength(2);
+    // Повторный «со всеми» отвечать больше нечему.
+    expect(await respondToAllPending(owner.user.id, true)).toBe(0);
+  });
+
+  it("вопрос не задаётся заново состоявшейся дружбе, а после отказа — задаётся", async () => {
+    const owner = await createOwnerWithRoom();
+    const giver = await createOwnerWithRoom("Катя");
+
+    // Первый подарок: спросили, оба согласились.
+    await giftFlow(owner, giver.user.id);
+    const askedFirst = (await pairRows(owner.user.id, giver.user.id))[0]?.consentAskedAt;
+
+    // Второй подарок той же паре — второго вопроса нет.
+    await giftFlow(owner, giver.user.id, { consent: false });
+    const afterSecond = (await pairRows(owner.user.id, giver.user.id))[0];
+    expect(afterSecond?.consentAskedAt).toEqual(askedFirst);
+    expect(connectionStatus(afterSecond!)).toBe("active");
+    expect(await listPendingConsent(owner.user.id)).toEqual([]);
+
+    // А вот отказ прошлое «нет» не увековечивает: новый подарок спрашивает снова.
+    await respondToConnection(owner.user.id, afterSecond!.id, false);
+    await giftFlow(owner, giver.user.id, { consent: false });
+    const afterDecline = (await pairRows(owner.user.id, giver.user.id))[0];
+    expect(connectionStatus(afterDecline!)).toBe("pending");
+    expect(afterDecline?.consentA).toBeNull();
+    expect(afterDecline?.consentB).toBeNull();
+  });
+
+  it("связь из визита вопроса не получает, а связи до тикета 98 — состоявшиеся", async () => {
+    const owner = await createOwnerWithRoom();
+    const watcher = await createUser("Сергей");
+    await recordVisit(watcher.id, owner.user.id);
+
+    const [visitRow] = await pairRows(owner.user.id, watcher.id);
+    expect(visitRow?.consentAskedAt).toBeNull();
+    expect(connectionStatus(visitRow!)).toBe("active");
+    expect(await listPendingConsent(owner.user.id)).toEqual([]);
+    expect(await listConnections(owner.user.id)).toHaveLength(1);
+
+    // …но заглянувший в комнату другом не становится: «кто такой друг» —
+    // это isConsentedConnection, и VIEWED в него не входит (ADR-0004).
+    expect(isConsentedConnection(visitRow!)).toBe(false);
+
+    // Строка, заведённая до тикета 98 (consentAskedAt пуст) — состоявшаяся:
+    // задним числом мы никого не переспрашиваем.
+    const legacyGiver = await createUser("Мила");
+    await prisma.connection.create({
+      data: {
+        aUserId: owner.user.id,
+        bUserId: legacyGiver.id,
+        kind: "FOLLOW",
+        origin: "gift:legacy",
+        history: { giftsToA: 1 },
+      },
+    });
+    const legacy = (await pairRows(owner.user.id, legacyGiver.id))[0];
+    expect(isConsentedConnection(legacy!)).toBe(true);
+    expect(await listConnections(owner.user.id)).toHaveLength(2);
+
+    // И подарок такой паре вопроса не поднимает — дружба уже есть.
+    await giftFlow(owner, legacyGiver.id, { consent: false });
+    expect(await listPendingConsent(owner.user.id)).toEqual([]);
+  });
+
+  it("ответить можно только за свою связь: чужая и несуществующая — один ответ", async () => {
+    const owner = await createOwnerWithRoom();
+    const giver = await createOwnerWithRoom("Катя");
+    await giftFlow(owner, giver.user.id, { consent: false });
+    const [row] = await pairRows(owner.user.id, giver.user.id);
+
+    const stranger = await createUser("Чужой");
+    expect(await respondToConnection(stranger.id, row!.id, true)).toBe(false);
+    expect(await respondToConnection(owner.user.id, "no-such-connection", true)).toBe(false);
+
+    // Чужой ответ ничего не записал: обе стороны по-прежнему молчат.
+    const untouched = (await pairRows(owner.user.id, giver.user.id))[0];
+    expect(untouched?.consentA).toBeNull();
+    expect(untouched?.consentB).toBeNull();
+
+    // И связей у постороннего не завелось — ответ ничего не создаёт.
+    expect(await listConnections(stranger.id)).toHaveLength(0);
+    expect(await prisma.connection.count({ where: { OR: [{ aUserId: stranger.id }, { bUserId: stranger.id }] } })).toBe(0);
+  });
+});
+
 describe("ИНВАРИАНТ №4 — друзья не добавляются (негативный)", () => {
-  it("поверхность сервиса связей — ровно рождение из подарка/ссылки и чтение", () => {
-    // Строгий allowlist: НИКАКИХ add/create/search/import по произвольному вводу.
+  it("поверхность сервиса связей — ровно рождение из подарка/ссылки, чтение и ответ", () => {
+    // Строгий allowlist: НИКАКИХ add/create/search/import по произвольному
+    // вводу. Тикет 98 добавил три имени, и все три — про УЖЕ существующую
+    // строку: прочитать вопрос и ответить на него за себя.
     expect(Object.keys(connectionsService).sort()).toEqual([
+      "connectionStatus",
+      "isConsentedConnection",
       "listConnections",
+      "listPendingConsent",
       "recordVisit",
       "recordVisitBySlug",
+      "respondToAllPending",
+      "respondToConnection",
       "upsertGiftConnection",
     ]);
     expect(
@@ -619,13 +808,32 @@ describe("ИНВАРИАНТ №4 — друзья не добавляются (
       entries.filter((entry) => /friend|contact|people|search|import|invite/i.test(entry)),
     ).toEqual([]);
 
-    // Страница связей — только чтение: ни route.ts, ни actions.ts, ни форм.
+    // У страницы связей нет ни одного HTTP-роута: снаружи по ней ходить
+    // нечем — ни поиска, ни добавления по запросу.
     const connectionsEntries = entries.filter((entry) =>
       entry.replaceAll("\\", "/").startsWith("connections/"),
     );
     expect(connectionsEntries.length).toBeGreaterThan(0);
-    expect(connectionsEntries.filter((entry) => /route\.tsx?$|actions\.tsx?$/.test(entry))).toEqual(
-      [],
+    expect(connectionsEntries.filter((entry) => /route\.tsx?$/.test(entry))).toEqual([]);
+  });
+
+  it("экшены страницы связей — ровно два ответа, ни одного создающего глагола", async () => {
+    // Тикет 98 завёл на /connections первую мутацию. Граница инварианта №4
+    // сместилась, но не размылась: отвечать про существующую связь можно,
+    // создавать — нечем. Сторожим и имена экшенов, и текст файла.
+    const actions = await import("../src/app/connections/actions");
+    expect(Object.keys(actions).sort()).toEqual([
+      "respondToAllPendingAction",
+      "respondToConnectionAction",
+    ]);
+
+    const source = readFileSync(
+      path.join(process.cwd(), "src", "app", "connections", "actions.ts"),
+      "utf8",
     );
+    // Ни одного писателя, кроме двух ответов сервиса: create/upsert/connect
+    // в этом файле не должно появиться никогда.
+    expect(source).not.toMatch(/\.(create|createMany|upsert)\(/);
+    expect(source).not.toMatch(/upsertGiftConnection|recordVisit/);
   });
 });

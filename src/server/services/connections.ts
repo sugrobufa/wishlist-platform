@@ -15,6 +15,16 @@
 // visitsByA/visitsByB), поэтому одна строка честно обслуживает оба взгляда.
 // Односторонняя подписка — законное состояние (README пакета), взаимность
 // выводится (kind MUTUAL), а не запрашивается.
+//
+// СОГЛАСИЕ (тикет 98, доска Б12). Связь из подарка больше не заводится молча:
+// после праздника обе стороны отвечают «остаться на связи?». Вопрос живёт
+// в трёх полях строки (consentAskedAt/consentA/consentB), а не в kind: kind
+// отвечает на «какая это связь» (взаимно/слежу/смотрели), согласие — на
+// «состоялась ли она вообще». Развести их было обязательно: иначе отказ
+// пришлось бы кодировать четвёртым видом связи, и каждый читатель kind начал
+// бы врать. Инвариант №4 цел: ответ «да» НИЧЕГО не создаёт — он отвечает про
+// уже существующую строку, рождённую подарком (негативный тест сторожит и
+// поверхность сервиса, и то, что экшен страницы не умеет create).
 import { Prisma, type Connection, type ConnectionKind } from "@prisma/client";
 import { z } from "zod";
 import { prisma } from "@/server/db";
@@ -90,6 +100,191 @@ async function findPairRow(
   return db.connection.findUnique({
     where: { aUserId_bUserId: { aUserId: bUserId, bUserId: aUserId } },
   });
+}
+
+// ---------- Согласие обеих сторон (тикет 98, доска Б12) ----------
+
+/** Строка согласия — ровно те поля, из которых считается состояние. */
+type ConsentFields = {
+  consentAskedAt: Date | null;
+  consentA: boolean | null;
+  consentB: boolean | null;
+};
+
+/**
+ * Состояние связи по согласию:
+ * - `active` — связь состоялась. Сюда же попадают связи, которых вопрос НЕ
+ *   касается: из визита и все строки до тикета 98 (`consentAskedAt === null`).
+ *   Задним числом мы никого не переспрашиваем — это отняло бы у людей связи,
+ *   которые у них уже есть;
+ * - `pending` — спросили, ответили не все;
+ * - `declined` — хоть одна сторона сказала «не в этот раз». Строка живёт
+ *   дальше (история подарков не теряется), но из списков уходит у ОБОИХ и
+ *   молча: кто отказался — не сообщается никому, объясняться никто не должен.
+ */
+export type ConnectionStatus = "active" | "pending" | "declined";
+
+export function connectionStatus(row: ConsentFields): ConnectionStatus {
+  if (row.consentAskedAt === null) return "active";
+  if (row.consentA === false || row.consentB === false) return "declined";
+  if (row.consentA === true && row.consentB === true) return "active";
+  return "pending";
+}
+
+/**
+ * Считается ли связь состоявшейся дружбой — ЕДИНСТВЕННЫЙ ответ на вопрос
+ * «кто такой друг» для всего продукта.
+ *
+ * Здесь два условия, и оба обязательны: согласие получено (или вопроса не
+ * было) И связь не «смотрели» — заглянувший в комнату по ссылке человек
+ * другом не становится, сколько бы раз он ни заходил.
+ *
+ * Отдельно про цены (ADR-0004, инвариант №8): `priceVisibility: FRIENDS` в
+ * Phase 1 со связями ещё не сверяется (`dto/guest-items.guestSeesPrice`
+ * читает его как ALL, `dto/hall` — закрыто). Когда сверка появится, она
+ * обязана спрашивать ЭТУ функцию, а не `kind`: иначе цену увидит тот, кто
+ * на связь не согласился.
+ */
+export function isConsentedConnection(row: ConsentFields & { kind: ConnectionKind }): boolean {
+  return connectionStatus(row) === "active" && row.kind !== "VIEWED";
+}
+
+/**
+ * Нужно ли спрашивать согласие у пары, к которой пришёл подарок.
+ *
+ * `history` и `origin` читаются ДО инкремента этого подарка — то есть
+ * описывают пару такой, какой она была до него:
+ * - подарки уже были → дружба состоялась раньше, второй подарок не повод
+ *   переспрашивать (сюда же попадают связи, заведённые до тикета 98);
+ * - спросили и ждём ответа → вопрос уже висит, второй не заводим;
+ * - спросили и отказали → новый подарок спрашивает заново: прошлое «нет»
+ *   было про прошлый раз.
+ */
+function shouldAskConsent(
+  row: ConsentFields & { origin: string },
+  historyBefore: ConnectionHistory,
+): boolean {
+  const giftedBefore =
+    (historyBefore.giftsToA ?? 0) + (historyBefore.giftsToB ?? 0) > 0 ||
+    row.origin.startsWith("gift:");
+  if (row.consentAskedAt === null) return !giftedBefore;
+  return connectionStatus(row) === "declined";
+}
+
+/** Моя сторона строки: согласие пишется в своё поле, чужое не трогается. */
+function myConsentField(row: { aUserId: string }, userId: string): "consentA" | "consentB" {
+  return row.aUserId === userId ? "consentA" : "consentB";
+}
+
+/** Строка вопроса «остаться на связи?» — и у хозяйки, и у дарителя. */
+export type PendingConsentRow = {
+  id: string;
+  /** displayName ?? name собеседника; null — страница подставит подпись. */
+  displayName: string | null;
+  avatarUrl: string | null;
+  /** Название последнего подарка — чтобы вопрос был про конкретный повод. */
+  giftTitle: string | null;
+  /** Я уже ответил(а) «да» — ждём вторую сторону, кнопок больше нет. */
+  answered: boolean;
+};
+
+/**
+ * Кого спрашивают прямо сейчас. Показывается на «что подарили» (хозяйке,
+ * доска Б12) и на странице друзей (дарителю — доска про него молчит, а
+ * спросить обязаны обоих).
+ *
+ * Ничего нового этот список не раскрывает: связь из подарка рождается в
+ * `receiveGift`, то есть уже ПОСЛЕ экрана «что подарили», где имя дарителя
+ * раскрыто по инварианту №2. Даритель, в свою очередь, знает, кому дарил.
+ */
+export async function listPendingConsent(userId: string): Promise<PendingConsentRow[]> {
+  const id = idSchema.parse(userId);
+
+  const rows = await prisma.connection.findMany({
+    where: {
+      OR: [{ aUserId: id }, { bUserId: id }],
+      consentAskedAt: { not: null },
+      // Отказ отсеивается ниже, в JS: `NOT { consentA: false }` в SQL
+      // выбрасывает и НЕОТВЕЧЕННЫЕ строки (NULL = false даёт UNKNOWN, а не
+      // TRUE) — то есть ровно те, ради которых список и существует.
+    },
+    include: { a: { select: { displayName: true, name: true, avatarKey: true } }, b: { select: { displayName: true, name: true, avatarKey: true } } },
+    orderBy: { consentAskedAt: "desc" },
+  });
+
+  return rows
+    .filter((row) => connectionStatus(row) === "pending")
+    .map((row) => {
+      const meIsA = row.aUserId === id;
+      const other = meIsA ? row.b : row.a;
+      const history = readHistory(row.history);
+      return {
+        id: row.id,
+        displayName: other.displayName ?? other.name ?? null,
+        avatarUrl: itemPhotoUrl(other.avatarKey),
+        giftTitle: history.lastGiftTitle ?? null,
+        answered: (meIsA ? row.consentA : row.consentB) === true,
+      } satisfies PendingConsentRow;
+    });
+}
+
+/**
+ * Ответ одной стороны: «да» или «не в этот раз».
+ *
+ * Связь НЕ создаётся и не ищется по имени — обновляется строка, где человек
+ * уже является стороной (инвариант №4). Чужая или несуществующая связь даёт
+ * один и тот же ответ `false`: существование чужой строки не подтверждаем.
+ * Пишем только в СВОЁ поле; чужой ответ переписать нельзя ни при какой гонке.
+ */
+export async function respondToConnection(
+  userId: string,
+  connectionId: string,
+  agree: boolean,
+): Promise<boolean> {
+  const id = idSchema.parse(userId);
+  const rowId = idSchema.parse(connectionId);
+
+  const row = await prisma.connection.findFirst({
+    where: { id: rowId, OR: [{ aUserId: id }, { bUserId: id }] },
+  });
+  if (!row || row.consentAskedAt === null) return false; // спрашивать нечего
+
+  await prisma.connection.update({
+    where: { id: row.id },
+    data: { [myConsentField(row, id)]: agree },
+  });
+  return true;
+}
+
+/**
+ * «Со всеми семью» с доски Б12 — один ответ на все висящие вопросы.
+ *
+ * Трогает ровно те строки, где Я ещё не ответил(а), и не воскрешает отказы:
+ * если вторая сторона уже сказала «нет», связь остаётся `declined` (моё «да»
+ * ничего не меняет — согласие нужно обоюдное). Возвращает, скольким ответили.
+ */
+export async function respondToAllPending(userId: string, agree: boolean): Promise<number> {
+  const id = idSchema.parse(userId);
+  const asked = { consentAskedAt: { not: null } } as const;
+
+  // «Вторая сторона не отказала» пишется перечислением ({null, true}), а не
+  // отрицанием: `NOT { consentB: false }` в SQL выбросил бы и строки, где та
+  // сторона ещё молчит (NULL = false — это UNKNOWN, не TRUE).
+  const notRefused = (field: "consentA" | "consentB") => ({
+    OR: [{ [field]: null }, { [field]: true }],
+  });
+
+  const [asA, asB] = await prisma.$transaction([
+    prisma.connection.updateMany({
+      where: { ...asked, aUserId: id, consentA: null, ...notRefused("consentB") },
+      data: { consentA: agree },
+    }),
+    prisma.connection.updateMany({
+      where: { ...asked, bUserId: id, consentB: null, ...notRefused("consentA") },
+      data: { consentB: agree },
+    }),
+  ]);
+  return asA.count + asB.count;
 }
 
 // ---------- Визит: связь «смотрели» из открытой ссылки ----------
@@ -239,6 +434,9 @@ export async function upsertGiftConnection(
         kind: giverRoom ? "MUTUAL" : "FOLLOW",
         origin: `gift:${input.itemId}`,
         history: history as Prisma.InputJsonObject,
+        // Связь родилась, но ещё не состоялась: спрашиваем обоих (тикет 98).
+        // До ответа она не попадает ни в списки, ни в «кто такой друг».
+        consentAskedAt: now,
       },
     });
     return;
@@ -266,9 +464,18 @@ export async function upsertGiftConnection(
     kind = giverRoom ? "MUTUAL" : "FOLLOW";
   }
 
+  // Вопрос «остаться на связи?» — по правилу shouldAskConsent (тикет 98):
+  // состоявшуюся дружбу второй подарок не переспрашивает, висящий вопрос не
+  // задаётся дважды, прошлое «нет» новому подарку не мешает спросить снова.
+  const asking = shouldAskConsent(row, history);
+
   await tx.connection.update({
     where: { id: row.id },
-    data: { kind, history: next as Prisma.InputJsonObject },
+    data: {
+      kind,
+      history: next as Prisma.InputJsonObject,
+      ...(asking ? { consentAskedAt: now, consentA: null, consentB: null } : {}),
+    },
   });
 }
 
@@ -366,6 +573,9 @@ function latestIso(createdAt: Date, ...candidates: (string | undefined)[]): stri
  * origin-структура строится из history, а для строк 10-го без history —
  * из origin `gift:{itemId}` (название подтягивается по вещи). Сортировка —
  * по последнему событию, свежие сверху. Фильтр по kind — опционален.
+ *
+ * Отдаются только СОСТОЯВШИЕСЯ связи (тикет 98): ждущие ответа живут отдельным
+ * списком (`listPendingConsent`), отклонённые не показываются никому и никогда.
  */
 export async function listConnections(
   userId: string,
@@ -377,6 +587,10 @@ export async function listConnections(
     where: {
       OR: [{ aUserId: id }, { bUserId: id }],
       ...(options.kind ? { kind: options.kind } : {}),
+      // Состоявшиеся связи — фильтр стоит В ЗАПРОСЕ, а не после него: строка,
+      // ждущая ответа или отклонённая, не должна доезжать до страницы даже
+      // как отброшенная (тикет 98). Зеркало connectionStatus === "active".
+      AND: [{ OR: [{ consentAskedAt: null }, { consentA: true, consentB: true }] }],
     },
     include: { a: personSelect, b: personSelect },
   });

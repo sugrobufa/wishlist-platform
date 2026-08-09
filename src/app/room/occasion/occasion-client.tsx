@@ -17,6 +17,12 @@ type OccasionRowsProps = {
   received: OccasionReceivedGift[];
   accent: string;
   ink: string;
+  /**
+   * Связь уже состоялась — можно звать на страницу друзей. С тикета 98 это
+   * не следует из «Дошло»: связь рождается ждущей согласия обеих сторон, и
+   * пока вопрос висит (он тут же, ниже), друга ещё нет.
+   */
+  connectionReady: boolean;
 };
 
 /** Квадратик-фото строки: 52px, серая заливка при отсутствии фото;
@@ -49,7 +55,13 @@ function RowPhoto({ photoUrl, badgeAccent }: { photoUrl: string | null; badgeAcc
  * затем ожидающие с кнопкой «Дошло». Успех — router.refresh(): страница
  * force-dynamic, строка сама переезжает в отмеченные.
  */
-export function OccasionRows({ pending, received, accent, ink }: OccasionRowsProps) {
+export function OccasionRows({
+  pending,
+  received,
+  accent,
+  ink,
+  connectionReady,
+}: OccasionRowsProps) {
   const t = useTranslations("Occasion");
   const router = useRouter();
   const [busyId, setBusyId] = useState<string | null>(null);
@@ -122,8 +134,9 @@ export function OccasionRows({ pending, received, accent, ink }: OccasionRowsPro
 
       {/* После «Дошло» цикл замыкается связью (тикет 11): тихая ссылка на
           страницу связей — router.refresh() выше переносит строку в received,
-          и подсказка появляется сама. */}
-      {received.length > 0 && (
+          и подсказка появляется сама. Пока согласие не получено обеими
+          сторонами (тикет 98), звать некуда: друга ещё нет. */}
+      {received.length > 0 && connectionReady && (
         <Link
           href="/connections"
           className="pressable mt-4 inline-block text-xs font-semibold"

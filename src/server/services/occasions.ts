@@ -13,7 +13,11 @@ import { Prisma, type Item, type OccasionSummary } from "@prisma/client";
 import { z } from "zod";
 import { prisma } from "@/server/db";
 import { roomCacheTag } from "@/server/services/items";
-import { upsertGiftConnection } from "@/server/services/connections";
+import {
+  listPendingConsent,
+  upsertGiftConnection,
+  type PendingConsentRow,
+} from "@/server/services/connections";
 import { revealedPledges } from "@/server/services/goal";
 import { itemPhotoUrl } from "@/server/dto/items";
 import { enqueueOccasionOwnerMail } from "@/server/queues";
@@ -173,6 +177,12 @@ export type OccasionView = {
   unclaimedCount: number;
   /** Копилка с раскрытыми участниками; null — цели нет или в неё не скидывались. */
   goal: OccasionGoal | null;
+  /**
+   * «Остаться на связи?» — дарители, чья связь ждёт ответа (тикет 98, доска
+   * Б12). Пусто без summary: до закрытия праздника связей из подарков не
+   * существует, а значит и спрашивать не о ком.
+   */
+  consent: PendingConsentRow[];
 };
 
 /**
@@ -208,7 +218,7 @@ export async function getOccasionView(userId: string): Promise<OccasionView> {
   if (!summary) {
     // Копилки здесь нет ни строкой: до закрытия праздника хозяйка не видит
     // ни прогресса сбора, ни участников (инвариант №1, ADR-0008).
-    return { summary: null, pending: [], received: [], unclaimedCount, goal: null };
+    return { summary: null, pending: [], received: [], unclaimedCount, goal: null, consent: [] };
   }
 
   // Первое открытие экрана = момент раскрытия. Guard revealedAt=null держит
@@ -248,6 +258,9 @@ export async function getOccasionView(userId: string): Promise<OccasionView> {
 
   return {
     goal: await revealedGoal(room.id),
+    // Вопрос о связи (тикет 98) — ровно здесь: доска Б12 ставит его после
+    // праздника, и здесь же имя дарителя уже раскрыто (инвариант №2).
+    consent: await listPendingConsent(userId),
     summary: {
       id: revealed.id,
       date: revealed.date.toISOString(),
@@ -321,6 +334,9 @@ async function revealedGoal(roomId: string): Promise<OccasionGoal | null> {
  *   сервис связей тикета 11: history «дарил(а) тебе N раз», дедуп зеркальной
  *   пары, апгрейд VIEWED→FOLLOW/MUTUAL). Существующая пара kind/origin не
  *   перезаписывает. Без guestUserId связи нет — есть только имя.
+ *   С тикета 98 новая связь рождается ЖДУЩЕЙ согласия обеих сторон: до
+ *   ответа её нет ни в чьём списке друзей. Вопрос задаётся ниже на этом же
+ *   экране (хозяйке) и на странице друзей (дарителю).
  *
  * Требует существующего OccasionSummary комнаты: раскрытие живёт только
  * в рамках «что подарили» (инвариант №2). Повторный вызов на уже LOVE —

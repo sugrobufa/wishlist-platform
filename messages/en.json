@@ -572,5 +572,18 @@
     "noteLabel": "From the owner",
     "loveCaption": "Already hers — part of the room, not a gift",
     "notFound": "No such item in this room"
+  },
+  "Consent": {
+    "badge": "After the celebration",
+    "title": "Stay in touch?",
+    "hint": "We ask both sides: the connection appears only if both agree. A refusal stays between you — we never tell the other side",
+    "agreeAll": "With all {count, plural, one {# person} other {# people}}",
+    "agree": "Stay in touch",
+    "decline": "Not this time",
+    "waiting": "Waiting for a reply",
+    "rowGift": "Gift «{title}»",
+    "rowPlain": "A gift for this celebration",
+    "nameFallback": "Guest without a name",
+    "errGeneric": "Something went wrong — try again"
   }
 }

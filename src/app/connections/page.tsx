@@ -4,9 +4,10 @@ import { getTranslations } from "next-intl/server";
 import { redirect } from "next/navigation";
 import { auth } from "@/server/auth";
 import { getRoomForUser, getSessionUserId } from "@/server/services/rooms";
-import { listConnections } from "@/server/services/connections";
+import { listConnections, listPendingConsent } from "@/server/services/connections";
 import { rooms } from "@/config/design";
 import { TabBar } from "@/components/tab-bar/tab-bar";
+import { StayInTouch } from "@/components/consent/stay-in-touch";
 import { ConnectionsList } from "./connections-list";
 
 export const dynamic = "force-dynamic";
@@ -21,9 +22,13 @@ export async function generateMetadata(): Promise<Metadata> {
  * «связи», имя раздела поменял владелец 06.08.2026, тикет 62): фильтры
  * Все/Взаимно/Слежу/
  * Смотрели, у каждой строки — происхождение («дарил(а) тебе N раз»,
- * «смотрел(а) · N визитов»). ИНВАРИАНТ №4: здесь НЕТ ни поиска людей, ни
- * добавления — связи рождаются сами, страница только читает (ни одной формы
- * и ни одного экшена — под негативным тестом).
+ * «смотрел(а) · N визитов»).
+ *
+ * ИНВАРИАНТ №4: здесь НЕТ ни поиска людей, ни добавления — связи рождаются
+ * сами. Единственная мутация страницы — ответ «остаться на связи?» (тикет 98):
+ * он отвечает про УЖЕ существующую строку и создать никого не может. Границу
+ * сторожит негативный тест: экшены страницы — ровно два ответа, и ни одного
+ * создающего глагола.
  */
 export default async function ConnectionsPage() {
   const session = await auth();
@@ -41,6 +46,9 @@ export default async function ConnectionsPage() {
   const ink = preset?.ink ?? "#241A0E";
 
   const connections = await listConnections(userId);
+  // Вопрос «остаться на связи?» второй стороне (тикет 98): даритель узнаёт о
+  // связи здесь — экрана «что подарили» у него нет, это экран хозяйки.
+  const consent = await listPendingConsent(userId);
   const counts = {
     mutual: connections.filter((row) => row.kind === "MUTUAL").length,
     follow: connections.filter((row) => row.kind === "FOLLOW").length,
@@ -66,6 +74,11 @@ export default async function ConnectionsPage() {
           )}
         </header>
 
+        {/* Висящие вопросы — выше списка: это единственное на странице, что
+            ждёт человека. Ответ «да» с обеих сторон превращает строку в друга
+            (тикет 98). */}
+        <StayInTouch rows={consent} accent={accent} ink={ink} className="mb-7" />
+
         {connections.length > 0 ? (
           // «Сейчас» для relativeTime фиксируется на сервере: страница
           // force-dynamic (рендер на каждый запрос), клиент считает от того же
@@ -74,9 +87,13 @@ export default async function ConnectionsPage() {
           <ConnectionsList rows={connections} accent={accent} ink={ink} now={Date.now()} />
         ) : (
           // Тихое пустое состояние: добавлять руками нечего — и это нормально.
-          <div className="max-w-md border border-dashed border-surface-hairline p-5">
-            <p className="text-sm leading-relaxed text-text-muted">{t("empty")}</p>
-          </div>
+          // При висящем вопросе молчим: «здесь пока никого» рядом с «остаться
+          // на связи с Кириллом?» — это про одного и того же человека.
+          consent.length === 0 && (
+            <div className="max-w-md border border-dashed border-surface-hairline p-5">
+              <p className="text-sm leading-relaxed text-text-muted">{t("empty")}</p>
+            </div>
+          )
         )}
       </div>
 
