@@ -460,6 +460,8 @@ type MotionContract = {
   closeZone: { at: Ms; what: string; duration?: Ms; easing?: string }[];
   ambient: {
     drift: { duration: { phone: number; desktop: number }; amplitude: string; amplitudeZoomed: number };
+    /** Возврат дрейфа после покоя (тикеты 117/126, приехала раундом 26). */
+    driftResume: { idleMs: number; easeInMs: number; curve: string };
     pulse: { duration: number; stagger: number };
   };
   hover: { glow: { duration: number } };
@@ -700,6 +702,19 @@ export const sceneMotion = {
     scaleTo: Number(driftAmplitude[3]),
     /** Вблизи размах дыхания срезается до 45% — иначе кадр качает (раунд 2). */
     zoomedFactor: motionContract.ambient.drift.amplitudeZoomed,
+  },
+  /**
+   * Возврат дрейфа после того, как комнату тронули (тикеты 117 и 126).
+   *
+   * Жила эта пара чисел константами в `use-scene-pan.ts`: дизайн объявил фазу
+   * в CHANGES раунда 24, а сам `motion.json` не прислал ни тогда, ни раундом
+   * позже. Приехал раундом 26 — и машинный дифф показал, что новых ключей
+   * ровно семь, а ни одно наше значение не тронуто. Теперь числа читаются
+   * отсюда, как все остальные длительности сцены.
+   */
+  driftResume: {
+    idleMs: motionContract.ambient.driftResume.idleMs,
+    easeInMs: motionContract.ambient.driftResume.easeInMs,
   },
   pulse: {
     durationMs: motionContract.ambient.pulse.duration,

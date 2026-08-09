@@ -98,7 +98,55 @@ const DRIFT_DELAY_MS = 1400;
  * комната стояла до перезагрузки страницы. Довод был про НАМЕРЕНИЕ («тронул —
  * значит управляешь сам»), и он верен ровно на время, пока рука на экране.
  */
-const DRIFT_RESUME_MS = 6000;
+const DRIFT_RESUME_MS = sceneMotion.driftResume.idleMs;
+
+/**
+ * РАЗГОН ВОЗВРАТА: первые 800 мс после паузы окно трогается отдельным коротким
+ * ходом и только потом идёт обычное плечо (тикет 126).
+ *
+ * ОТКУДА ЧИСЛО. Теперь — из контракта: `motion.json → ambient.driftResume`
+ * (`idleMs: 6000`, `easeInMs: 800`), фаза приехала пакетом раунда 26.
+ *
+ * ИСТОРИЯ, КОТОРУЮ СТОИТ ЗНАТЬ. Фазу дизайн объявил в `CHANGES.md` раунда 24,
+ * но сам `motion.json` не прислал ни тогда, ни раундом позже — и числа месяц
+ * жили здесь константами со ссылкой на его письмо. Когда файл наконец приехал,
+ * машинный дифф показал ровно семь новых ключей и ни одного изменённого
+ * нашего: перенос был безопасен. Это первый раз, когда его «остальное не
+ * менялось» про контрактный файл оказалось правдой.
+ *
+ * Кривая — та самая (.23,1,.32,1), и брать её неоткуда, кроме контракта:
+ * `sceneMotion.easingOut` — это и есть `motion.json → easing.out`. Своей
+ * ease-in под разгон не заводим: контракт говорит прямо — «ease-in не
+ * используется нигде» (`easing.note`).
+ */
+const DRIFT_EASE_IN_MS = sceneMotion.driftResume.easeInMs;
+
+/**
+ * Путь разгона в единицах кадра: сколько окно проезжает за `DRIFT_EASE_IN_MS`.
+ *
+ * ЧИСЛО СЧИТАЕТСЯ ИЗ САМОЙ КРИВОЙ, а не подбирается. У `cubic-bezier(x1,y1,…)`
+ * скорость в первый миг равна (y1/x1) от средней по ходу; у кривой пакета это
+ * 1 ÷ .23 ≈ 4.35. Путь берём такой, чтобы эта начальная скорость не превысила
+ * скорость дрейфа: d = v × T ÷ (y1/x1) = 23 × 0.8 ÷ 4.35 ≈ 4.2 единицы кадра.
+ * Тогда стоящее окно трогается НЕ БЫСТРЕЕ, чем оно же едет в дрейфе, — это и
+ * есть «чтобы не дёргалось у зазевавшегося пальца», выраженное числом.
+ *
+ * Буквальной нулевой скорости в первый кадр кривая пакета дать не может: она
+ * «быстрый старт, мягкий конец» (`easing.note`). Зато мягкий конец здесь
+ * кстати — разгон затухает в ноль, и плечо (`ease-in-out`, тоже с нулевой)
+ * подхватывает его без ступеньки скорости.
+ */
+export function driftEaseInUnits(easing: string = sceneMotion.easingOut): number {
+  const points = /^cubic-bezier\(([^)]*)\)$/u.exec(easing)?.[1]?.split(",").map(Number);
+  const [x1, y1] = points ?? [];
+  // Кривая ключевым словом (`ease-out`, `linear`) разбору не поддаётся: считаем
+  // ход равномерным — начальная скорость равна средней, путь полный.
+  const startSlope = x1 && y1 && Number.isFinite(x1) && Number.isFinite(y1) ? y1 / x1 : 1;
+  return Math.round(((DRIFT_UNITS_PER_S * DRIFT_EASE_IN_MS) / 1000 / startSlope) * 100) / 100;
+}
+
+/** Тот же путь готовым числом: кривая не меняется в рантайме. */
+const DRIFT_EASE_IN_UNITS = driftEaseInUnits();
 
 /**
  * Длительность плеча дрейфа: путь ÷ скорость, а не подобранное число.
@@ -572,13 +620,35 @@ export function useScenePan({
      * Пуск С ТЕКУЩЕГО ПОЛОЖЕНИЯ ОКНА (тикет 117): и первый раз, и после паузы.
      * Плечо считается от того места, где окно стоит, поэтому возврат к жизни
      * не выглядит рывком — скорость та же 23 ед/с, что и всегда.
+     *
+     * `easeIn` — ВОЗОБНОВЛЕНИЕ ПОСЛЕ ПАУЗЫ (тикет 126): первые
+     * `DRIFT_EASE_IN_MS` окно трогается коротким ходом кривой пакета и только
+     * потом идёт обычное плечо. Первому пуску разгон не нужен: перед ним и так
+     * стоит `DRIFT_DELAY_MS`, и трогается он из покоя только что открытой
+     * страницы, где палец ничего не ждёт.
      */
-    const startFromHere = () => {
+    const startFromHere = (easeIn = false) => {
       if (driftPausedRef.current || zoomedRef.current || dragRef.current) return;
       const here = clampPan(panRef.current);
-      leg(here, driftTargetFrom(here, { min, max }));
+      const to = driftTargetFrom(here, { min, max });
+      if (!easeIn) {
+        leg(here, to);
+        return;
+      }
+      // Разгон идёт В СТОРОНУ плеча и на два порядка короче него (≈4 единицы
+      // против сотни с лишним, `driftTargetFrom` всегда выбирает дальний край),
+      // так что цель им не проехать и клампить его незачем.
+      const ramp = here + (to > here ? DRIFT_EASE_IN_UNITS : -DRIFT_EASE_IN_UNITS);
+      introRidingRef.current = true;
+      panRef.current = ramp;
+      applyRef.current(ramp, DRIFT_EASE_IN_MS, sceneMotion.easingOut);
+      const next = window.setTimeout(() => leg(ramp, to), DRIFT_EASE_IN_MS);
+      introTimersRef.current.push(next);
     };
-    driftRestartRef.current = startFromHere;
+    // Возврат после покоя — ЕДИНСТВЕННЫЙ, кому положен разгон. Повторной
+    // задержки `DRIFT_DELAY_MS` здесь нет и быть не должно: шесть секунд покоя
+    // и есть пауза (тикет 126, ответ дизайна на письмо 24).
+    driftRestartRef.current = () => startFromHere(true);
 
     if (driftPausedRef.current) {
       // Эффект перезапускается на смене `zoomed`, а его уборка гасит ВСЕ
@@ -586,7 +656,7 @@ export function useScenePan({
       // для человека это и есть «закрыл зону — через паузу комната ожила».
       pauseDriftRef.current();
     } else {
-      const start = window.setTimeout(startFromHere, DRIFT_DELAY_MS);
+      const start = window.setTimeout(() => startFromHere(), DRIFT_DELAY_MS);
       introTimersRef.current.push(start);
     }
 
