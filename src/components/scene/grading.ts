@@ -37,8 +37,8 @@ export function asLightColor(value: unknown): LightColor {
 export type BlendMode = "screen" | "multiply" | "soft-light";
 export type GradeLayer = { overlay: string; blend: BlendMode };
 
-type Recipe = { filter: string | null; layer: GradeLayer | null };
-const IDENTITY: Recipe = { filter: null, layer: null };
+type Recipe = { filter: string | null; layers: GradeLayer[] };
+const IDENTITY: Recipe = { filter: null, layers: [] };
 
 /**
  * Матрица пересчёта времени суток — ДОСЛОВНО из `task17.json →
@@ -56,79 +56,143 @@ const IDENTITY: Recipe = { filter: null, layer: null };
  * остальные три — слой поверх. Вычитания нет: недневная база к светлым
  * положениям идёт ВСТРЕЧНЫМ слоем (`screen`), а не снятием своего.
  */
+/**
+ * НОЧЬ V2 — два слоя (тикет 112, доска 34a; числа дословно из
+ * `task18.json → nightRecipeV2`).
+ *
+ * Владелец: «комната ночью слишком тёмная, надо добавить мягкий свет».
+ * Диагноз дизайна: ночь одним синим слоем — это окно без ламп. Стало два:
+ * сверху синее окно (слабее прежнего, multiply), снизу тёплое пятно ламп
+ * (radial, screen, центр тяжести у нижнего края).
+ *
+ * Ночь применяется ко ВСЕМ родным tod, включая ночные базы: у них она
+ * перестала быть идентичностью. Это сознательное отступление от правила
+ * «родное = как снято» — его сделал сам дизайн, потому что «слово владельца
+ * важнее чистоты правила». Кадр при этом не тронут: свет лампы — слой.
+ */
+const NIGHT_V2: Record<"day" | "dusk" | "night", Recipe> = {
+  day: {
+    filter: "brightness(.6) saturate(.82)",
+    layers: [
+      {
+        overlay:
+          "linear-gradient(180deg,rgba(52,72,118,.26),rgba(52,72,118,.10) 55%,rgba(52,72,118,.04))",
+        blend: "multiply",
+      },
+      {
+        overlay: "radial-gradient(120% 85% at 50% 100%,rgba(255,186,112,.30),rgba(255,186,112,0) 62%)",
+        blend: "screen",
+      },
+    ],
+  },
+  dusk: {
+    filter: "brightness(.68) saturate(.84)",
+    layers: [
+      {
+        overlay:
+          "linear-gradient(180deg,rgba(52,72,118,.20),rgba(52,72,118,.08) 55%,rgba(52,72,118,.03))",
+        blend: "multiply",
+      },
+      {
+        overlay: "radial-gradient(120% 85% at 50% 100%,rgba(255,186,112,.26),rgba(255,186,112,0) 60%)",
+        blend: "screen",
+      },
+    ],
+  },
+  night: {
+    filter: "brightness(1.12) saturate(1.02)",
+    layers: [
+      {
+        overlay: "linear-gradient(180deg,rgba(52,72,118,.10),rgba(52,72,118,0) 50%)",
+        blend: "multiply",
+      },
+      {
+        overlay: "radial-gradient(120% 85% at 50% 100%,rgba(255,186,112,.20),rgba(255,186,112,0) 58%)",
+        blend: "screen",
+      },
+    ],
+  },
+};
+
 const TRANSITION: Record<TimeOfDay, Partial<Record<TimeOfDay, Recipe>>> = {
-  // База снята днём — рецепты те же, что были у нас с тикета 96.
+  // База снята днём.
   day: {
     morning: {
       filter: "brightness(1.05) saturate(.88)",
-      layer: {
-        overlay: "linear-gradient(180deg,rgba(255,213,168,.16),rgba(255,213,168,0) 60%)",
-        blend: "screen",
-      },
+      layers: [
+        {
+          overlay: "linear-gradient(180deg,rgba(255,213,168,.16),rgba(255,213,168,0) 60%)",
+          blend: "screen",
+        },
+      ],
     },
     dusk: {
       filter: "brightness(.8) saturate(1.08)",
-      layer: {
-        overlay: "linear-gradient(180deg,rgba(214,118,74,.18),rgba(214,118,74,.04))",
-        blend: "multiply",
-      },
+      layers: [
+        {
+          overlay: "linear-gradient(180deg,rgba(214,118,74,.18),rgba(214,118,74,.04))",
+          blend: "multiply",
+        },
+      ],
     },
-    night: {
-      filter: "brightness(.52) saturate(.7)",
-      layer: {
-        overlay: "linear-gradient(180deg,rgba(52,72,118,.32),rgba(52,72,118,.14))",
-        blend: "multiply",
-      },
-    },
+    night: NIGHT_V2.day,
   },
   // База снята в сумерках: день и утро добираются встречным светлым слоем.
   dusk: {
     morning: {
       filter: "brightness(1.34) saturate(.86)",
-      layer: {
-        overlay: "linear-gradient(180deg,rgba(255,213,168,.16),rgba(210,225,242,.08) 60%)",
-        blend: "screen",
-      },
+      layers: [
+        {
+          overlay: "linear-gradient(180deg,rgba(255,213,168,.16),rgba(210,225,242,.08) 60%)",
+          blend: "screen",
+        },
+      ],
     },
     day: {
       filter: "brightness(1.3) saturate(.9)",
-      layer: {
-        overlay: "linear-gradient(180deg,rgba(210,225,242,.13),rgba(210,225,242,.04))",
-        blend: "screen",
-      },
+      layers: [
+        {
+          overlay: "linear-gradient(180deg,rgba(210,225,242,.13),rgba(210,225,242,.04))",
+          blend: "screen",
+        },
+      ],
     },
-    night: {
-      filter: "brightness(.6) saturate(.76)",
-      layer: {
-        overlay: "linear-gradient(180deg,rgba(52,72,118,.26),rgba(52,72,118,.12))",
-        blend: "multiply",
-      },
-    },
+    night: NIGHT_V2.dusk,
   },
-  // База снята ночью: сюда добавлять темноту больше нечего — все три
-  // положения СВЕТЛЕЕ родного.
+  // База снята ночью: утро, день и сумерки СВЕТЛЕЕ родного.
   night: {
     morning: {
       filter: "brightness(1.62) saturate(.8)",
-      layer: {
-        overlay: "linear-gradient(180deg,rgba(255,213,168,.18),rgba(210,225,242,.09) 60%)",
-        blend: "screen",
-      },
+      layers: [
+        {
+          overlay: "linear-gradient(180deg,rgba(255,213,168,.18),rgba(210,225,242,.09) 60%)",
+          blend: "screen",
+        },
+      ],
     },
     day: {
       filter: "brightness(1.55) saturate(.84)",
-      layer: {
-        overlay: "linear-gradient(180deg,rgba(210,225,242,.15),rgba(210,225,242,.05))",
-        blend: "screen",
-      },
+      layers: [
+        {
+          overlay: "linear-gradient(180deg,rgba(210,225,242,.15),rgba(210,225,242,.05))",
+          blend: "screen",
+        },
+      ],
     },
     dusk: {
       filter: "brightness(1.24) saturate(1.02)",
-      layer: {
-        overlay: "linear-gradient(180deg,rgba(214,118,74,.10),rgba(214,118,74,.03))",
-        blend: "screen",
-      },
+      layers: [
+        {
+          overlay: "linear-gradient(180deg,rgba(214,118,74,.10),rgba(214,118,74,.03))",
+          blend: "screen",
+        },
+      ],
     },
+    // Ночь у ночной базы БОЛЬШЕ НЕ IDENTITY (тикет 112, турн 34a). Правило
+    // «родное положение — кадр как снят» здесь уступило слову владельца:
+    // «комната ночью слишком тёмная, добавить мягкий свет». Кадр всё равно
+    // не тронут — свет лампы кладётся слоем поверх, как и всё остальное.
+    night: NIGHT_V2.night,
   },
   // Утренних баз нет ни одной (проверено дизайном глазами, раунд 21).
   // Строка оставлена, чтобы тип был полным, а не чтобы ею пользовались.
@@ -137,10 +201,12 @@ const TRANSITION: Record<TimeOfDay, Partial<Record<TimeOfDay, Recipe>>> = {
 
 /**
  * Рецепт перехода: из РОДНОГО времени суток базы в выбранное ручкой.
- * Совпали — идентичность, кадр показывается как снят.
+ *
+ * Рецепт для «своего» положения существует ровно один — ночь у ночной базы
+ * (тикет 112, доска 34a). Во всех остальных совпадениях кадр показывается
+ * как снят, и слоёв нет.
  */
 function todRecipe(native: TimeOfDay, target: TimeOfDay): Recipe {
-  if (native === target) return IDENTITY;
   return TRANSITION[native][target] ?? IDENTITY;
 }
 
@@ -199,7 +265,7 @@ export function gradingLayers(
   color: LightColor,
   native: TimeOfDay,
 ): GradeLayer[] {
-  return [todRecipe(native, tod).layer, LIGHT_RECIPES[color].layer].filter(
+  return [...todRecipe(native, tod).layers, LIGHT_RECIPES[color].layer].filter(
     (layer): layer is GradeLayer => layer !== null,
   );
 }

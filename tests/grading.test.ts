@@ -33,29 +33,47 @@ import { markerWeights } from "../src/components/scene/zone-marker";
 import { rooms } from "../src/config/design";
 
 describe("родные положения — чистая identity", () => {
-  it("выбранное = родное: ни фильтра, ни слоёв — у ЛЮБОЙ базы", () => {
+  it("выбранное = родное: ни фильтра, ни слоёв — кроме ночи у ночной базы", () => {
     for (const native of TIMES_OF_DAY) {
+      if (native === "night") continue; // у неё свой рецепт, см. тикет 112
       expect(gradingFilter(native, "warm", native), native).toBe("none");
       expect(gradingLayers(native, "warm", native), native).toEqual([]);
     }
   });
 
-  it("каждая из десяти комнат в СВОЁМ родном положении показана как снята", () => {
+  it("каждая НЕночная комната в СВОЁМ родном положении показана как снята", () => {
     // Тикет 107: до него «день» был identity для всех, и ночная база в
     // положении «ночь» получала ночь вторым слоем — замер давал 0.095
     // светлоты у gamer при 0.183 у самого кадра.
-    for (const room of rooms) {
+    for (const room of rooms.filter((candidate) => candidate.tod !== "night")) {
       expect(gradingFilter(room.tod, "warm", room.tod), room.id).toBe("none");
       expect(gradingLayers(room.tod, "warm", room.tod), room.id).toEqual([]);
     }
   });
 
-  it("у ночной базы все три чужих положения СВЕТЛЕЕ родного", () => {
-    // Единственная проверка, которая ловит возврат к «ночь всегда гасит».
-    for (const target of ["morning", "day", "dusk"] as const) {
+  it("у ночной базы ВСЕ четыре положения светлее кадра (тикет 112)", () => {
+    // Ловит возврат к «ночь всегда гасит». Ночь у ночной базы тоже светлее
+    // единицы: она перестала быть идентичностью — слово владельца про
+    // «слишком тёмную комнату» победило чистоту правила.
+    for (const target of TIMES_OF_DAY) {
       const filter = gradingFilter(target, "warm", "night");
       const brightness = Number(/brightness\(([\d.]+)\)/.exec(filter)?.[1] ?? "1");
       expect(brightness, `night → ${target}`).toBeGreaterThan(1);
+    }
+  });
+
+  it("ночь — ДВА слоя: синее окно сверху и тёплые лампы снизу (тикет 112)", () => {
+    for (const native of ["day", "dusk", "night"] as const) {
+      const layers = gradingLayers("night", "warm", native);
+      expect(layers, native).toHaveLength(2);
+      // Верхний — окно: синий на multiply. Нижний — лампы: тёплое пятно
+      // радиальным градиентом на screen, центр тяжести у нижнего края.
+      expect(layers[0]?.blend, native).toBe("multiply");
+      expect(layers[0]?.overlay, native).toContain("52,72,118");
+      expect(layers[1]?.blend, native).toBe("screen");
+      expect(layers[1]?.overlay, native).toContain("radial-gradient");
+      expect(layers[1]?.overlay, native).toContain("255,186,112");
+      expect(layers[1]?.overlay, native).toContain("at 50% 100%");
     }
   });
 
@@ -66,14 +84,11 @@ describe("родные положения — чистая identity", () => {
 });
 
 describe("рецепты — дословно из спецификации", () => {
-  it("дневная база в ночь: гасит и обесцвечивает, слой синий на multiply", () => {
-    expect(gradingFilter("night", "warm", "day")).toBe("brightness(.52) saturate(.7)");
-    expect(gradingLayers("night", "warm", "day")).toEqual([
-      {
-        overlay: "linear-gradient(180deg,rgba(52,72,118,.32),rgba(52,72,118,.14))",
-        blend: "multiply",
-      },
-    ]);
+  it("дневная база в ночь — числа рецепта v2 дословно", () => {
+    expect(gradingFilter("night", "warm", "day")).toBe("brightness(.6) saturate(.82)");
+    expect(gradingLayers("night", "warm", "day")[0]?.overlay).toBe(
+      "linear-gradient(180deg,rgba(52,72,118,.26),rgba(52,72,118,.10) 55%,rgba(52,72,118,.04))",
+    );
   });
 
   it("две ручки складываются: фильтры в одну строку, слои по одному на ручку", () => {
@@ -141,7 +156,7 @@ describe("пустая комната — темнота (тикет 104)", () =
     // Темнота пустоты и темнота ночи перемножались: gamer давал 0.040
     // светлоты, почти чёрный экран. Правило: комната, уже показанная
     // невключённой, второго затемнения не получает.
-    expect(sceneFilter("night", "warm", true, "day")).toBe("brightness(.52) saturate(.7)");
+    expect(sceneFilter("night", "warm", true, "day")).toBe("brightness(.6) saturate(.82)");
     expect(sceneFilter("day", "warm", true, "night")).toBe(
       gradingFilter("day", "warm", "night"),
     );
@@ -150,10 +165,11 @@ describe("пустая комната — темнота (тикет 104)", () =
   });
 
   it("вуаль пустоты кладётся ПОСЛЕДНИМ слоем — поверх грейдинга", () => {
+    // Ночь v2 несёт два слоя, свеча — третий, вуаль пустоты — четвёртая.
     const layers = sceneLayers("night", "candle", true, "day");
-    expect(layers).toHaveLength(3);
-    expect(layers[2]).toEqual(EMPTY_ROOM_VEIL);
-    expect(sceneLayers("night", "candle", false, "day")).toHaveLength(2);
+    expect(layers).toHaveLength(4);
+    expect(layers[3]).toEqual(EMPTY_ROOM_VEIL);
+    expect(sceneLayers("night", "candle", false, "day")).toHaveLength(3);
   });
 });
 

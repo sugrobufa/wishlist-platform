@@ -2609,7 +2609,7 @@
     },
     {
       "id": "study",
-      "tod": "dusk",
+      "tod": "night",
       "name": "Кабинет",
       "sex": "M",
       "accent": "#D3B064",
