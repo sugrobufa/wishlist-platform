@@ -236,6 +236,26 @@ describe("takenItemIds / takenForRoomSlug — канал «занято» без
     expect(serialized).not.toMatch(/guestName|guestEmail|mail\.test|Гость/);
   });
 
+  it("«подписаться под подарком» НЕ показывает имя другим гостям (тикет 105)", async () => {
+    // Доска Б11 рисовала «Уже дарят · Аня забрала» — имя занявшего другим
+    // гостям ещё до праздника. Владелец 08.08.2026 закрыл расхождение
+    // компромиссом: смысл берём (двое не подарят одно и то же), имя нет.
+    // Значит режим брони на канал влиять НЕ должен: подписался человек или
+    // нет — соседний гость видит один и тот же голый id.
+    const room = await createTestRoom();
+    const signed = await createWantItem(room.id);
+    const quiet = await createWantItem(room.id);
+
+    await bookItem({ ...bookingInput(signed.id, { name: "Аня" }), mode: "SIGNED" });
+    await bookItem({ ...bookingInput(quiet.id, { name: "Кирилл" }), mode: "QUIET" });
+
+    // Токенов чужого гостя у нас нет — смотрим комнату как посторонний.
+    const asOtherGuest = await takenForRoomSlug(room.shareSlug, []);
+    expect([...(asOtherGuest?.itemIds ?? [])].sort()).toEqual([signed.id, quiet.id].sort());
+    expect(asOtherGuest?.mine).toEqual([]);
+    expect(JSON.stringify(asOtherGuest)).not.toMatch(/Аня|Кирилл|SIGNED|QUIET/);
+  });
+
   it("takenForRoomSlug: itemIds + mine по токенам самого гостя; чужой слаг → null", async () => {
     const room = await createTestRoom();
     const myItem = await createWantItem(room.id);

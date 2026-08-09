@@ -215,6 +215,13 @@ export function BookingDialog({ item, ownerName, accent, onClose }: BookingDialo
               </button>
             </div>
 
+            {/* Что видят ОСТАЛЬНЫЕ гости — одинаково при обоих режимах (тикет
+                105, доска Б11, решение владельца 08.08): «уже дарят» и ни
+                слова о том, кто. Строка стоит под выбором режима, потому что
+                выбор читается как «показать имя всем» — а он не про это:
+                подпись видит только хозяйка и только после праздника. */}
+            <p className={s.guestsNote}>{t("modeGuestsNote")}</p>
+
             {error && (
               <p className={s.error} role="alert">
                 {t(BOOKING_ERROR_MESSAGE[error])}

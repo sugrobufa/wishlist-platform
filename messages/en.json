@@ -213,8 +213,8 @@
   "Booking": {
     "tagFor": "for {name}",
     "tagAction": "Gift it",
-    "taken": "taken",
-    "takenByYou": "taken by you",
+    "taken": "already being given",
+    "takenByYou": "you are giving this",
     "myBookingsLink": "My bookings · {count}",
     "dialogOverline": "Quiet booking",
     "nameLabel": "Your name",
@@ -261,7 +261,8 @@
     "poolWhoYou": "you, {a} and {rest} more",
     "errOwn": "This is your own room — you cannot gift to yourself. Guests see it exactly like this",
     "errGone": "This item is gone — reload the page",
-    "itemMore": "Details"
+    "itemMore": "Details",
+    "modeGuestsNote": "Other guests only ever see «already being given» — no name"
   },
   "MyBookings": {
     "overline": "Guest",
@@ -567,8 +568,8 @@
     "back": "Back to room",
     "crumb": "{zone} · {name}’s room",
     "promise": "{name} will only see “one item taken” — not what, not from whom",
-    "takenTitle": "This gift is already taken",
-    "takenHint": "See what else is free",
+    "takenTitle": "This gift is already being given",
+    "takenHint": "We never show who. Have a look at what is still free",
     "noteLabel": "From the owner",
     "loveCaption": "Already hers — part of the room, not a gift",
     "notFound": "No such item in this room"

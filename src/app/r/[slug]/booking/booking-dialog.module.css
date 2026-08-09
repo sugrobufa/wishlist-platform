@@ -123,6 +123,14 @@
   color: var(--color-text-faint);
 }
 
+/* «Другие гости видят только „уже дарят"» (тикет 105): тише подписей
+   режима — это не третий вариант выбора, а обещание, общее для обоих. */
+.guestsNote {
+  margin: 10px 0 0;
+  font: 400 11px/1.45 var(--font-ui);
+  color: var(--color-text-faint);
+}
+
 .error {
   margin: 14px 0 0;
   font: 400 12.5px/1.5 var(--font-ui);
