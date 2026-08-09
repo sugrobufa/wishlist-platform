@@ -29,7 +29,7 @@ import { preload } from "react-dom";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
-import { sceneMotion, type ZoneRect } from "@/config/design";
+import { sceneMotion, zoneCta, type ZoneRect } from "@/config/design";
 import { IconGallery } from "@/components/icons";
 import { isExperienceZone } from "@/server/dto/experience";
 import { useMediaQuery } from "@/components/scene/use-media-query";
@@ -127,6 +127,10 @@ export function AddItemFlow({
   // Общие поля обеих форм.
   const [title, setTitle] = useState("");
   const [zone, setZone] = useState(initialZone);
+  // Глагол кнопки по зоне (тикет 110, доска В12): «Уложить в чемодан» вместо
+  // общего «Поставить» — кнопка продолжает метафору комнаты. Зона не выбрана
+  // или глагола для неё в контракте нет — остаётся общая надпись словаря.
+  const saveLabel = zoneCta(zone) ?? t("save");
   const [note, setNote] = useState("");
   const [url, setUrl] = useState("");
   const [file, setFile] = useState<File | null>(null);
@@ -876,7 +880,7 @@ export function AddItemFlow({
             aria-describedby={canSave ? undefined : saveHintId}
             className={canSave ? `pressable ${s.lightBar}` : s.lightBar}
           >
-            {saving ? t("saving") : `${t("save")} →`}
+            {saving ? t("saving") : `${saveLabel} →`}
           </button>
           {!canSave && (
             <p id={saveHintId} className={s.saveHint}>
