@@ -28,6 +28,7 @@
   "rooms": [
     {
       "id": "cream",
+      "tod": "dusk",
       "name": "Кремовая",
       "sex": "F",
       "accent": "#E7C9A9",
@@ -355,6 +356,7 @@
     },
     {
       "id": "warm",
+      "tod": "dusk",
       "name": "Тихая роскошь",
       "sex": "F",
       "accent": "#E8B27A",
@@ -659,6 +661,7 @@
     },
     {
       "id": "lux",
+      "tod": "dusk",
       "name": "Пентхаус",
       "sex": "F",
       "accent": "#E5C989",
@@ -995,6 +998,7 @@
     },
     {
       "id": "emerald",
+      "tod": "night",
       "name": "Изумруд",
       "sex": "F",
       "accent": "#D9B978",
@@ -1315,6 +1319,7 @@
     },
     {
       "id": "bold",
+      "tod": "night",
       "name": "Дерзкая",
       "sex": "F",
       "accent": "#FF57C8",
@@ -1635,6 +1640,7 @@
     },
     {
       "id": "cottage",
+      "tod": "day",
       "name": "Загородная",
       "sex": "F",
       "accent": "#D98E6A",
@@ -1946,6 +1952,7 @@
     },
     {
       "id": "gamer",
+      "tod": "night",
       "name": "Геймер",
       "sex": "M",
       "accent": "#7FB2FF",
@@ -2285,6 +2292,7 @@
     },
     {
       "id": "sport",
+      "tod": "dusk",
       "name": "Спорт и дуб",
       "sex": "M",
       "accent": "#D9A76C",
@@ -2601,6 +2609,7 @@
     },
     {
       "id": "study",
+      "tod": "dusk",
       "name": "Кабинет",
       "sex": "M",
       "accent": "#D3B064",
@@ -2943,6 +2952,7 @@
     },
     {
       "id": "loft",
+      "tod": "night",
       "name": "Лофт",
       "sex": "M",
       "accent": "#D2703A",

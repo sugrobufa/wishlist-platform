@@ -794,11 +794,18 @@ export function LightSection({
   timeOfDay,
   lightColor,
   accent,
+  nativeTod,
 }: {
   roomImage: string;
   timeOfDay: TimeOfDay;
   lightColor: LightColor;
   accent: string;
+  /**
+   * Родное время суток базы (тикет 107). Превью обязано считать от него же,
+   * что и сама комната: иначе выбор «по картинке» показывает одно, а комната
+   * становится другой — и у ночных баз это расхождение вдвое.
+   */
+  nativeTod: TimeOfDay;
 }) {
   const t = useTranslations("Settings");
   const { busy, error, run } = useSettingsAction();
@@ -809,7 +816,7 @@ export function LightSection({
 
   const tile = (previewTod: TimeOfDay, previewColor: LightColor) => ({
     backgroundImage: `url(${roomImage})`,
-    filter: gradingFilter(previewTod, previewColor),
+    filter: gradingFilter(previewTod, previewColor, nativeTod),
   });
 
   return (

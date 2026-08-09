@@ -117,6 +117,7 @@ export default async function SettingsPage() {
             timeOfDay={asTimeOfDay(room.timeOfDay)}
             lightColor={asLightColor(room.lightColor)}
             accent={accent}
+            nativeTod={preset.tod}
           />
         )}
         <ZonesSection zones={zones} zonesOff={room.zonesOff} accent={accent} />

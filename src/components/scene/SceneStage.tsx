@@ -475,14 +475,14 @@ export function SceneStage({
       "--accent": bloomTint(lightColor, preset.accent),
       "--room-lightness": `${lightness}`,
       "--zone-bloom-weight": `${weights.bloom}`,
-      "--grade-filter": sceneFilter(timeOfDay, lightColor, empty),
+      "--grade-filter": sceneFilter(timeOfDay, lightColor, empty, preset.tod),
     } as React.CSSProperties;
-  }, [preset.accent, preset.roomLightness, timeOfDay, lightColor, empty]);
+  }, [preset.accent, preset.roomLightness, preset.tod, timeOfDay, lightColor, empty]);
 
   /** Слои грейдинга: по одному на ручку, каждый со своим блендом. */
   const grades = useMemo(
-    () => sceneLayers(timeOfDay, lightColor, empty),
-    [timeOfDay, lightColor, empty],
+    () => sceneLayers(timeOfDay, lightColor, empty, preset.tod),
+    [timeOfDay, lightColor, empty, preset.tod],
   );
 
   // Подписи под названием зоны здесь больше нет (тикет 59). Стояли две, и обе

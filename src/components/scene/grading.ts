@@ -37,39 +37,112 @@ export function asLightColor(value: unknown): LightColor {
 export type BlendMode = "screen" | "multiply" | "soft-light";
 export type GradeLayer = { overlay: string; blend: BlendMode };
 
+type Recipe = { filter: string | null; layer: GradeLayer | null };
+const IDENTITY: Recipe = { filter: null, layer: null };
+
 /**
- * Рецепты времени суток — ДОСЛОВНО из `task15.json → lightAndTime.recipes`.
- * `day` пуст: все наши базы сняты дневными, и «день» — это identity.
+ * Матрица пересчёта времени суток — ДОСЛОВНО из `task17.json →
+ * transitionTable` (раунд 21, турн 33a). Девять рецептов: по три на каждое
+ * РОДНОЕ время суток базы.
  *
- * TODO (когда в контракте появится родной `tod` комнаты): для недневной базы
- * положение её родного tod становится identity, а день — обратным рецептом
- * (`transitionTable` в спецификации). Считать это сейчас не из чего: поля
- * `tod` в `rooms.json` нет ни у одной из десяти комнат.
+ * ЗАЧЕМ ОНА. До раунда 21 мы считали все десять баз дневными и «ночь»
+ * накладывали одинаково. Дизайн пересмотрел базы глазами: дневная только
+ * `cottage`, пять сумеречных, четыре ночные. То есть ночной комнате мы
+ * добавляли ночь ВТОРОЙ раз — замер по кадрам: `gamer` при собственной
+ * светлоте 0.183 уходил в 0.095, `emerald` из 0.214 в 0.111. Именно это
+ * владелец и увидел словами «комната ночью слишком тёмная».
+ *
+ * ПРИНЦИП (его же формулировка): identity — родное положение базы;
+ * остальные три — слой поверх. Вычитания нет: недневная база к светлым
+ * положениям идёт ВСТРЕЧНЫМ слоем (`screen`), а не снятием своего.
  */
-const TOD_RECIPES: Record<TimeOfDay, { filter: string | null; layer: GradeLayer | null }> = {
-  morning: {
-    filter: "brightness(1.05) saturate(.88)",
-    layer: {
-      overlay: "linear-gradient(180deg,rgba(255,213,168,.16),rgba(255,213,168,0) 60%)",
-      blend: "screen",
+const TRANSITION: Record<TimeOfDay, Partial<Record<TimeOfDay, Recipe>>> = {
+  // База снята днём — рецепты те же, что были у нас с тикета 96.
+  day: {
+    morning: {
+      filter: "brightness(1.05) saturate(.88)",
+      layer: {
+        overlay: "linear-gradient(180deg,rgba(255,213,168,.16),rgba(255,213,168,0) 60%)",
+        blend: "screen",
+      },
+    },
+    dusk: {
+      filter: "brightness(.8) saturate(1.08)",
+      layer: {
+        overlay: "linear-gradient(180deg,rgba(214,118,74,.18),rgba(214,118,74,.04))",
+        blend: "multiply",
+      },
+    },
+    night: {
+      filter: "brightness(.52) saturate(.7)",
+      layer: {
+        overlay: "linear-gradient(180deg,rgba(52,72,118,.32),rgba(52,72,118,.14))",
+        blend: "multiply",
+      },
     },
   },
-  day: { filter: null, layer: null },
+  // База снята в сумерках: день и утро добираются встречным светлым слоем.
   dusk: {
-    filter: "brightness(.8) saturate(1.08)",
-    layer: {
-      overlay: "linear-gradient(180deg,rgba(214,118,74,.18),rgba(214,118,74,.04))",
-      blend: "multiply",
+    morning: {
+      filter: "brightness(1.34) saturate(.86)",
+      layer: {
+        overlay: "linear-gradient(180deg,rgba(255,213,168,.16),rgba(210,225,242,.08) 60%)",
+        blend: "screen",
+      },
+    },
+    day: {
+      filter: "brightness(1.3) saturate(.9)",
+      layer: {
+        overlay: "linear-gradient(180deg,rgba(210,225,242,.13),rgba(210,225,242,.04))",
+        blend: "screen",
+      },
+    },
+    night: {
+      filter: "brightness(.6) saturate(.76)",
+      layer: {
+        overlay: "linear-gradient(180deg,rgba(52,72,118,.26),rgba(52,72,118,.12))",
+        blend: "multiply",
+      },
     },
   },
+  // База снята ночью: сюда добавлять темноту больше нечего — все три
+  // положения СВЕТЛЕЕ родного.
   night: {
-    filter: "brightness(.52) saturate(.7)",
-    layer: {
-      overlay: "linear-gradient(180deg,rgba(52,72,118,.32),rgba(52,72,118,.14))",
-      blend: "multiply",
+    morning: {
+      filter: "brightness(1.62) saturate(.8)",
+      layer: {
+        overlay: "linear-gradient(180deg,rgba(255,213,168,.18),rgba(210,225,242,.09) 60%)",
+        blend: "screen",
+      },
+    },
+    day: {
+      filter: "brightness(1.55) saturate(.84)",
+      layer: {
+        overlay: "linear-gradient(180deg,rgba(210,225,242,.15),rgba(210,225,242,.05))",
+        blend: "screen",
+      },
+    },
+    dusk: {
+      filter: "brightness(1.24) saturate(1.02)",
+      layer: {
+        overlay: "linear-gradient(180deg,rgba(214,118,74,.10),rgba(214,118,74,.03))",
+        blend: "screen",
+      },
     },
   },
+  // Утренних баз нет ни одной (проверено дизайном глазами, раунд 21).
+  // Строка оставлена, чтобы тип был полным, а не чтобы ею пользовались.
+  morning: {},
 };
+
+/**
+ * Рецепт перехода: из РОДНОГО времени суток базы в выбранное ручкой.
+ * Совпали — идентичность, кадр показывается как снят.
+ */
+function todRecipe(native: TimeOfDay, target: TimeOfDay): Recipe {
+  if (native === target) return IDENTITY;
+  return TRANSITION[native][target] ?? IDENTITY;
+}
 
 /** Рецепты цвета света. `warm` = как снято = identity. */
 const LIGHT_RECIPES: Record<LightColor, { filter: string | null; layer: GradeLayer | null }> = {
@@ -110,8 +183,8 @@ export function effectiveLightness(roomLightness: number, tod: TimeOfDay): numbe
  * Фильтр на сам кадр: рецепты времени и света складываются в одну строку
  * (CSS-фильтры композируются слева направо). `none` — обе ручки родные.
  */
-export function gradingFilter(tod: TimeOfDay, color: LightColor): string {
-  const parts = [TOD_RECIPES[tod].filter, LIGHT_RECIPES[color].filter].filter(
+export function gradingFilter(tod: TimeOfDay, color: LightColor, native: TimeOfDay): string {
+  const parts = [todRecipe(native, tod).filter, LIGHT_RECIPES[color].filter].filter(
     (part): part is string => part !== null,
   );
   return parts.length === 0 ? "none" : parts.join(" ");
@@ -121,8 +194,12 @@ export function gradingFilter(tod: TimeOfDay, color: LightColor): string {
  * Слои-градиенты поверх кадра — по одному на ручку, у каждого свой бленд.
  * Пусто, когда обе ручки родные: лишнего узла в разметке не появляется.
  */
-export function gradingLayers(tod: TimeOfDay, color: LightColor): GradeLayer[] {
-  return [TOD_RECIPES[tod].layer, LIGHT_RECIPES[color].layer].filter(
+export function gradingLayers(
+  tod: TimeOfDay,
+  color: LightColor,
+  native: TimeOfDay,
+): GradeLayer[] {
+  return [todRecipe(native, tod).layer, LIGHT_RECIPES[color].layer].filter(
     (layer): layer is GradeLayer => layer !== null,
   );
 }
@@ -142,16 +219,43 @@ export const EMPTY_ROOM_VEIL: GradeLayer = {
   blend: "multiply",
 };
 
+/**
+ * Гасит ли пустая комната кадр ЕЩЁ и фильтром — или только вуалью.
+ *
+ * Темнота пустоты и темнота ночи перемножаются, и это видно числом: `gamer`
+ * при собственной светлоте 0.183 и ночном рецепте давал 0.095, а с пустотой
+ * сверху — **0.040**, то есть почти чёрный экран (замер по кадрам, 09.08).
+ *
+ * Правило, а не подобранное число: затемнение пустоты существует, чтобы
+ * сказать «свет ещё не включали». В комнате, которая УЖЕ показана
+ * невключённой — выбрана ночь либо база ночная, — это сказано кадром, и
+ * второй раз гасить нечего. Вуаль остаётся: она несёт ту же мысль, но не
+ * умножает яркость.
+ */
+function emptyDarkensFilter(tod: TimeOfDay, native: TimeOfDay): boolean {
+  return tod !== "night" && native !== "night";
+}
+
 /** Фильтр кадра с учётом пустоты комнаты: темнота копится поверх грейдинга. */
-export function sceneFilter(tod: TimeOfDay, color: LightColor, empty: boolean): string {
-  const graded = gradingFilter(tod, color);
-  if (!empty) return graded;
+export function sceneFilter(
+  tod: TimeOfDay,
+  color: LightColor,
+  empty: boolean,
+  native: TimeOfDay,
+): string {
+  const graded = gradingFilter(tod, color, native);
+  if (!empty || !emptyDarkensFilter(tod, native)) return graded;
   return graded === "none" ? EMPTY_ROOM_FILTER : `${graded} ${EMPTY_ROOM_FILTER}`;
 }
 
 /** Слои сцены: грейдинг плюс вуаль пустоты последней (она поверх всего). */
-export function sceneLayers(tod: TimeOfDay, color: LightColor, empty: boolean): GradeLayer[] {
-  const layers = gradingLayers(tod, color);
+export function sceneLayers(
+  tod: TimeOfDay,
+  color: LightColor,
+  empty: boolean,
+  native: TimeOfDay,
+): GradeLayer[] {
+  const layers = gradingLayers(tod, color, native);
   return empty ? [...layers, EMPTY_ROOM_VEIL] : layers;
 }
 
