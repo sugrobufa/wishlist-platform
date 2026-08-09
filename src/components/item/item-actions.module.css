@@ -1,0 +1,147 @@
+/* Два знака на виду и лист под «⋯» — числа турна 36b (тикет 123).
+ *
+ * Всё, что здесь стоит числом, снято с макета: цель 44, знак 19, шаг знаков 2,
+ * строка листа 52 с полями 0 20 и промежутком 13, титул 13.5/500, подстрока
+ * 11/1.4 с отступом 5. Цвета взяты токенами там, где токен совпал с числом
+ * доски: .6 — text.muted, .5 — text.faint, .82 — text.strong, #FFF9F2 —
+ * text.primary, #0F0B08 — surface.overlay.ground. */
+
+.actions {
+  position: relative;
+  display: inline-flex;
+  flex: none;
+  gap: 2px;
+}
+
+/* Цель нажатия 44 при знаке 19 — контракт rooms.json → hitTargetMin. */
+.sign {
+  display: inline-flex;
+  width: var(--hit-target-min, 44px);
+  height: var(--hit-target-min, 44px);
+  align-items: center;
+  justify-content: center;
+  border: none;
+  background: none;
+  color: var(--color-text-muted, rgba(255, 249, 242, 0.6));
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.sign:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .sign {
+    transition: color 240ms cubic-bezier(0.23, 1, 0.32, 1);
+  }
+
+  .sign:hover:not(:disabled) {
+    color: var(--color-text-primary, #fff9f2);
+  }
+}
+
+.sign:focus-visible {
+  outline: 1px dashed currentColor;
+  outline-offset: -6px;
+}
+
+/* Слой «нажали мимо». Прозрачный и без роли: это не действие, а путь наружу;
+   Escape делает то же самое с клавиатуры. Выше постоянного таб-бара (30) —
+   иначе лист открывался бы ПОД баром на телефоне. */
+.scrim {
+  position: fixed;
+  inset: 0;
+  z-index: 40;
+  border: none;
+  background: none;
+  cursor: default;
+}
+
+.sheet {
+  position: absolute;
+  top: calc(100% + 4px);
+  right: 0;
+  z-index: 41;
+  display: flex;
+  width: max-content;
+  min-width: 260px;
+  max-width: 340px;
+  flex-direction: column;
+  padding: 8px 0;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: var(--color-surface-overlay-ground, #0f0b08);
+}
+
+/* НА ТЕЛЕФОНЕ ЛИСТ — ЛИСТ, а не выпадашка у знака. Знаки стоят у правого края
+   строки зоны и у левого края плитки витрины; привязанный к ним лист в 260–340
+   px на экране 375 половину времени уезжал бы за край — в витрине карточки
+   идут по две в ряд, и первая колонка начинается в 20 px от края.
+   Поэтому на узком экране лист встаёт по центру и во всю ширину за вычетом
+   полей: он и так открыт поверх скрима, ведёт себя как лист и никуда не
+   упирается. Ширина знаков и правило «два на виду» этим не трогаются. */
+@media (max-width: 639px) {
+  .sheet {
+    position: fixed;
+    top: 50%;
+    right: 12px;
+    left: 12px;
+    width: auto;
+    min-width: 0;
+    max-width: none;
+    transform: translateY(-50%);
+  }
+}
+
+.row {
+  display: flex;
+  min-height: 52px;
+  align-items: center;
+  gap: 13px;
+  padding: 0 20px;
+  border: none;
+  background: none;
+  text-align: start;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.row:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .row:hover:not(:disabled) {
+    background: var(--color-surface-fill, rgba(255, 255, 255, 0.05));
+  }
+}
+
+.rowSign {
+  display: inline-flex;
+  flex: none;
+  color: var(--color-text-muted, rgba(255, 249, 242, 0.6));
+}
+
+.rowBody {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+}
+
+.rowTitle {
+  font: 500 13.5px/1 var(--font-ui);
+  color: var(--color-text-primary, #fff9f2);
+}
+
+/* Опасное действие — тихой строкой: тот же лист, титул на тон глуше. */
+.rowDanger {
+  color: var(--color-text-strong, rgba(255, 249, 242, 0.82));
+}
+
+.rowHint {
+  margin-top: 5px;
+  font: 400 11px/1.4 var(--font-ui);
+  color: var(--color-text-faint, rgba(255, 249, 242, 0.5));
+}

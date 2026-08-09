@@ -16,6 +16,7 @@ import Link from "next/link";
 import { useLocale, useTranslations } from "next-intl";
 import type { GuestItemDto } from "@/server/dto/guest-items";
 import { IconLock } from "@/components/icons";
+import { DesireScale } from "@/components/item/desire-scale";
 import { ShopLink } from "@/components/zone/shop-link";
 import { ExperienceStrip } from "@/components/zone/experience-strip";
 import { PoolIcon } from "@/components/pool-icons";
@@ -70,6 +71,9 @@ export function GuestItemView({
   // Сужение типа руками: `shop` есть только у формы «хочу» (guest-DTO), и
   // компилятор прав — у «люблю» такого ключа нет вовсе.
   const shop = item.state === "WANT" ? item.shop : null;
+  // Степень желания приезжает гостю тем же DTO, что и цена (тикет 125), и
+  // показывается ему ТАК ЖЕ, как хозяйке: по ней он и выбирает подарок.
+  const desire = item.state === "WANT" ? item.desire : null;
   const isTaken = taken.has(item.id);
   const isMine = mine.has(item.id);
   const sum = price(item, locale);
@@ -87,10 +91,17 @@ export function GuestItemView({
             {t("crumb", { zone: zoneLabel, name: ownerName })}
           </p>
           <h1 className="display mt-2 text-3xl lg:text-4xl">{item.title}</h1>
-          {sum && (
-            <p className="mt-2 text-2xl font-semibold" style={{ color: accent }}>
-              {sum}
-            </p>
+          {/* Цена и степень желания — вместе, как на 36d: огоньки стоят у
+              цены, потому что гость сравнивает именно эту пару. */}
+          {(sum || desire != null) && (
+            <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-2">
+              {sum && (
+                <span className="text-2xl font-semibold" style={{ color: accent }}>
+                  {sum}
+                </span>
+              )}
+              <DesireScale desire={desire} accent={accent} place="card" />
+            </div>
           )}
           {!isWant && <p className="mt-2 text-sm text-text-muted">{t("loveCaption")}</p>}
         </header>

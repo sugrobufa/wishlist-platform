@@ -29,20 +29,43 @@ const tokens = tokensJson as unknown as {
 
 describe("вкладки и маршруты", () => {
   it("маршруты вкладок — существующие, новых не появилось", () => {
-    // Правило тикета 52: не плодить маршрутов. Четыре вкладки — четыре давно
-    // живущих экрана; «Добавить» — существующая карточка добавления.
-    expect(TAB_KEYS).toEqual(["room", "connections", "hall", "settings"]);
+    // Правило тикета 52: не плодить маршрутов. Три вкладки — три давно живущих
+    // экрана; «Добавить» — существующая карточка добавления.
+    expect(TAB_KEYS).toEqual(["room", "connections", "settings"]);
     expect(TAB_HREF).toEqual({
       room: "/room",
       connections: "/connections",
-      hall: "/room/hall",
       settings: "/settings",
     });
     expect(ADD_HREF).toBe("/room/add");
   });
 
-  it("кружок «Добавить» стоит посередине, как в 25a", () => {
-    expect(TAB_SLOTS).toEqual(["room", "connections", "add", "hall", "settings"]);
+  it("места бара — четыре, «Добавить» посередине", () => {
+    expect(TAB_SLOTS).toEqual(["room", "connections", "add", "settings"]);
+  });
+
+  it("«СОКРОВИЩНИЦЫ» В БАРЕ НЕТ (тикет 119) — вход в неё знаком в углу комнаты", () => {
+    // Решение владельца 09.08.2026: два входа в одно место на одном экране —
+    // дважды нарисованная дверь. Ловим и ключ, и маршрут: вернётся любой —
+    // упадёт здесь, а не на глазах владельца.
+    expect(TAB_KEYS as readonly string[]).not.toContain("hall");
+    expect(TAB_SLOTS as readonly string[]).not.toContain("hall");
+    expect(Object.values(TAB_HREF)).not.toContain("/room/hall");
+
+    // Знак витрины в бар тоже не вернулся: места нет — рисовать нечем.
+    const slots = read("../src/components/tab-bar/tab-slots.tsx");
+    expect(slots).not.toContain("IconHall");
+  });
+
+  it("условие дизайна принято: строка-ссылка «Сокровищница» стоит в настройках", () => {
+    // Дизайн согласился убрать витрину из бара с одним условием (турн 36c):
+    // «в профиле остаётся строка-ссылка „Сокровищница“ — не вторая дверь на
+    // том же экране, а запасная лестница с другого». Уберут ссылку — уйдёт
+    // единственная дорога в витрину мимо комнаты.
+    const settings = read("../src/app/settings/settings-sections.tsx");
+    expect(settings).toMatch(/href="\/room\/hall"/u);
+    // Слово берётся из словаря самой витрины, своей строки ссылка не заводит.
+    expect(settings).toContain('tHall("toHall")');
   });
 });
 
@@ -117,9 +140,27 @@ describe("числа 25a в CSS", () => {
     expect(globalsCss).toMatch(/\.imm-rail \.imm-desktop-only \{\s*display: none;/u);
   });
 
-  it("цель нажатия вкладки — не меньше контрактных 44", () => {
+  it("цель нажатия вкладки — 48, и это не меньше контрактных 44", () => {
+    // Контракт задаёт МИНИМУМ (tokens.json → hitTargetMin), у бара своё число:
+    // владелец на приёмке 09.08 просил «раздвинуть иконки для удобного
+    // нажатия» (тикет 120). Нажимается всё место целиком, а не рисунок в нём.
     expect(tokens.layout.phoneImmersive.hitTargetMin).toBe(44);
-    expect(css).toContain("min-height: var(--hit-target-min, 44px);");
+    expect(css).toContain("--tb-slot-min: 48px;");
+    expect(css).toContain("min-height: var(--tb-slot-min, 48px);");
+    expect(48).toBeGreaterThanOrEqual(tokens.layout.phoneImmersive.hitTargetMin);
+    // Ширину места держит доля полосы: даже на 320 px при четырёх местах и
+    // отступе 6 на каждое приходится (320 − 12) / 4 = 77.
+    expect(css).toContain("flex: 1;");
+    expect((320 - 6 * 2) / TAB_SLOTS.length).toBeGreaterThanOrEqual(48);
+  });
+
+  it("мёртвых полей по краям бара нет: боковой отступ 6, а не 18 (тикет 120)", () => {
+    // «При открытии в мобильном режиме странное место внизу у таб-бара слева и
+    // справа» — владелец обвёл на снимке пустоту, которую делал отступ 18 при
+    // пяти местах. Число живёт переменной рядом с остальными числами бара.
+    expect(css).toContain("--tb-side: 6px;");
+    expect(css).toContain("padding: 13px var(--tb-side) 0;");
+    expect(css).not.toContain("padding: 13px 18px 0;");
   });
 
   it("prefers-reduced-motion сокращает переходы, а не выключает смену состояния", () => {

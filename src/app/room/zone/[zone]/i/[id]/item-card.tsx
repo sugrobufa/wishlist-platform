@@ -17,6 +17,7 @@ import { useState, useTransition, type CSSProperties } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useLocale, useTranslations } from "next-intl";
+import { DesireScale } from "@/components/item/desire-scale";
 import type { OwnerItemDto } from "@/server/dto/items";
 import type { HallPriceAudience } from "@/server/dto/hall";
 import { formatHallMoney } from "@/app/room/hall/money";
@@ -210,6 +211,17 @@ export function ItemCard({ item, lovePrice, zones, zoneLabel, accent, ink }: Ite
             {item.hidden && <span className="ml-2 text-text-faint">· {t("itemHiddenBadge")}</span>}
           </p>
           <h1 className="display mt-2 text-3xl lg:text-4xl">{item.title}</h1>
+          {/* Степень желания ПОКАЗОМ (тикет 125, турн 36d): четыре огонька и
+              слово. До этого поле только заполнялось — в шапке карточки его
+              не было видно ни хозяйке, ни гостю, и владелец это заметил.
+              Шкала здесь читает то же состояние, что и поле правки ниже: она
+              говорит, что у вещи есть, а поле — меняет. `null` («не скажу») не
+              рисуется вовсе. */}
+          {item.state === "WANT" && (
+            <div className="mt-3">
+              <DesireScale desire={desire} accent={accent} place="card" />
+            </div>
+          )}
         </header>
 
         {item.photoUrl && (

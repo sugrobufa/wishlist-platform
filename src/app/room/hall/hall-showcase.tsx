@@ -12,15 +12,29 @@
 // убирания вещей»). Раньше кнопка была одна — «Убрать с витрины», и по подписи
 // нельзя было понять, что вещь никуда не делась, а вернулась в свою зону:
 //   глазок  — прячет вещь от ГОСТЕЙ, у хозяйки она остаётся приглушённой;
-//   убрать  — вещь уезжает в свою зону, вернуть можно оттуда;
+//   вернуть — вещь уезжает в свою зону, вернуть можно оттуда;
 //   удалить — насовсем и из комнаты, поэтому с предупреждением (два шага,
 //             тот же приём, что на экране зоны).
+//
+// ЗНАКИ ВМЕСТО СТЕНЫ ТЕКСТА (тикет 123, турн 36b). Те же три действия стояли
+// строкой подписей, а под ними — ещё и поясняющий абзац на всю витрину.
+// Теперь на виду перо-заметка (главное действие витрины) и «⋯»; лист под «⋯»
+// объясняет каждое действие подстрокой, и абзац умер вместе с надобностью.
+// «Убрать из сокровищницы» переименовано в «Вернуть в комнату» — решение
+// владельца 09.08: вещь попадает на витрину и по ошибке, дорога назад обязана
+// называться дорогой назад. Механика та же, что была с тикета 89.
 import { useState, useTransition } from "react";
-import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useLocale, useTranslations } from "next-intl";
 import { deleteItemAction, toggleHallAction } from "@/app/room/zone/[zone]/actions";
-import { IconEye, IconEyeOff } from "@/components/icons";
+import {
+  IconActionDelete,
+  IconActionNote,
+  IconActionReturn,
+  IconEye,
+  IconEyeOff,
+} from "@/components/icons";
+import { ItemActions, SIGN_SIZE, type ItemActionRow } from "@/components/item/item-actions";
 import { zoneInfo } from "@/config/design";
 import type { HallItemDto } from "@/server/dto/hall";
 import { setHallHiddenAction, setHallPriceHiddenAction } from "./actions";
@@ -72,6 +86,42 @@ export function HallShowcase({ items, accent }: { items: HallItemView[]; accent:
     });
   }
 
+  /**
+   * Лист «⋯» витрины — ровно три строки (36b): Скрыть от гостей · Вернуть в
+   * комнату · Удалить. Подстроки и есть тот самый поясняющий абзац, разнесённый
+   * по своим действиям: «глазок прячет от гостей», «встанет в свою зону — в
+   * „{зона}“», «спросим ещё раз».
+   */
+  const sheetRows = (item: HallItemView): ItemActionRow[] => {
+    const hidden = item.hiddenFromObservers;
+    return [
+      {
+        key: "hide",
+        icon: hidden ? <IconEye size={SIGN_SIZE} /> : <IconEyeOff size={SIGN_SIZE} />,
+        title: hidden ? t("show") : t("hide"),
+        hint: hidden ? t("showHint") : t("hideHint"),
+        onSelect: () => run(item.id, () => setHallHiddenAction(item.id, !hidden)),
+      },
+      {
+        // Дорога назад: вещь возвращается в СВОЮ зону, и подсказка называет её
+        // по имени — «убрать» и «удалить» перестают быть похожими на слух.
+        key: "return",
+        icon: <IconActionReturn size={SIGN_SIZE} />,
+        title: t("remove"),
+        hint: t("removeHint", { zone: zoneLabel(item.zone) }),
+        onSelect: () => run(item.id, () => toggleHallAction(item.id, false)),
+      },
+      {
+        key: "delete",
+        icon: <IconActionDelete size={SIGN_SIZE} />,
+        title: t("delete"),
+        hint: t("deleteHint"),
+        danger: true,
+        onSelect: () => setConfirmingId(item.id),
+      },
+    ];
+  };
+
   return (
     <div>
       {failed && <p className="mb-3 text-sm text-text-muted">{t("errGeneric")}</p>}
@@ -103,7 +153,11 @@ export function HallShowcase({ items, accent }: { items: HallItemView[]; accent:
               )}
 
               {/* Цена и значок «кто её видит» — рядом всегда, чтобы хозяйке
-                  не приходилось лезть в настройки, чтобы вспомнить (12d). */}
+                  не приходилось лезть в настройки, чтобы вспомнить (12d).
+                  Тумблер цены живёт ЗДЕСЬ ЖЕ, а не в листе «⋯»: он про цену, а
+                  не про вещь, и по правилу 36b лист вещи держит ровно три
+                  строки действий. Рядом со значком «кто видит цену» он и
+                  читается — обе настройки об одном (инвариант №8). */}
               {item.price !== null && (
                 <div className="mt-2 flex flex-wrap items-center gap-x-2 gap-y-1.5">
                   <span className="text-[15px] font-bold" style={{ color: accent }}>
@@ -114,6 +168,16 @@ export function HallShowcase({ items, accent }: { items: HallItemView[]; accent:
                       : formatHallMoney(item.price, item.currency, locale)}
                   </span>
                   <PriceSeenBadge audience={item.priceAudience} />
+                  <button
+                    type="button"
+                    disabled={busy}
+                    onClick={() =>
+                      run(item.id, () => setHallPriceHiddenAction(item.id, !hiddenPrice))
+                    }
+                    className="pressable text-xs font-semibold text-text-muted hover:text-text-strong disabled:opacity-60"
+                  >
+                    {hiddenPrice ? t("priceShow") : t("priceHide")}
+                  </button>
                 </div>
               )}
 
@@ -160,69 +224,30 @@ export function HallShowcase({ items, accent }: { items: HallItemView[]; accent:
                   </div>
                 </div>
               ) : (
-                <div className="mt-2 flex flex-wrap items-center gap-3">
-                  {/* Дорога в карточку вещи (тикет 92): до неё заметку можно
-                      было увидеть, но негде написать — с витрины не вело
-                      ничего. Подпись зовёт написать, когда заметки нет. */}
-                  <Link
-                    href={`/room/zone/${item.zone}/i/${item.id}`}
-                    className="pressable text-xs font-semibold text-text-muted hover:text-text-strong"
-                  >
-                    {item.note ? t("edit") : t("noteAdd")}
-                  </Link>
-                  {/* Глазок — про ВЕЩЬ; «Скрыть цену» рядом — про цену.
-                      Две настройки не смешиваются (инвариант №8). */}
-                  <button
-                    type="button"
+                // Два знака на виду (36b): перо — главное действие витрины
+                // (заметка-цитата, тикет 92; она же дорога в карточку вещи) и
+                // «⋯» со всем остальным. Слов на экране нет — они в листе.
+                <div className="mt-1">
+                  <ItemActions
+                    primary={{
+                      icon: <IconActionNote size={SIGN_SIZE} />,
+                      label: item.note ? t("edit") : t("noteAdd"),
+                      href: `/room/zone/${item.zone}/i/${item.id}`,
+                    }}
+                    rows={sheetRows(item)}
+                    moreLabel={t("more")}
                     disabled={busy}
-                    aria-pressed={hidden}
-                    onClick={() => run(item.id, () => setHallHiddenAction(item.id, !hidden))}
-                    className="pressable inline-flex items-center gap-1.5 text-xs font-semibold text-text-muted hover:text-text-strong disabled:opacity-60"
-                  >
-                    {hidden ? <IconEyeOff size={14} /> : <IconEye size={14} />}
-                    {hidden ? t("show") : t("hide")}
-                  </button>
-                  {item.price !== null && (
-                    <button
-                      type="button"
-                      disabled={busy}
-                      onClick={() =>
-                        run(item.id, () => setHallPriceHiddenAction(item.id, !hiddenPrice))
-                      }
-                      className="pressable text-xs font-semibold text-text-muted hover:text-text-strong disabled:opacity-60"
-                    >
-                      {hiddenPrice ? t("priceShow") : t("priceHide")}
-                    </button>
-                  )}
-                  {/* Подсказка называет зону по имени (раунд 19): «убрать» и
-                      «удалить» перестают быть похожими на слух. */}
-                  <button
-                    type="button"
-                    disabled={busy}
-                    title={t("removeHint", { zone: zoneLabel(item.zone) })}
-                    onClick={() => run(item.id, () => toggleHallAction(item.id, false))}
-                    className="pressable text-xs font-semibold text-text-muted hover:text-text-strong disabled:opacity-60"
-                  >
-                    {t("remove")}
-                  </button>
-                  <button
-                    type="button"
-                    disabled={busy}
-                    onClick={() => setConfirmingId(item.id)}
-                    className="pressable text-xs font-semibold text-text-muted hover:text-text-strong disabled:opacity-60"
-                  >
-                    {t("delete")}
-                  </button>
+                  />
                 </div>
               )}
             </li>
           );
         })}
       </ul>
-
-      {/* Одна строка на всю витрину вместо подписи под каждой кнопкой: три
-          действия похожи на вид и расходятся по последствиям. */}
-      <p className="mt-6 max-w-xl text-xs leading-relaxed text-text-faint">{t("actionsHint")}</p>
+      {/* ПОЯСНЯЮЩЕГО АБЗАЦА ЗДЕСЬ БОЛЬШЕ НЕТ (тикет 123, 36b). Он объяснял
+          три похожих на вид действия одной строкой на всю витрину; теперь
+          каждое объясняет себя подстрокой в листе «⋯», и повторять то же
+          самое внизу экрана значило бы вернуть стену текста другим краем. */}
     </div>
   );
 }

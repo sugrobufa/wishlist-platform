@@ -187,6 +187,15 @@
   color: var(--rl-accent, #e7c9a9);
 }
 
+/* Цена и степень желания стоят вместе (турн 36b, тикет 125): огоньки читаются
+   как мера возле числа, а не как отдельный знак строки. Шаг 8 — с макета. */
+.meta {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: 8px;
+}
+
 .price {
   flex: none;
   font: 600 14px/1 var(--font-ui);

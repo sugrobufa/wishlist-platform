@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useTranslations } from "next-intl";
 import { IconShare } from "@/components/icons";
+import { useZoneIndexState } from "@/components/scene/zone-index-context";
 import { linkSecondAuthAction, markHardenAskedAction } from "./harden-actions";
 
 /** Имя провайдера человеку: «Google», а не «google». Список из env, не из URL. */
@@ -43,6 +44,20 @@ async function copyToClipboard(url: string): Promise<void> {
  * показываем короткое подтверждение: сам адрес и объяснение, зачем он.
  * Постоянно на экране адрес не нужен — он живёт в «Настройках», рядом с
  * ником, которым его и меняют.
+ *
+ * ПРИ ОТКРЫТОЙ ЗОНЕ КНОПКИ НЕТ ВОВСЕ (тикет 121, приёмка 09.08: «при
+ * наведении на вещи внизу слева прослеживается кнопка поделиться»). Значок
+ * живёт в нижней полосе, а та не часть сцены — это соседний слой раскладки
+ * тикета 24, и лежит он НАД листом вещей. Пока лист короткий (а он такой
+ * почти всегда), его верхняя кромка проходит ниже полосы, и круг «поделиться»
+ * остаётся видимым и нажимаемым прямо над листом: на снимке владельца он
+ * стоит между «Отойти» и рядом «Хочу · 2 / Люблю · 2».
+ *
+ * Снимаем С РЕНДЕРА, а не гасим прозрачностью: прозрачный элемент поверх
+ * листа остался бы кликабельным — это второй баг в том же месте, и тикет
+ * просил закрыть оба. Открытую зону приносит мост указателя зон
+ * (zone-index-context): своего состояния кнопка не заводит, и работает это
+ * ровно там, где мост есть, — на странице комнаты.
  */
 export function ShareButton({
   path,
@@ -60,6 +75,8 @@ export function ShareButton({
   harden?: { providers: string[] } | null;
 }) {
   const t = useTranslations("Room");
+  // Какая зона открыта — из моста сцены и указателя зон (тикет 34).
+  const { active: openZoneKey } = useZoneIndexState();
   const [copied, setCopied] = useState(false);
   /** Просьба открыта: шер ждёт ответа, но уйти без ответа можно всегда. */
   const [asking, setAsking] = useState(false);
@@ -103,6 +120,10 @@ export function ShareButton({
     void markHardenAskedAction();
     await share();
   }, [share]);
+
+  // Зона открыта — значка нет: ни видимого, ни прозрачного (тикет 121).
+  // Ниже всех хуков намеренно: ранний выход между ними сломал бы их порядок.
+  if (openZoneKey !== null) return null;
 
   return (
     <span className="relative inline-flex">

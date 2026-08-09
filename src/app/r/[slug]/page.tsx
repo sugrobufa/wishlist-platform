@@ -10,9 +10,14 @@ import { roomImageUrl } from "@/app/rooms/room-image";
 import { SceneStage } from "@/components/scene/SceneStage";
 import { asLightColor, asTimeOfDay } from "@/components/scene/grading";
 import { immersiveLayout } from "@/components/scene/immersive-layout";
+import {
+  CornerMark,
+  CORNER_ICON_SIZE,
+  SceneCorner,
+} from "@/components/scene/scene-corner";
 import { ZoneIndexProvider } from "@/components/scene/zone-index-context";
 import { ZoneRail } from "@/components/scene/zone-rail";
-import { IconLock } from "@/components/icons";
+import { IconList, IconLock, IconTreasury } from "@/components/icons";
 import { GuestBookingProvider } from "./booking/booking-context";
 import { FreeGifts } from "./booking/free-gifts";
 import { GuestZoneGrid } from "./booking/guest-zone-grid";
@@ -144,7 +149,11 @@ export default async function GuestRoomPage({ params }: Params) {
   //   `HallLink` из некэшируемого канала «занято» (поле `hallOpen`).
   // Хозяйка, открывшая свою же ссылку, вход видит при любом положении —
   // канал отвечает ей `hallOpen: true` (services/bookings.takenForOwner).
-  const hallHref = `/r/${room.nick ?? room.shareSlug}/hall`;
+  //
+  // С тикета 119 вход — знак-шкатулка в углу сцены, а не пилюля со словом под
+  // оглавлением; развилка трёх положений при этом не изменилась ни на строку.
+  const roomPath = `/r/${room.nick ?? room.shareSlug}`;
+  const hallHref = `${roomPath}/hall`;
 
   // Приветствие холодному гостю (тикет 38, турн 12b): три тихие строки над
   // сценой. Первое, что человек видит, — всё ещё чужая комната; приветствие
@@ -271,6 +280,32 @@ export default async function GuestRoomPage({ params }: Params) {
                   {t("noSignup", { name: ownerName })}
                 </p>
               </div>
+
+              {/* Знаки в правом верхнем углу сцены (тикеты 118, 119) — те же
+                  и на том же месте, что у хозяйки: дизайн просил «у хозяйки и
+                  гостя одинаково» (турн 36c). Пилюли со словами «Списком» и
+                  «Сокровищница», стоявшие под оглавлением зон (тикеты 77, 93),
+                  ушли. Место знаков — сетка шапки: на телефоне они выпадают из
+                  неё в самый угол, на десктопе занимают её четвёртую колонку
+                  (globals.css → .imm-corner).
+
+                  ШКАТУЛКИ МОЖЕТ НЕ БЫТЬ ВОВСЕ. Развилка та же, что была у
+                  пилюли (тикет 116, ADR-0011), и страница по-прежнему НЕ
+                  читает сессию: ALL — знак рисует сервер, ответ один на всех;
+                  NONE — знака нет; MUTUAL — ответ про конкретного зрителя, и
+                  его приносит клиентский `HallLink` из некэшируемого канала
+                  «занято». Ссылки, ведущей в 404, быть не должно. */}
+              <SceneCorner>
+                <CornerMark href={`${roomPath}/list`} label={tList("toList")}>
+                  <IconList size={CORNER_ICON_SIZE} />
+                </CornerMark>
+                {hasHall && room.hallVisibility === "ALL" && (
+                  <CornerMark href={hallHref} label={tHall("toHall")}>
+                    <IconTreasury size={CORNER_ICON_SIZE} />
+                  </CornerMark>
+                )}
+                {hasHall && room.hallVisibility === "MUTUAL" && <HallLink href={hallHref} />}
+              </SceneCorner>
             </div>
           </header>
 
@@ -286,30 +321,15 @@ export default async function GuestRoomPage({ params }: Params) {
               accent={preset.accent}
               below={
                 // Всё, что словами, — ПОД оглавлением (тикет 77, расширен
-                // тикетом 85). Прошёл зоны — получил и другой вход в них, и
-                // предложение собрать свою. В строке НАД оглавлением места
-                // тексту нет: там по центру висит подсказка «коснись зоны»,
-                // и на 430 ей остаётся по 60 px с краёв (globals.css).
+                // тикетом 85). В строке НАД оглавлением места тексту нет: там
+                // по центру висит подсказка «коснись зоны», и на 430 ей
+                // остаётся по 60 px с краёв (globals.css).
+                //
+                // «Списком» и «Сокровищница» отсюда ушли знаками в угол сцены
+                // (тикеты 118, 119) — словами здесь остались только «Мои
+                // брони» и призыв собрать свою комнату.
                 <>
                   <div className="flex min-w-0 items-center gap-4">
-                    {/* Второй вход в то же содержимое (тикет 67): гость,
-                        который пришёл выбрать подарок за минуту, смотрит
-                        вещи списком. */}
-                    <Link
-                      href={`/r/${room.nick ?? room.shareSlug}/list`}
-                      className="pressable btn-quiet"
-                    >
-                      {tList("toList")}
-                    </Link>
-                    {/* Витрина хозяйки (тикет 93, доска А5): не «что подарить»,
-                        а «кто она» — вещи, которые у неё уже есть. Кому она
-                        открыта — решает настройка комнаты (тикет 116). */}
-                    {hasHall && room.hallVisibility === "ALL" && (
-                      <Link href={hallHref} className="pressable btn-quiet">
-                        {tHall("toHall")}
-                      </Link>
-                    )}
-                    {hasHall && room.hallVisibility === "MUTUAL" && <HallLink href={hallHref} />}
                     {/* «Мои брони · N» — появляется после клиентского fetch,
                         если cookie непуст. */}
                     <MyBookingsLink />

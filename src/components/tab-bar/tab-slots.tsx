@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { IconHall, IconPeople, IconPerson, IconPlus, IconRoom } from "@/components/icons";
+import { IconPeople, IconPerson, IconPlus, IconRoom } from "@/components/icons";
 import { ADD_HREF, TAB_HREF, TAB_SLOTS, type SlotKey, type TabKey } from "./tabs";
 import s from "./tab-bar.module.css";
 
@@ -18,9 +18,10 @@ type TabSlotsProps = {
 };
 
 /**
- * Пять мест таб-бара. Прежде размеры приезжали пропами: у бара и у шторки они
- * различались на единицу (22/21 и 19/18). Шторки не стало (тикет 65) —
- * остались два числа контракта, и они живут здесь константами.
+ * Четыре места таб-бара (тикет 119 убрал пятое — «Сокровищницу»). Прежде
+ * размеры приезжали пропами: у бара и у шторки они различались на единицу
+ * (22/21 и 19/18). Шторки не стало (тикет 65) — остались два числа контракта,
+ * и они живут здесь константами.
  */
 export function TabSlots({ active, labels }: TabSlotsProps) {
   return (
@@ -61,8 +62,6 @@ function SlotIcon({ slot, active, size }: { slot: TabKey; active: boolean; size:
       return <IconRoom size={size} dot={active} />;
     case "connections":
       return <IconPeople size={size} />;
-    case "hall":
-      return <IconHall size={size} />;
     case "settings":
       return <IconPerson size={size} />;
   }

@@ -1592,4 +1592,82 @@ describe("нить-позиция под сценой (тикет 102, доск�
       expect(at * (100 - segmentPct)).toBeGreaterThanOrEqual(-0.0001);
     }
   });
+
+  // --- Тикет 122: дорожка вдвое короче и по центру --------------------------
+  //
+  // Приёмка владельца 09.08: «после появления линии боковой прокрутки комнаты
+  // она начала наслаиваться на знак поделиться». Нить оставлена (без неё
+  // телефон снова кадр без границ — тикет 102), но укорочена вдвое и уведена
+  // в середину. Проверяется КАРТА, а не движение: панель браузера не
+  // композитит, и увидеть нить в ней нельзя.
+  const threadCss = () => {
+    const css = readFileSync(
+      fileURLToPath(new URL("../src/components/scene/scene.module.css", import.meta.url)),
+      "utf8",
+    );
+    // Своя ветка нити: в файле два запроса `not all and (min-width: 1024px)`,
+    // нужен тот, что стоит после её заголовка.
+    const own = css.slice(css.indexOf("/* НИТЬ-ПОЗИЦИЯ"));
+    expect(own, "в scene.module.css не нашлась нить-позиция").not.toBe("");
+    return own.slice(own.indexOf("@media not all and (min-width: 1024px) {"));
+  };
+
+  it("дорожка — ровно половина прежней ширины и стоит по центру (тикет 122)", () => {
+    const phone = threadCss();
+    const rule = /\.thread \{([^}]*)\}/u.exec(phone)?.[1];
+    expect(rule, "не нашлось телефонное правило .thread").toBeDefined();
+    const inset = (side: "left" | "right") =>
+      new RegExp(`${side}: ([^;]+);`, "u").exec(rule as string)?.[1];
+    // Отступы равны — это и есть «по центру»; будь они разные, нить съехала бы.
+    expect(inset("left")).toBe(inset("right"));
+    expect(inset("left")).toBe("calc(25% + var(--imm-gutter, 22px) / 2)");
+
+    // Арифметика отступа: половина дорожки «от гуттера до гуттера», поставленная
+    // по центру, отступает на 25% ширины плюс половину гуттера.
+    const gutter = immersiveLayout.phone.gap;
+    const screen = PHONE.w;
+    const side = screen * 0.25 + gutter / 2;
+    const width = screen - side * 2;
+    expect(width, "дорожка перестала быть половиной прежней").toBeCloseTo(
+      (screen - gutter * 2) / 2,
+      6,
+    );
+    // Прежняя дорожка шла от гуттера до гуттера — 386 px на экране 430.
+    expect(screen - gutter * 2).toBeCloseTo(386, 6);
+    expect(width).toBeCloseTo(193, 6);
+
+    // РАДИ ЧЕГО ВСЁ: слева на той же высоте стоит значок «поделиться» — он
+    // начинается от гуттера и занимает цель нажатия. Нить теперь начинается
+    // заметно правее его правого края.
+    expect(side, "нить снова наезжает на «поделиться»").toBeGreaterThan(gutter + hitTargetMin);
+  });
+
+  it("сегмент по-прежнему считается процентами — укорочение его не касается", () => {
+    const phone = threadCss();
+    // Ширина сегмента — доля дорожки, и доля эта из геометрии кадра, а не из
+    // её пикселей: то же число до и после укорочения.
+    expect(phone).toMatch(/width: var\(--thread-seg, [\d.]+%\);/u);
+    expect(phoneThread(0).segmentPct).toBeCloseTo(
+      (scene.phone.w / scene.phone.image.w) * 100,
+      3,
+    );
+
+    // Единственное место, где ширина дорожки нужна числом, — сдвиг сегмента.
+    // JS берёт её ЗАМЕРОМ самой дорожки, а не повторяет отступы из CSS: иначе
+    // укоротить нить одним файлом было бы нельзя.
+    const pan = readFileSync(
+      fileURLToPath(new URL("../src/components/scene/use-scene-pan.ts", import.meta.url)),
+      "utf8",
+    );
+    expect(pan).toMatch(/threadRef\?\.current\?\.getBoundingClientRect\(\)\.width/u);
+    expect(pan).toMatch(/const travelPx = trackWidth \* \(1 - thread\.segmentPct \/ 100\);/u);
+    // Замер обновляется на resize — процентная дорожка меняет ширину вместе с
+    // экраном, и кэш обязан за ней успевать.
+    expect(
+      pan.match(/threadRef\?\.current\?\.getBoundingClientRect\(\)\.width/gu),
+      "замер дорожки должен быть и при включении, и на resize",
+    ).toHaveLength(2);
+    // Отступы дорожки числом в JS не повторены: второй правды о ширине нет.
+    expect(pan).not.toContain("--imm-gutter");
+  });
 });

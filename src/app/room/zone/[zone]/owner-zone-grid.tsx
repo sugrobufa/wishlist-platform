@@ -9,17 +9,30 @@
 // Плитки никуда не делись: ими живут панель зоны в сцене и гостевой вид.
 // Строки — вид ЭТОГО экрана, а не замена `ZoneGrid`.
 //
-// Меню вещи (тикеты 13 и 10) переехало в строку целиком. У «хочу»: «Уже моё» (ручной переход
-// в «люблю» — необратим, двухшаговое подтверждение), «Спрятать», «Удалить».
-// У «люблю»: «В зал славы / Убрать из зала», «Спрятать», «Удалить».
+// ДЕЙСТВИЯ ВЕЩИ — ДВА ЗНАКА, А НЕ СТЕНА ТЕКСТА (тикет 123, турн 36b). Раньше
+// под каждой вещью стояло в строку «Изменить · Уже моё · Спрятать · Удалить»:
+// пять вещей — двадцать слов действий на экране, и владелец на приёмке 09.08
+// попросил это прекратить. Теперь на виду карандаш и «⋯», остальное — в листе
+// {В сокровищницу · Спрятать · Удалить} со знаком, титулом и подстрокой.
+// Точка входа в вещь — сама строка (карандаш ведёт туда же).
+//
 // Слот заполняется только у своих вещей: у демо-призраков меню нет — они не
 // в БД. «Бирки» здесь нет и не будет — она ровно одна, «подарить» у гостя
 // (турн 22). Обратного пути LOVE → WANT в меню нет и не появится (инвариант №2).
 import { useMemo, useState, useTransition, type CSSProperties, type ReactNode } from "react";
-import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useLocale, useTranslations } from "next-intl";
-import { IconCheck } from "@/components/icons";
+import {
+  IconActionDelete,
+  IconActionEdit,
+  IconActionReturn,
+  IconActionTreasury,
+  IconCheck,
+  IconEye,
+  IconEyeOff,
+} from "@/components/icons";
+import { DesireScale } from "@/components/item/desire-scale";
+import { ItemActions, SIGN_SIZE, type ItemActionRow } from "@/components/item/item-actions";
 import { PoolIcon } from "@/components/pool-icons";
 import { tileAppearance } from "@/components/zone/tile-appearance";
 import rl from "@/components/room-list/room-list.module.css";
@@ -30,6 +43,7 @@ import {
   setItemHiddenAction,
   setItemsHiddenAction,
   toggleHallAction,
+  type ItemActionResult,
 } from "./actions";
 
 /** Owner-DTO несёт inHall у «люблю»; общий контракт сетки его не знает. */
@@ -72,6 +86,21 @@ function formatPrice(item: ZoneGridItem, locale: string): string | null {
 
 /** Чипы порядка из турна 29b. `hidden` — не порядок, а фильтр, чип общий. */
 type Sort = "date" | "price" | "hidden";
+
+/**
+ * «В сокровищницу» у вещи «хочу» — двумя сервисами подряд, потому что в этой
+ * модели дорога туда идёт через «уже моё»: сперва переход WANT → LOVE
+ * (`selfFulfill`, необратим — инвариант №2, оттого и вопрос перед ним), потом
+ * витрина (`toggleHall`). Своего сервиса не заводим: оба уже есть и оба
+ * снимают что положено (бронь — первый, `hiddenFromHall` — второй). Подпись
+ * листа обещает сокровищницу, и вещь обязана оказаться именно там, а не
+ * остаться «люблю» посреди зоны.
+ */
+async function sendToTreasury(itemId: string): Promise<ItemActionResult> {
+  const flipped = await selfFulfillAction(itemId);
+  if (flipped?.error) return flipped;
+  return toggleHallAction(itemId, true);
+}
 
 export function OwnerZoneGrid({ items, accent, zoneKey, pool }: OwnerZoneGridProps) {
   const t = useTranslations("Settings");
@@ -162,96 +191,100 @@ export function OwnerZoneGrid({ items, accent, zoneKey, pool }: OwnerZoneGridPro
     });
   }
 
-  const renderItemAction = (item: ZoneGridItem): ReactNode => {
-    if (item.isDemo) return null;
-    const busy = busyId === item.id;
+  /**
+   * Лист «⋯» комнаты — ровно три строки (36b): В сокровищницу · Спрятать ·
+   * Удалить. Первая строка — переключатель: вещь уже на витрине, значит её
+   * оттуда возвращают. Опасное действие стоит последним и тихой строкой,
+   * подтверждение спрашивается здесь же, под строкой вещи.
+   */
+  const sheetRows = (item: ZoneGridItem): ItemActionRow[] => {
     // Каст честный: сюда приходят те же объекты, что в items (OwnerGridItem).
     const inHall = (item as OwnerGridItem).inHall === true;
 
-    if (confirming?.id === item.id) {
-      const isDelete = confirming.kind === "delete";
-      return (
-        <div className="mt-1 flex flex-wrap items-center gap-3 text-xs">
-          <span className="text-text-muted">
-            {isDelete ? t("itemDeleteConfirm") : t("itemAlreadyMineConfirm")}
-          </span>
-          <button
-            type="button"
-            disabled={busy}
-            onClick={() =>
-              run(item.id, () =>
-                isDelete ? deleteItemAction(item.id) : selfFulfillAction(item.id),
-              )
-            }
-            className="pressable font-semibold text-text-strong disabled:opacity-60"
-          >
-            {isDelete ? t("itemDeleteYes") : t("itemAlreadyMineYes")}
-          </button>
-          <button
-            type="button"
-            disabled={busy}
-            onClick={() => setConfirming(null)}
-            className="pressable font-semibold text-text-muted disabled:opacity-60"
-          >
-            {t("itemDeleteNo")}
-          </button>
-        </div>
-      );
-    }
+    const treasury: ItemActionRow = inHall
+      ? {
+          key: "treasury",
+          icon: <IconActionReturn size={SIGN_SIZE} />,
+          title: t("itemHallRemove"),
+          hint: t("itemHallRemoveHint"),
+          onSelect: () => run(item.id, () => toggleHallAction(item.id, false)),
+        }
+      : {
+          key: "treasury",
+          icon: <IconActionTreasury size={SIGN_SIZE} />,
+          title: t("itemHallAdd"),
+          hint: t("itemHallAddHint"),
+          onSelect: () =>
+            item.state === "WANT"
+              ? // «Хочу» переезжает через «уже моё», а это необратимо
+                // (инвариант №2) — спрашиваем до, а не после.
+                setConfirming({ id: item.id, kind: "own" })
+              : run(item.id, () => toggleHallAction(item.id, true)),
+        };
 
+    return [
+      treasury,
+      {
+        key: "hide",
+        icon: item.hidden ? <IconEye size={SIGN_SIZE} /> : <IconEyeOff size={SIGN_SIZE} />,
+        title: item.hidden ? t("itemShow") : t("itemHide"),
+        hint: item.hidden ? t("itemShowHint") : t("itemHideHint"),
+        onSelect: () => run(item.id, () => setItemHiddenAction(item.id, !item.hidden)),
+      },
+      {
+        key: "delete",
+        icon: <IconActionDelete size={SIGN_SIZE} />,
+        title: t("itemDelete"),
+        hint: t("itemDeleteHint"),
+        danger: true,
+        onSelect: () => setConfirming({ id: item.id, kind: "delete" }),
+      },
+    ];
+  };
+
+  /** Два знака на виду: карандаш (он же дорога в карточку) и «⋯». */
+  const renderItemAction = (item: ZoneGridItem): ReactNode => {
+    if (item.isDemo) return null;
+    return (
+      <ItemActions
+        primary={{
+          icon: <IconActionEdit size={SIGN_SIZE} />,
+          label: t("itemEdit"),
+          href: `/room/zone/${zoneKey}/i/${item.id}`,
+        }}
+        rows={sheetRows(item)}
+        moreLabel={t("itemMore")}
+        disabled={busyId === item.id}
+      />
+    );
+  };
+
+  /** Двухшаговое согласие: удаление и переезд «хочу» на витрину. */
+  const renderConfirm = (item: ZoneGridItem, kind: Confirming["kind"]): ReactNode => {
+    const busy = busyId === item.id;
+    const isDelete = kind === "delete";
     return (
       <div className="mt-1 flex flex-wrap items-center gap-3 text-xs">
-        {item.hidden && (
-          <span className="overline text-text-faint">{t("itemHiddenBadge")}</span>
-        )}
-        {/* Карточка вещи (тикет 39): правка полей, перенос на другую полку,
-            история «люблю». Отсюда же и только у своих вещей. */}
-        <Link
-          href={`/room/zone/${zoneKey}/i/${item.id}`}
-          className="pressable font-semibold text-text-muted hover:text-text-strong"
-        >
-          {t("itemEdit")}
-        </Link>
-        {/* «Хочу»: ручной переход «уже моё» (тикет 10) — с подтверждением,
-            потому что обратно в «хочу» пути не существует. */}
-        {item.state === "WANT" && (
-          <button
-            type="button"
-            disabled={busy}
-            onClick={() => setConfirming({ id: item.id, kind: "own" })}
-            className="pressable font-semibold disabled:opacity-60"
-            style={{ color: accent }}
-          >
-            {t("itemAlreadyMine")}
-          </button>
-        )}
-        {/* «Люблю»: витрина зала славы туда и обратно (тикет 10). */}
-        {item.state === "LOVE" && (
-          <button
-            type="button"
-            disabled={busy}
-            onClick={() => run(item.id, () => toggleHallAction(item.id, !inHall))}
-            className="pressable font-semibold disabled:opacity-60"
-            style={{ color: accent }}
-          >
-            {inHall ? t("itemHallRemove") : t("itemHallAdd")}
-          </button>
-        )}
+        <span className="text-text-muted">
+          {isDelete ? t("itemDeleteConfirm") : t("itemAlreadyMineConfirm")}
+        </span>
         <button
           type="button"
           disabled={busy}
-          onClick={() => run(item.id, () => setItemHiddenAction(item.id, !item.hidden))}
-          className="pressable font-semibold text-text-muted hover:text-text-strong disabled:opacity-60"
+          onClick={() =>
+            run(item.id, () => (isDelete ? deleteItemAction(item.id) : sendToTreasury(item.id)))
+          }
+          className="pressable font-semibold text-text-strong disabled:opacity-60"
         >
-          {item.hidden ? t("itemShow") : t("itemHide")}
+          {isDelete ? t("itemDeleteYes") : t("itemAlreadyMineYes")}
         </button>
         <button
           type="button"
           disabled={busy}
-          onClick={() => setConfirming({ id: item.id, kind: "delete" })}
-          className="pressable font-semibold text-text-muted hover:text-text-strong disabled:opacity-60"
+          onClick={() => setConfirming(null)}
+          className="pressable font-semibold text-text-muted disabled:opacity-60"
         >
-          {t("itemDelete")}
+          {t("itemDeleteNo")}
         </button>
       </div>
     );
@@ -345,10 +378,22 @@ export function OwnerZoneGrid({ items, accent, zoneKey, pool }: OwnerZoneGridPro
                 <span className={item.state === "WANT" ? `${rl.chip} ${rl.chipWant}` : rl.chip}>
                   {item.state === "WANT" ? tg("tabWant") : tg("loveCaption")}
                 </span>
-                {/* Меню вещи — под строкой, чтобы не спорить с ценой справа. */}
-                {!picking && renderItemAction(item)}
+                {item.hidden && (
+                  <span className="overline text-text-faint">{t("itemHiddenBadge")}</span>
+                )}
+                {/* Вопрос — под строкой: он длиннее знаков и им не место
+                    справа, где стоят цена и два знака. */}
+                {!picking && confirming?.id === item.id && renderConfirm(item, confirming.kind)}
               </div>
-              {price && <span className={rl.price}>{price}</span>}
+              {/* Цена и степень желания — одним блоком (36b): огоньки стоят
+                  ВОЗЛЕ цены, а не сами по себе. В строке зоны они без слова. */}
+              {(price || item.desire != null) && (
+                <span className={rl.meta}>
+                  {price && <span className={rl.price}>{price}</span>}
+                  <DesireScale desire={item.desire} accent={accent} place="row" />
+                </span>
+              )}
+              {!picking && renderItemAction(item)}
             </li>
           );
         })}

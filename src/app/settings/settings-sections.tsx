@@ -5,6 +5,7 @@
 // после успеха дотягивает свежие данные router.refresh() (страница
 // force-dynamic — сервер отдаёт правду, клиент ничего не выдумывает).
 import { useRef, useState, useTransition, type ReactNode } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { IconCheck } from "@/components/icons";
@@ -749,6 +750,12 @@ function RadioRow({
  *
  * Тумблер «Кто подарил» управляет ПОКАЗОМ имени в зале, а не повторным
  * раскрытием: имена раскрываются ровно один раз (инвариант №2).
+ *
+ * ПЕРВОЙ СТРОКОЙ — САМА ВИТРИНА (тикет 119). Это условие, с которым дизайн
+ * согласился убрать «Сокровищницу» из таб-бара: «не вторая дверь на том же
+ * экране, а запасная лестница с другого» (турн 36c). Основной вход — знак в
+ * углу комнаты; отсюда человек попадает туда, где только что менял её
+ * настройки, не возвращаясь в комнату за знаком.
  */
 export function HallSection({
   settings,
@@ -758,11 +765,22 @@ export function HallSection({
   accent: string;
 }) {
   const t = useTranslations("Settings");
+  // Слово берётся из словаря самой витрины — своей строки ссылка не заводит.
+  const tHall = useTranslations("Hall");
   const { busy, error, saved, run } = useSettingsAction();
   const [draft, setDraft] = useState<HallSettingsView>(settings);
 
   return (
     <Section overline={t("hallOverline")}>
+      {/* Запасная лестница в витрину (тикет 119, условие дизайна). */}
+      <Link
+        href="/room/hall"
+        className="pressable self-start text-sm font-semibold"
+        style={{ color: accent }}
+      >
+        {tHall("toHall")} →
+      </Link>
+
       {/* Кто вообще входит в витрину (тикет 116) — над настройками цены. */}
       <p className="text-sm text-text-muted">{t("hallWhoLabel")}</p>
       <div role="radiogroup" aria-label={t("hallWhoLabel")} className="flex flex-col">

@@ -1,0 +1,59 @@
+/* Четыре огонька степени желания — числа турна 36d (тикет 125).
+ *
+ * Два размера, и они не «примерно»: 6 px с шагом 5 в карточке вещи (там шкала
+ * стоит у цены и со словом) и 5 px с шагом 4 в строке зоны (там слова нет и
+ * места тоже). Пустой огонёк — .2, заполненный горит акцентом комнаты; акцент
+ * приходит инлайном, потому что цвет комнаты — данные, а не стиль. */
+
+.scale {
+  display: inline-flex;
+  align-items: center;
+}
+
+.card {
+  gap: 9px;
+}
+
+.row {
+  gap: 0;
+}
+
+.flames {
+  display: inline-flex;
+  align-items: center;
+}
+
+.card .flames {
+  gap: 5px;
+}
+
+.row .flames {
+  gap: 4px;
+}
+
+.flame {
+  display: block;
+  border-radius: 50%;
+  background: rgba(255, 249, 242, 0.2);
+}
+
+.card .flame {
+  width: 6px;
+  height: 6px;
+}
+
+.row .flame {
+  width: 5px;
+  height: 5px;
+}
+
+/* Заливка и ореол «мечтаю» приезжают инлайном — здесь только форма. */
+.flameOn {
+  background: none;
+}
+
+.word {
+  font: 400 12px/1 var(--font-ui);
+  color: rgba(255, 249, 242, 0.55);
+  white-space: nowrap;
+}

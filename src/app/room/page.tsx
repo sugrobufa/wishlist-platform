@@ -21,8 +21,14 @@ import { roomImageUrl } from "@/app/rooms/room-image";
 import { SceneStage } from "@/components/scene/SceneStage";
 import { asLightColor, asTimeOfDay, NATIVE_TIME_OF_DAY } from "@/components/scene/grading";
 import { immersiveLayout } from "@/components/scene/immersive-layout";
+import {
+  CornerMark,
+  CORNER_ICON_SIZE,
+  SceneCorner,
+} from "@/components/scene/scene-corner";
 import { ZoneIndexProvider } from "@/components/scene/zone-index-context";
 import { ZoneRail } from "@/components/scene/zone-rail";
+import { IconList, IconTreasury } from "@/components/icons";
 import { TabBar } from "@/components/tab-bar/tab-bar";
 import { visibleZones } from "@/components/scene/zones";
 import { SHEET_TILES, ZoneGrid } from "@/components/zone/ZoneGrid";
@@ -62,6 +68,10 @@ export default async function RoomPage() {
 
   const t = await getTranslations("Room");
   const tList = await getTranslations("RoomList");
+  // Слово «Сокровищница» для знака в углу берётся из её собственного словаря
+  // (тикет 119): своей строки вход не заводит — она бы разошлась с названием
+  // раздела при следующем переименовании.
+  const tHall = await getTranslations("Hall");
   // Подписи времени суток — те же, что у ручки в настройках (тикет 96).
   const tSettings = await getTranslations("Settings");
   const preset = rooms.find((candidate) => candidate.id === room.preset);
@@ -210,9 +220,14 @@ export default async function RoomPage() {
             </div>
 
             {/* Служебные ссылки (тикеты 10, 11, 13) — тихим тоном, в углу
-                полосы. ТОЛЬКО НА ДЕСКТОПЕ (тикет 65): на телефоне те же три
-                пункта стоят в постоянном баре внизу, и владелец на приёмке
-                попросил убрать слова с кадра. */}
+                полосы. ТОЛЬКО НА ДЕСКТОПЕ (тикет 65): на телефоне те же
+                пункты стоят в постоянном баре внизу, и владелец на приёмке
+                попросил убрать слова с кадра.
+
+                «Сокровищницы» здесь больше нет (тикет 119): рядом, в том же
+                углу той же полосы, стоит знак-шкатулка — а два входа в одно
+                место на одном экране это и есть дважды нарисованная дверь.
+                На телефоне её нет и в баре, дорога одна — знак. */}
             <nav className="imm-area-actions imm-desktop-only">
               <Link
                 href="/connections"
@@ -221,18 +236,35 @@ export default async function RoomPage() {
                 {t("connectionsLink")}
               </Link>
               <Link
-                href="/room/hall"
-                className="pressable text-xs font-semibold text-text-muted hover:text-text-strong"
-              >
-                {t("hallLink")}
-              </Link>
-              <Link
                 href="/settings"
                 className="pressable text-xs font-semibold text-text-muted hover:text-text-strong"
               >
                 {t("settingsLink")}
               </Link>
             </nav>
+
+            {/* Знаки в правом верхнем углу сцены (тикеты 118, 119): «Списком»
+                и «Сокровищница». Прежде оба стояли пилюлями СО СЛОВОМ под
+                оглавлением зон; владелец на приёмке 09.08 попросил знаки и
+                угол, дизайн прислал их турном 36c. У гостя ровно то же место
+                и тот же вид — разница только в том, что там шкатулки может не
+                быть вовсе (закрытая витрина, ADR-0011).
+
+                СТОЯТ В ШАПКЕ, А НЕ ОТДЕЛЬНЫМ СЛОЕМ: на телефоне они выпадают
+                из её сетки в самый угол (absolute 12/14 по доске — там
+                пусто), а на десктопе занимают её четвёртую колонку и встают в
+                один ряд со служебными ссылками. Слоем поверх на широком
+                экране они легли бы прямо на этот ряд: он идёт от того же
+                правого края и на той же высоте. Числа и обе ветки —
+                globals.css → .imm-corner. */}
+            <SceneCorner>
+              <CornerMark href="/room/list" label={tList("toList")}>
+                <IconList size={CORNER_ICON_SIZE} />
+              </CornerMark>
+              <CornerMark href="/room/hall" label={tHall("toHall")}>
+                <IconTreasury size={CORNER_ICON_SIZE} />
+              </CornerMark>
+            </SceneCorner>
           </div>
         </header>
 
@@ -244,15 +276,9 @@ export default async function RoomPage() {
             summaries={zones?.summaries}
             viewer="owner"
             accent={accent}
-            below={
-              // Второй вход в то же содержимое (тикет 67) — ПОД оглавлением,
-              // как у гостя (тикет 77): прошёл зоны — вот другой способ их
-              // посмотреть. Слот стоит вне прокрутки списка, поэтому ссылка
-              // видна без листания.
-              <Link href="/room/list" className="pressable btn-quiet">
-                {tList("toList")}
-              </Link>
-            }
+            // Слота `below` у хозяйки больше нет: пилюля «Списком» стояла тут
+            // с тикета 67 и ушла знаком в угол сцены (тикет 118). Второй вход
+            // в то же содержимое остался — он просто перестал быть словом.
           >
             {/* Вход в добавление вещи (полировка 16). «Полоса света» — главная
                 кнопка везде (турн 22), здесь тихого размера. ТОЛЬКО НА
