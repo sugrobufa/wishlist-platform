@@ -239,8 +239,12 @@ test("полный цикл дарения: хозяйка → гость → с
     await expect(hostessPage.getByLabel("Куда в комнате")).toHaveValue("music");
     await hostessPage.getByRole("button", { name: /Поставить в комнату/ }).click();
     await hostessPage.waitForURL(/\/room\/zone\/music/);
-    await expect(hostessPage.getByRole("tab", { name: /Люблю · 1/ })).toBeVisible();
+    // Вкладок «Люблю · N» на экране зоны больше нет: тикет 88 переложил зону
+    // строками по турну 29b — счётчик в шапке и чипы порядка. Проверяем то,
+    // что экран действительно обещает: вещь на месте и она одна.
+    await expect(hostessPage.getByRole("heading", { name: "Музыка" })).toBeVisible();
     await expect(hostessPage.getByText(LOVE_TITLE)).toBeVisible();
+    await expect(hostessPage.getByText("1 вещь").first()).toBeVisible();
   });
 
   await test.step("вещь «хочу» по ссылке фикстурного магазина: предзаполнение и цена", async () => {
@@ -262,7 +266,7 @@ test("полный цикл дарения: хозяйка → гость → с
 
     await hostessPage.getByRole("button", { name: /Поставить в комнату/ }).click();
     await hostessPage.waitForURL(/\/room\/zone\/music/);
-    await hostessPage.getByRole("tab", { name: /Хочу · 1/ }).click();
+    // Вкладок нет с тикета 88 — зона показывает все вещи строками сразу.
     await expect(hostessPage.getByText(WANT_TITLE)).toBeVisible();
     await expect(hostessPage.getByText(/74\s?990/)).toBeVisible();
   });
@@ -411,10 +415,11 @@ test("полный цикл дарения: хозяйка → гость → с
       timeout: 20_000,
     });
     await hostessPage.getByRole("button", { name: "Дошло" }).click();
-    await expect(hostessPage.getByText(`${GUEST_NAME} · уже в зале славы`)).toBeVisible({
+    await expect(hostessPage.getByText(`${GUEST_NAME} · уже в сокровищнице`)).toBeVisible({
       timeout: 20_000,
     });
-    await expect(hostessPage.getByRole("link", { name: /Появилась связь/ })).toBeVisible();
+    // Раздел «Связи» переименован в «Друзья» решением владельца (тикет 62).
+    await expect(hostessPage.getByRole("link", { name: /Появился друг/ })).toBeVisible();
   });
 
   await test.step("зал славы: вещь на подиуме с подписью дарителя", async () => {
@@ -428,7 +433,7 @@ test("полный цикл дарения: хозяйка → гость → с
     await hostessPage.goto("/connections");
     const row = hostessPage.locator("li", { hasText: "Гость без имени" });
     await expect(row).toContainText("Я слежу"); // FOLLOW: комната гостя не заведена
-    await expect(row).toContainText("она в зале славы"); // происхождение из подарка
+    await expect(row).toContainText("она в сокровищнице"); // происхождение из подарка
   });
 
   await test.step("письмо occasion-owner хозяйке лежит в E2E_MAIL_FILE", async () => {
