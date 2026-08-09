@@ -832,8 +832,28 @@ export function LightSection({
             disabled={busy}
             aria-pressed={tod === option}
             onClick={() => {
+              // НОЧЬ ПО УМОЛЧАНИЮ ТЁПЛАЯ (решение владельца 09.08.2026):
+              // «пользователь довольно часто всё делает вечером или ночью»,
+              // а ночь у нас — затемнение плюс СИНИЙ слой, и комната читалась
+              // холодной. Свеча даёт то самое «мягкий свет».
+              //
+              // Двигаем саму ручку, а не подменяем цвет на чтении: колонки
+              // не нулевые, «не трогал» от «выбрал тёплый» в базе не
+              // отличить, — а подмена показывала бы в настройках «тёплый»
+              // при свече в комнате. Так человек видит, что произошло, и
+              // может вернуть обратно одним нажатием.
+              //
+              // Только с тёплого: осознанный «белый» не трогаем.
+              const warmToCandle = option === "night" && color === "warm";
               setTod(option);
-              run(() => setLightSettingsAction({ timeOfDay: option }));
+              if (warmToCandle) setColor("candle");
+              run(() =>
+                setLightSettingsAction(
+                  warmToCandle
+                    ? { timeOfDay: option, lightColor: "candle" }
+                    : { timeOfDay: option },
+                ),
+              );
             }}
             className="pressable flex flex-col gap-1.5 disabled:opacity-60"
           >
