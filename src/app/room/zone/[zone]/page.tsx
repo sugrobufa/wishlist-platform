@@ -8,9 +8,10 @@ import { listZoneItems } from "@/server/services/items";
 import { itemForOwner } from "@/server/dto/items";
 import { ownerSummaryItem, zoneSummaryForOwner } from "@/server/dto/zone-summary";
 import { MONEY_ZONE_KEY, rooms, zoneInfo } from "@/config/design";
-import { visibleZones } from "@/components/scene/zones";
+import { visibleZones, zonePosition } from "@/components/scene/zones";
 import { zoneDisplayItems } from "@/components/zone/zone-display-items";
 import { MoneyGoalCard } from "@/components/zone/money-goal-card";
+import { EmptyZone } from "@/components/zone/empty-zone";
 import { OwnerZoneGrid } from "./owner-zone-grid";
 
 export const dynamic = "force-dynamic";
@@ -50,6 +51,10 @@ export default async function ZoneListPage({ params }: Params) {
 
   const zone = visibleZones(preset.zones, room.zonesOff).find((z) => z.key === zoneKey);
   if (!zone) notFound();
+
+  // «полка 02 из 13» — место зоны среди видимых (тикет 99); zone найдена в
+  // том же списке, поэтому null здесь невозможен.
+  const position = zonePosition(preset.zones, room.zonesOff, zone.key) ?? undefined;
 
   const t = await getTranslations("ZoneGrid");
   const info = zoneInfo(zone.key);
@@ -94,25 +99,40 @@ export default async function ZoneListPage({ params }: Params) {
             В зоне «Просто деньги» без своих вещей сетки нет вовсе: пула
             демо-вещей у неё не будет, а пустые вкладки под карточкой копилки
             — шум (тикет 44). */}
-        {(zone.key !== MONEY_ZONE_KEY || items.length > 0) && (
-          <OwnerZoneGrid
-            items={items}
-            accent={preset.accent}
-            ink={preset.ink}
+        {items.length === 0 && zone.key !== MONEY_ZONE_KEY ? (
+          // Пустая зона (тикет 99, доска Б27): три места вместо сетки на
+          // двадцать пустых клеток и выход из полки прямо отсюда. Копилка
+          // сюда не попадает: у зоны «Просто деньги» пустота — это карточка
+          // цели выше, а не полка без вещей.
+          <EmptyZone
             zoneKey={zone.key}
-            pool={zone.pool}
+            accent={preset.accent}
+            position={position}
+            removable
           />
-        )}
+        ) : (
+          <>
+            {(zone.key !== MONEY_ZONE_KEY || items.length > 0) && (
+              <OwnerZoneGrid
+                items={items}
+                accent={preset.accent}
+                ink={preset.ink}
+                zoneKey={zone.key}
+                pool={zone.pool}
+              />
+            )}
 
-        {/* Добавить вещь прямо в эту зону (полировка 16): ?zone=…
-            предвыбирает её в карточке добавления (контракт тикета 04). */}
-        <Link
-          href={`/room/add?zone=${zone.key}`}
-          className="pressable mt-6 inline-block text-xs font-semibold"
-          style={{ color: preset.accent }}
-        >
-          + {t("addItem")}
-        </Link>
+            {/* Добавить вещь прямо в эту зону (полировка 16): ?zone=…
+                предвыбирает её в карточке добавления (контракт тикета 04). */}
+            <Link
+              href={`/room/add?zone=${zone.key}`}
+              className="pressable mt-6 inline-block text-xs font-semibold"
+              style={{ color: preset.accent }}
+            >
+              + {t("addItem")}
+            </Link>
+          </>
+        )}
       </div>
     </main>
   );

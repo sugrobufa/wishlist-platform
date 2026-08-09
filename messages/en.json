@@ -585,5 +585,15 @@
     "rowPlain": "A gift for this celebration",
     "nameFallback": "Guest without a name",
     "errGeneric": "Something went wrong — try again"
+  },
+  "EmptyZone": {
+    "position": "shelf {index} of {total} · still empty",
+    "title": "The shelf is waiting for its first thing",
+    "body": "An empty shelf does not disappear — it waits. The first thing lights it up, and guests see the glow from the room view",
+    "cta": "Put the first one here",
+    "compactBody": "The shelf is here, there is nothing on it yet. The first thing lights it up",
+    "removeTitle": "Take this shelf out of the room",
+    "removeSub": "If this shelf is not for you. The things stay, and the shelf can come back from settings",
+    "errGeneric": "Something went wrong — try again"
   }
 }

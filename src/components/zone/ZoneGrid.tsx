@@ -11,6 +11,7 @@ import { useId, useState, type CSSProperties, type ReactNode } from "react";
 import { useTranslations } from "next-intl";
 import { sceneMotion } from "@/config/design";
 import { ItemTile } from "./ItemTile";
+import { EmptyZone } from "./empty-zone";
 import type { ZoneGridItem } from "./types";
 import s from "./zone-grid.module.css";
 
@@ -64,6 +65,12 @@ export type ZoneGridProps = {
    * поэтому приходит пропом сетки, а не полем DTO.
    */
   pool?: string | null;
+  /**
+   * Ключ зоны — нужен пустой зоне (тикет 99): три места вместо сетки ведут
+   * в добавление именно сюда. Без ключа пустая зона остаётся строкой текста,
+   * как была: гостевая панель судьбу чужой полки не решает.
+   */
+  zoneKey?: string;
 };
 
 type Tab = "LOVE" | "WANT";
@@ -76,6 +83,7 @@ export function ZoneGrid({
   className,
   renderItemAction,
   pool,
+  zoneKey,
 }: ZoneGridProps) {
   const t = useTranslations("ZoneGrid");
   const baseId = useId();
@@ -157,7 +165,12 @@ export function ZoneGrid({
         role="tabpanel"
         aria-labelledby={`${baseId}-tab-${tab}`}
       >
-        {shown.length === 0 ? (
+        {shown.length === 0 && items.length === 0 && zoneKey ? (
+          // ВСЯ зона пуста — три места (тикет 99). Пустая вкладка при
+          // непустой зоне остаётся строкой: это пустая вкладка, а не полка,
+          // которая ждёт первую вещь.
+          <EmptyZone zoneKey={zoneKey} accent={accent} compact />
+        ) : shown.length === 0 ? (
           <p className={s.empty}>{tab === "LOVE" ? t("emptyLove") : t("emptyWant")}</p>
         ) : (
           <ul className={s.grid}>

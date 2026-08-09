@@ -7,7 +7,7 @@
 // в коды для клиента.
 import { ZodError } from "zod";
 import { auth } from "@/server/auth";
-import { getSessionUserId } from "@/server/services/rooms";
+import { RoomSettingsError, getSessionUserId, setZoneOff } from "@/server/services/rooms";
 import {
   ItemMutationError,
   deleteItem,
@@ -132,6 +132,27 @@ export async function toggleHallAction(itemId: string, on: boolean): Promise<Ite
     await toggleHall(userId, String(itemId), Boolean(on));
   } catch (error) {
     if (error instanceof ItemMutationError) return { error: error.code };
+    if (error instanceof ZodError) return { error: "GENERIC" };
+    throw error;
+  }
+  return undefined;
+}
+
+/**
+ * «Убрать полку из комнаты» прямо из пустой зоны (тикет 99, доска Б27).
+ * Тот же сервис, что у переключателя в настройках, — значит и правило то же:
+ * зона исчезает с мебелью (инвариант №5), а ВЕЩИ остаются и вернутся вместе
+ * с ней. Действие обратимо: включить обратно можно в настройках.
+ */
+export async function setZoneOffAction(zoneKey: string, off: boolean): Promise<ItemActionResult> {
+  const session = await auth();
+  const userId = await getSessionUserId(session?.user);
+  if (!userId) return { error: "AUTH" };
+
+  try {
+    await setZoneOff(userId, String(zoneKey), Boolean(off));
+  } catch (error) {
+    if (error instanceof RoomSettingsError) return { error: "NOT_FOUND" };
     if (error instanceof ZodError) return { error: "GENERIC" };
     throw error;
   }
