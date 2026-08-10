@@ -8,7 +8,11 @@
 // Проверки «в углу два знака» поэтому переписаны на «в углу одна шкатулка», а
 // сам переключатель проверяется своим файлом (tests/rail-list-toggle).
 // Знак сокровищницы владелец не двигал — он только забраковал рисунок, и
-// шкатулка стала бриллиантом (набор обновлён, сверка ниже — та же).
+// шкатулка стала бриллиантом (набор обновлён, сверка ниже — та же). Раунд 35
+// (тикет 146) довёл это до конца: бриллиантом стал и `tab-treasury.svg`, так
+// что у витрины теперь ОДИН знак на все три её места, а арка со скважиной
+// (`IconHall`) из набора ушла. Слово «шкатулка» ниже — про место, не про
+// рисунок: знак витрины в углу с 09.08 бриллиант.
 //
 // ЧТО ЗДЕСЬ ЗАЩИЩАЕТСЯ:
 // - знак «Сокровищница» есть у ОБЕИХ сторон, в одном месте и ведёт в свой
@@ -30,7 +34,7 @@ import { fileURLToPath } from "node:url";
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
-import { IconHall, IconList, IconTreasury } from "../src/components/icons";
+import { IconActionTreasury, IconList, IconTreasury } from "../src/components/icons";
 
 const read = (relative: string) =>
   readFileSync(fileURLToPath(new URL(relative, import.meta.url)), "utf8");
@@ -74,15 +78,42 @@ describe("иконки — путь в путь с набором дизайна
     expect(fromOurs(component)).toEqual(fromPackage(file));
   });
 
-  it("шкатулка стала бриллиантом — и только у знаков ВИТРИНЫ", () => {
-    // Владелец 09.08: «мне не нравится сундук, нужна другая, более читаемая,
-    // может бриллиант». Дизайн ответил новой редакцией `ui-treasury` и
-    // `action-treasury`. Знак таб-бара (`IconHall`, файл `tab-treasury`) при
-    // этом остался шкатулкой — его никто не браковал, и место витрины в баре
-    // живо (тикет 132). Сверяем, что мы не поменяли лишнего.
-    expect(fromOurs(IconTreasury)).toEqual(fromPackage("action-treasury"));
-    expect(fromOurs(IconHall)).toEqual(fromPackage("tab-treasury"));
-    expect(fromOurs(IconTreasury)).not.toEqual(fromOurs(IconHall));
+  it("у витрины ОДИН знак, и его рисуют все три её места (тикет 146)", () => {
+    // ПРАВИЛО. Витрина у человека одна — значит, и рисунок у неё один: угол
+    // сцены (здесь), лист действий вещи (`IconActionTreasury`) и таб-бар
+    // (`tab-slots.tsx`, тот же `IconTreasury`). Разные — только размеры:
+    // 22 угол · 19 лист · 22 таб.
+    //
+    // ОТКУДА. Владелец 09.08: «мне не нравится сундук, нужна другая, более
+    // читаемая, может бриллиант». Дизайн сменил сперва `ui-treasury` и
+    // `action-treasury`, а `tab-treasury` оставался аркой со скважиной —
+    // мы поставили в бар бриллиант с расхождением и выписали его письмом 37.
+    // Раунд 35 расхождение закрыл: арка ушла из набора совсем, `IconHall`
+    // удалён.
+    //
+    // ЧТО СЛОМАЕТСЯ, ЕСЛИ НАРУШИТЬ. Угол сцены и таб-бар видны на одном
+    // экране одновременно — два разных знака одного места читаются как две
+    // разные двери. Проверяем оба наших компонента против ВСЕХ трёх файлов:
+    // правка одного файла в отрыве от прочих падает здесь.
+    const sign = fromPackage("ui-treasury");
+    expect(fromPackage("action-treasury"), "лист действий разошёлся с углом").toEqual(sign);
+    expect(fromPackage("tab-treasury"), "таб-бар разошёлся с углом").toEqual(sign);
+    expect(fromOurs(IconTreasury)).toEqual(sign);
+    expect(fromOurs(IconActionTreasury)).toEqual(sign);
+  });
+
+  it("три места витрины — три размера контракта: 22 угол · 19 лист · 22 таб", () => {
+    // Числа раунда 35. Каждое живёт ОДНОЙ константой у своего места и
+    // передаётся знаку пропом — набитый руками размер в разметке разъедется
+    // при первой же правке контракта.
+    expect(corner).toContain("export const CORNER_ICON_SIZE = 22;");
+    const sheet = read("../src/components/item/item-actions.tsx");
+    expect(sheet).toContain("export const SIGN_SIZE = 19;");
+    const slots = read("../src/components/tab-bar/tab-slots.tsx");
+    expect(slots).toContain("const ICON_SIZE = 22;");
+    // В баре витрину рисует общий знак, а не свой знак бара (тикет 146).
+    expect(slots).toContain("<IconTreasury size={size} />");
+    expect(slots).not.toContain("IconHall");
   });
 
   it("формат набора: сетка 24, контур 1.7, скруглённые концы, currentColor", () => {

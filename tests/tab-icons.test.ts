@@ -8,12 +8,26 @@
 // Сверяется и формат набора: сетка 24, контур 1.7, скруглённые концы. Цвет
 // у нас `currentColor` (у него в файлах вшит #F2EDE4) — это не расхождение,
 // а единственный способ дать иконке гореть акцентом активной вкладки.
+//
+// ЧТО ИЗМЕНИЛОСЬ (тикет 146, пакет раунда 35). `tab-treasury.svg` был аркой со
+// скважиной, и её рисовал отдельный компонент `IconHall`. Дизайн прислал новую
+// редакцию файла — БРИЛЛИАНТ, те же контуры, что у `ui-treasury` и
+// `action-treasury`, — и `IconHall` удалён: арки не осталось ни в одном файле
+// набора, сверять его стало не с чем. Место витрины в баре теперь рисует тот
+// же `IconTreasury`, что стоит в углу сцены.
 import { readFileSync } from "node:fs";
 import path from "node:path";
+import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 import { renderToStaticMarkup } from "react-dom/server";
 import { createElement } from "react";
-import { IconHall, IconPeople, IconPerson, IconPlus, IconRoom } from "../src/components/icons";
+import {
+  IconPeople,
+  IconPerson,
+  IconPlus,
+  IconRoom,
+  IconTreasury,
+} from "../src/components/icons";
 
 /**
  * Файлы набора лежат В РЕПОЗИТОРИИ, а не в папке входящих пакетов: та живёт
@@ -44,7 +58,9 @@ describe("иконки таб-бара — путь в путь с наборо�
     ["tab-add", IconPlus],
     ["tab-friends", IconPeople],
     ["tab-profile", IconPerson],
-    ["tab-treasury", IconHall],
+    // Витрину в баре рисует общий знак витрины, а не свой знак бара (тикет
+    // 146): файл `tab-treasury.svg` новой редакции — тот же бриллиант.
+    ["tab-treasury", IconTreasury],
   ])("%s совпадает с файлом набора", (file, component) => {
     expect(fromOurs(component)).toEqual(fromPackage(file));
   });
@@ -59,8 +75,43 @@ describe("иконки таб-бара — путь в путь с наборо�
     expect(fromOurs(IconRoom).length).toBe(withoutDot.length + 1);
   });
 
+  it("у витрины ОДИН знак на все три её места (тикет 146)", () => {
+    // ПРАВИЛО. Витрина у человека одна, и во всём продукте её называет один
+    // рисунок: угол сцены, лист действий вещи и таб-бар. Три файла набора
+    // держат одну геометрию, и оба наших компонента — её же.
+    //
+    // ЧТО СЛОМАЕТСЯ, ЕСЛИ НАРУШИТЬ. В комнате угол сцены и таб-бар видны
+    // ОДНОВРЕМЕННО: разойдись файлы — на одном экране окажутся два разных
+    // знака одного места, и человек прочитает их как две разные двери. Ровно
+    // за это владелец забраковал шкатулку 09.08, и ровно поэтому арку из бара
+    // убрал сам дизайн (раунд 35). Тест падает при правке ЛЮБОГО из трёх
+    // файлов поодиночке — а именно так расхождение и заводится.
+    const tab = fromPackage("tab-treasury");
+    expect(fromPackage("ui-treasury"), "угол сцены разошёлся с таб-баром").toEqual(tab);
+    expect(fromPackage("action-treasury"), "лист действий разошёлся с таб-баром").toEqual(tab);
+    expect(fromOurs(IconTreasury)).toEqual(tab);
+  });
+
+  it("арка со скважиной не вернулась ни в набор, ни в код", () => {
+    // `IconHall` удалён (тикет 146): в наборе не осталось файла с этими
+    // контурами, а знак, которому нечем поверяться, тихо разъезжается с
+    // доской. Ловим сами узлы — вернётся арка копией под другим именем,
+    // упадёт здесь.
+    const iconsSource = readFileSync(
+      fileURLToPath(new URL("../src/components/icons.tsx", import.meta.url)),
+      "utf8",
+    );
+    for (const node of [
+      'd="M4.5 11.5h15V19a1.5 1.5 0 0 1-1.5 1.5H6A1.5 1.5 0 0 1 4.5 19v-7.5z"',
+      '<circle cx="12" cy="14.6" r="1.5"',
+    ]) {
+      expect(iconsSource, node).not.toContain(node);
+    }
+    expect(iconsSource).not.toContain("export function IconHall");
+  });
+
   it("формат набора: сетка 24, контур 1.7, скруглённые концы, currentColor", () => {
-    const svg = renderToStaticMarkup(createElement(IconHall));
+    const svg = renderToStaticMarkup(createElement(IconTreasury));
     expect(svg).toContain('viewBox="0 0 24 24"');
     expect(svg).toContain('stroke-width="1.7"');
     expect(svg).toContain('stroke-linecap="round"');

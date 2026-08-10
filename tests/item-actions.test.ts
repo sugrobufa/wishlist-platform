@@ -24,7 +24,9 @@ import {
   IconActionNote,
   IconActionReturn,
   IconActionTreasury,
+  IconEdit,
   IconEyeOff,
+  IconTrash,
 } from "../src/components/icons";
 import { ItemActions, SIGN_SIZE } from "../src/components/item/item-actions";
 import ru from "../messages/ru.json";
@@ -243,9 +245,26 @@ describe("семь знаков действий — путь в путь с ф�
   });
 
   it("знаки действий НЕ подменили собой канон 25a", () => {
-    // У карандаша, корзины и шкатулки в наборе действий другая геометрия, чем
-    // у знаков того же смысла в таб-баре и углу сцены. Совпади они однажды —
-    // значит кто-то переписал канон под лист действий или наоборот.
-    expect(fromPackage("action-treasury")).not.toEqual(fromPackage("tab-treasury"));
+    // У карандаша и корзины в наборе действий другая геометрия, чем у знаков
+    // того же смысла в каноне: наклон грифеля другой, крышка корзины на
+    // полпикселя выше. Совпади они однажды — значит кто-то переписал канон
+    // под лист действий или наоборот.
+    expect(fromOurs(IconActionEdit)).not.toEqual(fromOurs(IconEdit));
+    expect(fromOurs(IconActionDelete)).not.toEqual(fromOurs(IconTrash));
+  });
+
+  it("витрина — ИСКЛЮЧЕНИЕ: её знак один на все три места (тикет 146)", () => {
+    // ПЕРЕПИСАНО. Прежде здесь стояло обратное ожидание — `action-treasury`
+    // не равен `tab-treasury`: в наборе шкатулка действия и арка бара были
+    // разными предметами. Раунд 35 свёл их в один знак, и правило теперь
+    // другое: у витрины во всём продукте ОДИН рисунок и три размера
+    // (22 угол · 19 лист · 22 таб). Разойдись файлы — на одном экране
+    // окажутся два разных знака одного места (в комнате угол сцены и таб-бар
+    // видны одновременно), а в листе действий вещь уезжала бы «не туда», куда
+    // ведёт знак угла.
+    const sign = fromPackage("action-treasury");
+    expect(fromPackage("tab-treasury"), "таб-бар разошёлся с листом действий").toEqual(sign);
+    expect(fromPackage("ui-treasury"), "угол сцены разошёлся с листом действий").toEqual(sign);
+    expect(fromOurs(IconActionTreasury)).toEqual(sign);
   });
 });
