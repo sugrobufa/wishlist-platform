@@ -37,7 +37,7 @@ import { tileAppearance } from "@/components/zone/tile-appearance";
 // тикет 152). Прежде экран брал строку у «комнаты списком» и добавлял к ней
 // знаки: имени оставалось 71 px на 375. Общая строка при этом не трогается
 // вовсе — у «комнаты списком» своя форма в том же вердикте пакета.
-import { ZoneRow, ZONE_ROW_GLYPH } from "@/components/zone-row/zone-row";
+import { ZoneRow } from "@/components/zone-row/zone-row";
 import zr from "@/components/zone-row/zone-row.module.css";
 import type { ZoneGridItem } from "@/components/zone/types";
 import {
@@ -234,16 +234,15 @@ export function OwnerZoneGrid({ items, accent, zoneKey, pool }: OwnerZoneGridPro
    * Знак в конце ОДИН — «⋯», за ним лист (контракт zone-row.json). Главного
    * знака нет: дорога в карточку вещи — сама строка. У демо-призраков нет и
    * этого: их не спрятать и не удалить, они не в БД.
+   *
+   * Кегля своего строка больше не просит: контракт исправил описку 20 → 19, а
+   * 19 и есть общий `SIGN_SIZE` набора. Коробка знака (32) по-прежнему её —
+   * она приходит переменной `--sign-box` из `zone-row.module.css`.
    */
   const renderItemAction = (item: ZoneGridItem): ReactNode => {
     if (item.isDemo) return null;
     return (
-      <ItemActions
-        rows={sheetRows(item)}
-        moreLabel={t("itemMore")}
-        disabled={busyId === item.id}
-        glyph={ZONE_ROW_GLYPH}
-      />
+      <ItemActions rows={sheetRows(item)} moreLabel={t("itemMore")} disabled={busyId === item.id} />
     );
   };
 

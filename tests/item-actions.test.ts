@@ -101,12 +101,26 @@ describe("на виду максимум два знака (36b)", () => {
       createElement(ItemActions, {
         rows: [row("Спрятать", "видишь только ты")],
         moreLabel: "Ещё",
-        glyph: 20,
       }),
     );
     expect(markup.match(/<a[\s>]/gu) ?? []).toHaveLength(0);
     expect(markup.match(/<button[\s>]/gu) ?? []).toHaveLength(1);
-    // Кегль «⋯» строка зоны просит свой — 20 вместо общих 19.
+    // Кегль у строки зоны ОБЩИЙ — 19. Прежде она просила свой, 20, и это была
+    // описка пакета: дизайн поправил контракт («глиф ⋯ — 19, как весь набор»,
+    // письмо 42, тикет 163). Разницу в пиксель с соседним экраном ловил глаз.
+    expect(markup).toContain(`width="${SIGN_SIZE}"`);
+  });
+
+  it("свой кегль знака ещё можно попросить — им живёт карточка вещи", () => {
+    // Проп остался не «на всякий случай»: у карточки вещи знак «⋯» стоит над
+    // фото и просит 20 своим контрактом (item-card-owner.json → head.more).
+    const markup = renderToStaticMarkup(
+      createElement(ItemActions, {
+        rows: [row("Спрятать", "видишь только ты")],
+        moreLabel: "Ещё",
+        glyph: 20,
+      }),
+    );
     expect(markup).toContain('width="20"');
   });
 

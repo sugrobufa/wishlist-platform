@@ -12,20 +12,30 @@
 // читается здесь же (`@design/zone-row.json`), и разойдись с ним код — тест
 // назовёт число.
 //
-// ЗАМЕР В БРАУЗЕРЕ (10.08, стенд, Onest живой, образец цены «140 000 ₽»
-// из самого контракта):
-//   375 → имя 173.2 (контракт 171) · 360 → 158.0 (156) · 320 → 118.0 (116);
-//   с огоньком «мечтаю» — ровно на 13 меньше на всех трёх ширинах;
-//   строка 52.0 в высоту, коробка «⋯» 32×44, цель нажатия 44×44 и заходит
-//   на 6 px в правый отступ листа; имя в 62 знака без пробелов и дефисов
-//   страницу вбок не тянет (scrollWidth 320 при innerWidth 320).
-// Расхождение +2 постоянно на всех ширинах и живёт целиком в ЦЕНЕ: образец
-// «140 000 ₽» у нас 66.0 px, у контракта подразумевается 68.2. Геометрия
-// строки сходится с таблицей до пикселя — см. проверку «таблица ширин».
+// ФАЙЛ КОНТРАКТА ЗАМЕНЁН ОРИГИНАЛОМ (тикет 163). Строку мы собирали по копии,
+// восстановленной из прочтения: папку round36 перезаписали, файл исчез с диска.
+// Дизайн прислал оригинал раундом 40, и три числа разошлись с нашей копией:
+//   • глиф «⋯» 20 → 19 — ОПИСКА ПАКЕТА, подтверждённая письмом 42 («как весь
+//     набор»). Своего кегля у строки не осталось: 19 и есть общий SIGN_SIZE;
+//   • цвет имени #F2EDE4 → #FFF9F2: первый объявлен непродуктовым вовсе
+//     (доска-документ и заливка по умолчанию в файлах знаков);
+//   • ширины цены в контракте больше НЕТ — цена auto. Зато коробка знака 32
+//     теперь стоит прямым числом (form.trailing.box), и выводить её не нужно.
+//
+// ЗАМЕР В БРАУЗЕРЕ (10.08, стенд, Onest живой, образец цены «140 000 ₽»):
+//   375 → имя 173.2 · 360 → 158.0 · 320 → 118.0; с огоньком «мечтаю» — ровно
+//   на 13 меньше на всех трёх ширинах; строка 52.0 в высоту, коробка «⋯»
+//   32×44, цель нажатия 44×44 и заходит на 6 px в правый отступ листа; имя в
+//   62 знака без пробелов и дефисов страницу вбок не тянет (scrollWidth 320
+//   при innerWidth 320). ЭТИ ЖЕ ТРИ ЧИСЛА СТОЯТ ТЕПЕРЬ В ПАКЕТЕ: таблица
+//   ширин помечена иллюстрацией на образце цены, и дизайн заменил свои
+//   171/156/116 нашими замерами. Прежнее расхождение +2 целиком жило в ЦЕНЕ —
+//   одна строка в двух отрисовках, у нас 66.0 px, у него 68.2.
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 import contractJson from "@design/zone-row.json";
+import tokensJson from "@design/tokens.json";
 
 const read = (relative: string) =>
   readFileSync(fileURLToPath(new URL(relative, import.meta.url)), "utf8");
@@ -34,6 +44,7 @@ const css = read("../src/components/zone-row/zone-row.module.css");
 const row = read("../src/components/zone-row/zone-row.tsx");
 const screen = read("../src/app/room/zone/[zone]/owner-zone-grid.tsx");
 const page = read("../src/app/room/zone/[zone]/page.tsx");
+const actions = read("../src/components/item/item-actions.tsx");
 const actionsCss = read("../src/components/item/item-actions.module.css");
 const shared = read("../src/components/room-list/room-list.module.css");
 
@@ -44,17 +55,27 @@ const contract = contractJson as unknown as {
     divider: string;
     thumb: { size: number; radius: number; fit: string; empty: string };
     gaps: string[];
-    name: { font: string; color: string; lines: number; overflow: string };
-    price: { font: string; nowrap: boolean; tabularNums: boolean; color: string };
+    name: { font: string; color: string; lines: number; overflow: string; width: string };
+    price: {
+      font: string;
+      nowrap: boolean;
+      tabularNums: boolean;
+      color: string;
+      width: string;
+    };
     wishDot: { size: number; when: string };
-    trailing: { glyph: number; hit: string; icon: string };
+    trailing: { glyph: number; box: number; hit: string; icon: string };
   };
-  widths: Record<string, { available: number; name: number } | string>;
+  widths: Record<string, number | string>;
   states: Record<string, string>;
   counters: string;
+  confirmations: Record<string, string>;
 };
 
 const form = contract.form;
+
+/** Лестница цветов — чтобы «ступень text.primary» проверялась, а не верилась. */
+const tokens = tokensJson as unknown as { text: { primary: string } };
 
 /** Все числа строки промежутков: «миниатюра → 12 → [огонёк 5 → 8] → …». */
 const gaps = (form.gaps[0] ?? "").match(/\d+/gu)?.map(Number) ?? [];
@@ -89,14 +110,45 @@ function rule(source: string, selector: string): string {
 /** Цвета пакета и CSS пишутся по-разному: «,.72» против «, 0.72». */
 const norm = (value: string) => value.replace(/\s/gu, "").replace(/0\.(\d)/gu, ".$1").toLowerCase();
 
+/**
+ * Цвет из записи контракта. Теперь он приходит ступенью лестницы со значением
+ * в скобках — «text.primary (#FFF9F2)», — и проверять надо оба: имя ступени
+ * говорит, ОТКУДА цвет, значение — какой он.
+ */
+function colorOf(spec: string): string {
+  const found = /(#[0-9a-fA-F]{3,8}|rgba?\([^)]*\))/u.exec(spec);
+  expect(found, `в записи цвета нет самого цвета: ${spec}`).toBeTruthy();
+  return (found as RegExpExecArray)[1] as string;
+}
+
 describe("контракт прочитан целиком — иначе проверять нечего", () => {
   it("в файле пакета есть все числа, которыми меряется строка", () => {
     expect(form.height).toBe(52);
     expect(form.thumb.size).toBe(36);
     expect(form.thumb.radius).toBe(0);
     expect(form.wishDot.size).toBe(5);
-    expect(form.trailing.glyph).toBe(20);
+    // 19, а не 20: описку пакета дизайн признал письмом 42.
+    expect(form.trailing.glyph).toBe(19);
+    // Коробка знака стоит ПРЯМЫМ числом — выводить её из «+38» больше не надо.
+    expect(form.trailing.box).toBe(32);
     expect(gaps, "строка промежутков пакета читается пятью числами").toEqual([12, 5, 8, 10, 6]);
+  });
+
+  it("это ОРИГИНАЛ пакета, а не наша копия из прочтения", () => {
+    // Копия жила с пометкой о восстановлении и с тремя разошедшимися числами.
+    // Оригинал приехал раундом 40 и лежит в нём же — сверяем побайтно, чтобы
+    // «восстановленный по памяти» файл не вернулся однажды назад.
+    // Перевод строки нормализуем: под Windows git отдаёт файлы с CRLF, и
+    // сравнение сырых байтов ловило бы не подмену числа, а настройку рабочей
+    // копии. Всё остальное — посимвольно.
+    const eol = (text: string) => text.replace(/\r\n/gu, "\n");
+    expect(eol(read("../design/package/handoff/zone-row.json"))).toBe(
+      eol(read("../design/package/handoff/round40/zone-row.json")),
+    );
+    expect(JSON.stringify(contractJson)).not.toContain("ВОССТАНОВЛЕНО");
+    // И сам пакет называет, что именно поменялось против нашей копии.
+    expect(contract.confirmations.glyph).toContain("ОПИСКА НАША");
+    expect(contract.confirmations.priceWidth).toContain("не должно быть в контракте");
   });
 });
 
@@ -189,24 +241,50 @@ describe("огонёк — один и только у «мечтаю»", () => 
 });
 
 describe("имя и цена — шрифтами пакета", () => {
-  it("имя 600 13.5/1.2 и цвет #F2EDE4", () => {
+  it("имя 600 13.5/1.2 и цвет #FFF9F2 — ступень text.primary", () => {
     expect(rule(css, "name")).toContain(cssFont(form.name.font));
-    expect(rule(css, "name")).toContain(`color: ${form.name.color.toLowerCase()};`);
     expect(form.name.lines).toBe(1);
+    // ЦВЕТ СМЕНИЛСЯ. #F2EDE4 дизайн объявил непродуктовым вовсе: это цвет
+    // доски-документа и заливка по умолчанию в файлах знаков (в сборке —
+    // currentColor). Ловим оба конца: имя ступени и её значение.
+    expect(form.name.color).toContain("text.primary");
+    expect(colorOf(form.name.color).toLowerCase()).toBe("#fff9f2");
+    expect(rule(css, "name")).toContain(`color: ${colorOf(form.name.color).toLowerCase()};`);
+    // И ступень эта настоящая: то же число лежит в лестнице токенов.
+    expect(norm(tokens.text.primary)).toBe(norm(colorOf(form.name.color)));
+    // Ловим объявление, а не упоминание: в комментарии рядом с правилом
+    // прежний цвет назван нарочно — чтобы следующий читатель знал, откуда он
+    // взялся и почему ушёл.
+    expect(css, "непродуктовый цвет вернулся в строку").not.toMatch(/color:\s*#f2ede4/iu);
   });
 
-  it("цена 500 12.5/1, tabular-nums, без переноса", () => {
+  it("цена 500 12.5/1, tabular-nums, без переноса — ступень text.body", () => {
     const price = rule(css, "price");
     expect(price).toContain(cssFont(form.price.font));
-    expect(norm(price)).toContain(norm(`color: ${form.price.color};`));
+    expect(form.price.color).toContain("text.body");
+    expect(norm(price)).toContain(norm(`color: ${colorOf(form.price.color)};`));
     expect(form.price.nowrap).toBe(true);
     expect(price).toContain("white-space: nowrap;");
     expect(form.price.tabularNums).toBe(true);
     expect(price).toContain("font-variant-numeric: tabular-nums;");
   });
+
+  it("ШИРИНЫ У ЦЕНЫ НЕТ — ни в контракте, ни в CSS", () => {
+    // Прежде мы выводили её из таблицы ширин имени (68 на образце «140 000 ₽»)
+    // и держали это число в шапке CSS. Дизайн снял ширину из контракта вовсе:
+    // «цена это СОДЕРЖИМОЕ — width auto, nowrap, tabular-nums». Числа в записи
+    // теперь нет ни одного — и появиться ему негде.
+    expect(form.price.width).toContain("auto");
+    expect(form.price.width, "в ширину цены вернулось число").not.toMatch(/\d/u);
+    expect(rule(css, "price"), "цене задали ширину — она перестала быть содержимым").not.toMatch(
+      /^\s*width:/mu,
+    );
+    // Имя — остаток полосы, и это тоже сказано словами, а не числом.
+    expect(form.name.width).toContain("min-width 0");
+  });
 });
 
-describe("знак в конце — ОДИН, 20 на цели 44", () => {
+describe("знак в конце — ОДИН, 19 в коробке 32 на цели 44", () => {
   it("главного знака в строке зоны нет: дорога в вещь — сама строка", () => {
     // Карандаш отсюда ушёл вместе с 44 px, которые он занимал. Точка входа
     // теперь настоящая: строка — ссылка.
@@ -215,19 +293,28 @@ describe("знак в конце — ОДИН, 20 на цели 44", () => {
     expect(row).toContain("<Link href={href}");
   });
 
-  it("глиф 20 — число контракта, а не общий 19", () => {
-    expect(row).toContain(`export const ZONE_ROW_GLYPH = ${form.trailing.glyph};`);
-    expect(screen).toContain("glyph={ZONE_ROW_GLYPH}");
+  it("глиф — ОБЩИЙ 19, своего числа у строки зоны больше нет", () => {
+    // Полгода строка носила собственный кегль 20, и это была ОПИСКА пакета:
+    // «глиф ⋯ — 19, как весь набор» (письмо 42). Второе число на тот же знак
+    // и есть та щель, в которую уезжает пиксель разницы с соседним экраном.
+    expect(actions).toContain(`export const SIGN_SIZE = ${form.trailing.glyph};`);
+    // Опять же объявление, а не упоминание: имя снятой константы в
+    // комментарии — часть объяснения, почему её больше нет.
+    expect(row, "у строки снова завёлся свой кегль").not.toMatch(/ZONE_ROW_GLYPH\s*=/u);
+    expect(screen, "экрану зоны снова задают кегль знака руками").not.toContain("glyph=");
   });
 
   it("коробка 32 при цели 44 — цель заходит в правый отступ листа", () => {
-    // 32 выведены из самого контракта: «у гостя знака ⋯ нет вовсе, поэтому
-    // имени +38» — это промежуток 6 плюс коробка. Цель добирают по 6 с двух
+    // Число ПРИШЛО ИЗ ПАКЕТА прямым (form.trailing.box), а не выведено нами из
+    // фразы «у гостя знака ⋯ нет вовсе, поэтому имени +38». Дизайн подтвердил
+    // и вывод, и число: 19 знак + по 6.5 воздуха. Цель добирают по 6 с двух
     // сторон, и правые 6 ложатся в 20 px отступа листа.
     expect(form.trailing.hit).toContain("44");
-    expect(rule(css, "row")).toContain("--sign-box: 32px;");
+    expect(rule(css, "row")).toContain(`--sign-box: ${form.trailing.box}px;`);
     expect(actionsCss).toContain("width: var(--sign-box, var(--hit-target-min, 44px));");
     expect(actionsCss).toMatch(/\.sign::after \{[^}]*width: var\(--hit-target-min, 44px\);/u);
+    // Коробка 32 при знаке 19 — это ровно по 6.5 воздуха с каждой стороны.
+    expect((form.trailing.box - form.trailing.glyph) / 2).toBe(6.5);
   });
 });
 
@@ -245,19 +332,24 @@ describe("состояния", () => {
     expect(row).toContain('aria-label={t("itemHiddenBadge")}');
   });
 
-  it("«уже дарят» в строке НЕ показывается хозяйке — тихая бронь", () => {
-    // Состояние «занято» контракт описывает для гостя; экрана «зона списком»
-    // у гостя пока нет вовсе, а хозяйке знать о бронях нельзя ни при каких
-    // условиях (инвариант №1). Поэтому в строке нет ни слова, ни пропа.
-    expect(contract.states.taken).toContain("уже дарят");
+  it("«занято» СНЯТО из формы самим пакетом — показывать некому", () => {
+    // Прежняя копия контракта описывала это состояние для гостя. Оригинал
+    // раунда 40 снял его целиком и назвал причину нашими же словами: хозяйке
+    // бронь не показывается никогда (инвариант №1), а у гостя нет самого
+    // экрана. Мы этого пропа и не заводили — теперь так и в пакете.
+    expect(contract.states.taken).toContain("СНЯТО");
+    expect(contract.states.taken).toContain("тихая бронь");
     expect(row, "в строку зоны приехала бронь").not.toMatch(/taken/iu);
     expect(screen, "экран хозяйки узнал про занятые вещи").not.toMatch(/taken/iu);
   });
 
-  it("у гостя знака ⋯ нет вовсе — и имени от этого +38", () => {
-    expect(contract.states.guest).toContain("+38");
-    // Ширина имени нигде не задана числом: она остаток полосы. Значит
-    // «форма та же минус знак» получается сама — узел просто не рисуется.
+  it("гостевого экрана нет — но строка к нему готова, и знак у неё необязателен", () => {
+    // Поправку про гостя дизайн принял целиком: «ЭКРАНА НЕТ». Наша
+    // структурная готовность при этом названа правильной и оставлена как есть
+    // — знак «⋯» необязателен, ширина имени нигде не число. Отсюда и «+38 у
+    // гостя»: узел просто не рисуется, и остаток полосы прибавляется сам.
+    expect(contract.states.guest).toContain("ЭКРАНА НЕТ");
+    expect(contract.states.guest).toContain("необязателен");
     expect(row).toMatch(/\{trailing && <span className=\{s\.more\}>/u);
     expect(
       rule(css, "name"),
@@ -266,37 +358,65 @@ describe("состояния", () => {
   });
 });
 
-describe("таблица ширин пакета сходится с нашей геометрией", () => {
-  // Числа контракта: 171 на 375, 156 на 360, 116 на 320. Проверяем не сами
-  // ширины (их меряет браузер), а ГЕОМЕТРИЮ: имя — остаток полосы, и запас
-  // справа обязан быть одним и тем же на всех трёх ширинах.
-  const rows = ["320", "360", "375"].map((key) => {
-    const entry = contract.widths[key];
-    expect(typeof entry === "object", `в таблице ширин пропала ${key}`).toBe(true);
-    return entry as { available: number; name: number };
+describe("таблица ширин — ИЛЛЮСТРАЦИЯ с нашими замерами", () => {
+  // ЭТО САМОЕ ВАЖНОЕ ИЗМЕНЕНИЕ ТИКЕТА 163, и оно не про числа, а про их вес.
+  // Прежде таблица была КОНТРАКТОМ (171/156/116), и мы выводили из неё два
+  // числа: коробку знака 32 и ширину цены 68. Дизайн разобрал оба вывода:
+  // коробку подтвердил и вписал прямым числом, а таблицу пометил образцом —
+  // «ИЛЛЮСТРАЦИЯ на образце „140 000 ₽“, не контракт», — и заменил свои числа
+  // НАШИМИ замерами. Значит проверять её как контракт больше нельзя; зато
+  // можно проверить, что иллюстрация не спорит с нашей же геометрией.
+  const MEASURED: Record<string, number> = { "320": 118, "360": 158, "375": 173.2 };
+  const SHEET_PADDING = 20;
+  const fixed = form.thumb.size + GAP_THUMB + GAP_NAME + GAP_PRICE + form.trailing.box;
+
+  it("таблица помечена образцом и держит наши замеры, а не свои прежние", () => {
+    expect(String(contract.widths.note)).toContain("ИЛЛЮСТРАЦИЯ");
+    expect(String(contract.widths.note)).toContain("не контракт");
+    for (const [screenWidth, name] of Object.entries(MEASURED)) {
+      expect(contract.widths[screenWidth], `ширина ${screenWidth}`).toBe(name);
+    }
+    // Прежние 171/156/116 из пакета ушли — иначе иллюстрация врёт вдвойне.
+    expect(Object.values(contract.widths)).not.toContain(171);
   });
 
-  const BOX = 32;
-  const fixed = form.thumb.size + GAP_THUMB + GAP_NAME + GAP_PRICE + BOX;
-
-  it("поля листа: доступная ширина = экран − 20 − 20", () => {
-    expect(rows.map((r) => r.available)).toEqual([320 - 40, 360 - 40, 375 - 40]);
+  it("запас справа один и тот же на 320, 360 и 375 — имя правда остаток", () => {
+    // Единственное, что таблица всё ещё доказывает: у имени нет своей ширины.
+    // Раз оно остаток полосы, то «экран − поля − имя» обязано быть постоянным.
+    const reserve = Object.entries(MEASURED).map(
+      ([screenWidth, name]) => Number(screenWidth) - SHEET_PADDING * 2 - name,
+    );
+    const spread = Math.max(...reserve) - Math.min(...reserve);
+    expect(spread, `запас разъехался: ${reserve.join(" / ")}`).toBeLessThanOrEqual(0.2);
   });
 
-  it("запас под цену один и тот же на 320, 360 и 375", () => {
-    const reserve = rows.map((r) => r.available - r.name - fixed);
-    expect(new Set(reserve).size, `запас разъехался: ${reserve.join(" / ")}`).toBe(1);
-    // Он же — ширина образца «140 000 ₽» в разметке дизайна.
-    expect(reserve[0]).toBe(68);
+  it("в запасе — фикс строки и наш замер цены 66, а не выведенные 68", () => {
+    // 96 = миниатюра 36 + 12 + 10 + 6 + коробка 32. Остаток и есть цена
+    // образца «140 000 ₽» в НАШЕЙ отрисовке: 66.0. Дизайн назвал разницу с
+    // его 68.2 прямо — «одна строка в двух отрисовках», — и потому ширины
+    // цены в контракте больше нет вовсе.
+    expect(fixed).toBe(96);
+    const price = 320 - SHEET_PADDING * 2 - MEASURED["320"]! - fixed;
+    expect(price).toBe(66);
+    expect(contract.confirmations.priceWidth).toContain("66.0");
+    expect(contract.confirmations.priceWidth).toContain("68.2");
   });
 
-  it("«+38 у гостя» — это ровно промежуток 6 плюс коробка 32", () => {
-    expect(GAP_PRICE + BOX).toBe(38);
+  it("«+38 у гостя» — это ровно промежуток 6 плюс коробка 32 из пакета", () => {
+    expect(GAP_PRICE + form.trailing.box).toBe(38);
+    expect(row, "в строке пропало объяснение, откуда у гостя +38").toContain("+38");
   });
 
   it("«с огоньком минус 13» — это точка 5 плюс промежуток 8", () => {
-    expect(String(contract.widths.note)).toContain("минус 13");
+    // Строка переехала из note в свой ключ и стала подтверждением: «сошлось у
+    // обоих» — это единственное число таблицы, которое дизайн у себя проверил.
+    expect(String(contract.widths.wishDot)).toContain("минус 13");
     expect(DOT + GAP_DOT).toBe(13);
+  });
+
+  it("высота 52 — на всех ширинах и на десктопе", () => {
+    expect(String(contract.widths.rowHeight)).toContain(`${form.height}`);
+    expect(rule(css, "row")).toContain(`height: ${form.height}px;`);
   });
 });
 
