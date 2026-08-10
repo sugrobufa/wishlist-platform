@@ -374,7 +374,10 @@ export function OwnerZoneGrid({ items, accent, zoneKey, pool }: OwnerZoneGridPro
                 {look.monogram && <span className={rl.monogram}>{look.monogram}</span>}
               </div>
               <div className={rl.body}>
-                <p className={rl.title}>{item.title}</p>
+                {/* Имя переносится в любом месте: без пробелов оно вылезало
+                    из полосы и тянуло за собой всю страницу вбок
+                    (owner-zone-grid.module.css). */}
+                <p className={`${rl.title} ${z.title}`}>{item.title}</p>
                 {/* Чип состояния («Хочу» / «Люблю») отменён тикетом 124 —
                     в комнате все вещи одинаковы. Строку снимает заход про
                     экраны; здесь она просто перестала рисоваться. */}
