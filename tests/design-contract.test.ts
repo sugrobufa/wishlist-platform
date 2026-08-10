@@ -410,6 +410,133 @@ describe("кадры «открыто» (openFrame — единственный 
     }
   });
 
+  it("шапка карты и словарь зон — проза пакета 40, взятая ДОСЛОВНО", () => {
+    const pkg = JSON.parse(readFileSync(resolve(PKG, "handoff/round40/rooms.json"), "utf8")) as {
+      mapSnapshot: unknown;
+      zonesNote: string;
+    };
+    // Дословно — значит посимвольно: прозу дизайна мы не переписываем своими
+    // словами, даже когда она говорит про его поля (`rectPrevDesign`, `status`),
+    // которых у нас нет.
+    expect(roomsContract.mapSnapshot).toEqual(pkg.mapSnapshot);
+    expect(roomsContract.zonesNote).toBe(pkg.zonesNote);
+    // Снимок называет ту же карту, от которой посчитан `places.json`.
+    expect(roomsContract.mapSnapshot.source).toContain("rooms-map-2026-08-10.json");
+    // Словарь зон подтверждает наши числа, а не заводит вторые.
+    expect(roomsContract.zonesNote).toContain("13 в каждой, 130 всего");
+    expect(roomsContract.zonesNote).toContain("Продукт показывает 122 зоны");
+    expect(roomsContract.zonesNote).toContain("под места пустой сцены не берутся");
+    // Разбивка 2+6 из раунда 37 отменена — и слово «выключенная» возвращено
+    // настройке хозяйки (`Room.zonesOff`, инвариант №5).
+    expect(roomsContract.zonesNote).toContain("ОТМЕНЕНА");
+    expect(roomsContract.zonesNote).toContain("zonesOff");
+  });
+
+  it("шесть зон «по месту»: из пакета взята ПРОЗА, поведение не тронуто", () => {
+    // Раунд 40 назвал словом то, что у шести зон без предмета прямоугольник
+    // стоит на ПОВЕРХНОСТИ, где предмет стоял бы, и привязан к соседу
+    // (`anchoredTo`). Прямоугольники при этом наши — все 130 совпали с дампом.
+    const placeBased = allZones.filter(({ zone }) => zone.placeBased);
+    expect(placeBased.map((z) => z.id)).toEqual([
+      "warm/music",
+      "lux/music",
+      "emerald/beauty",
+      "sport/watches",
+      "study/tech",
+      "study/gaming",
+    ]);
+    for (const { id, room, zone } of placeBased) {
+      // Поле НИЧЕГО не открывает: зона по-прежнему без предмета и скрыта
+      // продуктом, а место пустой сцены на неё не встаёт (empty-places.ts).
+      expect(zone.objectAbsent, `${id}: поле «по месту» вернуло зону в продукт`).toBe(true);
+      expect(zonesHiddenByProduct, `${id}`).toContain(id);
+      expect(zone.openFrame ?? null, `${id}`).toBeNull();
+      // Привязка — ключ СОСЕДНЕЙ зоны той же комнаты, а не выдуманное слово.
+      expect(
+        room.zones.some((neighbour) => neighbour.key === zone.anchoredTo),
+        `${id}: anchoredTo="${zone.anchoredTo}" — такой зоны в комнате нет`,
+      ).toBe(true);
+      expect(zone.anchoredTo, `${id}: зона привязана к самой себе`).not.toBe(zone.key);
+    }
+  });
+
+  it("КОПИЯ КОНТРАКТА ИЗ ПАКЕТА 40 НЕ ПРИНЯТА ЦЕЛИКОМ — и вот чем она отличается", () => {
+    // Прямоугольники в ней верны все 130. Но вместе с ними она стирает нашу
+    // приёмку — 216 полей осмотров, причин пересъёмки и разборов переразметки
+    // (письмо 44). Поэтому взята только проза, а этот тест сторожит, чтобы
+    // однажды кто-нибудь не «синхронизировал» файл целиком.
+    type PkgZone = {
+      key: string;
+      rect: { x: number; y: number; w: number; h: number };
+      bloomAR?: number;
+      openFrame?: string | null;
+      pool?: string;
+    };
+    type Pkg = { rooms: { id: string; sex: string; zones: PkgZone[] }[]; flags: unknown };
+    const pkg = JSON.parse(
+      readFileSync(resolve(PKG, "handoff/round40/rooms.json"), "utf8"),
+    ) as Pkg;
+    const pkgZone = new Map<string, PkgZone>();
+    for (const room of pkg.rooms) for (const zone of room.zones) pkgZone.set(`${room.id}/${zone.key}`, zone);
+
+    // ХОРОШАЯ НОВОСТЬ, которую тоже надо держать: вход сошёлся 130 из 130.
+    const rectDiff = allZones.filter(
+      ({ id, zone }) => JSON.stringify(pkgZone.get(id)?.rect) !== JSON.stringify(zone.rect),
+    );
+    expect(rectDiff.map((z) => z.id)).toEqual([]);
+
+    // НАША ПРИЁМКА НА МЕСТЕ. В его копии эти числа обнулены.
+    const count = (field: string) =>
+      allZones.filter(({ zone }) => field in (zone as Record<string, unknown>)).length;
+    expect({
+      accepted: count("accepted"),
+      reshootReason: count("reshootReason"),
+      remapNote: count("remapNote"),
+      eyeNote: count("eyeNote"),
+      absentNote: count("absentNote"),
+      reshoot: count("reshoot"),
+      rectOld: count("rectOld"),
+    }).toEqual({
+      accepted: 130,
+      reshootReason: 50,
+      remapNote: 16,
+      eyeNote: 12,
+      absentNote: 8,
+      reshoot: 100,
+      rectOld: 66,
+    });
+    // Блоки, вырезанные в его копии, и `flags` объектом, а не строкой.
+    expect(roomsContract.round7).toBeTruthy();
+    expect(roomsContract.acceptedRule).toBeTruthy();
+    expect(typeof roomsContract.flags).toBe("object");
+    expect(typeof pkg.flags).toBe("string");
+
+    // ТРИ ВЕЩИ ИЗ ПАКЕТА НЕ ВЗЯТЫ НАМЕРЕННО (все выписаны письмом 44).
+    // 1. bloomAR отстал от прямоугольника ровно там, где дизайн его переписал:
+    //    форма пятна выводится из w/h, и пересчитать её должен он.
+    const bloomDiff = allZones.filter(({ id, zone }) => pkgZone.get(id)?.bloomAR !== zone.bloomAR);
+    expect(bloomDiff.length).toBeGreaterThan(0);
+    // 2. Тринадцать кадров round8/cream против наших четырёх принятых: девяти
+    //    файлов нет на диске нигде, а его же flags говорит «openFrame только у
+    //    принятых».
+    const creamFrames = (id: string) =>
+      id === "ours"
+        ? allZones.filter((z) => z.room.id === "cream" && z.zone.openFrame).length
+        : (pkg.rooms.find((r) => r.id === "cream")?.zones.filter((z) => z.openFrame).length ?? 0);
+    expect([creamFrames("ours"), creamFrames("pkg")]).toEqual([4, 13]);
+    // 3. `pool: perfume` у четырёх мужских комнат спорит с его же icons.json
+    //    («парфюм у женских, уход у мужских») — оставлен `grooming`.
+    const perfumeInMale = (zones: { room: { sex: string }; zone: { pool: string } }[]) =>
+      zones.filter((z) => z.room.sex === "M" && z.zone.pool === "perfume").length;
+    expect(perfumeInMale(allZones)).toBe(0);
+    expect(
+      pkg.rooms
+        .filter((r) => r.sex === "M")
+        .flatMap((r) => r.zones)
+        .filter((z) => z.pool === "perfume").length,
+    ).toBe(4);
+  });
+
   it("восемь зон без предмета: кадра нет и не будет, пока дизайн не дорисует", () => {
     expect(absent.map((z) => z.id)).toEqual([
       "warm/music",
