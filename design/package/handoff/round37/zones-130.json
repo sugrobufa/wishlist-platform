@@ -1,0 +1,543 @@
+{
+ "answersTo": "письмо 40 — «пришлите свои 128 ключей списком»",
+ "mapSnapshot": {
+  "version": "dev-2026-08-10",
+  "commit": "9e6d249",
+  "date": "2026-08-10"
+ },
+ "counts": {
+  "dictionary": 130,
+  "inRooms": 128,
+  "disabled": 2,
+  "objectAbsentLive": 6,
+  "withObject": 122
+ },
+ "reconciliation": "Расхождение не в файле, а в том, что считали разные числа. Ваши 130 — СЛОВАРЬ (13 × 10, и он верен). Наши 128 — зоны, которые существуют В КОМНАТАХ: словарь минус две выключенные. Ваши же 122 — зоны с предметом в кадре: наши 128 минус шесть objectAbsent, у которых место найдено, а предмет ждёт съёмки. Третьего числа никто из нас не называл, отсюда и спор. Ваша догадка про sport/gaming и loft/gaming верна поимённо — но это не старый файл, а решение раунда 8.",
+ "statusRule": {
+  "shown": "предмет в кадре есть — зона живёт полностью",
+  "objectAbsent": "предмета в кадре нет, но подходящее место есть: зона живёт, ждёт съёмки; под места пустой сцены не берётся",
+  "disabled": "нет ни предмета, ни подходящего места: мебели в комнате нет, зоны в комнате нет, её вещи уезжают в «Что угодно». Серой полкой она не стоит — это и есть разница с objectAbsent"
+ },
+ "keys": [
+  {
+   "key": "cream/fashion",
+   "status": "shown"
+  },
+  {
+   "key": "cream/beauty",
+   "status": "shown"
+  },
+  {
+   "key": "cream/jewelry",
+   "status": "shown"
+  },
+  {
+   "key": "cream/perfume",
+   "status": "shown"
+  },
+  {
+   "key": "cream/bags",
+   "status": "shown"
+  },
+  {
+   "key": "cream/travel",
+   "status": "shown"
+  },
+  {
+   "key": "cream/anything",
+   "status": "shown"
+  },
+  {
+   "key": "cream/events",
+   "status": "shown"
+  },
+  {
+   "key": "cream/books",
+   "status": "shown"
+  },
+  {
+   "key": "cream/music",
+   "status": "shown"
+  },
+  {
+   "key": "cream/flowers",
+   "status": "shown"
+  },
+  {
+   "key": "cream/home",
+   "status": "shown"
+  },
+  {
+   "key": "cream/money",
+   "status": "shown"
+  },
+  {
+   "key": "warm/fashion",
+   "status": "shown"
+  },
+  {
+   "key": "warm/jewelry",
+   "status": "shown"
+  },
+  {
+   "key": "warm/anything",
+   "status": "shown"
+  },
+  {
+   "key": "warm/beauty",
+   "status": "shown"
+  },
+  {
+   "key": "warm/perfume",
+   "status": "shown"
+  },
+  {
+   "key": "warm/bags",
+   "status": "shown"
+  },
+  {
+   "key": "warm/home",
+   "status": "shown"
+  },
+  {
+   "key": "warm/events",
+   "status": "shown"
+  },
+  {
+   "key": "warm/travel",
+   "status": "shown"
+  },
+  {
+   "key": "warm/books",
+   "status": "shown"
+  },
+  {
+   "key": "warm/music",
+   "status": "objectAbsent"
+  },
+  {
+   "key": "warm/flowers",
+   "status": "shown"
+  },
+  {
+   "key": "warm/money",
+   "status": "shown"
+  },
+  {
+   "key": "lux/fashion",
+   "status": "shown"
+  },
+  {
+   "key": "lux/bags",
+   "status": "shown"
+  },
+  {
+   "key": "lux/anything",
+   "status": "shown"
+  },
+  {
+   "key": "lux/beauty",
+   "status": "shown"
+  },
+  {
+   "key": "lux/jewelry",
+   "status": "shown"
+  },
+  {
+   "key": "lux/perfume",
+   "status": "shown"
+  },
+  {
+   "key": "lux/events",
+   "status": "shown"
+  },
+  {
+   "key": "lux/travel",
+   "status": "shown"
+  },
+  {
+   "key": "lux/books",
+   "status": "shown"
+  },
+  {
+   "key": "lux/music",
+   "status": "objectAbsent"
+  },
+  {
+   "key": "lux/flowers",
+   "status": "shown"
+  },
+  {
+   "key": "lux/home",
+   "status": "shown"
+  },
+  {
+   "key": "lux/money",
+   "status": "shown"
+  },
+  {
+   "key": "emerald/fashion",
+   "status": "shown"
+  },
+  {
+   "key": "emerald/jewelry",
+   "status": "shown"
+  },
+  {
+   "key": "emerald/anything",
+   "status": "shown"
+  },
+  {
+   "key": "emerald/beauty",
+   "status": "objectAbsent"
+  },
+  {
+   "key": "emerald/perfume",
+   "status": "shown"
+  },
+  {
+   "key": "emerald/bags",
+   "status": "shown"
+  },
+  {
+   "key": "emerald/home",
+   "status": "shown"
+  },
+  {
+   "key": "emerald/events",
+   "status": "shown"
+  },
+  {
+   "key": "emerald/travel",
+   "status": "shown"
+  },
+  {
+   "key": "emerald/books",
+   "status": "shown"
+  },
+  {
+   "key": "emerald/music",
+   "status": "shown"
+  },
+  {
+   "key": "emerald/flowers",
+   "status": "shown"
+  },
+  {
+   "key": "emerald/money",
+   "status": "shown"
+  },
+  {
+   "key": "bold/fashion",
+   "status": "shown"
+  },
+  {
+   "key": "bold/beauty",
+   "status": "shown"
+  },
+  {
+   "key": "bold/anything",
+   "status": "shown"
+  },
+  {
+   "key": "bold/jewelry",
+   "status": "shown"
+  },
+  {
+   "key": "bold/perfume",
+   "status": "shown"
+  },
+  {
+   "key": "bold/bags",
+   "status": "shown"
+  },
+  {
+   "key": "bold/events",
+   "status": "shown"
+  },
+  {
+   "key": "bold/music",
+   "status": "shown"
+  },
+  {
+   "key": "bold/travel",
+   "status": "shown"
+  },
+  {
+   "key": "bold/books",
+   "status": "shown"
+  },
+  {
+   "key": "bold/flowers",
+   "status": "shown"
+  },
+  {
+   "key": "bold/home",
+   "status": "shown"
+  },
+  {
+   "key": "bold/money",
+   "status": "shown"
+  },
+  {
+   "key": "cottage/fashion",
+   "status": "shown"
+  },
+  {
+   "key": "cottage/jewelry",
+   "status": "shown"
+  },
+  {
+   "key": "cottage/anything",
+   "status": "shown"
+  },
+  {
+   "key": "cottage/beauty",
+   "status": "shown"
+  },
+  {
+   "key": "cottage/perfume",
+   "status": "shown"
+  },
+  {
+   "key": "cottage/bags",
+   "status": "shown"
+  },
+  {
+   "key": "cottage/events",
+   "status": "shown"
+  },
+  {
+   "key": "cottage/music",
+   "status": "shown"
+  },
+  {
+   "key": "cottage/travel",
+   "status": "shown"
+  },
+  {
+   "key": "cottage/books",
+   "status": "shown"
+  },
+  {
+   "key": "cottage/flowers",
+   "status": "shown"
+  },
+  {
+   "key": "cottage/home",
+   "status": "shown"
+  },
+  {
+   "key": "cottage/money",
+   "status": "shown"
+  },
+  {
+   "key": "gamer/sneakers",
+   "status": "shown"
+  },
+  {
+   "key": "gamer/tech",
+   "status": "shown"
+  },
+  {
+   "key": "gamer/anything",
+   "status": "shown"
+  },
+  {
+   "key": "gamer/gaming",
+   "status": "shown"
+  },
+  {
+   "key": "gamer/sport",
+   "status": "shown"
+  },
+  {
+   "key": "gamer/grooming",
+   "status": "shown"
+  },
+  {
+   "key": "gamer/fashion",
+   "status": "shown"
+  },
+  {
+   "key": "gamer/events",
+   "status": "shown"
+  },
+  {
+   "key": "gamer/travel",
+   "status": "shown"
+  },
+  {
+   "key": "gamer/watches",
+   "status": "shown"
+  },
+  {
+   "key": "gamer/music",
+   "status": "shown"
+  },
+  {
+   "key": "gamer/books",
+   "status": "shown"
+  },
+  {
+   "key": "gamer/money",
+   "status": "shown"
+  },
+  {
+   "key": "sport/fashion",
+   "status": "shown"
+  },
+  {
+   "key": "sport/watches",
+   "status": "objectAbsent"
+  },
+  {
+   "key": "sport/anything",
+   "status": "shown"
+  },
+  {
+   "key": "sport/sneakers",
+   "status": "shown"
+  },
+  {
+   "key": "sport/grooming",
+   "status": "shown"
+  },
+  {
+   "key": "sport/books",
+   "status": "shown"
+  },
+  {
+   "key": "sport/music",
+   "status": "shown"
+  },
+  {
+   "key": "sport/sport",
+   "status": "shown"
+  },
+  {
+   "key": "sport/tech",
+   "status": "shown"
+  },
+  {
+   "key": "sport/gaming",
+   "status": "disabled"
+  },
+  {
+   "key": "sport/events",
+   "status": "shown"
+  },
+  {
+   "key": "sport/travel",
+   "status": "shown"
+  },
+  {
+   "key": "sport/money",
+   "status": "shown"
+  },
+  {
+   "key": "study/fashion",
+   "status": "shown"
+  },
+  {
+   "key": "study/watches",
+   "status": "shown"
+  },
+  {
+   "key": "study/anything",
+   "status": "shown"
+  },
+  {
+   "key": "study/sneakers",
+   "status": "shown"
+  },
+  {
+   "key": "study/grooming",
+   "status": "shown"
+  },
+  {
+   "key": "study/books",
+   "status": "shown"
+  },
+  {
+   "key": "study/music",
+   "status": "shown"
+  },
+  {
+   "key": "study/events",
+   "status": "shown"
+  },
+  {
+   "key": "study/tech",
+   "status": "objectAbsent"
+  },
+  {
+   "key": "study/gaming",
+   "status": "objectAbsent"
+  },
+  {
+   "key": "study/sport",
+   "status": "shown"
+  },
+  {
+   "key": "study/travel",
+   "status": "shown"
+  },
+  {
+   "key": "study/money",
+   "status": "shown"
+  },
+  {
+   "key": "loft/fashion",
+   "status": "shown"
+  },
+  {
+   "key": "loft/music",
+   "status": "shown"
+  },
+  {
+   "key": "loft/anything",
+   "status": "shown"
+  },
+  {
+   "key": "loft/sneakers",
+   "status": "shown"
+  },
+  {
+   "key": "loft/tech",
+   "status": "shown"
+  },
+  {
+   "key": "loft/books",
+   "status": "shown"
+  },
+  {
+   "key": "loft/sport",
+   "status": "shown"
+  },
+  {
+   "key": "loft/events",
+   "status": "shown"
+  },
+  {
+   "key": "loft/gaming",
+   "status": "disabled"
+  },
+  {
+   "key": "loft/watches",
+   "status": "shown"
+  },
+  {
+   "key": "loft/grooming",
+   "status": "shown"
+  },
+  {
+   "key": "loft/travel",
+   "status": "shown"
+  },
+  {
+   "key": "loft/money",
+   "status": "shown"
+  }
+ ]
+}
