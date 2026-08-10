@@ -80,10 +80,17 @@ describe("сервер не принимает упразднённое поло
     // Условие тикета: «правило night → dusk ставить ОДНИМ местом в разрешении
     // рецепта, а не копировать значения в три ветки». Место — `asTimeOfDay`.
     expect(grading).toContain('if (value === RETIRED_TIME_OF_DAY) return "dusk";');
-    // В матрице переходов ночи как ЦЕЛИ не осталось ни в одной ветке.
-    const matrix = grading.slice(grading.indexOf("const TRANSITION"), grading.indexOf("function todRecipe"));
-    expect(matrix).not.toMatch(/^\s*night: \{/mu);
+    // В матрице переходов ночь осталась ровно ветвью РОДНОГО времени базы
+    // (отступ 2) и нигде не встречается ЦЕЛЬЮ (отступ 4).
+    const matrix = grading.slice(
+      grading.indexOf("const TRANSITION"),
+      grading.indexOf("function todRecipe"),
+    );
+    expect(matrix.match(/^ {2}night: \{/gmu) ?? [], "ветка ночной базы одна").toHaveLength(1);
+    expect(matrix).not.toMatch(/^ {4}night:/mu);
     expect(matrix).not.toContain("NIGHT_V2");
+    // Синее окно ночи не возвращается ни к одной базе — цвета в файле нет.
+    expect(grading).not.toContain("52,72,118");
   });
 });
 

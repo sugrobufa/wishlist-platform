@@ -51,7 +51,10 @@ const ZONES = [
   { key: "beauty", label: "Красота и уход" },
 ] as unknown as Parameters<typeof ZoneRail>[0]["zones"];
 
-/** Полоса так, как её рисует комната: с плоским списком и признаком пустоты. */
+/**
+ * Полоса так, как её рисует комната: с плоским списком, слотом `below` и
+ * признаком пустоты.
+ */
 const drawRail = (empty: boolean) =>
   renderToStaticMarkup(
     createElement(
@@ -61,6 +64,7 @@ const drawRail = (empty: boolean) =>
         viewer: "owner",
         accent: "#E7C9A9",
         roomList: createElement("p", null, "все вещи комнаты"),
+        below: createElement("p", null, "блок первого шага"),
         empty,
       } as never,
       null,
@@ -161,6 +165,17 @@ describe("полоса остаётся местом действий, а не �
     expect(body).not.toMatch(/--imm-tab-bar/u);
     const slot = ownerPage.slice(ownerPage.indexOf("<ZoneRail"), ownerPage.indexOf("</ZoneRail>"));
     expect(slot).toContain("imm-empty-start");
+  });
+
+  it("разделителя над блоком нет: отделять его не от чего", () => {
+    // Волосяная линия слота `below` отделяет его от ОГЛАВЛЕНИЯ. Оглавления в
+    // пустой комнате нет, и линия стала бы чертой поперёк экрана сразу под
+    // кадром — в макете 41a её нет.
+    const railCss = read("../src/components/scene/zone-index.module.css");
+    expect(railCss).toMatch(/\.belowBare \{[\s\S]*?border-top: 0;/u);
+    expect(rail).toContain("empty ? `${s.below} ${s.belowBare}` : s.below");
+    expect(drawRail(true)).toContain("belowBare");
+    expect(drawRail(false)).not.toContain("belowBare");
   });
 
   it("полоса света тянется на всю ширину: вес селектора бьёт `.imm-rail a`", () => {
