@@ -1,0 +1,658 @@
+{
+ "answersTo": "письмо 44, пункты 1 и 2 — дельта вместо копии контракта",
+ "rule": "С этого раунда мы присылаем ДЕЛЬТУ, а не файл. Ваш контракт — ваш: приёмка, осмотры, причины пересъёмки живут у вас, и наша копия их затирала. Признаём: 216 полей вашей работы пропали именно так.",
+ "whatThisIs": "Только пересчитанная форма светового пятна. Прямоугольники не трогаем — они ваши.",
+ "formula": "bloomAR = clamp(30, 120, round(rect.w / rect.h * 58)); bloomRot не меняется",
+ "found": "Разошлось не 15, а 59. Ваши 15 — те, что мы сами пометили rectPrevDesign; остальные 44 нашлись, когда мы прогнали формулу по всей карте: у них bloomAR остался от прямоугольника, который переехал раньше и без пометки. Формула воспроизводит ваши значения там, где прямоугольник не двигался, — значит она та самая.",
+ "zones": [
+  {
+   "zone": "cream/beauty",
+   "rect": {
+    "x": 256,
+    "y": 158,
+    "w": 60,
+    "h": 45
+   },
+   "bloomAR": 77,
+   "was": 97
+  },
+  {
+   "zone": "cream/books",
+   "rect": {
+    "x": 475,
+    "y": 175,
+    "w": 33,
+    "h": 25
+   },
+   "bloomAR": 77,
+   "was": 120
+  },
+  {
+   "zone": "cream/music",
+   "rect": {
+    "x": 507,
+    "y": 185,
+    "w": 40,
+    "h": 28
+   },
+   "bloomAR": 83,
+   "was": 89
+  },
+  {
+   "zone": "cream/flowers",
+   "rect": {
+    "x": 568,
+    "y": 148,
+    "w": 42,
+    "h": 55
+   },
+   "bloomAR": 44,
+   "was": 46
+  },
+  {
+   "zone": "cream/home",
+   "rect": {
+    "x": 413,
+    "y": 188,
+    "w": 62,
+    "h": 32
+   },
+   "bloomAR": 112,
+   "was": 67
+  },
+  {
+   "zone": "cream/money",
+   "rect": {
+    "x": 226,
+    "y": 282,
+    "w": 40,
+    "h": 58
+   },
+   "bloomAR": 40,
+   "was": 66
+  },
+  {
+   "zone": "warm/home",
+   "rect": {
+    "x": 538,
+    "y": 198,
+    "w": 92,
+    "h": 112
+   },
+   "bloomAR": 48,
+   "was": 30
+  },
+  {
+   "zone": "warm/events",
+   "rect": {
+    "x": 318,
+    "y": 93,
+    "w": 98,
+    "h": 48
+   },
+   "bloomAR": 118,
+   "was": 111
+  },
+  {
+   "zone": "warm/books",
+   "rect": {
+    "x": 524,
+    "y": 48,
+    "w": 68,
+    "h": 82
+   },
+   "bloomAR": 48,
+   "was": 56
+  },
+  {
+   "zone": "warm/flowers",
+   "rect": {
+    "x": 538,
+    "y": 98,
+    "w": 92,
+    "h": 128
+   },
+   "bloomAR": 42,
+   "was": 34
+  },
+  {
+   "zone": "lux/jewelry",
+   "rect": {
+    "x": 272,
+    "y": 214,
+    "w": 22,
+    "h": 28
+   },
+   "bloomAR": 46,
+   "was": 120
+  },
+  {
+   "zone": "lux/events",
+   "rect": {
+    "x": 326,
+    "y": 74,
+    "w": 64,
+    "h": 92
+   },
+   "bloomAR": 40,
+   "was": 35
+  },
+  {
+   "zone": "lux/travel",
+   "rect": {
+    "x": 294,
+    "y": 208,
+    "w": 90,
+    "h": 141
+   },
+   "bloomAR": 37,
+   "was": 58
+  },
+  {
+   "zone": "lux/books",
+   "rect": {
+    "x": 538,
+    "y": 88,
+    "w": 52,
+    "h": 42
+   },
+   "bloomAR": 72,
+   "was": 52
+  },
+  {
+   "zone": "lux/music",
+   "rect": {
+    "x": 352,
+    "y": 192,
+    "w": 48,
+    "h": 16
+   },
+   "bloomAR": 120,
+   "was": 116
+  },
+  {
+   "zone": "lux/flowers",
+   "rect": {
+    "x": 568,
+    "y": 64,
+    "w": 62,
+    "h": 102
+   },
+   "bloomAR": 35,
+   "was": 30
+  },
+  {
+   "zone": "lux/home",
+   "rect": {
+    "x": 588,
+    "y": 222,
+    "w": 38,
+    "h": 38
+   },
+   "bloomAR": 58,
+   "was": 30
+  },
+  {
+   "zone": "lux/money",
+   "rect": {
+    "x": 305,
+    "y": 178,
+    "w": 36,
+    "h": 30
+   },
+   "bloomAR": 70,
+   "was": 64
+  },
+  {
+   "zone": "emerald/anything",
+   "rect": {
+    "x": 12,
+    "y": 196,
+    "w": 88,
+    "h": 118
+   },
+   "bloomAR": 43,
+   "was": 36
+  },
+  {
+   "zone": "emerald/home",
+   "rect": {
+    "x": 418,
+    "y": 198,
+    "w": 52,
+    "h": 28
+   },
+   "bloomAR": 108,
+   "was": 30
+  },
+  {
+   "zone": "emerald/events",
+   "rect": {
+    "x": 368,
+    "y": 64,
+    "w": 108,
+    "h": 102
+   },
+   "bloomAR": 61,
+   "was": 42
+  },
+  {
+   "zone": "emerald/books",
+   "rect": {
+    "x": 518,
+    "y": 18,
+    "w": 112,
+    "h": 232
+   },
+   "bloomAR": 30,
+   "was": 49
+  },
+  {
+   "zone": "emerald/flowers",
+   "rect": {
+    "x": 568,
+    "y": 48,
+    "w": 62,
+    "h": 92
+   },
+   "bloomAR": 39,
+   "was": 30
+  },
+  {
+   "zone": "bold/events",
+   "rect": {
+    "x": 374,
+    "y": 58,
+    "w": 122,
+    "h": 92
+   },
+   "bloomAR": 77,
+   "was": 68
+  },
+  {
+   "zone": "bold/music",
+   "rect": {
+    "x": 426,
+    "y": 164,
+    "w": 76,
+    "h": 46
+   },
+   "bloomAR": 96,
+   "was": 34
+  },
+  {
+   "zone": "bold/books",
+   "rect": {
+    "x": 504,
+    "y": 28,
+    "w": 122,
+    "h": 168
+   },
+   "bloomAR": 42,
+   "was": 67
+  },
+  {
+   "zone": "bold/flowers",
+   "rect": {
+    "x": 546,
+    "y": 158,
+    "w": 84,
+    "h": 122
+   },
+   "bloomAR": 40,
+   "was": 30
+  },
+  {
+   "zone": "bold/home",
+   "rect": {
+    "x": 424,
+    "y": 234,
+    "w": 152,
+    "h": 116
+   },
+   "bloomAR": 76,
+   "was": 30
+  },
+  {
+   "zone": "cottage/music",
+   "rect": {
+    "x": 411,
+    "y": 217,
+    "w": 64,
+    "h": 27
+   },
+   "bloomAR": 120,
+   "was": 100
+  },
+  {
+   "zone": "cottage/books",
+   "rect": {
+    "x": 504,
+    "y": 118,
+    "w": 72,
+    "h": 52
+   },
+   "bloomAR": 80,
+   "was": 57
+  },
+  {
+   "zone": "cottage/flowers",
+   "rect": {
+    "x": 558,
+    "y": 214,
+    "w": 72,
+    "h": 68
+   },
+   "bloomAR": 61,
+   "was": 30
+  },
+  {
+   "zone": "cottage/home",
+   "rect": {
+    "x": 308,
+    "y": 248,
+    "w": 102,
+    "h": 78
+   },
+   "bloomAR": 76,
+   "was": 30
+  },
+  {
+   "zone": "gamer/anything",
+   "rect": {
+    "x": 12,
+    "y": 230,
+    "w": 102,
+    "h": 104
+   },
+   "bloomAR": 57,
+   "was": 70
+  },
+  {
+   "zone": "gamer/sport",
+   "rect": {
+    "x": 370,
+    "y": 164,
+    "w": 80,
+    "h": 56
+   },
+   "bloomAR": 83,
+   "was": 44
+  },
+  {
+   "zone": "gamer/events",
+   "rect": {
+    "x": 396,
+    "y": 64,
+    "w": 54,
+    "h": 62
+   },
+   "bloomAR": 51,
+   "was": 30
+  },
+  {
+   "zone": "gamer/watches",
+   "rect": {
+    "x": 517,
+    "y": 272,
+    "w": 43,
+    "h": 18
+   },
+   "bloomAR": 120,
+   "was": 67
+  },
+  {
+   "zone": "gamer/music",
+   "rect": {
+    "x": 498,
+    "y": 28,
+    "w": 98,
+    "h": 82
+   },
+   "bloomAR": 69,
+   "was": 56
+  },
+  {
+   "zone": "gamer/books",
+   "rect": {
+    "x": 505,
+    "y": 215,
+    "w": 65,
+    "h": 65
+   },
+   "bloomAR": 58,
+   "was": 41
+  },
+  {
+   "zone": "gamer/money",
+   "rect": {
+    "x": 590,
+    "y": 270,
+    "w": 18,
+    "h": 20
+   },
+   "bloomAR": 52,
+   "was": 32
+  },
+  {
+   "zone": "sport/books",
+   "rect": {
+    "x": 504,
+    "y": 84,
+    "w": 66,
+    "h": 46
+   },
+   "bloomAR": 83,
+   "was": 68
+  },
+  {
+   "zone": "sport/music",
+   "rect": {
+    "x": 538,
+    "y": 144,
+    "w": 62,
+    "h": 26
+   },
+   "bloomAR": 120,
+   "was": 102
+  },
+  {
+   "zone": "sport/sport",
+   "rect": {
+    "x": 520,
+    "y": 240,
+    "w": 105,
+    "h": 75
+   },
+   "bloomAR": 81,
+   "was": 71
+  },
+  {
+   "zone": "sport/events",
+   "rect": {
+    "x": 415,
+    "y": 142,
+    "w": 38,
+    "h": 53
+   },
+   "bloomAR": 42,
+   "was": 106
+  },
+  {
+   "zone": "sport/money",
+   "rect": {
+    "x": 590,
+    "y": 272,
+    "w": 18,
+    "h": 25
+   },
+   "bloomAR": 42,
+   "was": 30
+  },
+  {
+   "zone": "study/anything",
+   "rect": {
+    "x": 166,
+    "y": 230,
+    "w": 84,
+    "h": 90
+   },
+   "bloomAR": 54,
+   "was": 92
+  },
+  {
+   "zone": "study/sneakers",
+   "rect": {
+    "x": 87,
+    "y": 232,
+    "w": 57,
+    "h": 34
+   },
+   "bloomAR": 97,
+   "was": 120
+  },
+  {
+   "zone": "study/books",
+   "rect": {
+    "x": 558,
+    "y": 28,
+    "w": 72,
+    "h": 122
+   },
+   "bloomAR": 34,
+   "was": 45
+  },
+  {
+   "zone": "study/music",
+   "rect": {
+    "x": 538,
+    "y": 144,
+    "w": 62,
+    "h": 32
+   },
+   "bloomAR": 112,
+   "was": 116
+  },
+  {
+   "zone": "study/events",
+   "rect": {
+    "x": 417,
+    "y": 72,
+    "w": 45,
+    "h": 35
+   },
+   "bloomAR": 75,
+   "was": 44
+  },
+  {
+   "zone": "study/travel",
+   "rect": {
+    "x": 12,
+    "y": 232,
+    "w": 74,
+    "h": 80
+   },
+   "bloomAR": 54,
+   "was": 75
+  },
+  {
+   "zone": "study/money",
+   "rect": {
+    "x": 545,
+    "y": 310,
+    "w": 30,
+    "h": 20
+   },
+   "bloomAR": 87,
+   "was": 47
+  },
+  {
+   "zone": "loft/fashion",
+   "rect": {
+    "x": 22,
+    "y": 51,
+    "w": 135,
+    "h": 140
+   },
+   "bloomAR": 56,
+   "was": 48
+  },
+  {
+   "zone": "loft/anything",
+   "rect": {
+    "x": 72,
+    "y": 260,
+    "w": 53,
+    "h": 75
+   },
+   "bloomAR": 41,
+   "was": 104
+  },
+  {
+   "zone": "loft/books",
+   "rect": {
+    "x": 444,
+    "y": 88,
+    "w": 62,
+    "h": 62
+   },
+   "bloomAR": 58,
+   "was": 38
+  },
+  {
+   "zone": "loft/sport",
+   "rect": {
+    "x": 544,
+    "y": 164,
+    "w": 86,
+    "h": 96
+   },
+   "bloomAR": 52,
+   "was": 75
+  },
+  {
+   "zone": "loft/events",
+   "rect": {
+    "x": 400,
+    "y": 165,
+    "w": 35,
+    "h": 60
+   },
+   "bloomAR": 34,
+   "was": 47
+  },
+  {
+   "zone": "loft/watches",
+   "rect": {
+    "x": 515,
+    "y": 207,
+    "w": 40,
+    "h": 15
+   },
+   "bloomAR": 120,
+   "was": 107
+  },
+  {
+   "zone": "loft/travel",
+   "rect": {
+    "x": 12,
+    "y": 242,
+    "w": 60,
+    "h": 50
+   },
+   "bloomAR": 70,
+   "was": 53
+  },
+  {
+   "zone": "loft/money",
+   "rect": {
+    "x": 577,
+    "y": 272,
+    "w": 20,
+    "h": 23
+   },
+   "bloomAR": 50,
+   "was": 47
+  }
+ ]
+}
