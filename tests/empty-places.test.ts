@@ -1,5 +1,5 @@
-// ТРИ ПУСТЫХ МЕСТА на сцене пустой комнаты (тикет 142; приёмка `places-v3.2`
-// пакета раунда 40 — тикет 162).
+// ТРИ ПУСТЫХ МЕСТА на сцене пустой комнаты (тикет 142; приёмка `places-v3.3`
+// пакета раунда 41 — тикет 168).
 //
 // ПОЧЕМУ ЗДЕСЬ НЕТ ТАБЛИЦЫ ДИЗАЙНА — И ПОСЛЕ ТОГО, КАК ОНА СОШЛАСЬ. В раунде 34
 // receipt пакета был посчитан по снимку `rooms.json` ДО переразметок, и тройки
@@ -579,26 +579,50 @@ describe("142 — вид места: числа контракта против 
     expect(placesContract.notDashed).toContain("ЧЕТВЁРТЫЙ УБРАН");
   });
 
-  it("ФОКУС МЕСТА СВОЙ, И ЕГО ЧИСЛА СНОВА НАШИ", () => {
+  it("ЧИСЛА ФОКУСА ЧИТАЮТСЯ ИЗ КОНТРАКТА, А НЕ СТОЯТ КОНСТАНТАМИ (тикет 168)", () => {
     // Ловушка: `--zone-focus-outline` это `1px dashed {accent}` из контракта
     // (законный, но единственный законный) пунктир. Приди он на уголки места —
     // на тёмной пустой сцене человек прочтёт ровно умершее «хочу». Дизайн эту
-    // находку принял и в `places-v3.2` закрыл ещё крепче: фокуса у места нет
-    // вовсе, оно `aria-hidden` и не в обходе. Первую половину принимаем — но
-    // фокус мы рисуем НЕ У МЕСТА: он на кнопке зоны, место подсвечивается
-    // вслед за ним, ровно как контрактные `zoneHover`/`zonePress`.
-    expect(placesContract.states.focusVisible.place).toContain("у места фокуса нет вовсе");
-    // Числа контракт снял вместе с ролью кнопки — остались НАШИМ дефолтом, и
-    // новых не выдумано. Вопрос выписан письмом 44 (пункт 9); тест сторожит,
-    // чтобы до ответа их никто не «уточнил».
-    expect(placesContract.behavior.a11y.dropped).toContain(
-      "наши states.focusVisible для места отменены",
+    // находку принял; в `states.focusVisible` (теперь псевдоним) она закрыта
+    // ответом одним словом.
+    expect(placesContract.states.focusVisible.dashed).toBe("НЕТ");
+    // ВОПРОС ПИСЬМА 44 (ПУНКТ 9) ЗАКРЫТ. Раунд 40 снёс числа фокуса вместе с
+    // ролью кнопки, и мы держали их своим дефолтом — константами, потому что
+    // читать было неоткуда. `places-v3.3` вернул их ключом `states.zoneFocus`
+    // нашей же формулировкой: фокус на кнопке зоны, место подсвечивается ВСЛЕД.
+    // Констант больше нет: `PLACE_FOCUS` разбирает эту строку.
+    expect(placesContract.states.zoneFocus.what).toContain("фокус живёт на кнопке зоны");
+    expect(placesContract.states.zoneFocus.note).toContain("наш ключ, не ваш дефолт");
+    // Числа СЧИТАНЫ, а не переписаны: ожидание берём из самой строки контракта,
+    // а не из литералов рядом. Разойдись разбор — здесь и упадёт.
+    const said = placesContract.states.zoneFocus.place;
+    expect(said).toContain(`уголки +${PLACE_FOCUS.armPlusPx}`);
+    expect(said).toContain(`контур ${PLACE_FOCUS.strokePx}`);
+    expect(said).toContain(
+      `свечение ${PLACE_FOCUS.glow.dx} ${PLACE_FOCUS.glow.dy} ${PLACE_FOCUS.glow.blurPx}px ` +
+        `акцента при ${String(PLACE_FOCUS.glow.alpha).replace(/^0/u, "")}`,
     );
+    // Плечо покоя контракт называет дважды — прибавкой и обеими сторонами
+    // перехода; `11` в них обязано быть тем же `visual.corners.armPx`.
+    expect(said).toContain(
+      `(${placesContract.visual.corners.armPx} → ` +
+        `${placesContract.visual.corners.armPx + PLACE_FOCUS.armPlusPx})`,
+    );
+    // ПОВЕДЕНИЕ НЕ ИЗМЕНИЛОСЬ НИ НА ЕДИНИЦУ — то же, что стояло константами.
     expect(PLACE_FOCUS.armPlusPx).toBe(2);
     expect(PLACE_FOCUS.strokePx).toBe(2);
+    expect(PLACE_FOCUS.glow).toEqual({ dx: 0, dy: 0, blurPx: 10, alpha: 0.5 });
     expect(placeFocusGlow()).toBe(
       "drop-shadow(0 0 10px color-mix(in srgb, var(--place-accent) 50%, transparent))",
     );
+    // Шесть ключей `behavior.a11y` НЕ ВЕРНУЛИСЬ вместе с числами: отменяли их
+    // мы, и место кнопкой не стало. Отмена записана там же, где была.
+    expect(placesContract.behavior.a11y.dropped).toContain(
+      "наши states.focusVisible для места отменены",
+    );
+    // «Дыхание на время фокуса останавливается» — новая строка того же ключа.
+    // Описывает ровно то, что у нас уже стояло: `animation: none` ниже.
+    expect(said).toContain("дыхание на время фокуса останавливается");
     // Место фокус не принимает вовсе: это не кнопка, у него нет tabindex и
     // aria-роли, а `pointer-events: none` не даёт даже нажать.
     expect(stage).not.toMatch(/<button[^>]*s\.place/u);
@@ -615,6 +639,8 @@ describe("142 — вид места: числа контракта против 
     expect(focus).toContain("--place-arm: calc(var(--place-arm-rest) + var(--place-focus-arm));");
     expect(focus).toContain("filter: var(--place-focus-glow);");
     expect(focus).not.toMatch(/dashed|dotted/u);
+    // Дыхание на время фокуса стоит — правило контракта уже было правилом CSS.
+    expect(focus).toContain("animation: none;");
     expect(stage).toContain('"--place-focus-glow": placeFocusGlow()');
   });
 
@@ -699,6 +725,15 @@ describe("142 — места живут ровно столько же, скол
         gone,
       );
     }
+    // РАУНД 41 ЗАВЁЛ ПСЕВДОНИМ `behavior.a11yPlace` — и это НЕ возврат шести
+    // ключей (тикет 168). Отменяли их мы, дизайн отмену принял, и псевдоним
+    // говорит то же самое тремя словами: роли нет, имени нет, фокуса нет.
+    // Требуем именно этого: появись там роль кнопки — падать здесь.
+    expect(placesContract.behavior.a11yPlace.alias).toBe("behavior.a11y");
+    expect(placesContract.behavior.a11yPlace.role).toContain("нет");
+    expect(placesContract.behavior.a11yPlace.role).not.toContain("button");
+    expect(placesContract.behavior.a11yPlace.name).toBe("нет");
+    expect(placesContract.behavior.a11yPlace.focus).toBe("нет");
     expect(stage).toMatch(/aria-hidden\s*\n\s*className=\{place\.primary/u);
     expect(stage).not.toMatch(/<button[^>]*s\.place/u);
     expect(sceneCss).toMatch(/\.place \{[^}]*pointer-events: none;/u);
@@ -713,8 +748,26 @@ describe("142 — места живут ровно столько же, скол
     // описаны как состояния КНОПКИ ЗОНЫ, за которыми место перерисовывается.
     expect(placesContract.states.zoneHover.what).toContain("КНОПКИ ЗОНЫ");
     expect(placesContract.states.zonePress.what).toContain("кнопку зоны");
-    expect(JSON.stringify(placesContract.states)).not.toContain('"hover"');
-    expect(JSON.stringify(placesContract.states)).not.toContain('"press"');
+    // ЗАПРЕТ НА САМИ СЛОВА `hover`/`press` В `states` СНЯТ (тикет 168). Он
+    // требовал, чтобы ключей с такими именами в файле не было вовсе, — и это
+    // было лишнее: в `places-v3.3` они ВЕРНУЛИСЬ ПСЕВДОНИМАМИ старых адресов,
+    // по тому самому правилу `keyMoves`, которого мы от дизайна и добивались
+    // («ключ, который переехал, ГОД живёт псевдонимом на старом месте»).
+    // Запрещать надо не имя ключа, а роль: место — не кнопка. Поэтому сторож
+    // переписан на СМЫСЛ — оба старых адреса обязаны указывать на состояния
+    // ЗОНЫ и вести к новым ключам, а не заводить месту собственные.
+    expect(placesContract.states.hover.alias).toBe("states.zoneHover");
+    expect(placesContract.states.press.alias).toBe("states.zonePress");
+    expect(placesContract.states.focusVisible.alias).toBe("states.zoneFocus");
+    for (const alias of ["hover", "press", "focusVisible"] as const) {
+      const to = placesContract.states[alias].alias;
+      expect(Object.keys(placesContract.states), `${alias}: псевдоним ведёт в никуда`).toContain(
+        to.replace("states.", ""),
+      );
+      expect(placesContract.states[alias].note, `${alias}: значения разъехались`).toContain(
+        "значения те же",
+      );
+    }
     // Исключение из общего «нажимаемое проседает scale(.97)» осталось словом:
     // уголки привязаны к предмету в кадре, масштаб сдвинул бы их с него.
     expect(placesContract.states.zonePress.noScale).toContain("МЕСТО НЕ МАСШТАБИРУЕТСЯ");
