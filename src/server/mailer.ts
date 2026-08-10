@@ -43,6 +43,13 @@ type MailFileRecord = {
   kind: "mail" | "magic-link";
   to: string;
   subject?: string;
+  /**
+   * Текст письма (тикет 158) — по нему прогон проверяет, что ссылки внутри
+   * ведут на адрес e2e-стенда, а не на чужой dev-сервер. Раньше в записи были
+   * только «кому» и «тема», и неверный хост в письме прогон не замечал.
+   * Переносы строк JSON экранирует сам — NDJSON остаётся однострочным.
+   */
+  text?: string;
   url?: string;
   at: string;
 };
@@ -82,7 +89,7 @@ function smtpTransport(): Promise<Transporter> {
  * вызывающего (у mail-джоб это attempts BullMQ).
  */
 export async function sendMail({ to, subject, text, html }: MailInput): Promise<void> {
-  await appendToMailFile({ kind: "mail", to, subject, at: new Date().toISOString() });
+  await appendToMailFile({ kind: "mail", to, subject, text, at: new Date().toISOString() });
   if (!process.env.EMAIL_SERVER) {
     const body = text
       .split("\n")

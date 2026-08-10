@@ -24,10 +24,27 @@ import IORedis from "ioredis";
 import { prisma } from "../src/server/db";
 import { MAIL_QUEUE_NAME } from "../src/server/queues";
 import { processMailJob } from "../src/worker/mail";
-import { E2E_MAIL_FILE } from "./env";
+import { E2E_BASE_URL, E2E_MAIL_FILE } from "./env";
 
 // Мини-воркер шлёт письма из ЭТОГО процесса — mailer должен видеть шов.
 process.env.E2E_MAIL_FILE = E2E_MAIL_FILE;
+
+/**
+ * …И СОБИРАТЬ ССЫЛКИ ОТ АДРЕСА СТЕНДА (тикет 158).
+ *
+ * `webServer.env` в playwright.config.ts задаёт окружение ТОЛЬКО процессу Next
+ * — до этого процесса оно не доезжает вовсе. А письма рендерит мини-воркер
+ * ниже, то есть ЭТОТ процесс: без строки ссылка в письме собиралась от
+ * `.env` (`APP_BASE_URL=http://localhost:3000`) и вела на ЧУЖОЙ dev-сервер,
+ * который прогон трогать не должен (контракт тикета 15). Проверено прогоном:
+ * pid процесса теста и `appUrl` в нём совпадали с `.env`, а сервер на :3100
+ * в то же время отдавал свой og:image от :3100 — `.env` ничего не «перебивал»,
+ * просто в этом процессе адрес никто не ставил.
+ *
+ * Присваивание, а не `??=`: E2E_BASE_URL — адрес стенда, и он главнее того,
+ * что лежит в `.env` разработчика.
+ */
+process.env.APP_BASE_URL = E2E_BASE_URL;
 
 const HOSTESS_EMAIL = "hostess-e2e@wishlist.local";
 const GUEST_EMAIL = "guest-e2e@wishlist.local";
@@ -87,7 +104,7 @@ let roomSlug = "";
 
 // ---------- Почтовый файл (шов E2E_MAIL_FILE) ----------
 
-type MailRecord = { kind?: string; to?: string; url?: string; subject?: string };
+type MailRecord = { kind?: string; to?: string; url?: string; subject?: string; text?: string };
 
 function readMailRecords(): MailRecord[] {
   if (!existsSync(E2E_MAIL_FILE)) return [];
@@ -105,6 +122,24 @@ function readMailRecords(): MailRecord[] {
 
 function magicLinksTo(email: string): MailRecord[] {
   return readMailRecords().filter((r) => r.kind === "magic-link" && r.to === email);
+}
+
+/**
+ * Ссылки перехваченных писем, ведущие НЕ на стенд (тикет 158).
+ *
+ * Смотрим оба вида записей: `url` у magic link (его собирает сам Next из
+ * запроса) и текст письма (его собирает `appUrl` из окружения ТОГО процесса,
+ * который письмо рендерит). Пока шва не было, второе тихо уезжало на
+ * `http://localhost:3000` — адрес чужого dev-сервера, — и прогон оставался
+ * зелёным: он проверял «кому» и «тема», а внутрь письма не заглядывал.
+ */
+function foreignMailLinks(): string[] {
+  return readMailRecords()
+    .flatMap((record) => [
+      ...(record.url ? [record.url] : []),
+      ...(String(record.text ?? "").match(/https?:\/\/\S+/g) ?? []),
+    ])
+    .filter((url) => !url.startsWith(E2E_BASE_URL));
 }
 
 /**
@@ -532,18 +567,31 @@ test("полный цикл дарения: хозяйка → гость → с
   });
 
   await test.step("письмо occasion-owner хозяйке лежит в E2E_MAIL_FILE", async () => {
+    const occasionMail = (): MailRecord | undefined =>
+      readMailRecords().find(
+        (record) =>
+          record.kind === "mail" &&
+          record.to === HOSTESS_EMAIL &&
+          (record.subject ?? "").includes("что подарили"),
+      );
+
     await expect
-      .poll(
-        () =>
-          readMailRecords().some(
-            (record) =>
-              record.kind === "mail" &&
-              record.to === HOSTESS_EMAIL &&
-              (record.subject ?? "").includes("что подарили"),
-          ),
-        { timeout: 30_000, message: "письмо «открой „что подарили“» не дошло до файла" },
-      )
+      .poll(() => occasionMail() !== undefined, {
+        timeout: 30_000,
+        message: "письмо «открой „что подарили“» не дошло до файла",
+      })
       .toBe(true);
+
+    // ССЫЛКА ВЕДЁТ НА СТЕНД, А НЕ НА ЧУЖОЙ АДРЕС (тикет 158). До этой проверки
+    // прогон был зелёным с `http://localhost:3000/room/occasion` в письме:
+    // письма рендерит процесс ТЕСТА, а `webServer.env` задаёт окружение только
+    // процессу Next. Проверяем именно перехваченное письмо — там же, где это
+    // увидел владелец.
+    expect(
+      occasionMail()?.text ?? "",
+      "ссылка письма собрана не от адреса e2e-стенда",
+    ).toContain(`${E2E_BASE_URL}/room/occasion`);
+    expect(foreignMailLinks(), "в письмах прогона есть ссылка на ЧУЖОЙ адрес").toEqual([]);
   });
 
   await guest.close();

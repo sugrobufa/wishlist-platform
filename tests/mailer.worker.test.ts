@@ -91,6 +91,29 @@ describe("processMailJob — occasion-owner", () => {
     expect(deps.sendReminderGuestImpl).not.toHaveBeenCalled();
   });
 
+  it("ссылка собирается от APP_BASE_URL ПРОЦЕССА, который крутит воркер (тикет 158)", async () => {
+    // Письмо рендерит тот процесс, который взял джобу из очереди, — в проде
+    // это воркер (`npm run worker`), в e2e мини-воркер внутри процесса теста.
+    // Адрес ссылки берётся из окружения ИМЕННО ЭТОГО процесса: никакого
+    // запроса, от которого его можно было бы вывести, у джобы нет. Отсюда и
+    // правило стенда — адрес ставит себе тот, кто шлёт письмо.
+    const { user, room } = await createOwnerWithBooking();
+    const deps = sendSeams();
+    vi.stubEnv("APP_BASE_URL", "http://localhost:3100");
+
+    const result = await processMailJob(
+      "occasion-owner",
+      { userId: user.id, email: user.email, roomId: room.id },
+      deps,
+    );
+
+    expect(result).toEqual({ status: "sent" });
+    expect(deps.sendOccasionOwnerImpl).toHaveBeenCalledWith(user.email, {
+      ownerName: "Мила",
+      occasionUrl: "http://localhost:3100/room/occasion",
+    });
+  });
+
   it("email в payload пуст → добирается по userId из БД", async () => {
     const { user, room } = await createOwnerWithBooking({ displayName: null });
     const deps = sendSeams();

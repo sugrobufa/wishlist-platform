@@ -85,7 +85,7 @@ describe("тестовый шов E2E_MAIL_FILE (тикет 15)", () => {
     expect(log).toHaveBeenCalledWith(`\n✉  [magic link] dev@x.ru\n   ${url}\n`);
   });
 
-  it("sendMail дописывает NDJSON-строку {kind:'mail', to, subject, at}, не трогая консоль", async () => {
+  it("sendMail дописывает NDJSON-строку {kind:'mail', to, subject, text, at}, не трогая консоль", async () => {
     vi.stubEnv("E2E_MAIL_FILE", file);
     const log = vi.spyOn(console, "log").mockImplementation(() => undefined);
 
@@ -102,6 +102,23 @@ describe("тестовый шов E2E_MAIL_FILE (тикет 15)", () => {
     // Консольный вывод не изменился: письмо по-прежнему печатается рамкой.
     expect(log).toHaveBeenCalledTimes(2);
     expect(String(log.mock.calls[0]?.[0])).toContain("✉  [письмо] owner@example.com");
+  });
+
+  it("в записи письма лежит ТЕКСТ со ссылками — по нему прогон проверяет хост (тикет 158)", async () => {
+    // Без текста прогон видел только «кому» и «тему» и оставался зелёным,
+    // когда ссылка в письме вела на чужой адрес. Многострочный текст обязан
+    // остаться ОДНОЙ строкой NDJSON: переносы экранирует JSON.
+    vi.stubEnv("E2E_MAIL_FILE", file);
+    vi.spyOn(console, "log").mockImplementation(() => undefined);
+    const mail = occasionOwnerMail({ ownerName: "Мила", occasionUrl: `${BASE}/room/occasion` });
+
+    await sendMail({ to: "owner@example.com", ...mail });
+
+    const lines = readFileSync(file, "utf8").trim().split("\n");
+    expect(lines).toHaveLength(1);
+    const record = JSON.parse(lines[0] ?? "") as Record<string, unknown>;
+    expect(record.text).toBe(mail.text);
+    expect(String(record.text)).toContain(`${BASE}/room/occasion`);
   });
 
   it("sendMagicLink дописывает {kind:'magic-link', to, url} и печатает рамку байт-в-байт", async () => {
