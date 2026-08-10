@@ -42,6 +42,14 @@ import {
   type LightColor,
   type TimeOfDay,
 } from "./grading";
+import {
+  emptyPlaces,
+  placeArmPx,
+  placeFill,
+  PLACE_BREATH,
+  PLACE_OPACITY,
+  PLACE_STROKE_PX,
+} from "./empty-places";
 import { ZoneHotspot } from "./zone-hotspot";
 import { ZonePanel } from "./zone-panel";
 import { useSceneZoneIndex } from "./zone-index-context";
@@ -208,6 +216,16 @@ const BASE_VARS = {
   // Тикет 50: слои метки не обрезаются прямоугольником — маска пятна и вынос
   // виньетки за коробку зоны. Числа живут в zone-marker.ts, не здесь.
   "--zone-marker-mask": markerMask(),
+  // Вид пустых мест (тикет 142, places.json → visual). Всё в ЭКРАННЫХ px:
+  // уголок с прямоугольником места не масштабируется — так написано в
+  // контракте, и поэтому плечо приходит переменной, а не долей коробки.
+  "--place-stroke-rest": `${PLACE_STROKE_PX}px`,
+  "--place-o": `${PLACE_OPACITY.others}`,
+  "--place-o0": `${PLACE_OPACITY.breathFrom}`,
+  "--place-o1": `${PLACE_OPACITY.breathTo}`,
+  "--place-o-reduced": `${PLACE_OPACITY.reduced}`,
+  "--place-breath": PLACE_BREATH,
+  "--place-fill": placeFill(),
 } satisfies Record<string, string>;
 
 export function SceneStage({
@@ -523,6 +541,30 @@ export function SceneStage({
   // только про соседний слой.
   const zoneDimOn = zoomedIn && !empty && (emptyZones?.includes(activeZone.key) ?? false);
 
+  // ТРИ ПУСТЫХ МЕСТА (тикет 142, places.json). Живут ровно столько же, сколько
+  // тёмная сцена: `empty` гаснет с первой вещью — и места уходят все три разом,
+  // как требует контракт («поштучного правила нет, источник вещи неважен»).
+  // Считаются по ВИДИМЫМ зонам: место обязано вести в зону, которая на экране
+  // есть, а скрытая продуктом (`objectAbsent`) или выключенная хозяйкой зона
+  // исчезает вместе с мебелью (инвариант №5).
+  //
+  // Ключом по зоне, а не списком: место рисуется В СЛОТЕ СВОЕЙ ЗОНЫ, чтобы
+  // фокус кнопки был виден на месте (scene.module.css → `:has`).
+  //
+  // СЛОЙ МЕСТ ЛЕЖИТ МИМО ФИЛЬТРА ПУСТОЙ КОМНАТЫ. `--grade-filter` (в пустой
+  // комнате это `brightness(.42) saturate(.72)`, grading.ts) применяется к
+  // `.frame` и `.openFrame` — фотографиям внутри стопки камеры. Слой хотспотов,
+  // а с ним и места, стоит СНАРУЖИ: иначе .55 прозрачности места умножилось бы
+  // на .42 яркости кадра, и подсказка утонула бы в той самой темноте, ради
+  // которой её и рисуют.
+  const placeByZone = useMemo(
+    () =>
+      new Map(
+        (empty ? emptyPlaces(zones).places : []).map((place) => [place.key, place] as const),
+      ),
+    [empty, zones],
+  );
+
   // Метка зоны: одно число комнаты решает, чем она обозначена — светом
   // (тёмный интерьер) или тенью вокруг предмета (светлый). Веса считаются
   // здесь и приезжают числом: `calc()` из tokens.css объявлен в `:root` и
@@ -538,6 +580,12 @@ export function SceneStage({
     return {
       ...BASE_VARS,
       "--accent": bloomTint(lightColor, preset.accent),
+      // Цвет мест — РОДНОЙ акцент комнаты (places.json → visual.color: «акцент
+      // комнаты, rooms.json accent»), а не тонированный `--accent`. Разница
+      // намеренная: `bloomTint` красит СВЕТ под выбранный цвет лампы, а место
+      // светом не является — контракт прямо запрещает зажигать под ним полосу
+      // света («свет обещан подписью сцены, зажигать заранее — ложь»).
+      "--place-accent": preset.accent,
       "--room-lightness": `${lightness}`,
       "--zone-bloom-weight": `${weights.bloom}`,
       // Яркость пустой зоны живёт ЗДЕСЬ, а не на слое: фильтр слоем не
@@ -721,6 +769,61 @@ export function SceneStage({
                   else hotspotRefs.current.delete(zone.key);
                 }}
               />
+              {/* ПУСТОЕ МЕСТО ЭТОЙ ЗОНЫ (тикет 142, турн 42a) — если правило
+                  выбрало её одной из трёх. Живёт В СЛОТЕ СВОЕЙ ЗОНЫ, рядом с
+                  её кнопкой, и это не украшение разметки: слот несёт ключ
+                  зоны, поэтому CSS может показать фокус НА МЕСТЕ, когда фокус
+                  пришёл на кнопку под ним (`:has`, ниже в scene.module.css).
+
+                  СВОЕЙ КНОПКИ У МЕСТА НЕТ, и её не должно быть. Место лежит
+                  внутри прямоугольника своей зоны с общим центром
+                  (empty-places.ts), под ним — кнопка этой зоны с хит-целью
+                  44 px от того же центра. При `pointer-events: none` палец
+                  проходит сквозь место в кнопку: «тап по месту = наезд на его
+                  зону» получается по построению, а не вторым обработчиком.
+
+                  ВТОРАЯ КНОПКА БЫЛА БЫ ЛОВУШКОЙ. Она удвоила бы зону в обходе
+                  с клавиатуры и в дикторе (назвать её нечем — подписей у мест
+                  нет), а фокус на ней пришёл бы с нашей единственной законной
+                  рамкой — `1px dashed {accent}` (tokens.json →
+                  zoneMarker.focus). На тёмной пустой сцене это ровно тот
+                  пунктир акцентом, которым была умершая плитка «хочу», и
+                  смотреть там больше не на что. Место фокус не принимает
+                  вовсе, а показывает его по-своему. Отсюда и aria-hidden:
+                  дорога в зону у диктора одна и уже есть. */}
+              {(() => {
+                const place = placeByZone.get(zone.key);
+                if (!place) return null;
+                const box = zoneFramePercent(place.rect);
+                return (
+                  <span
+                    aria-hidden
+                    className={place.primary ? `${s.place} ${s.placePrimary}` : s.place}
+                    style={
+                      {
+                        "--hs-l": `${box.left}%`,
+                        "--hs-t": `${box.top}%`,
+                        "--hs-w": `${box.width}%`,
+                        "--hs-h": `${box.height}%`,
+                        // Плечо уголка — экранные px из контракта; у мелкого
+                        // места укорочено долей его меньшей стороны.
+                        "--place-arm": `${placeArmPx(place.rect)}px`,
+                      } as React.CSSProperties
+                    }
+                  >
+                    <span className={s.placeFill} />
+                    {/* Четыре РАЗОМКНУТЫХ угла: рамки нет, замкнуть её нечем —
+                        ровно этим место и отличается от умершей плитки «хочу»
+                        (инвариант №3 отменён, пунктира не бывает). Углы —
+                        четыре спана с двумя сплошными границами каждый:
+                        прямой срез даёт сама граница, скругления нет. */}
+                    <span className={`${s.placeCorner} ${s.placeCornerTL}`} />
+                    <span className={`${s.placeCorner} ${s.placeCornerTR}`} />
+                    <span className={`${s.placeCorner} ${s.placeCornerBR}`} />
+                    <span className={`${s.placeCorner} ${s.placeCornerBL}`} />
+                  </span>
+                );
+              })()}
             </span>
           ))}
         </div>
