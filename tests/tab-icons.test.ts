@@ -172,17 +172,26 @@ describe("иконки таб-бара — путь в путь с наборо�
 });
 
 /**
- * КОНТРАКТ РЯДОВ — `handoff/icons.json` (раунд 36, ответ на письмо 39).
+ * КОНТРАКТ РЯДОВ — `handoff/icons.json` (раунд 40, ответ на письма 39 и 42).
  *
  * ЛЕЖИТ В РЕПОЗИТОРИИ, и это не удобство. Раунд 37 приехал в тот же день и
  * забрал папку раунда 36 с диска вместе с `icons.json`: сторож, читающий из
  * входящих пакетов, умер бы через три часа после того, как его написали.
+ *
+ * ЧТО ПРИВЕЗ РАУНД 40 (тикет 165). Блок `set` — 39 знаков, у каждого объект
+ * `silhouette` из трёх полей. В раунде 36 его не было вовсе (потеря дизайна
+ * при сборке файла), и сторож держал нижнюю границу — полное совпадение
+ * геометрии. Теперь он держит сам силуэт, то есть ловит «похоже», а не только
+ * «то же самое».
  */
+type Silhouette = { shell: string; inside: string; count: number };
+type IconEntry = Silhouette & { means: string; rows: string[]; silhouette: Silhouette };
 type IconsContract = {
   guardRule: { wrong: string; right: string; key: string; size: string };
   rows: Record<string, string[]>;
   collisions: Array<{ pair: string[]; rows: string[]; verdict: string; fix: string }>;
   cleared: Array<{ pair: string[]; why: string }>;
+  set: Record<string, IconEntry>;
 };
 
 const contract = JSON.parse(
@@ -208,6 +217,35 @@ for (const { pair } of contract.cleared) {
   }
 }
 
+/** Силуэт знака одной строкой — то, что дизайн просит сравнивать. */
+const silhouetteOf = (file: string, set: Record<string, IconEntry>): string | null => {
+  const entry = set[file];
+  if (!entry) return null;
+  return `${entry.silhouette.shell} · ${entry.silhouette.inside} · ${entry.silhouette.count}`;
+};
+
+/**
+ * РЯДЫ, ПО КОТОРЫМ ХОДИТ СТОРОЖ, — ОБЪЕДИНЕНИЕ ДВУХ СПИСКОВ КОНТРАКТА.
+ *
+ * Дизайн назвал ряды дважды: блоком `rows` («ряд → файлы») и полем `rows` у
+ * каждого знака. Списки расходятся в семи знаках, и расхождение не в пользу
+ * одной из сторон: блок не знает четырёх рядов вовсе («аватар», «лист
+ * действий», «строка списка зоны», «профиль»), а поля знаков не знают, что
+ * плюс стоит ещё и в баре гостя. Возьми мы одну сторону — вторая половина
+ * пар не проверялась бы молча, а молчание тут и есть та болезнь, которую
+ * лечит весь тикет. Берём объединение: пропуск любой из сторон закрыт другой.
+ * Само расхождение выписано письмом 44 и пришпилено тестом ниже, чтобы
+ * ответ дизайна не проехал мимо.
+ */
+const rowsToGuard = (): Map<string, string[]> => {
+  const rows = new Map<string, Set<string>>();
+  const add = (row: string, files: string[]) =>
+    rows.set(row, new Set([...(rows.get(row) ?? []), ...files]));
+  for (const [row, files] of Object.entries(contract.rows)) add(row, files);
+  for (const [file, entry] of Object.entries(contract.set)) for (const row of entry.rows) add(row, [file]);
+  return new Map([...rows].map(([row, files]) => [row, [...files]]));
+};
+
 /**
  * САМ СТОРОЖ. Возвращает нарушения ряда — пустой список значит «ряд чист».
  *
@@ -218,43 +256,68 @@ for (const { pair } of contract.cleared) {
  * правильную рифму: витрина у человека одна, и в баре, в углу и в листе она
  * ОБЯЗАНА быть одним рисунком.
  *
- * ЧТО МАШИНА МОЖЕТ ДЕРЖАТЬ, А ЧЕГО НЕТ. Письмо 39 обещало у каждого знака
- * силуэт тремя полями (оболочка · что внутри · число элементов) — в
- * присланном `icons.json` этих полей НЕТ (проверено тестом ниже). Считать их
- * самим значило бы придумать контракт вместо дизайна: его же семь вердиктов
- * между собой не сходятся — «круг со стрелками» он приравнял к «кругу в
- * круге», а «прямоугольник с горами» к «прямоугольнику с крышкой» не
- * приравнял. Поэтому сторож держит НИЖНЮЮ ГРАНИЦУ силуэта — полное совпадение
- * геометрии. Она считается точно, и забраковать правильное не может: рифмы
- * одного смысла выведены из проверки по определению.
+ * ЧТО ОН ТЕПЕРЬ ДЕРЖИТ (тикет 165). Силуэт — тройка `{shell, inside, count}`
+ * из блока `set`, а не геометрия. Разница не косметическая: геометрия ловила
+ * только ДОСЛОВНОЕ совпадение узлов, то есть копию файла. Два РАЗНЫХ рисунка,
+ * читающихся на 20 px одинаково — «прямоугольник с ручкой сверху» у сумки и у
+ * чемодана, — она пропускала целиком, а глазами владельца ровно они и
+ * ловились три раза за день. Тройка их видит.
+ *
+ * ЧЕГО ОН ПО-ПРЕЖНЕМУ НЕ УМЕЕТ. Тройка — СЛОВА ДИЗАЙНА, и слова эти он пишет
+ * сам: назови он два одинаковых рисунка разными словами — сторож промолчит.
+ * Одно поле из трёх привязано к файлу и врать не может — `count` (якорь ниже,
+ * сошёлся у 39 из 39); `shell` и `inside` остаются прозой. Поэтому проверка
+ * геометрии не убрана, а осталась рядом: она держит вторую половину правила
+ * («знаки одного смысла обязаны совпадать») точно, без слов.
  */
-function rowViolations(files: string[], shapeByFile: Map<string, string[]>): string[] {
+function rowViolations(files: string[], set: Record<string, IconEntry>): string[] {
   const bad: string[] = [];
   for (let i = 0; i < files.length; i += 1) {
     for (let j = i + 1; j < files.length; j += 1) {
-      const [a, b] = [files[i] as string, files[j] as string];
+      const a = files[i] as string;
+      const b = files[j] as string;
+      const pair = [a, b].sort().join(" · ");
       if (meaningOf(a) === meaningOf(b)) continue; // рифма одного смысла — законна
-      if (clearedPairs.has([a, b].sort().join(" · "))) continue; // разрешено дизайном
-      const shapeA = shapeByFile.get(a);
-      const shapeB = shapeByFile.get(b);
-      if (shapeA && shapeB && JSON.stringify(shapeA) === JSON.stringify(shapeB)) {
-        bad.push(`${a} · ${b}`);
-      }
+      if (clearedPairs.has(pair)) continue; // разрешено дизайном
+      const silhouetteA = silhouetteOf(a, set);
+      const silhouetteB = silhouetteOf(b, set);
+      if (silhouetteA !== null && silhouetteA === silhouetteB) bad.push(pair);
     }
   }
   return bad;
 }
 
-describe("сторож ряда — ПО КОНТРАКТУ, а не по паре имён (тикет 151)", () => {
+/**
+ * ЗНАЕМ И ЖДЁМ ОТВЕТА. Данные дизайна один раз нарушают его же правило, и
+ * замазать это нельзя: правило верное, оно и ловит.
+ *
+ * Красить прогон в красный из-за ЧУЖОГО файла тоже нельзя — красный, который
+ * чинится не нами, за сутки становится фоном, и следующее настоящее падение
+ * никто не заметит. Поэтому пара живёт здесь: прогон зелёный, факт записан с
+ * номером письма, а проверка ниже требует РАВЕНСТВА найденного и этого списка.
+ * Список поэтому не растёт молча (новая пара — красный) и не залёживается
+ * (дизайн починит — красный скажет вычеркнуть).
+ */
+const PENDING: Array<{ row: string; pair: string; letter: number; what: string }> = [
+  {
+    row: "список зон Ж",
+    pair: "pool-flowers.svg · pool-home.svg",
+    letter: 44,
+    what: "«Цветы» и «Для дома» — дословно один силуэт {без оболочки · силуэт предмета · 4} при разных смыслах; в `collisions` пары нет",
+  },
+];
+
+describe("сторож ряда — ПО СИЛУЭТУ, а не по геометрии (тикеты 151, 165)", () => {
   // ЧТО ЗДЕСЬ БЫЛО ВЧЕРА. Одна проверка с двумя именами внутри: «IconPerson и
   // IconPeople в одном ряду не стоят» — пара, которую владелец увидел на
   // приёмке 10.08. Она держала ровно один случай из семи и не знала ни про
   // ряды, ни про смыслы. Дизайн разобрал набор рядами (письмо 39, работа 2) и
   // назвал ещё четыре пары, все в самом длинном ряду продукта — «комната
-  // списком», тринадцать знаков зон столбцом.
+  // списком», тринадцать знаков зон столбцом. Тикет 151 заменил пару имён
+  // контрактом; тикет 165 — геометрию настоящим силуэтом.
   //
-  // Теперь ряды, разрешённые пары и сама формулировка приезжают из
-  // `icons.json`, а имён в коде сторожа нет ни одного.
+  // Ряды, разрешённые пары, силуэты и сама формулировка приезжают из
+  // `icons.json`, а имён знаков в коде сторожа нет ни одного.
 
   /** Все файлы набора обеих папок — с геометрией. */
   const shapeByFile = new Map<string, string[]>();
@@ -264,20 +327,26 @@ describe("сторож ряда — ПО КОНТРАКТУ, а не по пар
     }
   }
 
+  const guardedRows = rowsToGuard();
+
   it("формулировка правила — та, под которую написан сторож", () => {
     // Дизайн поправит правило — тест скажет об этом здесь, а не молча
     // продолжит держать вчерашнее.
     expect(contract.guardRule.right).toContain("РАЗНЫМ смыслом");
     expect(contract.guardRule.right).toContain("знаки одного смысла обязаны совпадать");
     expect(contract.guardRule.wrong).toContain("забракует бриллиант");
+    // И источник силуэта — тот, из которого сторож его читает.
+    expect(contract.guardRule.key).toContain("объект silhouette у каждого знака");
   });
 
-  it("у каждого знака каждого ряда есть файл в наборе", () => {
-    // Знак, названный в ряду, но не лежащий в репозитории, — дыра в сторожe:
-    // геометрии нет, сравнивать нечего, пара тихо пропускается.
-    for (const [row, files] of Object.entries(contract.rows)) {
+  it("у каждого знака каждого ряда есть И ФАЙЛ, И СИЛУЭТ", () => {
+    // Две дыры одной формы. Знак, названный в ряду, но не лежащий в
+    // репозитории, — геометрии нет. Знак без записи в `set` — силуэта нет.
+    // В обоих случаях пара тихо пропускается, а тихо тут нельзя.
+    for (const [row, files] of guardedRows) {
       for (const file of files) {
         expect(() => setFile(file), `${row}: ${file}`).not.toThrow();
+        expect(silhouetteOf(file, contract.set), `${row}: у ${file} нет силуэта в \`set\``).not.toBeNull();
       }
     }
     // САМЫЙ ДЛИННЫЙ РЯД ПРОДУКТА — не бар из пяти, а «комната списком»:
@@ -286,6 +355,24 @@ describe("сторож ряда — ПО КОНТРАКТУ, а не по пар
     for (const row of ["список зон Ж", "список зон М"]) {
       expect(contract.rows[row], `ряд «${row}» усох`).toHaveLength(13);
     }
+  });
+
+  it("ЯКОРЬ: `silhouette.count` каждого знака = число узлов его SVG", () => {
+    // ЗАЧЕМ ЯКОРЬ. Силуэт — слова дизайна, и два поля из трёх («оболочка», «что
+    // внутри») проверить нечем: они проза. Без привязки к файлу вся тройка
+    // однажды отстанет от рисунка — знак перерисуют, а строчку в json забудут,
+    // и сторож будет сторожить вчерашний набор, оставаясь зелёным.
+    //
+    // Третье поле привязать можно, и дизайн сам, не обещав, дал его сходящимся:
+    // `count` совпал с числом узлов в его же SVG у 39 из 39. Берём его якорем —
+    // теперь расхождение файла со словами краснеет само.
+    const off: string[] = [];
+    for (const [file, entry] of Object.entries(contract.set)) {
+      const nodes = shapeByFile.get(file)?.length;
+      if (nodes !== entry.silhouette.count) off.push(`${file}: count=${entry.silhouette.count}, узлов=${nodes}`);
+    }
+    expect(off, "силуэт отстал от рисунка").toEqual([]);
+    expect(Object.keys(contract.set), "знаков в `set` стало не 39 — проверь якорь заново").toHaveLength(39);
   });
 
   it("ЗНАКИ ОДНОГО СМЫСЛА СОВПАДАЮТ — вторая половина правила", () => {
@@ -306,13 +393,70 @@ describe("сторож ряда — ПО КОНТРАКТУ, а не по пар
         expect(shapeByFile.get(file), `смысл «${meaning}»: ${file} разошёлся с ${files[0]}`).toEqual(
           first,
         );
+        // И силуэтом тоже — той же тройкой, которой сторож меряет чужие пары.
+        // Геометрия и слова обязаны говорить одно, иначе одно из двух врёт.
+        const silhouette = silhouetteOf(file, contract.set);
+        if (silhouette !== null) {
+          expect(silhouette, `смысл «${meaning}»: у ${file} силуэт назван иначе, чем у ${files[0]}`).toBe(
+            silhouetteOf(files[0] as string, contract.set),
+          );
+        }
       }
     }
+    // СМЫСЛ ПО ИМЕНИ ФАЙЛА И `means` ДИЗАЙНА — не одно и то же, и сторож
+    // берёт первое. `means` — проза: витрину он зовёт «Сокровищница» в баре и
+    // «В сокровищницу» в листе, то есть по его словам это РАЗНЫЕ смыслы с
+    // одним рисунком — пара, которую сторож обязан пропустить и пропускает
+    // только благодаря имени файла. Расхождение сегодня ровно одно; станет
+    // больше — сторож начнёт мерить не то, и узнаем мы об этом здесь.
+    const names = Object.keys(contract.set);
+    const stemVsMeans = names.flatMap((a, i) =>
+      names.slice(i + 1).filter((b) => {
+        const sameStem = meaningOf(a) === meaningOf(b);
+        const sameMeans = (contract.set[a] as IconEntry).means === (contract.set[b] as IconEntry).means;
+        return sameStem !== sameMeans;
+      }).map((b) => [a, b].sort().join(" · ")),
+    );
+    expect(stemVsMeans.sort(), "имя файла и `means` разошлись не там, где вчера").toEqual([
+      "action-treasury.svg · tab-treasury.svg",
+    ]);
   });
 
-  it("НИ В ОДНОМ РЯДУ нет одинакового силуэта у разных смыслов", () => {
-    for (const [row, files] of Object.entries(contract.rows)) {
-      expect(rowViolations(files, shapeByFile), `ряд «${row}»`).toEqual([]);
+  it("НИ В ОДНОМ РЯДУ нет одинакового силуэта у разных смыслов — кроме выписанных письмом", () => {
+    // РАВЕНСТВО, А НЕ ПУСТОТА. Найденное сверяется со списком «знаем и ждём
+    // ответа» ЦЕЛИКОМ: новая пара — красный (список не растёт молча), пара
+    // починена дизайном — тоже красный (список не залёживается).
+    const found = [...guardedRows].flatMap(([row, files]) =>
+      rowViolations(files, contract.set).map((pair) => `${row}: ${pair}`),
+    );
+    expect(found.sort(), "сошлись силуэты у разных смыслов").toEqual(
+      PENDING.map((p) => `${p.row}: ${p.pair}`).sort(),
+    );
+  });
+
+  it("список «знаем и ждём ответа» короток, назван письмом и не притворяется", () => {
+    // Сам список — тоже сторож, и сторожить его надо. Три требования.
+    expect(PENDING.length, "ждущих пар стало много — это уже не ожидание, а свой набор").toBeLessThanOrEqual(3);
+    for (const item of PENDING) {
+      // 1. У каждой пары есть номер письма и своими словами сказано, что не
+      //    так: молча ждать нельзя, ждут ОТВЕТА, и через месяц никто не
+      //    вспомнит, чего именно.
+      expect(item.letter, `${item.pair}: пара без номера письма — её никто не спрашивал`).toBeGreaterThanOrEqual(44);
+      expect(item.what.length, `${item.pair}: пара без объяснения`).toBeGreaterThan(40);
+      // 2. Пара действительно нарушает правило — иначе строчка тут лишняя и
+      //    прикрывает собой пустое место (а завтра прикроет непустое).
+      const [a, b] = item.pair.split(" · ") as [string, string];
+      expect(silhouetteOf(a, contract.set), `${item.pair}: силуэты РАЗНЫЕ — вычеркни пару`).toBe(
+        silhouetteOf(b, contract.set),
+      );
+      expect(meaningOf(a), `${item.pair}: смысл один — это законная рифма, а не коллизия`).not.toBe(meaningOf(b));
+      // 3. Пары нет в `cleared`: разрешённое дизайном ждать нечего.
+      expect(clearedPairs.has(item.pair), `${item.pair}: дизайн её уже разрешил — вычеркни`).toBe(false);
+      // 4. И ровно этого он в своих `collisions` не назвал — иначе правка едет.
+      const named = contract.collisions.some(
+        (c) => [...c.pair].sort().join(" · ") === item.pair,
+      );
+      expect(named, `${item.pair}: дизайн внёс пару в \`collisions\` — правка в пути, вычеркни`).toBe(false);
     }
   });
 
@@ -377,44 +521,110 @@ describe("сторож ряда — ПО КОНТРАКТУ, а не по пар
     // Сторож, который ничего не ловит, зелёный по той же причине, что и
     // сторож, которому нечего ловить. Разница видна только на подложных
     // данных, поэтому они здесь и есть.
-    const music = shapeByFile.get("pool-music.svg") as string[];
+    const forge = (file: string, like: string): Record<string, IconEntry> => ({
+      ...contract.set,
+      [file]: { ...(contract.set[file] as IconEntry), silhouette: (contract.set[like] as IconEntry).silhouette },
+    });
 
-    // 1. ЗАПРЕЩЁННОЕ. Два РАЗНЫХ смысла с одной геометрией в одном ряду —
-    //    ровно то, чем были пластинка и часы до раунда 36.
-    const forged = new Map(shapeByFile);
-    forged.set("pool-watches.svg", music);
-    expect(rowViolations(["pool-music.svg", "pool-watches.svg"], forged)).toEqual([
-      "pool-music.svg · pool-watches.svg",
-    ]);
+    // 1. ЗАПРЕЩЁННОЕ. Два РАЗНЫХ смысла с одним силуэтом в одном ряду — ровно
+    //    то, чем были пластинка и часы до раунда 36.
+    expect(
+      rowViolations(["pool-music.svg", "pool-watches.svg"], forge("pool-watches.svg", "pool-music.svg")),
+    ).toEqual(["pool-music.svg · pool-watches.svg"]);
+
+    // 1а. И «ПОХОЖЕЕ», А НЕ ТОЛЬКО «ТО ЖЕ САМОЕ» — вот что дала замена
+    //     геометрии силуэтом. Рисунки разные (геометрия бы промолчала), а
+    //     читаются на 20 px одинаково: сумка и чемодан до раунда 36.
+    const bags = shapeByFile.get("pool-bags.svg") as string[];
+    const travel = shapeByFile.get("pool-travel.svg") as string[];
+    expect(bags, "сумка и чемодан стали копией — подложка потеряла смысл").not.toEqual(travel);
+    expect(
+      rowViolations(["pool-bags.svg", "pool-travel.svg"], forge("pool-bags.svg", "pool-travel.svg")),
+      "сторож видит только дословную копию — силуэт до него не доехал",
+    ).toEqual(["pool-bags.svg · pool-travel.svg"]);
 
     // 2. ПРАВИЛЬНОЕ — БРИЛЛИАНТ РЯДОМ С БРИЛЛИАНТОМ. Тот самый случай, ради
-    //    которого дизайн и просил переписать правило: три файла витрины
-    //    совпадают НАРОЧНО, и сторож обязан молчать.
+    //    которого дизайн и просил переписать правило: знаки витрины совпадают
+    //    НАРОЧНО, и сторож обязан молчать.
     expect(
-      rowViolations(["tab-treasury.svg", "action-treasury.svg", "ui-treasury.svg"], shapeByFile),
+      rowViolations(["tab-treasury.svg", "action-treasury.svg"], contract.set),
       "сторож забраковал правильную рифму одного смысла",
     ).toEqual([]);
 
     // 3. РАЗРЕШЁННОЕ ДИЗАЙНОМ. Пара из `cleared` молчит, даже совпав целиком.
-    const clearedForged = new Map(shapeByFile);
-    clearedForged.set("pool-grooming.svg", clearedForged.get("pool-perfume.svg") as string[]);
     expect(
-      rowViolations(["pool-perfume.svg", "pool-grooming.svg"], clearedForged),
+      rowViolations(
+        ["pool-perfume.svg", "pool-grooming.svg"],
+        forge("pool-grooming.svg", "pool-perfume.svg"),
+      ),
       "список `cleared` перестал работать",
     ).toEqual([]);
   });
 
-  it("силуэта ТРЕМЯ ПОЛЯМИ в контракте нет — письмо обещало, файл не привёз", () => {
-    // ЗАПИСАНО ТЕСТОМ, А НЕ ОБИДОЙ. `guardRule.key` говорит «поля у каждого
-    // знака ниже — сторожу их можно читать прямо отсюда»; ниже их нет.
-    // Приедут — тест покраснеет, и сторож станет строже: полное совпадение
-    // геометрии сменится совпадением силуэта, то есть начнёт ловить и
-    // «похоже», а не только «то же самое».
-    expect(contract.guardRule.key).toContain("Поля у каждого знака ниже");
-    const raw = JSON.stringify(contract);
-    for (const field of ['"shell"', '"inside"', '"means"']) {
-      expect(raw, `поле ${field} приехало — пора сделать сторожа строже`).not.toContain(field);
+  it("СИЛУЭТ ТРЕМЯ ПОЛЯМИ ПРИЕХАЛ — и сходится сам с собой", () => {
+    // ПЕРЕВЁРНУТО (тикет 165). Сутки здесь стояло обратное: полей силуэта в
+    // файле НЕТ, письмо обещало — файл не привёз, и сторож держал нижнюю
+    // границу (полное совпадение геометрии). Раунд 40 привёз блок `set`:
+    // дизайн назвал причину — блок не попал в файл при сборке пакета целиком.
+    //
+    // Теперь проверяем не отсутствие, а сходимость: у каждого знака есть все
+    // три поля, и плоские псевдонимы (`shell`/`inside`/`count` рядом с
+    // объектом — по правилу дизайна `keyMoves`) не разошлись с объектом. Два
+    // источника одного числа расходятся всегда; вопрос только когда.
+    const entries = Object.entries(contract.set);
+    expect(entries.length).toBe(39);
+    const broken: string[] = [];
+    for (const [file, entry] of entries) {
+      const { shell, inside, count } = entry.silhouette;
+      if (typeof shell !== "string" || shell === "") broken.push(`${file}: пустой shell`);
+      if (typeof inside !== "string" || inside === "") broken.push(`${file}: пустой inside`);
+      if (typeof count !== "number") broken.push(`${file}: count не число`);
+      if (entry.shell !== shell || entry.inside !== inside || entry.count !== count) {
+        broken.push(`${file}: плоский псевдоним разошёлся с объектом silhouette`);
+      }
+      if (typeof entry.means !== "string" || entry.means === "") broken.push(`${file}: знак без смысла`);
     }
+    expect(broken).toEqual([]);
+  });
+
+  it("ЧТО В КОНТРАКТЕ ЕЩЁ КРИВО — записано, а не замазано (письмо 44)", () => {
+    // Две мелочи проверки раунда 40. Обе безвредны СЕГОДНЯ и обе — дыры
+    // завтра, поэтому пришпилены числом: изменится — тест позовёт.
+
+    // 1. `ui-treasury.svg` назван в `cleared`, но записи в `set` у него нет:
+    //    из 40 файлов набора силуэт есть у 39. Сегодня это не дыра — знак не
+    //    стоит ни в одном ряду, а его геометрия сверена с двумя другими
+    //    бриллиантами проверкой «знаки одного смысла совпадают», то есть
+    //    силуэт у него выводится. Своего писать не станем: сочинять контракт
+    //    за дизайн — ровно то, чего этот тикет и избегает.
+    const withoutSilhouette = [...shapeByFile.keys()].filter((f) => !contract.set[f]);
+    expect(withoutSilhouette, "знаков без силуэта стало больше — контракт отстал от набора").toEqual([
+      "ui-treasury.svg",
+    ]);
+
+    // 2. Блок `rows` и поля `rows` у знаков расходятся в семи знаках. Сторож
+    //    ходит по ОБЪЕДИНЕНИЮ (см. `rowsToGuard`), поэтому расхождение ничего
+    //    не прячет; но ответ дизайна на письмо 44 обязан быть замечен.
+    const fromBlock = new Map<string, string[]>();
+    for (const [row, files] of Object.entries(contract.rows)) {
+      for (const file of files) fromBlock.set(file, [...(fromBlock.get(file) ?? []), row]);
+    }
+    const disagree = Object.keys(contract.set).filter(
+      (file) =>
+        JSON.stringify((contract.set[file] as IconEntry).rows.slice().sort()) !==
+        JSON.stringify((fromBlock.get(file) ?? []).sort()),
+    );
+    expect(disagree.sort(), "список рядов у знаков разошёлся с блоком `rows` не там, где вчера").toEqual(
+      [
+        "action-date.svg",
+        "action-more.svg",
+        "action-note.svg",
+        "tab-add.svg",
+        "tab-profile.svg",
+        "tab-room.svg",
+        "tab-treasury.svg",
+      ],
+    );
   });
 });
 
