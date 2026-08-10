@@ -33,6 +33,7 @@ import { IconList } from "@/components/icons";
 import { CORNER_ICON_SIZE } from "./scene-corner";
 import { ZoneIndex } from "./zone-index";
 import { ZoneList } from "./zone-list";
+import { useZoneIndexState } from "./zone-index-context";
 import s from "./zone-index.module.css";
 
 type ZoneRailProps = {
@@ -115,8 +116,25 @@ export function ZoneRail({
   const canToggle = !empty && roomList != null;
   const showList = canToggle && asList;
 
+  /**
+   * ПРИ ОТКРЫТОЙ ЗОНЕ ПОЛОСА УХОДИТ (тикет 140, только телефон).
+   *
+   * Правило приёмки 10.08: под кадром в каждый момент ровно ОДНА поверхность,
+   * от кромки кадра до таб-бара. В покое это полоса, при открытой зоне — лист
+   * вещей, и он занимает то же место целиком (scene.module.css → .panel).
+   * Лист непрозрачен и лежит выше, так что глазами полосы и так не видно, —
+   * но она осталась бы под ним живой для клавиатуры и читалки, а это второй
+   * экран, спрятанный за первым.
+   *
+   * Открытую зону полоса уже знает: `active` приходит от сцены тем же мостом,
+   * которым список подсвечивает зоны (zone-index-context). На десктопе класс
+   * ничего не делает — там лист кончается НАД полосой, и полоса при открытой
+   * зоне остаётся дорогой в соседнюю.
+   */
+  const { active } = useZoneIndexState();
+
   return (
-    <div className={s.stack}>
+    <div className={active ? `${s.stack} ${s.stackAway}` : s.stack}>
       <div className="imm-row">
         {/* Действия жмутся влево одной группой, знак — вправо. Без обёртки
             `space-between` растащил бы по полосе и «Добавить вещь», и

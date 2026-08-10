@@ -491,6 +491,34 @@ async function buildZoneContent(
       const inTreasury = hallByZone[zone.key] ?? 0;
       const node = (
         <div key={zone.key}>
+          {/* ДЕЙСТВИЯ ЗОНЫ СТОЯТ НАД ВЕЩАМИ (тикет 139, приёмка владельца
+              10.08: «управляющие кнопки лежат внизу под предметами… до них ты
+              просто не дойдёшь или не увидишь. Надо кнопки поднять наверх»).
+              Строка лежит ВНУТРИ прокрутки листа, и под сеткой на телефоне
+              она уезжала за нижнюю границу: потолок листа считается от кадра,
+              и уже при двух рядах плиток пилюль не видно.
+
+              Оба перехода — тихие пилюли акцентом комнаты (тикет 86): текст
+              со стрелкой владелец на приёмке 07.08 прочитал как подпись, а не
+              как кнопку. */}
+          <div className="mb-4 flex flex-wrap items-center gap-3">
+            <Link
+              href={`/room/zone/${zone.key}`}
+              className="pressable btn-quiet"
+              style={{ "--pill-accent": preset.accent } as React.CSSProperties}
+            >
+              {beyondSheet > 0 ? tScene("summaryMore", { count: beyondSheet }) : tZone("openFull")}
+            </Link>
+            {/* Добавить вещь сразу в открытую зону (полировка 16): ?zone=…
+                предвыбирает её в карточке добавления (контракт тикета 04). */}
+            <Link
+              href={`/room/add?zone=${zone.key}`}
+              className="pressable btn-quiet"
+              style={{ "--pill-accent": preset.accent } as React.CSSProperties}
+            >
+              + {tZone("addItem")}
+            </Link>
+          </div>
           {/* zoneKey отдаётся ТОЛЬКО здесь, в комнате хозяйки: по нему пустая
               зона показывает три места вместо строки (тикет 99). Гостевая
               панель ключа не получает — чужая пустая полка не её забота. */}
@@ -511,27 +539,6 @@ async function buildZoneContent(
               }
             />
           )}
-          {/* Оба перехода — тихие пилюли акцентом комнаты (тикет 86): текст
-              со стрелкой владелец на приёмке 07.08 прочитал как подпись, а не
-              как кнопку. */}
-          <div className="mt-4 flex flex-wrap items-center gap-3">
-            <Link
-              href={`/room/zone/${zone.key}`}
-              className="pressable btn-quiet"
-              style={{ "--pill-accent": preset.accent } as React.CSSProperties}
-            >
-              {beyondSheet > 0 ? tScene("summaryMore", { count: beyondSheet }) : tZone("openFull")}
-            </Link>
-            {/* Добавить вещь сразу в открытую зону (полировка 16): ?zone=…
-                предвыбирает её в карточке добавления (контракт тикета 04). */}
-            <Link
-              href={`/room/add?zone=${zone.key}`}
-              className="pressable btn-quiet"
-              style={{ "--pill-accent": preset.accent } as React.CSSProperties}
-            >
-              + {tZone("addItem")}
-            </Link>
-          </div>
         </div>
       );
       const group: RoomListGroup | null =
