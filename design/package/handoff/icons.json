@@ -1,5 +1,5 @@
 {
- "answersTo": "письмо 39 (аудит набора) + письмо 42 (полей силуэта в файле не было)",
+ "answersTo": "письмо 43 (нет знака «назад») + письмо 44 (пары home/flowers, ui-treasury, ряды)",
  "diagnosis": "Вы назвали болезнь верно, и она наша: набор рисовался по знаку за раз. Но лечится она не «смотреть на знак дольше», а тем, что у знака появляется ряд — поле rows. Одинаковый силуэт сам по себе не порок: два знака ОДНОГО места обязаны рифмоваться (бриллиант в баре, в углу и в листе — один знак трёх размеров). Порок — одинаковый силуэт у РАЗНЫХ смыслов в одном ряду.",
  "guardRule": {
   "wrong": "«в ряду не может быть двух знаков с одинаковым силуэтом» — так сторож забракует бриллиант рядом с бриллиантом, то есть правильную рифму",
@@ -11,21 +11,28 @@
   "бар": [
    "tab-room.svg",
    "tab-friends.svg",
+   "tab-settings.svg",
    "tab-add.svg",
-   "tab-treasury.svg",
-   "tab-settings.svg"
+   "tab-treasury.svg"
   ],
   "угол": [
-   "tab-treasury.svg",
+   "tab-room.svg",
    "tab-friends.svg",
-   "tab-settings.svg"
+   "tab-settings.svg",
+   "tab-treasury.svg"
+  ],
+  "аватар": [
+   "tab-profile.svg"
+  ],
+  "лист действий": [
+   "tab-treasury.svg"
   ],
   "бар гостя": [
-   "tab-bookings.svg",
-   "tab-add.svg"
+   "tab-bookings.svg"
   ],
   "полоса под кадром": [
-   "ui-list.svg"
+   "ui-list.svg",
+   "ui-treasury.svg"
   ],
   "строка вещи в комнате": [
    "action-edit.svg",
@@ -35,55 +42,63 @@
    "action-note.svg",
    "action-more.svg"
   ],
+  "строка списка зоны": [
+   "action-more.svg"
+  ],
   "лист комнаты": [
-   "action-treasury.svg",
    "action-hide.svg",
+   "action-delete.svg",
+   "action-treasury.svg",
    "action-move.svg",
-   "action-gallery.svg",
-   "action-delete.svg"
+   "action-gallery.svg"
   ],
   "лист сокровищницы": [
-   "action-note.svg",
    "action-hide.svg",
-   "action-return.svg",
-   "action-delete.svg"
+   "action-delete.svg",
+   "action-return.svg"
   ],
   "карточка вещи у гостя": [
    "action-pool.svg",
    "action-date.svg"
   ],
+  "профиль": [
+   "action-date.svg"
+  ],
   "список зон Ж": [
-   "pool-beauty.svg",
-   "pool-jewel.svg",
-   "pool-perfume.svg",
-   "pool-fashionF.svg",
-   "pool-bags.svg",
-   "pool-flowers.svg",
-   "pool-home.svg",
-   "pool-events.svg",
-   "pool-travel.svg",
-   "pool-books.svg",
    "pool-music.svg",
+   "pool-bags.svg",
+   "pool-money.svg",
+   "pool-jewel.svg",
+   "pool-travel.svg",
+   "pool-perfume.svg",
    "pool-anything.svg",
-   "pool-money.svg"
+   "pool-events.svg",
+   "pool-home.svg",
+   "pool-beauty.svg",
+   "pool-flowers.svg",
+   "pool-books.svg",
+   "pool-fashionF.svg"
   ],
   "список зон М": [
+   "pool-music.svg",
+   "pool-money.svg",
+   "pool-watches.svg",
+   "pool-travel.svg",
+   "pool-grooming.svg",
+   "pool-anything.svg",
+   "pool-events.svg",
+   "pool-books.svg",
    "pool-tech.svg",
    "pool-gaming.svg",
    "pool-sport.svg",
-   "pool-watches.svg",
-   "pool-grooming.svg",
-   "pool-fashionM.svg",
    "pool-sneakers.svg",
-   "pool-music.svg",
-   "pool-books.svg",
-   "pool-events.svg",
-   "pool-travel.svg",
-   "pool-anything.svg",
-   "pool-money.svg"
+   "pool-fashionM.svg"
+  ],
+  "шапка карточки": [
+   "ui-back.svg"
   ]
  },
- "rowsNote": "Самый длинный ряд продукта — не бар, а «комната списком»: тринадцать знаков зон в столбце, 20 px, друг под другом. Ваши два подозрения из бара и листа верны, но две худшие пары живут там, и до сегодня их никто не смотрел — включая нас.",
+ "rowsNote": "Самый длинный ряд продукта — не бар, а «комната списком»: тринадцать знаков зон в столбце, 20 px, друг под другом. Ваши два подозрения из бара и листа верны, но две худшие пары живут там, и до сегодня их никто не смотрел — включая нас. Правка по письму 44: блок rows больше не пишется руками — он СОБИРАЕТСЯ из полей rows у знаков, поэтому разойтись с ними не может. Семь расхождений, которые вы нашли, были ровно этим.",
  "collisions": [
   {
    "pair": [
@@ -163,6 +178,18 @@
    ],
    "verdict": "НАША ПРОПАЖА иного рода: у зоны money знака не было вовсе, а строка есть в каждой комнате",
    "fix": "pool-money.svg — конверт (глагол зоны «конверт светится»)"
+  },
+  {
+   "pair": [
+    "pool-home.svg",
+    "pool-flowers.svg"
+   ],
+   "rows": [
+    "список зон Ж"
+   ],
+   "verdict": "НАША ПРОПАЖА, и нашли её не мы, а ПРАВИЛО: силуэты совпадали дословно — {без оболочки · силуэт предмета · 4} при разных смыслах, в одном столбце у всех шести женских комнат. В collisions пары не было, потому что мы читали набор глазами, а глаз к своему рисунку слеп",
+   "fix": "дом становится настольной лампой: трапеция абажура, ножка, основание — оболочка появляется, и ряд разводится. Цветы не трогаем: стебель с бутоном — единственный правильный знак зоны",
+   "credit": "Правило само поймало восьмую пару через сутки после того, как мы его написали. Это лучший довод за него, какой можно придумать."
   }
  ],
  "cleared": [
@@ -219,17 +246,10 @@
  ],
  "files": {
   "new": [
-   "tab-settings.svg",
-   "action-move.svg",
-   "action-gallery.svg",
-   "action-pool.svg",
-   "action-date.svg",
-   "pool-money.svg"
+   "ui-back.svg"
   ],
   "changed": [
-   "pool-music.svg (v2)",
-   "pool-bags.svg (v2)",
-   "tab-treasury.svg (бриллиант — в handoff/icons лежала старая арка)"
+   "pool-home.svg (v2, силуэт разведён с цветами)"
   ],
   "spec": "сетка 24, контур 1.7, скруглённые концы, без заливки, в файле #F2EDE4, в сборке currentColor"
  },
@@ -247,10 +267,13 @@
   "neighbours": "в баре рядом стоят арка, двое, крест, бриллиант — круга среди них нет ни одного, шестерня в ряду одинока"
  },
  "changedFrom": {
-  "baseline": "design_handoff_round36/icons.json",
+  "baseline": "design_handoff_round40/icons.json",
   "changed": [
-   "ДОБАВЛЕН блок set — в round36 его не было вовсе (наша потеря при сборке файла)",
-   "у каждого знака объект silhouette {shell, inside, count} + плоские псевдонимы"
+   "добавлен ui-back.svg",
+   "добавлен ui-treasury.svg в set",
+   "pool-home перерисован — силуэт разведён с pool-flowers",
+   "блок rows пересобран ИЗ полей rows у знаков",
+   "в collisions добавлена восьмая пара — та, что нашло ваше правило"
   ]
  },
  "lostBlock": "Вы правы буквально: полей силуэта в файле не было. Причина не в имени ключа — блок set при сборке пакета не попал в файл целиком, а текст рядом обещал, что «поля у каждого знака ниже». Обещание было, данных не было. Блок ниже, 39 знаков.",
@@ -682,13 +705,14 @@
     "список зон Ж"
    ],
    "silhouette": {
-    "shell": "без оболочки",
-    "inside": "силуэт предмета",
+    "shell": "трапеция",
+    "inside": "ножка и основание",
     "count": 4
    },
-   "shell": "без оболочки",
-   "inside": "силуэт предмета",
-   "count": 4
+   "shell": "трапеция",
+   "inside": "ножка и основание",
+   "count": 4,
+   "status": "ПРАВКА по письму 44: был «без оболочки · силуэт предмета · 4» — дословно как pool-flowers в том же ряду"
   },
   "pool-beauty.svg": {
    "means": "Красота и уход",
@@ -816,6 +840,36 @@
    "shell": "без оболочки",
    "inside": "силуэт предмета",
    "count": 2
+  },
+  "ui-back.svg": {
+   "means": "Назад",
+   "rows": [
+    "шапка карточки"
+   ],
+   "silhouette": {
+    "shell": "без оболочки",
+    "inside": "стрелка",
+    "count": 2
+   },
+   "shell": "без оболочки",
+   "inside": "стрелка",
+   "count": 2,
+   "status": "НОВЫЙ — знака не было, карточка просила его сверху слева; вы рисовали «←» текстом, а глифов в интерфейсе быть не должно (инвариант)"
+  },
+  "ui-treasury.svg": {
+   "means": "Сокровищница (в тексте и в полосе)",
+   "rows": [
+    "полоса под кадром"
+   ],
+   "silhouette": {
+    "shell": "угловой",
+    "inside": "линия",
+    "count": 2
+   },
+   "shell": "угловой",
+   "inside": "линия",
+   "count": 2,
+   "status": "был назван в cleared, но в set не попал — добавлен"
   }
  }
 }
