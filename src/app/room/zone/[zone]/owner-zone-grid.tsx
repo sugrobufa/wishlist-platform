@@ -36,6 +36,11 @@ import { ItemActions, SIGN_SIZE, type ItemActionRow } from "@/components/item/it
 import { PoolIcon } from "@/components/pool-icons";
 import { tileAppearance } from "@/components/zone/tile-appearance";
 import rl from "@/components/room-list/room-list.module.css";
+// Телефонная поправка ЭТОГО экрана поверх общей строки: на 375 знаки действий
+// оставляли названию 71 px, и оно ложилось на цену (приёмка 10.08). Разбор —
+// в самом файле. Общую строку не трогаем: у «комнаты списком» знаков нет и
+// дефекта тоже.
+import z from "./owner-zone-grid.module.css";
 import type { ZoneGridItem } from "@/components/zone/types";
 import {
   deleteItemAction,
@@ -329,13 +334,13 @@ export function OwnerZoneGrid({ items, accent, zoneKey, pool }: OwnerZoneGridPro
 
       {/* СТРОКИ 29b. Вид взят у экрана «вся комната списком» (29a) — там он
           уже отрисован и проверен, второй раз рисовать незачем. */}
-      <ul className={rl.rows} style={{ "--rl-accent": accent } as CSSProperties}>
+      <ul className={`${rl.rows} ${z.rows}`} style={{ "--rl-accent": accent } as CSSProperties}>
         {shown.map((item) => {
           const look = tileAppearance(item, pool);
           const price = formatPrice(item, locale);
           const on = picked.has(item.id);
           return (
-            <li key={item.id} className={rl.row}>
+            <li key={item.id} className={`${rl.row} ${z.row}`}>
               {/* Кружок выбора СЛЕВА — как на макете. У демо-призрака его нет:
                   его не спрятать, он не в БД. */}
               {picking && !item.isDemo && (
@@ -381,9 +386,11 @@ export function OwnerZoneGrid({ items, accent, zoneKey, pool }: OwnerZoneGridPro
                 {!picking && confirming?.id === item.id && renderConfirm(item, confirming.kind)}
               </div>
               {/* Цена и степень желания — одним блоком (36b): огоньки стоят
-                  ВОЗЛЕ цены, а не сами по себе. В строке зоны они без слова. */}
+                  ВОЗЛЕ цены, а не сами по себе. В строке зоны они без слова.
+                  На телефоне этот блок встаёт ПОД названием — иначе название
+                  ложится на него (owner-zone-grid.module.css). */}
               {(price || item.desire != null) && (
-                <span className={rl.meta}>
+                <span className={`${rl.meta} ${z.meta}`}>
                   {price && <span className={rl.price}>{price}</span>}
                   <DesireScale desire={item.desire} accent={accent} place="row" />
                 </span>

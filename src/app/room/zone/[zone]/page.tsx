@@ -114,6 +114,25 @@ export default async function ZoneListPage({ params }: Params) {
           />
         ) : (
           <>
+            {/* Добавить вещь прямо в эту зону (полировка 16): ?zone=…
+                предвыбирает её в карточке добавления (контракт тикета 04).
+
+                СТОИТ НАД СПИСКОМ, А НЕ ПОД НИМ — то же правило, что тикет 139
+                применил к листу зоны в сцене (приёмка владельца 10.08,
+                замечание 2: «управляющие кнопки лежат внизу под предметами,
+                до них ты просто не дойдёшь»). Здесь ссылка уезжала вниз
+                ровно так же: строка вещи 93 px, при двенадцати вещах
+                «Добавить» оказывалась на 1368 px от верха — почти два
+                телефонных экрана прокрутки. Витрина (`/room/hall`) свою
+                дорогу «+ Добавить» держит над вещами с самого начала. */}
+            <Link
+              href={`/room/add?zone=${zone.key}`}
+              className="pressable mb-6 inline-block text-xs font-semibold"
+              style={{ color: preset.accent }}
+            >
+              + {t("addItem")}
+            </Link>
+
             {(zone.key !== MONEY_ZONE_KEY || items.length > 0) && (
               <OwnerZoneGrid
                 items={items}
@@ -123,16 +142,6 @@ export default async function ZoneListPage({ params }: Params) {
                 pool={zone.pool}
               />
             )}
-
-            {/* Добавить вещь прямо в эту зону (полировка 16): ?zone=…
-                предвыбирает её в карточке добавления (контракт тикета 04). */}
-            <Link
-              href={`/room/add?zone=${zone.key}`}
-              className="pressable mt-6 inline-block text-xs font-semibold"
-              style={{ color: preset.accent }}
-            >
-              + {t("addItem")}
-            </Link>
           </>
         )}
       </div>
