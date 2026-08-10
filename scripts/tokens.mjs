@@ -23,25 +23,62 @@ function pick(value, re, what) {
 }
 const num = (value, re, what) => Number(pick(value, re, what)[1]);
 
-const lines = [
+/**
+ * В `@theme` ИДУТ ТОЛЬКО ЗНАЧЕНИЯ — цвет или размер, целиком и без хвоста.
+ *
+ * ЗАЧЕМ. Дизайн держит справки в тех же блоках, что и значения, и правило
+ * «пропускаем note и onAccent» ловило их поимённо. Раунд 40 добавил в блок
+ * `text` два новых ключа — и оба уехали в переменные:
+ *   --color-text-body-retired: rgba(255,249,242,.68) — СНЯТА, читать как body;
+ *   --color-text-ink-note: «#F2EDE4 в продукте не используется: … .»;
+ * второе — предложение с ДВОЕТОЧИЕМ и точкой внутри объявления CSS. Список
+ * имён и не мог сработать: имена придумывает дизайн, а не мы.
+ *
+ * Поэтому пускаем по ФОРМЕ значения, и совпадение обязано быть полным: обе
+ * строки выше НАЧИНАЮТСЯ с настоящего цвета, и проверка «начинается с rgba»
+ * пропустила бы их обе.
+ */
+const COLOR = /^(?:#[0-9a-f]{3,8}|(?:rgb|rgba|hsl|hsla)\([^()]*\))$/iu;
+const SIZE = /^-?\d+(?:\.\d+)?(?:px|rem|em|%|ms|s|vw|vh|fr)?$/u;
+
+/** Что не прошло по форме — не теряется молча, а называется в шапке файла. */
+const skipped = [];
+
+function themeValue(block, key, value) {
+  const text = typeof value === "number" ? String(value) : String(value).trim();
+  if (typeof value === "string" || typeof value === "number") {
+    if (COLOR.test(text) || SIZE.test(text)) return text;
+  }
+  skipped.push(`${block}.${key}`);
+  return null;
+}
+
+const header = [
   "/* GENERATED FILE — do not edit by hand.",
   " * Source: design/package/handoff/tokens.json",
-  " * Regenerate: npm run tokens */",
-  "",
-  "@theme {",
+  " * Regenerate: npm run tokens",
 ];
+
+const lines = ["@theme {"];
 
 // Поверхности
 for (const [key, value] of Object.entries(tokens.surface)) {
-  if (typeof value !== "string") continue;
-  lines.push(`  --color-surface-${kebab(key)}: ${value};`);
+  const ready = themeValue("surface", key, value);
+  if (ready) lines.push(`  --color-surface-${kebab(key)}: ${ready};`);
 }
 
-// Текстовые ступени (note/onAccent — справочные, пропускаем)
+// Текстовые ступени. Справки (`note`, `onAccent`, снятые ступени, заметки про
+// непродуктовые цвета) отсеиваются формой значения, а не списком имён.
 for (const [key, value] of Object.entries(tokens.text)) {
-  if (key === "note" || key === "onAccent") continue;
-  lines.push(`  --color-text-${kebab(key)}: ${value};`);
+  const ready = themeValue("text", key, value);
+  if (ready) lines.push(`  --color-text-${kebab(key)}: ${ready};`);
 }
+
+// БЛОК `mail` В `@theme` НЕ ИДЁТ И НЕ ДОЛЖЕН. Он приехал раундом 41 отдельной
+// лестницей и сам объясняет почему: «письмо — не продукт: там нет ни шрифтов
+// продукта, ни ореолов, ни токенов интерфейса. Свои значения живут здесь,
+// отдельной лестницей, чтобы не спорить с интерфейсной». Письма верстаются
+// инлайновыми стилями по своим шаблонам, переменных Tailwind они не видят.
 
 // Шрифтовые семейства
 lines.push(`  --font-display: "${tokens.type.display.family}", sans-serif;`);
@@ -164,7 +201,18 @@ function asCalc(formula) {
   return `calc(${formula.replace(/roomLightness/gu, "var(--room-lightness)")})`;
 }
 
+// Проза, не прошедшая в `@theme`, называется в шапке ПОИМЁННО. Пропасть молча
+// она не имеет права: в следующий раз мимо может уехать не справка, а ступень
+// с опечаткой в единице измерения — и увидеть это надо в дифе tokens.css.
+if (skipped.length > 0) {
+  header.push(" *");
+  header.push(" * Прозой мимо @theme (значение не цвет и не размер):");
+  for (const key of skipped) header.push(` *   ${key}`);
+}
+header.push(" */");
+
 const out = resolve(root, "src/styles/tokens.css");
 mkdirSync(dirname(out), { recursive: true });
-writeFileSync(out, lines.join("\n"), "utf8");
+writeFileSync(out, [...header, "", ...lines].join("\n"), "utf8");
 console.log(`tokens.css written: ${out}`);
+if (skipped.length > 0) console.log(`прозой мимо @theme: ${skipped.join(", ")}`);

@@ -238,6 +238,59 @@ describe("design handoff contract", () => {
     expect(css).toContain("--imm-top-veil");
     expect(css).toContain("--state-choice-ar");
   });
+
+  it("в @theme нет ПРОЗЫ — только цвета и размеры (тикет 164)", () => {
+    // ЧТО СЛОМАЛОСЬ. Дизайн держит справки в тех же блоках, что и значения, а
+    // генератор отсеивал их поимённо («note и onAccent пропускаем»). Раунд 40
+    // добавил в блок `text` два ключа, и оба уехали в переменные:
+    //   --color-text-body-retired: rgba(255,249,242,.68) — СНЯТА, читать как body;
+    //   --color-text-ink-note: «#F2EDE4 в продукте не используется: … .»
+    // Второе — предложение с двоеточием и точкой ВНУТРИ объявления CSS. Список
+    // имён не мог сработать по построению: имена придумывает дизайн.
+    //
+    // Обе строки НАЧИНАЮТСЯ с настоящего цвета — поэтому и здесь, и в самом
+    // генераторе совпадение по форме требуется ПОЛНОЕ.
+    const css = readFileSync(resolve(__dirname, "../src/styles/tokens.css"), "utf8");
+    const theme = /@theme \{([\s\S]*?)\n\}/u.exec(css)?.[1] ?? "";
+    expect(theme, "блок @theme пропал из сгенерированного файла").not.toBe("");
+
+    const COLOR = /^(?:#[0-9a-f]{3,8}|(?:rgb|rgba|hsl|hsla)\([^()]*\))$/iu;
+    const SIZE = /^-?\d+(?:\.\d+)?(?:px|rem|em|%|ms|s|vw|vh|fr)?$/u;
+    const FONT = /^(?:"[^"]+"|[\w-]+)(?:,\s*(?:"[^"]+"|[\w-]+))*$/u;
+    const declarations = [...theme.matchAll(/^\s*(--[\w-]+):\s*(.+);$/gmu)].map((m) => ({
+      name: m[1] as string,
+      value: (m[2] as string).trim(),
+    }));
+    expect(declarations.length, "в @theme не осталось объявлений").toBeGreaterThan(10);
+    const prose = declarations.filter(
+      (d) => !COLOR.test(d.value) && !SIZE.test(d.value) && !FONT.test(d.value),
+    );
+    expect(prose.map((d) => `${d.name}: ${d.value}`)).toEqual([]);
+    // Два конкретных беглеца раунда 40 — поимённо, чтобы падение называло их.
+    expect(css, "снятая ступень .68 снова стала переменной").not.toContain(
+      "--color-text-body-retired",
+    );
+    expect(css, "заметка про непродуктовый цвет снова стала переменной").not.toContain(
+      "--color-text-ink-note",
+    );
+
+    // Слияние ступеней доехало до сборки: .68 и .72 стали одной — body = .72.
+    const tokens = JSON.parse(readFileSync(resolve(PKG, "handoff/tokens.json"), "utf8")) as {
+      text: Record<string, string>;
+      mail: Record<string, string>;
+    };
+    expect(tokens.text.body).toBe("rgba(255,249,242,.72)");
+    expect(theme).toContain(`--color-text-body: ${tokens.text.body};`);
+    expect(tokens.text.bodyRetired, "снятая ступень обязана остаться справкой").toContain("СНЯТА");
+
+    // Блок `mail` в @theme НЕ ИДЁТ и не должен: он сам говорит, что письмо —
+    // не продукт и его лестница не спорит с интерфейсной. Письма верстаются
+    // инлайновыми стилями и переменных Tailwind не видят вовсе.
+    expect(tokens.mail.ink, "#F2EDE4 живёт чернилами писем — это его законное место").toBe(
+      "#F2EDE4",
+    );
+    expect(css, "лестница писем приехала в интерфейс").not.toContain("--color-mail");
+  });
 });
 
 // ---------------------------------------------------------------------------

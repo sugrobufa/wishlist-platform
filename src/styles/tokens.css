@@ -1,6 +1,13 @@
 /* GENERATED FILE — do not edit by hand.
  * Source: design/package/handoff/tokens.json
- * Regenerate: npm run tokens */
+ * Regenerate: npm run tokens
+ *
+ * Прозой мимо @theme (значение не цвет и не размер):
+ *   text.note
+ *   text.onAccent
+ *   text.bodyRetired
+ *   text.inkNote
+ */
 
 @theme {
   --color-surface-app-ground: #0B0806;
@@ -15,7 +22,7 @@
   --color-surface-fill-hover: rgba(255,255,255,.08);
   --color-text-primary: #FFF9F2;
   --color-text-strong: rgba(255,249,242,.82);
-  --color-text-body: rgba(255,249,242,.68);
+  --color-text-body: rgba(255,249,242,.72);
   --color-text-muted: rgba(255,249,242,.6);
   --color-text-faint: rgba(255,249,242,.5);
   --color-text-floor: rgba(255,249,242,.48);
