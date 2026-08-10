@@ -24,8 +24,12 @@ import {
   IconActionNote,
   IconActionReturn,
   IconActionTreasury,
+  IconDate,
   IconEdit,
   IconEyeOff,
+  IconGallery,
+  IconMove,
+  IconPool,
   IconTrash,
 } from "../src/components/icons";
 import { ItemActions, SIGN_SIZE } from "../src/components/item/item-actions";
@@ -197,13 +201,27 @@ describe("поясняющий абзац умер", () => {
  */
 const PACKAGE_ICONS = path.join("design", "package", "handoff", "icons");
 
-/** Геометрия знака: пути и круги по порядку — без цвета и размеров. */
+/**
+ * Геометрия знака: пути, круги и ПРЯМОУГОЛЬНИКИ — без цвета и размеров.
+ *
+ * ПОЧЕМУ ДОБАВИЛСЯ `rect`. Прежде сверялись только `d="…"` и `<circle>`, и
+ * это работало ровно до раунда 36: у знаков набора прямоугольников не было
+ * вовсе. Теперь есть — рамка кадров, лист календаря, конверт денег, — и
+ * сверка, которая их не видит, объявляла бы «путь в путь» знаку, у которого
+ * оболочка разошлась с файлом целиком. Худший род зелёного теста: он не
+ * молчит, он врёт.
+ */
 function shapeOf(svg: string): string[] {
   const paths = [...svg.matchAll(/d="([^"]+)"/gu)].map((m) => `path:${m[1]}`);
   const circles = [
     ...svg.matchAll(/<circle[^>]*cx="([\d.]+)"[^>]*cy="([\d.]+)"[^>]*r="([\d.]+)"/gu),
   ].map((m) => `circle:${m[1]},${m[2]},${m[3]}`);
-  return [...paths, ...circles].sort();
+  const rects = [
+    ...svg.matchAll(
+      /<rect[^>]*x="([\d.]+)"[^>]*y="([\d.]+)"[^>]*width="([\d.]+)"[^>]*height="([\d.]+)"(?:[^>]*rx="([\d.]+)")?/gu,
+    ),
+  ].map((m) => `rect:${m[1]},${m[2]},${m[3]},${m[4]},${m[5] ?? "0"}`);
+  return [...paths, ...circles, ...rects].sort();
 }
 
 const fromPackage = (file: string) =>
@@ -266,5 +284,56 @@ describe("семь знаков действий — путь в путь с ф�
     expect(fromPackage("tab-treasury"), "таб-бар разошёлся с листом действий").toEqual(sign);
     expect(fromPackage("ui-treasury"), "угол сцены разошёлся с листом действий").toEqual(sign);
     expect(fromOurs(IconActionTreasury)).toEqual(sign);
+  });
+});
+
+describe("четыре знака раунда 36 — путь в путь (тикет 150)", () => {
+  // ЧЕТЫРЕ ФАЙЛА, КОТОРЫХ У НАС НЕ БЫЛО. Аудит ряда (письмо 39) назвал две
+  // пары в наших рядах, и дизайн прислал по файлу на каждую сторону: складчина
+  // с датой в карточке гостя, «перенести» с рамкой кадров в листе комнаты.
+  // Знаки живут в каноне (`IconPool` и соседи), а не в группе `IconAction*`:
+  // группа заведена для строки вещи, а эти четверо в неё не входят.
+  const pairs: ReadonlyArray<readonly [string, Parameters<typeof createElement>[0]]> = [
+    ["action-pool", IconPool],
+    ["action-date", IconDate],
+    ["action-move", IconMove],
+    ["action-gallery", IconGallery],
+  ];
+
+  for (const [file, icon] of pairs) {
+    it(`${file}.svg`, () => {
+      expect(fromOurs(icon)).toEqual(fromPackage(file));
+    });
+  }
+
+  it("складчина больше НЕ круглая с делениями, а дата — не круглая вовсе", () => {
+    // Смысл пары, ради которой правка и делалась: в ряду карточки гостя эти
+    // двое стоят рядом, и на 19 px различать их обязана ОБОЛОЧКА. Ловим не
+    // «поменялись ли пути» (это сверка выше), а само правило: круг в ряду
+    // один, и он у складчины; у даты прямоугольник.
+    const pool = renderToStaticMarkup(createElement(IconPool));
+    const date = renderToStaticMarkup(createElement(IconDate));
+    expect(pool, "у складчины снова появился замкнутый круг — это опять часы").not.toContain(
+      "<circle",
+    );
+    expect(date, "дата потеряла прямоугольник — различать её на 19 px нечем").toContain("<rect");
+    expect(pool).not.toContain("<rect");
+  });
+
+  it("точка дня — заливка `currentColor`, а не вшитый в файл цвет", () => {
+    // Единственная законная заливка набора (tokens.json → icons.exception):
+    // в файле дизайна она #F2EDE4, у нас обязана гореть цветом места.
+    const svg = renderToStaticMarkup(createElement(IconDate));
+    expect(svg).toContain('fill="currentColor"');
+    expect(svg).not.toContain("#F2EDE4");
+    expect(readFileSync(path.join(PACKAGE_ICONS, "action-date.svg"), "utf8")).toContain("#F2EDE4");
+  });
+
+  it("формат набора у четверых тот же: сетка 24, контур 1.7", () => {
+    for (const [file] of pairs) {
+      const svg = readFileSync(path.join(PACKAGE_ICONS, `${file}.svg`), "utf8");
+      expect(svg, file).toContain('viewBox="0 0 24 24"');
+      expect(svg, file).toContain('stroke-width="1.7"');
+    }
   });
 });
