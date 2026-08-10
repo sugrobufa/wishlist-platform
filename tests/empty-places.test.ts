@@ -1,34 +1,39 @@
-// ТРИ ПУСТЫХ МЕСТА на сцене пустой комнаты (тикет 142, пакет раунда 34).
+// ТРИ ПУСТЫХ МЕСТА на сцене пустой комнаты (тикет 142; приёмка `places-v3`
+// пакета раунда 37 — тикет 157).
 //
-// ПОЧЕМУ ЗДЕСЬ НЕТ ТАБЛИЦЫ ДИЗАЙНА. Пакет прислал не только правило, но и
-// receipt — прогон правила по десяти интерьерам, с приглашением сверить числа.
-// Сверили: receipt посчитан по снимку `rooms.json` ДО переразметок раунда 8 и
-// старше (их `zoneRect` для `cream/beauty`, `lux/travel` и `cottage/music`
-// посимвольно равны нашему полю `rectOld`; отдельно уехал `study`, где
-// `anything` переразмечен в раунде 13 и стал кандидатом). На нынешних
-// координатах правило даёт другие тройки в четырёх комнатах из десяти. Правило
-// при этом у нас и у дизайна ОДНО — разошёлся вход, и расхождение выписано
-// дизайну письмом.
+// ПОЧЕМУ ЗДЕСЬ НЕТ ТАБЛИЦЫ ДИЗАЙНА — И ПОСЛЕ ТОГО, КАК ОНА СОШЛАСЬ. В раунде 34
+// receipt пакета был посчитан по снимку `rooms.json` ДО переразметок, и тройки
+// расходились в четырёх комнатах из десяти. Раунд 37 пересчитан по нашему дампу
+// карты: 30 прямоугольников из 30 равны нашим, тройки и дышащее место совпали
+// все десять. Ожиданием таблица всё равно не становится — 19 из 30 выбранных
+// зон помечены на пересъёмку, и когда карта поедет, поедут и места.
 //
 // Поэтому ожиданием служат две вещи, и обе наши:
 //   1) само ПРАВИЛО — окно, трети, победа по площади, добор пустой трети,
-//      выбор главного места;
+//      выбор главного места, `drawIfWhole`;
 //   2) СНИМОК результата на сегодняшнем `rooms.json` — чтобы следующая
 //      переразметка зоны не переставила места молча.
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
-import { hitTargetMin, rooms, roomsContract } from "../src/config/design";
+import { hitTargetMin, rooms, roomsContract, scene } from "../src/config/design";
+import { phoneWindowOnFrame } from "../src/components/scene/immersive-layout";
+import { EMPTY_ROOM_FILTER } from "../src/components/scene/grading";
 import {
   emptyPlaces,
   isPlaceCandidate,
   placeArmPx,
   placeFill,
+  placeFocusGlow,
   placeRect,
   placesContract,
   placeThird,
+  placeWholeInBand,
+  PLACE_BAND_PHONE_REST,
   PLACE_BREATH,
+  PLACE_CAMERA_FADE,
   PLACE_CORNER_COUNT,
+  PLACE_FOCUS,
   PLACE_OPACITY,
   PLACE_STROKE_PX,
   PLACE_WINDOW,
@@ -40,11 +45,17 @@ const read = (relative: string) =>
 
 const sceneCss = read("../src/components/scene/scene.module.css");
 const stage = read("../src/components/scene/SceneStage.tsx");
+const panEngine = read("../src/components/scene/use-scene-pan.ts");
 
-/** Место одной строкой: «ключ*  ШxВ @ x,y», звёздочка — главное (дышит). */
+/**
+ * Место одной строкой: «ключ*  ШxВ @ x,y  armN  видно-ли-в-покое-телефона».
+ * Звёздочка — главное (дышит). Всё, что решает правило, стоит в одной строке
+ * намеренно: переразметка зоны меняет её целиком, и diff читается глазами.
+ */
 function line(place: { key: string; rect: { x: number; y: number; w: number; h: number }; primary: boolean }) {
   const r = place.rect;
-  return `${place.key}${place.primary ? "*" : ""} ${r.w}x${r.h}@${r.x},${r.y}`;
+  const seen = placeWholeInBand(r, PLACE_BAND_PHONE_REST) ? "в-покое" : "за-кромкой";
+  return `${place.key}${place.primary ? "*" : ""} ${r.w}x${r.h}@${r.x},${r.y} arm${placeArmPx(r)} ${seen}`;
 }
 
 /**
@@ -52,18 +63,62 @@ function line(place: { key: string; rect: { x: number; y: number; w: number; h: 
  * зонам, которые продукт показывает). Не «правильный ответ дизайна», а наш
  * зафиксированный результат: переразметят зону — тест упадёт, и место
  * переедет осознанно, а не молча.
+ *
+ * «за-кромкой» — место, которое в покое телефона (окно 12…442) лежит не
+ * целиком: по `drawIfWhole` оно не рисуется и приезжает паном. Таких семь из
+ * тридцати, и в каждой комнате остаётся не меньше двух мест.
  */
 const SNAPSHOT: Record<string, [string, string, string]> = {
-  cream: ["fashion* 51x110@150,132", "beauty 37x34@268,164", "home 38x32@425,188"],
-  warm: ["beauty 60x93@194,34", "travel* 97x68@249,243", "anything 50x74@138,238"],
-  lux: ["travel* 56x87@311,235", "events 40x57@338,92", "beauty 41x47@239,143"],
-  emerald: ["bags 43x41@118,228", "travel* 91x63@236,268", "events 67x63@389,84"],
-  bold: ["beauty* 79x58@223,190", "events 76x57@397,76", "travel 66x51@304,286"],
-  cottage: ["anything 64x59@143,268", "travel* 99x69@269,254", "music 40x27@423,217"],
-  gamer: ["travel* 56x56@192,245", "tech 52x34@254,147", "sport 50x35@385,175"],
-  sport: ["anything* 57x46@175,278", "events 34x34@417,152", "grooming 37x34@212,170"],
-  study: ["anything* 52x56@182,247", "sport 42x53@313,261", "events 34x34@423,73"],
-  loft: ["tech 34x34@196,168", "music* 73x35@264,169", "books 38x38@456,100"],
+  cream: [
+    "fashion* 51x110@150,132 arm11 в-покое",
+    "beauty 37x34@268,164 arm11 в-покое",
+    "home 38x32@425,188 arm11 за-кромкой",
+  ],
+  warm: [
+    "beauty 60x93@194,34 arm11 в-покое",
+    "travel* 97x68@249,243 arm11 в-покое",
+    "anything 50x74@138,238 arm11 в-покое",
+  ],
+  lux: [
+    "travel* 56x87@311,235 arm11 в-покое",
+    "events 40x57@338,92 arm11 в-покое",
+    "beauty 41x47@239,143 arm11 в-покое",
+  ],
+  emerald: [
+    "bags 43x41@118,228 arm11 в-покое",
+    "travel* 91x63@236,268 arm11 в-покое",
+    "events 67x63@389,84 arm11 за-кромкой",
+  ],
+  bold: [
+    "beauty* 79x58@223,190 arm11 в-покое",
+    "events 76x57@397,76 arm11 за-кромкой",
+    "travel 66x51@304,286 arm11 в-покое",
+  ],
+  cottage: [
+    "anything 64x59@143,268 arm11 в-покое",
+    "travel* 99x69@269,254 arm11 в-покое",
+    "music 40x27@423,217 arm9 за-кромкой",
+  ],
+  gamer: [
+    "travel* 56x56@192,245 arm11 в-покое",
+    "tech 52x34@254,147 arm11 в-покое",
+    "sport 50x35@385,175 arm11 в-покое",
+  ],
+  sport: [
+    "anything* 57x46@175,278 arm11 в-покое",
+    "events 34x34@417,152 arm11 за-кромкой",
+    "grooming 37x34@212,170 arm11 в-покое",
+  ],
+  study: [
+    "anything* 52x56@182,247 arm11 в-покое",
+    "sport 42x53@313,261 arm11 в-покое",
+    "events 34x34@423,73 arm11 за-кромкой",
+  ],
+  loft: [
+    "tech 34x34@196,168 arm11 в-покое",
+    "music* 73x35@264,169 arm11 в-покое",
+    "books 38x38@456,100 arm11 за-кромкой",
+  ],
 };
 
 /** Пустые трети, закрытые добором, — часть того же снимка. */
@@ -80,6 +135,20 @@ const SNAPSHOT_FALLBACK: Record<string, string[]> = {
   loft: [],
 };
 
+/** Сколько мест человек видит на телефоне в покое — второй половиной снимка. */
+const SNAPSHOT_PHONE_AT_REST: Record<string, number> = {
+  cream: 2,
+  warm: 3,
+  lux: 3,
+  emerald: 2,
+  bold: 2,
+  cottage: 2,
+  gamer: 3,
+  sport: 2,
+  study: 2,
+  loft: 2,
+};
+
 describe("142 — правило выбора трёх мест", () => {
   it("снимок на сегодняшнем rooms.json: десять комнат по три места", () => {
     for (const room of rooms) {
@@ -94,8 +163,10 @@ describe("142 — правило выбора трёх мест", () => {
   it("окно и трети — числа контракта, а не наши", () => {
     expect([PLACE_WINDOW.x0, PLACE_WINDOW.x1]).toEqual([105, 525]);
     expect(THIRD_BOUNDS).toEqual([245, 385]);
-    // Окно — центральные 420 из 630: поля слева и справа одинаковые.
-    expect(PLACE_WINDOW.x0).toBe(placesContract.frame.w - PLACE_WINDOW.x1);
+    // Окно — центральные 420 из 630: поля слева и справа одинаковые. Ширину
+    // кадра берём У СЕБЯ: в `places-v3` блока `frame` больше нет — и правильно,
+    // кадр 630×351 наш (ADR-0006), контракт его только повторял.
+    expect(PLACE_WINDOW.x0).toBe(scene.phone.image.w - PLACE_WINDOW.x1);
     // Трети равны: 140 каждая.
     expect(THIRD_BOUNDS[0] - PLACE_WINDOW.x0).toBe(140);
     expect(THIRD_BOUNDS[1] - THIRD_BOUNDS[0]).toBe(140);
@@ -148,26 +219,29 @@ describe("142 — правило выбора трёх мест", () => {
     expect(run.places[0]?.primary).toBe(true);
   });
 
-  it("ЗОНЫ БЕЗ ПРЕДМЕТА в кандидаты не идут — вопреки букве контракта", () => {
-    // `places.json` пишет «выключенные зоны в rooms.json отсутствуют, исключать
-    // нечего», и про наш файл это неверно: восемь зон стоят с `objectAbsent`,
-    // продукт их не показывает (инвариант №9, 122 из 130). Сам дизайн считал
-    // так же — иначе тройка «Спорта» в его receipt не воспроизводится.
+  it("ЗОНЫ БЕЗ ПРЕДМЕТА в кандидаты не идут", () => {
+    // Раунд 34 писал «выключенные зоны в rooms.json отсутствуют, исключать
+    // нечего», и про наш файл это было неверно. `places-v3` ошибку признал и
+    // перечислил все восемь адресов поимённо — сверяем список целиком.
     const absent = roomsContract.rooms.flatMap((room) =>
       room.zones.filter((zone) => zone.objectAbsent).map((zone) => `${room.id}/${zone.key}`),
     );
-    expect(absent.sort()).toEqual(
-      [
-        "emerald/beauty",
-        "loft/gaming",
-        "lux/music",
-        "sport/gaming",
-        "sport/watches",
-        "study/gaming",
-        "study/tech",
-        "warm/music",
-      ].sort(),
-    );
+    const named = [
+      "emerald/beauty",
+      "loft/gaming",
+      "lux/music",
+      "sport/gaming",
+      "sport/watches",
+      "study/gaming",
+      "study/tech",
+      "warm/music",
+    ];
+    expect(absent.sort()).toEqual([...named].sort());
+    for (const address of named) {
+      expect(placesContract.rule.candidate, `${address}: пропал из списка контракта`).toContain(
+        address,
+      );
+    }
     // Фильтр стоит В САМОМ ПРАВИЛЕ, а не только у вызова: победила бы иначе.
     const zones = [
       { key: "absent", rect: { x: 250, y: 10, w: 120, h: 120 }, objectAbsent: true },
@@ -206,6 +280,127 @@ describe("142 — правило выбора трёх мест", () => {
       const primary = places.findIndex((p) => p.primary);
       expect(areas[primary], `${room.id}: дышит не самое большое место`).toBe(Math.max(...areas));
     }
+  });
+
+  it("ничья дышащего места — по порядку зон в rooms.json, а не победителей третей", () => {
+    // `places-v3 → rule.primary`: «при полном равенстве — порядок зон в
+    // rooms.json (та же цепочка, что у выбора зоны)». Порядок победителей
+    // третей идёт СЛЕВА НАПРАВО и с порядком зон не совпадает: две одинаковые
+    // зоны, поставленные в списке во второй и первой трети, дают победителей
+    // [вторая-треть-справа? нет — сначала I], и ничью обязан решить index.
+    expect(placesContract.rule.primary).toContain("порядок зон в rooms.json");
+    const later = { key: "later", rect: { x: 260, y: 10, w: 60, h: 60 } };
+    const earlier = { key: "earlier", rect: { x: 110, y: 10, w: 60, h: 60 } };
+    const filler = { key: "filler", rect: { x: 400, y: 10, w: 40, h: 40 } };
+    // `later` стоит в списке ПЕРВЫМ, но живёт во второй трети — среди
+    // победителей он второй. Площади мест равны, и дышать обязан он.
+    const run = emptyPlaces([later, earlier, filler]);
+    expect(run.places.map((p) => p.key)).toEqual(["earlier", "later", "filler"]);
+    expect(run.places.find((p) => p.primary)?.key).toBe("later");
+  });
+});
+
+describe("157 — drawIfWhole: обрезанных мест не бывает", () => {
+  it("видимая полоса — НЕ окно правила: 12…442 против 105…525", () => {
+    // Две полосы путают охотнее всего. Окно правила выбирает ЗОНЫ и одно на
+    // все устройства; видимая полоса решает, РИСОВАТЬ ли выбранное место, и у
+    // телефона она своя — покой окна 430 по кадру 630 (ADR-0006).
+    expect(PLACE_BAND_PHONE_REST).toEqual(phoneWindowOnFrame(0));
+    expect([PLACE_BAND_PHONE_REST.left, PLACE_BAND_PHONE_REST.right]).toEqual([12, 442]);
+    expect(PLACE_BAND_PHONE_REST.left).not.toBe(PLACE_WINDOW.x0);
+    expect(placesContract.rule.drawIfWhole).toContain("целиком");
+  });
+
+  it("правило считает целиком, а не по касанию кромки", () => {
+    const band = { left: 12, right: 442 };
+    expect(placeWholeInBand({ x: 12, y: 0, w: 430, h: 10 }, band)).toBe(true);
+    expect(placeWholeInBand({ x: 11, y: 0, w: 10, h: 10 }, band)).toBe(false);
+    expect(placeWholeInBand({ x: 433, y: 0, w: 10, h: 10 }, band)).toBe(false);
+    expect(placeWholeInBand({ x: 432, y: 0, w: 10, h: 10 }, band)).toBe(true);
+  });
+
+  it("В КАЖДОЙ КОМНАТЕ В ПОКОЕ ОСТАЁТСЯ НЕ МЕНЬШЕ ДВУХ МЕСТ", () => {
+    // Условие приёмки правила (тикет 157). Без него drawIfWhole принимать
+    // нельзя: подсказка «сюда встанет вещь» в единственном экземпляре читается
+    // не как приглашение, а как единственно верное место.
+    let total = 0;
+    for (const room of rooms) {
+      const seen = emptyPlaces(room.zones).places.filter((p) =>
+        placeWholeInBand(p.rect, PLACE_BAND_PHONE_REST),
+      );
+      expect(seen.length, `${room.id}: в покое телефона осталось меньше двух мест`).toBe(
+        SNAPSHOT_PHONE_AT_REST[room.id],
+      );
+      expect(seen.length).toBeGreaterThanOrEqual(2);
+      total += seen.length;
+    }
+    // Двадцать три из тридцати: семь третьих мест уезжают за правую кромку.
+    expect(total).toBe(23);
+  });
+
+  it("дышит только целиком видимое место (primaryWholeAtRest)", () => {
+    expect(placesContract.rule.primaryWholeAtRest).toContain("целиком");
+    for (const room of rooms) {
+      const primary = emptyPlaces(room.zones).places.find((p) => p.primary);
+      expect(primary, `${room.id}: дышащего места нет`).toBeTruthy();
+      expect(
+        primary && placeWholeInBand(primary.rect, PLACE_BAND_PHONE_REST),
+        `${room.id}: дышит место, обрезанное кромкой`,
+      ).toBe(true);
+    }
+    // И правило работает, а не совпадает: самое большое место за кромкой —
+    // дышит следующее по площади из видимых.
+    const wide = { key: "wide", rect: { x: 380, y: 10, w: 140, h: 140 } };
+    const inside = { key: "inside", rect: { x: 110, y: 10, w: 100, h: 100 } };
+    const tiny = { key: "tiny", rect: { x: 260, y: 10, w: 40, h: 40 } };
+    const run = emptyPlaces([wide, inside, tiny]);
+    expect(placeWholeInBand(run.places[2]!.rect, PLACE_BAND_PHONE_REST)).toBe(false);
+    expect(run.places.find((p) => p.primary)?.key).toBe("inside");
+  });
+
+  it("правило ВЫБОРА трёх зон от этого не меняется — меняется только рисование", () => {
+    // Место за кромкой не выпадает из тройки: окно ездит, и оно приезжает.
+    for (const room of rooms) {
+      expect(emptyPlaces(room.zones).places, `${room.id}`).toHaveLength(3);
+    }
+  });
+
+  it("в разметке проверку считает CSS — потому что полоса едет с окном", () => {
+    // Движок пана намеренно не трогает React (ре-рендер на каждый кадр
+    // пальца), поэтому он пишет позицию окна в кадр-px, а CSS сравнивает.
+    expect(panEngine).toContain('setProperty("--pan-frame"');
+    expect(panEngine).toContain('"--pan-frame",'); // и снимается при уходе с телефона
+    expect(stage).toContain('"--place-x0": `${place.rect.x}`');
+    expect(stage).toContain('"--place-x1": `${place.rect.x + place.rect.w}`');
+    expect(stage).toContain('"--place-band-l0": `${PLACE_BAND_PHONE_REST.left}`');
+    expect(stage).toContain('"--place-band-r0": `${PLACE_BAND_PHONE_REST.right}`');
+    // Шаг: `clamp(0, разность, 1)` с двух сторон, объединённые max.
+    const place = /\.place \{[\s\S]*?\n\}/u.exec(sceneCss)?.[0] ?? "";
+    expect(place).toContain("--band-l: calc(var(--place-band-l0) + var(--pan-frame, 0));");
+    expect(place).toContain("--band-r: calc(var(--place-band-r0) + var(--pan-frame, 0));");
+    expect(place).toMatch(/--place-off: max\(\s*clamp\(0, calc\(var\(--band-l\)/u);
+    expect(place).toContain("--place-on: calc(1 - var(--place-off));");
+    expect(place).toContain("opacity: calc(var(--place-o) * var(--place-on));");
+    // На десктопе кадр виден целиком — шаг выключен, второй полосы нет.
+    expect(sceneCss).toMatch(
+      /@media \(min-width: 1024px\) \{\s*\.place \{\s*--place-off: 0;\s*\}\s*\}/u,
+    );
+  });
+
+  it("НИ ОДНО СОСТОЯНИЕ ВИДА НЕ ВОСКРЕШАЕТ СКРЫТОЕ МЕСТО", () => {
+    // Анимация в каскаде выше обычных объявлений: без множителя в кейфреймах
+    // дышащее место продолжало бы мигать обрезанным. Те же грабли у
+    // reduced-motion и у фокуса — сторожим все три.
+    expect(sceneCss).toMatch(
+      /@keyframes place-breath \{[\s\S]*calc\(var\(--place-o0\) \* var\(--place-on\)\)[\s\S]*calc\(var\(--place-o1\) \* var\(--place-on\)\)/u,
+    );
+    const reduced =
+      /@media \(prefers-reduced-motion: reduce\) \{([\s\S]*?)\n\}/u.exec(sceneCss)?.[1] ?? "";
+    expect(reduced).toContain("opacity: calc(var(--place-o-reduced) * var(--place-on));");
+    const focus = /\.hotspotSlot:has\(\.hotspot:focus-visible\) \.place \{([\s\S]*?)\n\}/u.exec(
+      sceneCss,
+    )?.[1];
+    expect(focus).toContain("opacity: var(--place-on);");
   });
 });
 
@@ -259,16 +454,28 @@ describe("142 — геометрия места из прямоугольник�
     expect(sceneCss).toContain("top: min(0px, calc(50% - var(--hit-min) / 2));");
   });
 
-  it("плечо уголка укорачивается только у мелкого места", () => {
+  it("ПЛЕЧО УГОЛКА — ФОРМУЛА РАУНДА 37: max(6, min(11, round(0.35 · меньшая)))", () => {
+    // Прежде это была проза с порогом «< 32 px» и дробным результатом (9.45).
+    // Теперь — формула с обычным округлением и полом 6.
+    expect(placesContract.visual.corners.armSmall).toContain(
+      "max(6, min(11, round(0.35 * min(place.w, place.h))))",
+    );
+    // Верхний зажим формулы — то же число, что armPx: две записи одного плеча
+    // разойтись не должны.
+    expect(placeArmPx({ x: 0, y: 0, w: 120, h: 110 })).toBe(placesContract.visual.corners.armPx);
     expect(placeArmPx({ x: 0, y: 0, w: 38, h: 32 })).toBe(11);
-    expect(placeArmPx({ x: 0, y: 0, w: 120, h: 110 })).toBe(11);
-    // «Коттедж», музыка: 40×27 — меньшая сторона ниже 32, плечо 35% от неё.
-    expect(placeArmPx({ x: 0, y: 0, w: 40, h: 27 })).toBeCloseTo(9.45, 2);
-    // Плечи двух углов не смыкаются ни на одном месте всех десяти комнат —
-    // иначе разомкнутые углы превратились бы в непрерывную рамку.
+    // «Коттедж», музыка: 40×27 — контрольный случай пакета. round(0.35 · 27) =
+    // round(9.45) = 9, а не 9.45: округление обычное, .5 вверх.
+    expect(placeArmPx({ x: 0, y: 0, w: 40, h: 27 })).toBe(9);
+    // Пол 6: короче уголок перестаёт быть уголком.
+    expect(placeArmPx({ x: 0, y: 0, w: 10, h: 8 })).toBe(6);
+    // Плечо всегда целое — дробных плеч формула больше не даёт.
     for (const room of rooms) {
       for (const place of emptyPlaces(room.zones).places) {
         const arm = placeArmPx(place.rect);
+        expect(Number.isInteger(arm), `${room.id}/${place.key}: дробное плечо`).toBe(true);
+        // Плечи двух углов не смыкаются — иначе разомкнутые углы превратились
+        // бы в непрерывную рамку.
         expect(arm * 2, `${room.id}/${place.key}: углы сомкнулись в рамку`).toBeLessThan(
           Math.min(place.rect.w, place.rect.h),
         );
@@ -296,21 +503,21 @@ describe("142 — вид места: числа контракта против 
     expect(sceneCss).not.toMatch(/\.placeCorner[A-Z]* \{[^}]*border/u);
   });
 
-  it("альфы и партитура дыхания — из places.json", () => {
+  it("альфы и партитура дыхания — из states.rest, а не из visual.opacity", () => {
+    // Ключи переехали в раунде 37: `visual.opacity` исчез, числа лежат в
+    // `states.rest`, причём размах, партитура и reduced-motion — одной строкой.
+    expect(placesContract.states.rest.othersOpacity).toBe(0.55);
     expect(PLACE_OPACITY.others).toBe(0.55);
     expect(PLACE_OPACITY.breathFrom).toBe(0.55);
     expect(PLACE_OPACITY.breathTo).toBe(0.85);
     expect(PLACE_OPACITY.reduced).toBe(0.7);
     expect(PLACE_BREATH).toBe("3.6s ease-in-out infinite alternate");
     expect(sceneCss).toMatch(/\.placePrimary \{\s*animation: place-breath var\(--place-breath\);/u);
-    expect(sceneCss).toMatch(
-      /@keyframes place-breath \{[\s\S]*var\(--place-o0\)[\s\S]*var\(--place-o1\)/u,
-    );
     // prefers-reduced-motion: дыхания нет, главное место стоит на .7.
     const reduced =
       /@media \(prefers-reduced-motion: reduce\) \{([\s\S]*?)\n\}/u.exec(sceneCss)?.[1] ?? "";
     expect(reduced).toContain("animation: none;");
-    expect(reduced).toContain("opacity: var(--place-o-reduced);");
+    expect(reduced).toContain("--place-o-reduced");
   });
 
   it("заливка — градиент акцента .08 к нулю на 75%", () => {
@@ -337,27 +544,40 @@ describe("142 — вид места: числа контракта против 
     expect(block).not.toMatch(/\.place \{[^}]*border:/u);
     // И полосы света под местом тоже нет: свет обещан подписью сцены.
     expect(block).not.toMatch(/box-shadow/u);
-    expect(placesContract.visual.noLightLine).toContain("НЕТ");
+    expect(placesContract.visual.noLightLine).toContain("полосы света под местом нет");
+    // Четвёртый признак («прямой угол») дизайн убрал сам — он ничего не
+    // различал: прямые углы у нас умолчание всего продукта.
+    expect(placesContract.notDashed).toContain("ЧЕТВЁРТЫЙ УБРАН");
   });
 
-  it("ФОКУС МЕСТА СВОЙ — пунктирная рамка метки зоны на него не приходит", () => {
+  it("ФОКУС МЕСТА СВОЙ, И ТЕПЕРЬ ЕГО ЧИСЛА — ДИЗАЙНА", () => {
     // Ловушка: `--zone-focus-outline` это `1px dashed {accent}` из контракта
     // (законный, но единственный законный) пунктир. Приди он на уголки места —
-    // на тёмной пустой сцене человек прочтёт ровно умершее «хочу».
+    // на тёмной пустой сцене человек прочтёт ровно умершее «хочу». Дизайн эту
+    // находку принял и записал её в контракт словом («dashed: НЕТ»).
+    expect(placesContract.states.focusVisible.dashed).toContain("НЕТ");
+    expect(PLACE_FOCUS.armPlusPx).toBe(2);
+    expect(PLACE_FOCUS.strokePx).toBe(2);
+    expect(placeFocusGlow()).toBe(
+      "drop-shadow(0 0 10px color-mix(in srgb, var(--place-accent) 50%, transparent))",
+    );
     // Место фокус не принимает вовсе: это не кнопка, у него нет tabindex и
     // aria-роли, а `pointer-events: none` не даёт даже нажать.
     expect(stage).not.toMatch(/<button[^>]*s\.place/u);
     expect(stage).not.toMatch(/className=\{[^}]*s\.place[^}]*\}[\s\S]{0,300}(tabIndex|onClick)/u);
     expect(sceneCss).not.toMatch(/\.place[A-Za-z]*:focus/u);
     expect(sceneCss).not.toMatch(/\.place[A-Za-z]*[^{}]*\{[^}]*--zone-focus-outline/u);
-    // А ответ на фокус кнопки у места есть — свой: толще и ярче, без штриха.
+    // А ответ на фокус кнопки у места есть — свой: длиннее, толще, со
+    // свечением. Числа приезжают переменными, в CSS их нет.
     const focus = /\.hotspotSlot:has\(\.hotspot:focus-visible\) \.place \{([\s\S]*?)\n\}/u.exec(
       sceneCss,
     )?.[1];
     expect(focus, "у места пропал свой вид фокуса").toBeTruthy();
-    expect(focus).toContain("--place-stroke: calc(var(--place-stroke-rest) * 2);");
-    expect(focus).toContain("opacity: 1;");
+    expect(focus).toContain("--place-stroke: var(--place-focus-stroke);");
+    expect(focus).toContain("--place-arm: calc(var(--place-arm-rest) + var(--place-focus-arm));");
+    expect(focus).toContain("filter: var(--place-focus-glow);");
     expect(focus).not.toMatch(/dashed|dotted/u);
+    expect(stage).toContain('"--place-focus-glow": placeFocusGlow()');
   });
 
   it("подписи у места нет — имя зоны говорит наезд", () => {
@@ -375,26 +595,70 @@ describe("142 — места живут ровно столько же, скол
     expect(placesContract.behavior.dismiss).toContain("первой вещи");
   });
 
-  it("СЛОЙ МЕСТ ЛЕЖИТ МИМО ФИЛЬТРА ПУСТОЙ КОМНАТЫ", () => {
-    // `brightness(.42)` пустой комнаты (grading.ts) применяется к фотографиям
-    // внутри стопки камеры — `.frame` и `.openFrame`. Попади места туда, их
-    // .55 умножилась бы на .42 и подсказка утонула бы в темноте, ради которой
-    // её и рисуют. Проверяем: фильтр стоит ровно на двух слоях, и место в
-    // разметке — потомок слоя хотспотов, а не кадра.
+  it("СЛОЙ МЕСТ — ПОВЕРХ ЗАТЕМНЕНИЯ И ВУАЛИ ПУСТОЙ КОМНАТЫ", () => {
+    // Порядок слоёв записан в контракте (`visual.layer`): кадр →
+    // brightness(.42) saturate(.72) → вуаль-градиент → МЕСТА → подпись сцены.
+    // Внутри фильтра .55 умножилась бы на .42, и подсказка утонула бы в той
+    // самой темноте, ради которой её рисуют.
+    expect(placesContract.visual.layer).toContain("ПОВЕРХ затемнения");
+    expect(placesContract.visual.layer).toContain(EMPTY_ROOM_FILTER.split(" ")[0]);
+    // Фильтр стоит ровно на двух слоях — на фотографиях.
     const filtered = [...sceneCss.matchAll(/([\w.]+) \{[^}]*filter: var\(--grade-filter/gu)];
     expect(filtered.map((m) => m[1]).sort()).toEqual([".frame", ".openFrame"]);
+    // Держится порядок ПОСТРОЕНИЕМ, а не z-index: фотографии, грейдинг и вуаль
+    // лежат внутри `.panWindow`, слой хотспотов с местами — следующим соседом,
+    // подпись сцены (`.hint`) — ещё ниже по дереву, то есть поверх мест.
+    const panWindow = stage.indexOf("ref={panWindowRef}");
+    const grade = stage.indexOf("className={s.grade}");
     const layer = stage.indexOf("ref={hotspotsLayerRef}");
     const place = stage.indexOf("s.placeCornerTL");
-    expect(layer).toBeGreaterThan(-1);
+    const hint = stage.indexOf("className={s.hintPill}");
+    expect(panWindow).toBeGreaterThan(-1);
+    expect(grade, "слой грейдинга уехал из стопки камеры").toBeGreaterThan(panWindow);
+    expect(layer, "слой мест уехал ПОД затемнение").toBeGreaterThan(grade);
     expect(place, "место уехало из слоя хотспотов — проверь фильтр").toBeGreaterThan(layer);
+    expect(hint, "подпись сцены должна лежать поверх мест").toBeGreaterThan(place);
   });
 
-  it("при открытой зоне места уходят вместе с хотспотами", () => {
-    expect(sceneCss).toMatch(/\.hotspotsHidden \.place \{\s*opacity: 0;\s*animation: none;/u);
+  it("МЕСТО ГАСНЕТ НА ВРЕМЯ НАЕЗДА: 140 мс туда, 200 обратно", () => {
+    // `behavior.onCameraMove` — новая строка раунда 37, и она же снимает наш
+    // вопрос о единицах: место рисуется только в покое, где масштаб 1, значит
+    // обратного масштаба уголкам не нужно.
+    expect(PLACE_CAMERA_FADE.outMs).toBe(140);
+    expect(PLACE_CAMERA_FADE.backMs).toBe(200);
+    expect(placesContract.behavior.onCameraMove).toContain("гаснут");
+    expect(placesContract.visual.units).toContain("ГАСНЕТ");
+    expect(stage).toContain('"--place-out-ms": `${PLACE_CAMERA_FADE.outMs}ms`');
+    expect(stage).toContain('"--place-in-ms": `${PLACE_CAMERA_FADE.backMs}ms`');
+    // Уход — за 140, возврат — переходом самого места за 200.
+    expect(sceneCss).toMatch(
+      /\.hotspotsHidden \.place \{\s*opacity: 0;\s*animation: none;\s*transition-duration: var\(--place-out-ms\);/u,
+    );
+    expect(sceneCss).toMatch(/\.place \{[\s\S]*?transition: opacity var\(--place-in-ms\)/u);
+    // «без сдвига»: гаснет только прозрачность, transform места не трогаем.
+    const place = /\.place \{[\s\S]*?\n\}/u.exec(sceneCss)?.[0] ?? "";
+    expect(place).not.toMatch(/transform/u);
   });
 
   it("тап по месту = наезд на его зону: место прозрачно для пальца", () => {
     expect(sceneCss).toMatch(/\.place \{[^}]*pointer-events: none;/u);
     expect(placesContract.behavior.tap).toContain("наезд на его зону");
+  });
+
+  it("КОНФЛИКТ: behavior.a11y просит кнопку — у нас её нет и не будет", () => {
+    // `places-v3 → behavior.a11y` требует role="button", имя «Открыть зону:
+    // {label}» и обход клавиатурой. Прямо против нашей реализации: место лежит
+    // ВНУТРИ прямоугольника своей зоны с общим центром, под ним кнопка этой же
+    // зоны, и тап проходит сквозь. Вторая кнопка удвоила бы зону в обходе и в
+    // дикторе, а фокус на ней пришёл бы нашей единственной законной рамкой —
+    // `1px dashed {accent}`, то есть ровно умершим «хочу» на тёмной сцене.
+    // Не переделываем; конфликт уходит письмом. Тест сторожит, что переделки
+    // не случилось молча.
+    expect(placesContract.behavior.a11y.role).toBe("button");
+    expect(stage).toMatch(/aria-hidden\s*\n\s*className=\{place\.primary/u);
+    expect(stage).not.toMatch(/<button[^>]*s\.place/u);
+    expect(sceneCss).toMatch(/\.place \{[^}]*pointer-events: none;/u);
+    // У зоны ровно одна цель нажатия, а не две.
+    expect(stage.match(/<ZoneHotspot/gu) ?? []).toHaveLength(1);
   });
 });

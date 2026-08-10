@@ -289,6 +289,13 @@ export function useScenePan({
     if (!viewport || !vars) return;
     const width = viewport.getBoundingClientRect().width || scene.phone.w;
     vars.style.setProperty("--win-pan", `${phonePanShiftPx(pan, width)}px`);
+    // Та же позиция окна, но в КАДР-px и без единиц: по ней пустые места
+    // считают свою видимую полосу (drawIfWhole, тикет 157 — scene.module.css
+    // → --place-off). Пишется здесь, а не отдельным движком, чтобы позиция
+    // окна была одна: --win-pan двигает пиксели, --pan-frame их называет.
+    // Не клампится, как и --win-pan: за кромкой резина сдвигает слои по-
+    // настоящему, и полоса обязана ехать вместе с ними.
+    vars.style.setProperty("--pan-frame", `${pan}`);
     vars.style.setProperty("--win-pan-ms", `${ms}ms`);
     if (atMs) vars.style.setProperty("--win-pan-at", `${atMs}ms`);
     else vars.style.removeProperty("--win-pan-at");
@@ -381,6 +388,7 @@ export function useScenePan({
       // должен видеть даже нулевых переменных пана.
       for (const name of [
         "--win-pan",
+        "--pan-frame",
         "--win-pan-ms",
         "--win-pan-ease",
         "--edge-l",

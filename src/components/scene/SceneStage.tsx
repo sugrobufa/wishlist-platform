@@ -46,7 +46,11 @@ import {
   emptyPlaces,
   placeArmPx,
   placeFill,
+  placeFocusGlow,
+  PLACE_BAND_PHONE_REST,
   PLACE_BREATH,
+  PLACE_CAMERA_FADE,
+  PLACE_FOCUS,
   PLACE_OPACITY,
   PLACE_STROKE_PX,
 } from "./empty-places";
@@ -226,6 +230,17 @@ const BASE_VARS = {
   "--place-o-reduced": `${PLACE_OPACITY.reduced}`,
   "--place-breath": PLACE_BREATH,
   "--place-fill": placeFill(),
+  // Наезд гасит места за 140 мс, отход возвращает за 200 (behavior.onCameraMove).
+  "--place-out-ms": `${PLACE_CAMERA_FADE.outMs}ms`,
+  "--place-in-ms": `${PLACE_CAMERA_FADE.backMs}ms`,
+  // Фокус: числа дизайна (states.focusVisible) — плечо +2, контур 2, свечение.
+  "--place-focus-arm": `${PLACE_FOCUS.armPlusPx}px`,
+  "--place-focus-stroke": `${PLACE_FOCUS.strokePx}px`,
+  "--place-focus-glow": placeFocusGlow(),
+  // Видимая полоса кадра в покое телефона (12…442, ADR-0006) — по ней CSS
+  // считает `drawIfWhole`; при пане к ним прибавляется --pan-frame.
+  "--place-band-l0": `${PLACE_BAND_PHONE_REST.left}`,
+  "--place-band-r0": `${PLACE_BAND_PHONE_REST.right}`,
 } satisfies Record<string, string>;
 
 export function SceneStage({
@@ -551,12 +566,18 @@ export function SceneStage({
   // Ключом по зоне, а не списком: место рисуется В СЛОТЕ СВОЕЙ ЗОНЫ, чтобы
   // фокус кнопки был виден на месте (scene.module.css → `:has`).
   //
-  // СЛОЙ МЕСТ ЛЕЖИТ МИМО ФИЛЬТРА ПУСТОЙ КОМНАТЫ. `--grade-filter` (в пустой
-  // комнате это `brightness(.42) saturate(.72)`, grading.ts) применяется к
-  // `.frame` и `.openFrame` — фотографиям внутри стопки камеры. Слой хотспотов,
-  // а с ним и места, стоит СНАРУЖИ: иначе .55 прозрачности места умножилось бы
-  // на .42 яркости кадра, и подсказка утонула бы в той самой темноте, ради
-  // которой её и рисуют.
+  // СЛОЙ МЕСТ — ПОВЕРХ ЗАТЕМНЕНИЯ ПУСТОЙ КОМНАТЫ. Наша догадка подтверждена
+  // контрактом (`places-v3 → visual.layer`), и порядок слоёв там записан
+  // целиком: кадр → brightness(.42) saturate(.72) → вуаль-градиент → МЕСТА →
+  // подпись сцены. Внутри фильтра .55 и .85 умножились бы на .42, и подсказка
+  // утонула бы в той самой темноте, ради которой её и рисуют.
+  //
+  // В разметке это ровно то, что уже есть, и держится оно построением, а не
+  // z-index: `--grade-filter` живёт на `.frame`/`.openFrame`, вуаль пустой
+  // комнаты (`EMPTY_ROOM_VEIL`) — на `.grade`, и все они лежат ВНУТРИ
+  // `.panWindow`; слой хотспотов, а с ним места, стоит следующим соседом —
+  // то есть выше по порядку рисования. Подпись сцены (`.hint`) — ещё ниже по
+  // дереву, поэтому она поверх мест, как и просит контракт.
   const placeByZone = useMemo(
     () =>
       new Map(
@@ -805,9 +826,14 @@ export function SceneStage({
                         "--hs-t": `${box.top}%`,
                         "--hs-w": `${box.width}%`,
                         "--hs-h": `${box.height}%`,
-                        // Плечо уголка — экранные px из контракта; у мелкого
-                        // места укорочено долей его меньшей стороны.
-                        "--place-arm": `${placeArmPx(place.rect)}px`,
+                        // Плечо уголка — экранные px из формулы контракта; у
+                        // мелкого места укорочено долей его меньшей стороны.
+                        "--place-arm-rest": `${placeArmPx(place.rect)}px`,
+                        // Края места в КАДР-px, без единиц: по ним CSS решает
+                        // `drawIfWhole` — рисовать место или нет при нынешнем
+                        // положении окна (--pan-frame).
+                        "--place-x0": `${place.rect.x}`,
+                        "--place-x1": `${place.rect.x + place.rect.w}`,
                       } as React.CSSProperties
                     }
                   >

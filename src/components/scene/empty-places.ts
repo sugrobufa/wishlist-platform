@@ -1,6 +1,6 @@
 /**
- * ТРИ ПУСТЫХ МЕСТА на сцене пустой комнаты (тикет 142, пакет раунда 34,
- * `places.json`, доска — турн 42a).
+ * ТРИ ПУСТЫХ МЕСТА на сцене пустой комнаты (тикет 142, приёмка `places-v3`
+ * пакета раунда 37 — тикет 157; доска — турн 45c).
  *
  * Комната без вещей стоит тёмной (тикет 104) и не говорит, куда класть первую
  * вещь. Места — это подсказка: три открытых уголка на предметах интерьера,
@@ -17,51 +17,87 @@
  * формулы («min(max(round(0.62 * zone.w), 34), 120, zone.w)»), и мы разбираем
  * её регуляркой — как `zone-marker.ts` разбирает фигуры меток и `design.ts`
  * партитуру. Дизайн подвинет коэффициент — правка доедет сама; перепишет
- * формулу иначе — упадём громко, а не подставим молча своё число.
+ * формулу иначе — упадём громко, а не подставим молча своё число. Раунд 37 это
+ * и проверил: `armSmall` переписан формулой, и разбор упал на импорте — ровно
+ * так, как задумано.
  *
- * ТАБЛИЦА ПРИЁМКИ ПАКЕТА (`places.json → receipt`) ОЖИДАНИЕМ НЕ СЛУЖИТ.
- * Дизайн прогнал правило по снимку `rooms.json` ДО переразметок раундов 8 и
- * старше: его `zoneRect` для `cream/beauty`, `lux/travel` и `cottage/music`
- * посимвольно равны нашему полю `rectOld`. На нынешних координатах правило
- * даёт другие тройки в четырёх комнатах из десяти (`cream`, `lux`, `cottage`,
- * `study`) — и это не наш баг: правило у нас и у дизайна ОДНО, разошёлся вход.
- * Считаем по нынешнему `rooms.json` (CLAUDE.md), расхождение выписано дизайну
- * письмом, а тест сторожит НАШ снимок результата — чтобы будущая переразметка
- * зоны не переставила места молча.
+ * ТАБЛИЦА ПРИЁМКИ ПАКЕТА (`places.json → receipt`) ОЖИДАНИЕМ НЕ СЛУЖИТ — И
+ * ПОСЛЕ ТОГО, КАК СОШЛАСЬ. В раунде 34 дизайн прогонял правило по снимку
+ * `rooms.json` до переразметок (его `zoneRect` были равны нашему полю
+ * `rectOld`), и тройки расходились в четырёх комнатах из десяти. Раунд 37
+ * пересчитан по нашему дампу карты, и приёмка теперь воспроизводится вся:
+ * 30 прямоугольников из 30, те же тройки и то же дышащее место. Ожиданием она
+ * всё равно не становится: 19 из 30 выбранных зон помечены на пересъёмку, и
+ * когда карта поедет, тройки обязаны переехать вместе с ней — сторожит их НАШ
+ * снимок на сегодняшнем `rooms.json`, чтобы переразметка не переставила места
+ * молча.
  */
+// `@design/places.json` — ЖИВОЙ контракт мест под стабильным именем; сегодня в
+// нём лежит `places-v3` раунда 37 дословно. Присланный пакет целиком (README,
+// CHANGES, places-v3.json, zones-130.json) хранится рядом в `handoff/round37/`:
+// папка входящих живёт на машине владельца и не переживает следующего пакета —
+// на round36 это уже проверено потерей.
 import placesJson from "@design/places.json";
 import type { ZoneRect } from "@/config/design";
 import { round4 } from "./camera";
+import { phoneWindowOnFrame } from "./immersive-layout";
 
 type PlacesContract = {
-  frame: { w: number; h: number };
+  mapSnapshot: { version: string; date: string; source: string; note: string };
   rule: {
-    window: { x0: number; x1: number; why: string };
+    window: { x0: number; x1: number; why: string; keptBecause: string };
     candidate: string;
     thirds: { bounds: [number, number]; assign: string };
     pick: string;
     primary: string;
+    primaryWholeAtRest: string;
+    drawIfWhole: string;
   };
   placeGeometry: { w: string; h: string; center: string; hitTarget: string };
   visual: {
     corners: { count: number; armPx: number; armSmall: string; strokePx: number; cap: string };
     color: string;
-    opacity: {
-      primary: { breath: [number, number]; period: string; reducedMotion: number };
-      others: number;
-    };
     fill: string;
+    layer: string;
     units: string;
     noLightLine: string;
     noCaption: string;
   };
-  behavior: { tap: string; dismiss: string };
+  states: {
+    rest: { othersOpacity: number; primary: string };
+    hover: { opacity: number; arm: string; stroke: number; transition: string; note: string };
+    press: { opacity: number; arm: string; stroke: number; transition: string; noScale: string };
+    focusVisible: { arm: string; stroke: number; glow: string; dashed: string };
+  };
+  behavior: {
+    tap: string;
+    onCameraMove: string;
+    dismiss: string;
+    a11y: {
+      role: string;
+      name: string;
+      order: string;
+      group: string;
+      breathNotAnnounced: string;
+      hidden: string;
+    };
+  };
   notDashed: string;
   receipt: Record<
     string,
     {
-      places: { zone: string; label: string; zoneRect: ZoneRect; place: ZoneRect; primary?: boolean }[];
+      candidates: number;
       fallbackThirds: string[];
+      places: {
+        zone: string;
+        zoneRect: ZoneRect;
+        place: ZoneRect;
+        arm: number;
+        phoneAtRest: string;
+        primary?: boolean;
+      }[];
+      phoneVisibleCount: number;
+      primaryWholeAtRest: boolean;
     }
   >;
 };
@@ -104,6 +140,34 @@ export const THIRD_BOUNDS = placesContract.rule.thirds.bounds;
 
 /** Римские имена третей — ими контракт называет пустые трети в receipt. */
 export const THIRD_NAMES = ["I", "II", "III"] as const;
+
+/**
+ * ВИДИМАЯ ПОЛОСА КАДРА — не окно правила (105…525), а то, что устройство
+ * показывает на самом деле. Их путают охотнее всего, поэтому они и лежат рядом:
+ * окно правила выбирает ЗОНЫ (одно на все устройства, карта одна), полоса
+ * решает, РИСОВАТЬ ли выбранное место (у каждого устройства своя).
+ *
+ * Числа не наши и не дизайна: телефонная полоса — это `phoneWindowOnFrame(0)`,
+ * то есть 12…442 из ADR-0006, а десктопная — весь кадр (там `cover`, кадр виден
+ * целиком, тикет 42). Обе считаются из `scene.phone.image`, второй правды о
+ * кадре не заводим.
+ */
+export const PLACE_BAND_PHONE_REST = phoneWindowOnFrame(0);
+
+/**
+ * `drawIfWhole` (`places-v3`, новая строка правила): место рисуется, ТОЛЬКО
+ * если целиком лежит в видимой полосе. Обрезанных мест не бывает — прижать
+ * уголки к кромке нельзя (они уедут с предмета, и место соврёт), нарисовать «Г»
+ * тоже нельзя: две четверти рамки — дословная подпись умершей плитки «хочу».
+ *
+ * Полоса ЕДЕТ ВМЕСТЕ С ОКНОМ (пан, тикет 55): третье место не потеряно, оно
+ * приезжает, когда окно 430 сдвинулось по кадру. Поэтому в разметке эта
+ * проверка живёт формулой в CSS (`--place-off`, scene.module.css) и считает
+ * текущую полосу; здесь — то же правило числами, для покоя и для тестов.
+ */
+export function placeWholeInBand(rect: ZoneRect, band: { left: number; right: number }): boolean {
+  return rect.x >= band.left && rect.x + rect.w <= band.right;
+}
 
 function side(zoneSide: number, f: SideFormula): number {
   return Math.min(Math.max(Math.round(f.factor * zoneSide), f.min), f.max, zoneSide);
@@ -175,7 +239,17 @@ export type PlacesRun = {
  * ГЛАВНОЕ МЕСТО считается ПОСЛЕ выбора и по площади МЕСТА, а не зоны: так
  * написано в контракте («наибольшая площадь МЕСТА из трёх»). Разница не
  * теоретическая — зажимы 120/110 могут перевернуть порядок у очень вытянутой
- * зоны.
+ * зоны. Ничья — по порядку зон в `rooms.json` (`places-v3`: «при полном
+ * равенстве — порядок зон, та же цепочка, что у выбора зоны»), а не по порядку
+ * победителей третей: до раунда 37 ничью решал он, и это было тихое
+ * расхождение — площади мест часто равны, их зажимает 34.
+ *
+ * ДЫШИТ ТОЛЬКО ЦЕЛИКОМ ВИДИМОЕ МЕСТО (`primaryWholeAtRest`, новая строка
+ * `places-v3`): если наибольшее по площади в покое телефона обрезано, дышит
+ * следующее по площади из целиком видимых. Полоса берётся ТЕЛЕФОННАЯ и на
+ * десктопе тоже — дышащее место у комнаты одно на все устройства, как и карта.
+ * Сегодня правило не двигает ничего: у всех десяти комнат наибольшее место и
+ * так лежит в покое целиком (тест сторожит).
  *
  * КОМНАТА С МЕНЬШИМ ЧИСЛОМ КАНДИДАТОВ. Контракт говорит «мест всегда три» и
  * молчит о том, что делать, если кандидатов меньше (у нас так бывает: зона
@@ -224,20 +298,22 @@ export function emptyPlaces(
     winners.push(zone);
   }
 
-  const places: EmptyPlace[] = winners.map((zone) => ({
-    key: zone.key,
-    rect: placeRect(zone.rect),
-    zoneRect: zone.rect,
-    primary: false,
-  }));
-  let primary: EmptyPlace | null = null;
-  for (const place of places) {
-    const area = place.rect.w * place.rect.h;
-    if (!primary || area > primary.rect.w * primary.rect.h) primary = place;
-  }
-  if (primary) primary.primary = true;
+  const ranked = winners.map((zone) => {
+    const rect = placeRect(zone.rect);
+    const place: EmptyPlace = { key: zone.key, rect, zoneRect: zone.rect, primary: false };
+    return { place, index: zone.index, area: rect.w * rect.h };
+  });
 
-  return { places, fallbackThirds };
+  // Кто дышит: сперва целиком видимые в покое телефона (`primaryWholeAtRest`),
+  // и только если таких нет — все три. Внутри — площадь МЕСТА, ничья по порядку
+  // зон в rooms.json (`index`).
+  const byPlaceArea = (a: (typeof ranked)[number], b: (typeof ranked)[number]) =>
+    b.area - a.area || a.index - b.index;
+  const wholeAtRest = ranked.filter((r) => placeWholeInBand(r.place.rect, PLACE_BAND_PHONE_REST));
+  const primary = (wholeAtRest.length ? wholeAtRest : [...ranked]).sort(byPlaceArea)[0];
+  if (primary) primary.place.primary = true;
+
+  return { places: ranked.map((r) => r.place), fallbackThirds };
 }
 
 // ---------- Вид места: числа контракта в CSS-переменные ---------------------
@@ -245,30 +321,36 @@ export function emptyPlaces(
 const CORNERS = placesContract.visual.corners;
 
 /**
- * Плечо уголка в ЭКРАННЫХ px: 11, а у мелкого места — 35% его меньшей стороны.
- * Порог и доля читаются из прозы контракта («35% меньшей стороны, если меньшая
- * сторона места < 32 px»), а не переписываются числами.
+ * Плечо уголка в ЭКРАННЫХ px, формулой контракта:
+ * `max(6, min(11, round(0.35 * min(place.w, place.h))))`.
+ *
+ * ЧТО ИЗМЕНИЛ РАУНД 37. Прежде это была проза («35% меньшей стороны, если она
+ * < 32 px»), и плечо выходило дробным: у музыки «Коттеджа» (40×27) — 9.45.
+ * Теперь у формулы обычное округление и ПОЛ 6 («короче уголок перестаёт быть
+ * уголком»), и то же место даёт ровно 9. Порога «< 32» больше нет вовсе: его
+ * роль играет верхний зажим 11 — при стороне 32 и больше `round(0.35 · сторона)`
+ * и так не меньше 11.
  *
  * ПОЧЕМУ МЕРИМ СТОРОНУ В КАДР-px, А НЕ В ЭКРАННЫХ. Плечо и толщина заданы в
  * экранных px («с прямоугольником не масштабируются»), а сама сторона места
  * существует только в координатах кадра — на экране она разная у телефона и
- * десктопа, и порог «< 32» стал бы устройство-зависимым. Контракт этой разницы
- * не разводит; берём сторону в кадр-px — в этих же единицах нарисован образец
- * на доске 42a, где место 38×32 держит полное плечо 11, а место 42×27
- * («Коттедж», музыка) — укороченное.
+ * десктопа, и зажимы стали бы устройство-зависимыми. Контракт этой разницы не
+ * разводит; берём сторону в кадр-px — в этих же единицах нарисован образец на
+ * доске и посчитана приёмка (`receipt[].arm`: 11 у всех мест, 9 у музыки
+ * «Коттеджа»).
  */
 const ARM_SMALL = requireMatch(
   CORNERS.armSmall,
-  /([\d.]+)\s*%[^<]*<\s*([\d.]+)\s*px/u,
+  /max\(\s*([\d.]+),\s*min\(\s*([\d.]+),\s*round\(\s*([\d.]+)\s*\*\s*min\(place\.w,\s*place\.h\)\s*\)\s*\)\s*\)/u,
   "visual.corners.armSmall",
 );
-const ARM_SMALL_SHARE = Number(ARM_SMALL[1]) / 100;
-const ARM_SMALL_BELOW = Number(ARM_SMALL[2]);
+const ARM_FLOOR = Number(ARM_SMALL[1]);
+const ARM_CAP = Number(ARM_SMALL[2]);
+const ARM_SHARE = Number(ARM_SMALL[3]);
 
 export function placeArmPx(rect: ZoneRect): number {
   const smallSide = Math.min(rect.w, rect.h);
-  if (smallSide >= ARM_SMALL_BELOW) return CORNERS.armPx;
-  return Math.round(smallSide * ARM_SMALL_SHARE * 100) / 100;
+  return Math.max(ARM_FLOOR, Math.min(ARM_CAP, Math.round(ARM_SHARE * smallSide)));
 }
 
 /** Толщина уголка, экранные px. Срез прямой — его даёт сама граница CSS. */
@@ -277,14 +359,28 @@ export const PLACE_STROKE_PX = CORNERS.strokePx;
 /** Сколько углов у места — четыре; число сторожит тест, разметка его повторяет. */
 export const PLACE_CORNER_COUNT = CORNERS.count;
 
-const OPACITY = placesContract.visual.opacity;
+/**
+ * АЛЬФЫ ПЕРЕЕХАЛИ ИЗ `visual.opacity` В `states.rest` (раунд 37): у покоя,
+ * наведения, нажатия и фокуса теперь общий дом `states`. Число там одно —
+ * `othersOpacity`; размах дыхания, партитура и статика reduced-motion лежат
+ * ОДНОЙ СТРОКОЙ («дыхание .55 → .85, 3.6s ease-in-out infinite alternate;
+ * prefers-reduced-motion: 0.7 без анимации»), и мы разбираем её тем же приёмом,
+ * что и формулы геометрии, — переписать четыре числа в код значило бы завести
+ * вторую правду о них.
+ */
+const REST = placesContract.states.rest;
+const BREATH = requireMatch(
+  REST.primary,
+  /дыхание\s+((?:\d*\.)?\d+)\s*→\s*((?:\d*\.)?\d+),\s*([^;]+);\s*prefers-reduced-motion:\s*((?:\d*\.)?\d+)/u,
+  "states.rest.primary",
+);
 
 /** Альфы: покой обычного места, размах дыхания главного и статика reduced-motion. */
 export const PLACE_OPACITY = {
-  others: OPACITY.others,
-  breathFrom: OPACITY.primary.breath[0],
-  breathTo: OPACITY.primary.breath[1],
-  reduced: OPACITY.primary.reducedMotion,
+  others: REST.othersOpacity,
+  breathFrom: Number(BREATH[1]),
+  breathTo: Number(BREATH[2]),
+  reduced: Number(BREATH[4]),
 } as const;
 
 /**
@@ -293,7 +389,74 @@ export const PLACE_OPACITY = {
  * появляется (числа мест не лежат в motion.json — это вид, а не движение
  * камеры).
  */
-export const PLACE_BREATH = placesContract.visual.opacity.primary.period;
+export const PLACE_BREATH = (BREATH[3] ?? "").trim();
+
+/**
+ * МЕСТО ГАСНЕТ НА ВРЕМЯ НАЕЗДА (`behavior.onCameraMove`, новая строка раунда
+ * 37): с началом наезда все три уходят за 140 мс и возвращаются при отходе за
+ * 200 мс, без сдвига — только прозрачность.
+ *
+ * Это ответ на наш вопрос о единицах. Плечо и толщина заданы в ЭКРАННЫХ px и с
+ * прямоугольником не масштабируются; в наезде масштаб уже не 1, и уголки
+ * поехали бы относительно предмета. Дизайн снял вопрос поведением: место
+ * рисуется только в покое, где масштаб единица, и обратного масштаба на кадр не
+ * нужно ни на телефоне, ни на десктопе.
+ *
+ * У НАС «НАЕЗД» — ЭТО РОВНО ОТКРЫТАЯ ЗОНА. Других движений с масштабом у слоя
+ * мест нет: пан окна (тикет 55) — чистый сдвиг, а дыхание кадра (`drift`) живёт
+ * ВНУТРИ стопки камеры, куда слой хотспотов не входит. Поэтому гасит места тот
+ * же класс, что прячет хотспоты, — просто теперь двумя длительностями
+ * контракта вместо общей `--glow-ms`.
+ */
+const CAMERA_FADE = requireMatch(
+  placesContract.behavior.onCameraMove,
+  /гаснут за\s*(\d+)\s*мс[\s\S]*?возвращаются[^\d]*?(\d+)\s*мс/u,
+  "behavior.onCameraMove",
+);
+
+export const PLACE_CAMERA_FADE = {
+  outMs: Number(CAMERA_FADE[1]),
+  backMs: Number(CAMERA_FADE[2]),
+} as const;
+
+/**
+ * ФОКУС МЕСТА — ТЕПЕРЬ ЧИСЛА ДИЗАЙНА (`states.focusVisible`). До раунда 37 их в
+ * контракте не было вовсе, и вид фокуса был нашим нейтральным дефолтом (плечо
+ * без прибавки, толщина ×2, свечение 6px при 45%). Дизайн принял саму находку —
+ * «у места фокус свой, пунктира нет» — и дал ей свои числа: плечо +2, контур 2,
+ * свечение `0 0 10px accent при .5`.
+ *
+ * Находка была вот в чём: единственный законный пунктир у нас — рамка фокуса
+ * метки зоны (`1px dashed {accent}`), и на тёмной пустой сцене вокруг акцентных
+ * уголков она читается ровно умершей плиткой «хочу» (инвариант №3 отменён
+ * целиком, тикет 124). Контракт это записал: «dashed: НЕТ».
+ */
+const FOCUS = placesContract.states.focusVisible;
+const FOCUS_ARM = requireMatch(FOCUS.arm, /\+\s*([\d.]+)/u, "states.focusVisible.arm");
+const FOCUS_GLOW = requireMatch(
+  FOCUS.glow,
+  /^(\d+)\s+(\d+)\s+([\d.]+)px\s+accent\s+при\s+((?:\d*\.)?\d+)$/u,
+  "states.focusVisible.glow",
+);
+
+export const PLACE_FOCUS = {
+  /** Прибавка к плечу в экранных px: «+2 (11 → 13)». */
+  armPlusPx: Number(FOCUS_ARM[1]),
+  /** Толщина контура в фокусе — ЧИСЛО контракта, а не «толщина покоя ×2». */
+  strokePx: FOCUS.stroke,
+} as const;
+
+/**
+ * Свечение фокуса: `0 0 10px accent при .5` → `drop-shadow`. Цвет словом
+ * `accent` подставляем через `color-mix` — тот же приём, что у заливки.
+ */
+export function placeFocusGlow(): string {
+  const alphaPct = round4(Number(FOCUS_GLOW[4]) * 100);
+  return (
+    `drop-shadow(${FOCUS_GLOW[1]} ${FOCUS_GLOW[2]} ${FOCUS_GLOW[3]}px ` +
+    `color-mix(in srgb, var(--place-accent) ${alphaPct}%, transparent))`
+  );
+}
 
 /**
  * Заливка места — «linear-gradient(180deg, accent .08, transparent 75%)».
