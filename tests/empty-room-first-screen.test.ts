@@ -98,8 +98,20 @@ describe("что на пустой комнате ВИДНО (41a, сверху 
   });
 
   it("«Или начни с готового» на месте — это и есть второй способ родить вещь", () => {
-    const slot = ownerPage.slice(ownerPage.indexOf("below={"), ownerPage.indexOf("empty={emptyRoom}\n"));
-    expect(slot).toContain("<StarterPack");
+    // ВЫРЕЗКА ПО ИНДЕКСАМ ЗДЕСЬ БЫЛА, И ОНА ВРАЛА. Прежний вариант резал файл
+    // до `indexOf("empty={emptyRoom}\n")` — с жёстким переводом строки. На
+    // Windows файл лежит с CRLF, поиск не находил НИЧЕГО, `slice` отдавал
+    // почти весь файл, и тест проходил СЛУЧАЙНО. В CI с LF граница находилась
+    // раньше начала, кусок выходил пустым — и падало ровно то, что локально
+    // было зелёным. Жёсткому `\n` в вырезках по исходнику здесь не место.
+    //
+    // Проверяем по существу и без арифметики позиций: набор рисуется в слоте
+    // `below` (то есть ниже него в файле) и НЕ спрятан за `!emptyRoom` —
+    // пустая комната единственное место, где он и нужен.
+    const belowAt = ownerPage.indexOf("below={");
+    expect(belowAt, "слот below исчез — проверь разметку страницы").toBeGreaterThan(0);
+    expect(ownerPage.indexOf("<StarterPack")).toBeGreaterThan(belowAt);
+    expect(ownerPage).not.toMatch(/\{!emptyRoom && \([\s\S]{0,400}<StarterPack/u);
   });
 });
 
