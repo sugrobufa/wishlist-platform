@@ -28,7 +28,7 @@ import {
 } from "@/components/scene/scene-corner";
 import { ZoneIndexProvider } from "@/components/scene/zone-index-context";
 import { ZoneRail } from "@/components/scene/zone-rail";
-import { IconPeople, IconPerson, IconTreasury } from "@/components/icons";
+import { IconPeople, IconSettings, IconTreasury } from "@/components/icons";
 import { TabBar } from "@/components/tab-bar/tab-bar";
 import { visibleZones } from "@/components/scene/zones";
 import { SHEET_TILES, ZoneGrid } from "@/components/zone/ZoneGrid";
@@ -251,11 +251,17 @@ export default async function RoomPage() {
                 иконки»). Ряд из двух слов и картинки читался как две разные
                 панели, случайно поставленные рядом; теперь он одного рода.
 
-                ЗНАКИ ВЗЯТЫ ИЗ КАНОНА, новых не рисовали: `IconPeople` — это
-                `tab-friends.svg`, `IconPerson` — `tab-profile.svg`, ими же
-                рисуется таб-бар телефона, и оба сверяются с файлами пакета
-                посимвольно (tests/tab-icons). Два разных знака для одного
-                места разошлись бы при первой правке.
+                ЗНАКИ ИЗ ОДНОГО МЕСТА: `IconPeople` — это `tab-friends.svg`
+                канона, ими же рисуется таб-бар телефона. Два разных знака для
+                одного места разошлись бы при первой правке.
+
+                «НАСТРОЙКИ» РИСУЕТ ШЕСТЕРНЯ (тикет 147, приёмка владельца
+                10.08: «Друзья и настройки выглядят одинаково, настройки пусть
+                будет классика шестерёнка»). Прежде здесь стоял `IconPerson` —
+                тот же круг головы и та же дуга плеч, что у соседа слева,
+                только нарисованные один раз вместо двух; на 22 px это одно и
+                то же пятно. Шестерня — НАШ знак, файла в пакете нет, письмо
+                дизайну отправлено (так же живёт открытый глаз, тикет 51).
 
                 СЛОВО НЕ ПОТЕРЯНО: оно ушло в `aria-label` и всплывающую
                 подсказку — знак без слова обязан называть себя читалке. Плашка,
@@ -266,7 +272,7 @@ export default async function RoomPage() {
                 <IconPeople size={CORNER_ICON_SIZE} />
               </CornerMark>
               <CornerMark href="/settings" label={t("settingsLink")}>
-                <IconPerson size={CORNER_ICON_SIZE} />
+                <IconSettings size={CORNER_ICON_SIZE} />
               </CornerMark>
             </nav>
 

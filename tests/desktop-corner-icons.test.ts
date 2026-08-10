@@ -89,17 +89,23 @@ describe("знаки — из канона, новых не рисовали", (
   it("те же компоненты рисуют таб-бар телефона — знак у места один", () => {
     // Ровно этого требует тикет: два разных знака для одного места разошлись
     // бы при первой правке. Ловим импорт из общего файла набора, а не копию.
+    //
+    // «НАСТРОЙКИ» С ТИКЕТА 147 РИСУЕТ ШЕСТЕРНЯ, а не силуэт человека: в этом
+    // же ряду стоит `IconPeople` — тот же круг головы и та же дуга плеч,
+    // только нарисованные дважды, и на 22 px места неразличимы (приёмка
+    // владельца 10.08). Правило «знак у места один» не изменилось — сменился
+    // сам знак, и он по-прежнему приезжает из общего файла набора.
     expect(ownerPage).toMatch(
-      /import \{ IconPeople, IconPerson, IconTreasury \} from "@\/components\/icons";/u,
+      /import \{ IconPeople, IconSettings, IconTreasury \} from "@\/components\/icons";/u,
     );
     const slots = read("../src/components/tab-bar/tab-slots.tsx");
     expect(slots).toContain("IconPeople");
-    expect(slots).toContain("IconPerson");
+    expect(slots).toContain("IconSettings");
   });
 
   it("размер 22 берётся из общего числа, а не набивается руками", () => {
     expect(actionsRow).toContain("<IconPeople size={CORNER_ICON_SIZE} />");
-    expect(actionsRow).toContain("<IconPerson size={CORNER_ICON_SIZE} />");
+    expect(actionsRow).toContain("<IconSettings size={CORNER_ICON_SIZE} />");
     expect(corner).toContain("export const CORNER_ICON_SIZE = 22;");
     expect(actionsRow).not.toMatch(/size=\{22\}/u);
   });

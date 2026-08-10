@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { IconPeople, IconPerson, IconPlus, IconRoom, IconTreasury } from "@/components/icons";
+import { IconPeople, IconPlus, IconRoom, IconSettings, IconTreasury } from "@/components/icons";
 import { ADD_HREF, TAB_HREF, TAB_SLOTS, type SlotKey, type TabKey } from "./tabs";
 import s from "./tab-bar.module.css";
 
@@ -87,6 +87,12 @@ function SlotIcon({ slot, active, size }: { slot: TabKey; active: boolean; size:
       // у листа (tests/tab-icons).
       return <IconTreasury size={size} />;
     case "settings":
-      return <IconPerson size={size} />;
+      // ШЕСТЕРНЯ, а не силуэт человека (тикет 147). «Друзья» через три места
+      // отсюда — тот же круг головы с дугой плеч, только нарисованный дважды,
+      // и на 22 px эти два места неразличимы. Та же болезнь, что у витрины с
+      // аркой «Комнаты»: набор рисован по знаку за раз, рифмы внутри ряда
+      // никто не смотрел. `IconPerson` из набора не делся — он по-прежнему
+      // `tab-profile.svg` и силуэт-заглушка аватара.
+      return <IconSettings size={size} />;
   }
 }
