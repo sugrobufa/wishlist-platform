@@ -118,7 +118,7 @@ describe("тестовый шов E2E_MAIL_FILE (тикет 15)", () => {
     // остаться ОДНОЙ строкой NDJSON: переносы экранирует JSON.
     vi.stubEnv("E2E_MAIL_FILE", file);
     vi.spyOn(console, "log").mockImplementation(() => undefined);
-    const mail = occasionOwnerMail({ ownerName: "Мила", occasionUrl: `${BASE}/room/occasion` });
+    const mail = occasionOwnerMail({ occasionUrl: `${BASE}/room/occasion` });
 
     await sendMail({ to: "owner@example.com", ...mail });
 
@@ -170,7 +170,7 @@ describe("reminderGuestMail — напоминание гостю за 3 дня"
     now: THREE_DAYS_BEFORE,
   };
 
-  it("тема и заголовок — по контракту round39, дата праздника в письме есть", () => {
+  it("тема и заголовок — по контракту round41, дата праздника в письме есть", () => {
     const mail = reminderGuestMail(params);
 
     // Контракт пишет «праздник у {name}» — это родительный падеж, а в
@@ -288,7 +288,7 @@ describe("itemGoneMail — гостю: вещь уехала, бронь сня�
     now: new Date("2026-03-11T09:00:00.000Z"),
   };
 
-  it("тема и заголовок — дословно контракт round39, ссылка на комнату", () => {
+  it("тема и заголовок — дословно контракт round41, ссылка на комнату", () => {
     const mail = itemGoneMail(params);
 
     expect(mail.subject).toBe("Вещь уехала — выбери другую");
@@ -353,23 +353,38 @@ describe("itemGoneMail — гостю: вещь уехала, бронь сня�
 });
 
 describe("occasionOwnerMail — хозяйке после праздника", () => {
-  it("зовёт открыть «что подарили» по ссылке, обращается по имени", () => {
-    const mail = occasionOwnerMail({
-      ownerName: "Мила",
-      occasionUrl: `${BASE}/room/occasion`,
-    });
+  it("зовёт открыть «что подарили» по ссылке (вёрстка round41)", () => {
+    const mail = occasionOwnerMail({ occasionUrl: `${BASE}/room/occasion` });
 
     expect(mail.subject).toContain("что подарили");
-    expect(mail.text).toContain("Привет, Мила");
+    expect(mail.text.startsWith("Праздник прошёл\n")).toBe(true);
     expect(mail.text).toContain(`${BASE}/room/occasion`);
     expect(mail.html).toContain(`href="${BASE}/room/occasion"`);
+    expect(mail.html).toContain(">После праздника<"); // надстрочная табличной вёрстки
   });
 
-  it("без displayName — просто «Привет», без слова null", () => {
-    const mail = occasionOwnerMail({ ownerName: null, occasionUrl: `${BASE}/room/occasion` });
-    expect(mail.text.startsWith("Привет\n")).toBe(true);
+  it("обращения по имени в письме больше нет — параметр всего один", () => {
+    // Табличный макет round41 открывается надстрочной и заголовком, слота под
+    // «Привет, {name}» в нём нет. Заодно письмо хозяйке перестало принимать
+    // хоть какое-нибудь имя вообще (инвариант №1 — tests/mail-round41).
+    const mail = occasionOwnerMail({ occasionUrl: `${BASE}/room/occasion` });
+
+    expect(mail.text).not.toContain("Привет");
     expect(mail.text).not.toContain("null");
     expect(mail.html).not.toContain("null");
+    expect(Object.keys({ occasionUrl: "" })).toEqual(["occasionUrl"]);
+  });
+
+  it("разводит раскрытие имён и «Дошло» — это две разные необратимости", () => {
+    // Контракт писал «Отметишь „дошло" — … и тогда же станет видно, от кого
+    // она». Имена раскрывает ПЕРВОЕ ОТКРЫТИЕ экрана (`revealedAt`), а «Дошло»
+    // увозит вещь в сокровищницу и закрепляет имя у неё (`receiveGift`).
+    const mail = occasionOwnerMail({ occasionUrl: `${BASE}/room/occasion` });
+
+    expect(mail.text).toContain("когда откроешь страницу");
+    expect(mail.text).toContain("ровно один раз");
+    expect(mail.text).toContain("вещь уезжает в сокровищницу");
+    expect(`${mail.text} ${mail.html}`).not.toContain("тогда же");
   });
 });
 
@@ -413,7 +428,7 @@ describe("имя площадки в письмах (тикет 58)", () => {
       occasionDate: OCCASION_DATE,
       now: new Date("2026-03-11T09:00:00.000Z"),
     }),
-    праздник: occasionOwnerMail({ ownerName: "Мила", occasionUrl: `${BASE}/room/occasion` }),
+    праздник: occasionOwnerMail({ occasionUrl: `${BASE}/room/occasion` }),
   };
 
   for (const [name, mail] of Object.entries(letters)) {

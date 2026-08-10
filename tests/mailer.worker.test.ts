@@ -72,7 +72,7 @@ afterEach(() => {
 });
 
 describe("processMailJob — occasion-owner", () => {
-  it("payload с email → письмо на него, displayName из БД, ссылка на «что подарили»", async () => {
+  it("payload с email → письмо на него, ссылка на «что подарили» и НИЧЕГО больше", async () => {
     const { user, room } = await createOwnerWithBooking();
     const deps = sendSeams();
 
@@ -84,8 +84,10 @@ describe("processMailJob — occasion-owner", () => {
 
     expect(result).toEqual({ status: "sent" });
     expect(deps.sendOccasionOwnerImpl).toHaveBeenCalledTimes(1);
+    // С раунда 41 (тикет 171) письмо хозяйке не принимает даже её имени:
+    // в табличном макете слота под обращение нет, а лишний параметр — лишняя
+    // дорога для утечки. Сравнение ТОЧНОЕ: второе поле здесь не проедет.
     expect(deps.sendOccasionOwnerImpl).toHaveBeenCalledWith(user.email, {
-      ownerName: "Мила",
       occasionUrl: expect.stringContaining("/room/occasion"),
     });
     expect(deps.sendReminderGuestImpl).not.toHaveBeenCalled();
@@ -109,7 +111,6 @@ describe("processMailJob — occasion-owner", () => {
 
     expect(result).toEqual({ status: "sent" });
     expect(deps.sendOccasionOwnerImpl).toHaveBeenCalledWith(user.email, {
-      ownerName: "Мила",
       occasionUrl: "http://localhost:3100/room/occasion",
     });
   });
@@ -126,7 +127,6 @@ describe("processMailJob — occasion-owner", () => {
 
     expect(result).toEqual({ status: "sent" });
     expect(deps.sendOccasionOwnerImpl).toHaveBeenCalledWith(user.email, {
-      ownerName: null,
       occasionUrl: expect.stringContaining("/room/occasion"),
     });
   });
@@ -202,7 +202,7 @@ describe("processMailJob — reminder-guest", () => {
       ownerName: "Мила",
       itemTitle: "Тайная вещь",
       occasionDate: FUTURE_DATE,
-      // Плашка вещи (контракт round39) — из БД, а не из payload'а: цена и её
+      // Плашка вещи (контракт round41) — из БД, а не из payload'а: цена и её
       // видимость читаются СВЕЖИМИ, на момент отправки.
       itemZone: "jewelry",
       price: "5000",
@@ -314,7 +314,7 @@ describe("processMailJob — item-gone (вещь уехала в сокрови�
   });
 
   it("комната жива → имя хозяйки, «сколько свободно» и дата праздника на месте", async () => {
-    // Числа контракта round39 считаются В МОМЕНТ ОТПРАВКИ и тем же правилом,
+    // Числа контракта round41 считаются В МОМЕНТ ОТПРАВКИ и тем же правилом,
     // что показывает сама комната (guest-room.countFreeGiftsByRoom): занятая
     // вещь свободной не считается, спрятанная и уехавшая на витрину — тоже.
     const { room, item } = await createOwnerWithBooking();

@@ -80,11 +80,13 @@ async function processOccasionOwner(data: unknown, deps: MailJobDeps): Promise<M
   const parsed = occasionOwnerSchema.safeParse(data);
   if (!parsed.success) return { status: "skipped", reason: "bad-data" };
 
-  // displayName достаём всегда; заодно это заслон GDPR: аккаунт удалён
-  // между закрытием праздника и отправкой → писать некому и не о чем.
+  // Пользователя читаем всегда: это заслон GDPR — аккаунт удалён между
+  // закрытием праздника и отправкой → писать некому и не о чем. Из полей
+  // нужна только почта: имени письмо с раунда 41 не принимает вовсе
+  // (`OccasionOwnerParams` — одна ссылка, тикет 171).
   const user = await prisma.user.findUnique({
     where: { id: parsed.data.userId },
-    select: { email: true, displayName: true },
+    select: { email: true },
   });
   if (!user) return { status: "skipped", reason: "user-gone" };
 
@@ -92,7 +94,6 @@ async function processOccasionOwner(data: unknown, deps: MailJobDeps): Promise<M
   if (!to) return { status: "skipped", reason: "no-recipient" };
 
   await (deps.sendOccasionOwnerImpl ?? sendOccasionOwner)(to, {
-    ownerName: user.displayName,
     occasionUrl: appUrl("/room/occasion"),
   });
   return { status: "sent" };
@@ -114,7 +115,7 @@ async function processReminderGuest(data: unknown, deps: MailJobDeps): Promise<M
   }
 
   // Тем же запросом, что проверяет живость брони, добираем ЦЕНУ, ВАЛЮТУ,
-  // НАСТРОЙКУ ПОКАЗА ЦЕНЫ и ЗОНУ вещи — плашку письма из контракта round39
+  // НАСТРОЙКУ ПОКАЗА ЦЕНЫ и ЗОНУ вещи — плашку письма из контракта round41
   // («название, цена, полка, комната»). В payload'е их нет и не будет: цена и
   // особенно `priceVisibility` могли смениться, пока джоба ждала своего часа,
   // а показывать гостю цену, которую комната уже прячет, письмо не вправе
@@ -144,7 +145,7 @@ async function processReminderGuest(data: unknown, deps: MailJobDeps): Promise<M
 
 /**
  * Гостю: «вещь уехала — выбери другую» (тикет 124, слова и вёрстка — контракт
- * round39). ЗА БРОНЬЮ В БД НЕ ХОДИМ ВОВСЕ, и это не оптимизация: бронь к
+ * round41). ЗА БРОНЬЮ В БД НЕ ХОДИМ ВОВСЕ, и это не оптимизация: бронь к
  * этому моменту уже удалена — письмо ровно об этом. Проверка «жива ли бронь»,
  * как у напоминания, отменила бы здесь каждое письмо.
  *

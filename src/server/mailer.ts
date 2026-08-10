@@ -14,15 +14,15 @@
 // серверном словаре вне next-intl (почему именно там — комментарий в самом
 // файле). В этом модуле остались сборка, ссылки и отправка.
 //
-// ВЁРСТКА ДВУХ ГОСТЕВЫХ ПИСЕМ ТОЖЕ ЖИВЁТ НЕ ЗДЕСЬ (тикет 160): напоминание и
-// «вещь уехала» собираются из готовых почтовых шаблонов дизайна
-// (`mail-templates.ts`, раунд 39) — таблицы и инлайн-стили писал он, мы
-// подставляем значения. Служебные письма (вход, «что подарили») по-прежнему
-// собираются здесь простой разметкой: их дизайн не рисовал.
+// ВЁРСТКА ТРЁХ ПИСЕМ ЦИКЛА ДАРЕНИЯ ЖИВЁТ НЕ ЗДЕСЬ (тикеты 160 и 171):
+// напоминание, «вещь уехала» и письмо хозяйке после праздника собираются из
+// готовых почтовых шаблонов дизайна (`mail-templates.ts`, раунд 41) — таблицы
+// и инлайн-стили писал он, мы подставляем значения. Простой разметкой здесь
+// собирается только письмо ВХОДА: его дизайн не рисовал.
 //
-// ИНВАРИАНТ №1 (тихая бронь): письмо хозяйке не упоминает ни вещей, ни
-// имён — шаблон физически принимает только имя хозяйки и ссылку на
-// «что подарили». Покрыто тестом (tests/mailer.worker.test.ts).
+// ИНВАРИАНТ №1 (тихая бронь): письмо хозяйке не упоминает ни вещей, ни имён —
+// шаблон физически принимает ОДНУ ссылку на «что подарили» и больше ничего,
+// даже её собственного имени. Покрыто тестами (mailer.worker, mail-round41).
 
 import type { Transporter } from "nodemailer";
 import { daysUntilOccasion } from "@/app/r/[slug]/welcome";
@@ -30,7 +30,7 @@ import { zoneInfo } from "@/config/design";
 import { guestSeesPrice } from "@/server/dto/guest-items";
 import type { PriceVisibilityDto } from "@/server/dto/items";
 import { brandName, fillMail, mailMessages } from "./mail-messages";
-import { ITEM_GONE_HTML, REMINDER_HTML } from "./mail-templates";
+import { AFTER_PARTY_HTML, ITEM_GONE_HTML, REMINDER_HTML } from "./mail-templates";
 
 // ---------- Транспорт ----------
 
@@ -160,10 +160,10 @@ function escapeHtml(value: string): string {
     .replace(/'/g, "&#39;");
 }
 
-// СЛУЖЕБНЫЕ письма (вход, «что подарили») — простой светлый HTML на
-// инлайн-стилях и системном шрифте: веб-шрифты продукта (Archivo/Onest) в
-// письма сознательно не тащим. Два ГОСТЕВЫХ письма с раунда 39 собираются не
-// здесь, а из готовой почтовой вёрстки дизайна (mail-templates.ts).
+// ПИСЬМО ВХОДА — простой светлый HTML на инлайн-стилях и системном шрифте:
+// веб-шрифты продукта (Archivo/Onest) в письма сознательно не тащим. Три
+// письма цикла дарения собираются не здесь, а из готовой почтовой вёрстки
+// дизайна (mail-templates.ts, раунд 41).
 const HTML_WRAP = [
   `<div style="font-family:-apple-system,'Segoe UI',Roboto,Arial,sans-serif;`,
   `font-size:15px;line-height:1.6;color:#333333;background:#ffffff;`,
@@ -193,13 +193,14 @@ function renderMailTemplate(template: string, values: Record<string, string>): s
 }
 
 /**
- * Знак и хвост локапа: «G» + «race». Оба берутся из ЕДИНСТВЕННОГО ключа имени
- * площадки (`Brand.name`) — переименование остаётся правкой в одном месте.
- * В вёрстке дизайна на месте знака стоит картинка с `alt="G"`; почему у нас
- * там текст — в шапке mail-templates.ts.
+ * Шапка письма — имя площадки текстом одной ячейкой (раунд 41). Берётся из
+ * ЕДИНСТВЕННОГО ключа имени площадки (`Brand.name`), поэтому переименование
+ * остаётся правкой в одном месте; в файлах дизайна на этом месте стоит слово
+ * «Grace» тем же начертанием. Картинок в письмах нет ни одной — почему,
+ * записано в шапке mail-templates.ts.
  */
-function brandMark(): { mark: string; brandTail: string } {
-  return { mark: brandName.slice(0, 1), brandTail: brandName.slice(1) };
+function brandCell(): { brand: string } {
+  return { brand: brandName };
 }
 
 /** «7 900 ₽» — цена вещи для письма; неизвестная валюта не роняет письмо. */
@@ -298,7 +299,7 @@ export interface ReminderGuestParams {
 }
 
 /**
- * «Через три дня праздник у Милы» — контракт round39, вёрстка
+ * «Через три дня праздник у Милы» — контракт round41, вёрстка
  * `REMINDER_HTML`. Письмо содержит только СВОЮ бронь гостя: ни одного слова
  * о других гостях и о том, сколько вещей уже заняли (запрет контракта и
  * инвариант №1 с другой стороны).
@@ -369,7 +370,7 @@ export function reminderGuestMail(params: ReminderGuestParams): MailContent {
   const html = renderMailTemplate(REMINDER_HTML, {
     subject,
     preheader: fillMail(t.preheader, values),
-    ...brandMark(),
+    ...brandCell(),
     overline: t.overline,
     when,
     title,
@@ -382,7 +383,6 @@ export function reminderGuestMail(params: ReminderGuestParams): MailContent {
     tailAction: t.tailAction,
     tailTrail,
     footer: t.footer,
-    footerLink: t.bookings,
     signature: signature(),
   });
 
@@ -414,7 +414,7 @@ export interface ItemGoneParams {
 
 /**
  * «Вещь уехала — выбери другую» (тикет 124, раунд 28; слова и вёрстка —
- * контракт round39, `ITEM_GONE_HTML`): вещь ушла из комнаты, бронь снялась
+ * контракт round41, `ITEM_GONE_HTML`): вещь ушла из комнаты, бронь снялась
  * молча, и гость обязан узнать об этом ДО праздника — иначе он придёт с
  * подарком, которого в комнате уже нет.
  *
@@ -472,7 +472,7 @@ export function itemGoneMail(params: ItemGoneParams): MailContent {
   const html = renderMailTemplate(ITEM_GONE_HTML, {
     subject: t.subject,
     preheader,
-    ...brandMark(),
+    ...brandCell(),
     overline: t.overline,
     title: t.title,
     titleTail: t.titleTail,
@@ -481,8 +481,6 @@ export function itemGoneMail(params: ItemGoneParams): MailContent {
     cta: t.cta,
     tail,
     footer: t.footer,
-    footerLink: t.bookings,
-    footerLinkUrl: bookingsUrl,
     signature: signature(),
   });
 
@@ -496,43 +494,54 @@ export async function sendItemGone(to: string, params: ItemGoneParams): Promise<
 // ---------- Шаблон: хозяйке после праздника ----------
 
 export interface OccasionOwnerParams {
-  /** displayName хозяйки; null — письмо начинается без имени. */
-  ownerName: string | null;
   /** Абсолютная ссылка на «что подарили» (appUrl("/room/occasion")). */
   occasionUrl: string;
 }
 
 /**
- * «Праздник прошёл — посмотри, что подарили»: тема дословно совпадает с
- * баннером в комнате (`Room.occasionBanner`). Никаких имён и вещей: имена
- * дарителей раскрываются ровно один раз — на самом экране (инвариант №2).
+ * «Праздник прошёл — посмотри, что подарили» (контракт round41, вёрстка
+ * `AFTER_PARTY_HTML`, тикет 171): тема дословно совпадает с баннером в
+ * комнате (`Room.occasionBanner`), а внутри — одно приглашение открыть экран.
+ *
+ * ЭТО САМОЕ МОЛЧАЛИВОЕ ПИСЬМО ПРОДУКТА, и молчит оно НЕ ПО ДОГОВОРЁННОСТИ, А
+ * ПО УСТРОЙСТВУ: параметр у него ровно один — ссылка. Ни вещи, ни имени
+ * дарителя, ни цены, ни счётчика сюда физически неоткуда взять (инвариант
+ * №1). С раунда 41 у письма нет и имени самой хозяйки: в табличном макете
+ * слота под обращение нет, а заводить его ради «Привет» значило бы открыть
+ * шаблону дорогу к строкам, которых он знать не должен.
+ *
+ * ПОСЛЕДНЯЯ СТРОКА ПИСЬМА РАЗВОДИТ ДВЕ НЕОБРАТИМОСТИ, которые контракт
+ * склеил: имена раскрывает ПЕРВОЕ ОТКРЫТИЕ экрана (`revealedAt`), а «Дошло»
+ * увозит вещь в сокровищницу и закрепляет имя у неё (`receiveGift`).
+ * Подробности — в комментарии к `OccasionMail.tail`.
  */
 export function occasionOwnerMail(params: OccasionOwnerParams): MailContent {
   const t = mailMessages.OccasionMail;
-  const values = { name: params.ownerName ?? "" };
-  // Имени нет — здороваемся без него, а не с пустотой на его месте.
-  const greeting = params.ownerName ? fillMail(t.greeting, values) : t.greetingNoName;
 
   const text = [
-    greeting,
+    t.title,
     ``,
     t.body,
-    `${t.link}: ${params.occasionUrl}`,
+    `${t.cta}: ${params.occasionUrl}`,
     ``,
-    t.reveal,
+    t.tail,
     ``,
     signature(),
   ].join("\n");
 
-  const html = [
-    HTML_WRAP,
-    `<p style="margin:0 0 16px;">${escapeHtml(greeting)}</p>`,
-    `<p style="margin:0 0 16px;">${escapeHtml(t.body)}<br/>`,
-    `<a href="${escapeHtml(params.occasionUrl)}" style="color:#333333;">${escapeHtml(t.link)}</a></p>`,
-    `<p style="margin:0;color:#888888;font-size:13px;">${escapeHtml(t.reveal)}</p>`,
-    signatureHtml(),
-    `</div>`,
-  ].join("");
+  const html = renderMailTemplate(AFTER_PARTY_HTML, {
+    subject: t.subject,
+    preheader: t.preheader,
+    ...brandCell(),
+    overline: t.overline,
+    title: t.title,
+    body: t.body,
+    link: params.occasionUrl,
+    cta: t.cta,
+    tail: t.tail,
+    footer: t.footer,
+    signature: signature(),
+  });
 
   return { subject: t.subject, text, html };
 }
