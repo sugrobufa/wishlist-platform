@@ -47,6 +47,7 @@ import {
   placeArmPx,
   placeFill,
   placeFocusGlow,
+  PLACE_BAND_MS,
   PLACE_BAND_PHONE_REST,
   PLACE_BREATH,
   PLACE_CAMERA_FADE,
@@ -233,7 +234,14 @@ const BASE_VARS = {
   // Наезд гасит места за 140 мс, отход возвращает за 200 (behavior.onCameraMove).
   "--place-out-ms": `${PLACE_CAMERA_FADE.outMs}ms`,
   "--place-in-ms": `${PLACE_CAMERA_FADE.backMs}ms`,
-  // Фокус: числа дизайна (states.focusVisible) — плечо +2, контур 2, свечение.
+  // Появление и уход ПО ПОЛОСЕ — 120 мс (rule.drawIfWhole, `places-v3.2`).
+  // Своего числа у полосы раньше не было, и она ехала на 200 мс наезда просто
+  // потому, что обе прозрачности жили на одном элементе.
+  "--place-band-ms": `${PLACE_BAND_MS}ms`,
+  // Фокус: НАШ дефолт — плечо +2, контур 2, свечение `0 0 10px accent при .5`.
+  // Контракт снял эти числа вместе с ролью кнопки (`places-v3.2`), но фокус мы
+  // рисуем не У МЕСТА: он на кнопке зоны, место подсвечивается вслед. Вопрос
+  // выписан письмом 44; новых чисел не выдумано.
   "--place-focus-arm": `${PLACE_FOCUS.armPlusPx}px`,
   "--place-focus-stroke": `${PLACE_FOCUS.strokePx}px`,
   "--place-focus-glow": placeFocusGlow(),
@@ -811,7 +819,12 @@ export function SceneStage({
                   пунктир акцентом, которым была умершая плитка «хочу», и
                   смотреть там больше не на что. Место фокус не принимает
                   вовсе, а показывает его по-своему. Отсюда и aria-hidden:
-                  дорога в зону у диктора одна и уже есть. */}
+                  дорога в зону у диктора одна и уже есть.
+
+                  `places-v3.2` (раунд 40) принял это ЦЕЛИКОМ и своими словами:
+                  «место — не кнопка: pointer-events none, тап проходит насквозь
+                  в кнопку зоны под ним; у одной зоны одна цель нажатия, а не
+                  две». Конфликт тикета 157 закрыт — переделывать нечего. */}
               {(() => {
                 const place = placeByZone.get(zone.key);
                 if (!place) return null;

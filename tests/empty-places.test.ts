@@ -1,5 +1,5 @@
-// ТРИ ПУСТЫХ МЕСТА на сцене пустой комнаты (тикет 142; приёмка `places-v3`
-// пакета раунда 37 — тикет 157).
+// ТРИ ПУСТЫХ МЕСТА на сцене пустой комнаты (тикет 142; приёмка `places-v3.2`
+// пакета раунда 40 — тикет 162).
 //
 // ПОЧЕМУ ЗДЕСЬ НЕТ ТАБЛИЦЫ ДИЗАЙНА — И ПОСЛЕ ТОГО, КАК ОНА СОШЛАСЬ. В раунде 34
 // receipt пакета был посчитан по снимку `rooms.json` ДО переразметок, и тройки
@@ -29,6 +29,7 @@ import {
   placesContract,
   placeThird,
   placeWholeInBand,
+  PLACE_BAND_MS,
   PLACE_BAND_PHONE_REST,
   PLACE_BREATH,
   PLACE_CAMERA_FADE,
@@ -164,9 +165,12 @@ describe("142 — правило выбора трёх мест", () => {
     expect([PLACE_WINDOW.x0, PLACE_WINDOW.x1]).toEqual([105, 525]);
     expect(THIRD_BOUNDS).toEqual([245, 385]);
     // Окно — центральные 420 из 630: поля слева и справа одинаковые. Ширину
-    // кадра берём У СЕБЯ: в `places-v3` блока `frame` больше нет — и правильно,
-    // кадр 630×351 наш (ADR-0006), контракт его только повторял.
+    // кадра берём У СЕБЯ: кадр 630×351 наш (ADR-0006), контракт его только
+    // повторяет. В `places-v3` блок `frame` пропал и уронил нам импорт,
+    // `places-v3.2` вернул его — сверяем, что повтор верный, и не более того.
     expect(PLACE_WINDOW.x0).toBe(scene.phone.image.w - PLACE_WINDOW.x1);
+    expect(placesContract.frame.w).toBe(scene.phone.image.w);
+    expect(placesContract.frame.h).toBe(scene.phone.image.h);
     // Трети равны: 140 каждая.
     expect(THIRD_BOUNDS[0] - PLACE_WINDOW.x0).toBe(140);
     expect(THIRD_BOUNDS[1] - THIRD_BOUNDS[0]).toBe(140);
@@ -336,6 +340,10 @@ describe("157 — drawIfWhole: обрезанных мест не бывает",
     }
     // Двадцать три из тридцати: семь третьих мест уезжают за правую кромку.
     expect(total).toBe(23);
+    // Эти же два числа дизайн внёс в контракт с наших замеров (`places-v3.2`).
+    // Сверяем не ради красоты: если наша карта поедет, замеры в контракте
+    // устареют молча, а так тест назовёт расхождение вслух.
+    expect(placesContract.rule.drawIfWholeMeasured).toContain("было 30 мест в покое, стало 23");
   });
 
   it("дышит только целиком видимое место (primaryWholeAtRest)", () => {
@@ -380,27 +388,48 @@ describe("157 — drawIfWhole: обрезанных мест не бывает",
     expect(place).toContain("--band-r: calc(var(--place-band-r0) + var(--pan-frame, 0));");
     expect(place).toMatch(/--place-off: max\(\s*clamp\(0, calc\(var\(--band-l\)/u);
     expect(place).toContain("--place-on: calc(1 - var(--place-off));");
-    expect(place).toContain("opacity: calc(var(--place-o) * var(--place-on));");
     // На десктопе кадр виден целиком — шаг выключен, второй полосы нет.
     expect(sceneCss).toMatch(
       /@media \(min-width: 1024px\) \{\s*\.place \{\s*--place-off: 0;\s*\}\s*\}/u,
     );
   });
 
-  it("НИ ОДНО СОСТОЯНИЕ ВИДА НЕ ВОСКРЕШАЕТ СКРЫТОЕ МЕСТО", () => {
-    // Анимация в каскаде выше обычных объявлений: без множителя в кейфреймах
-    // дышащее место продолжало бы мигать обрезанным. Те же грабли у
-    // reduced-motion и у фокуса — сторожим все три.
+  it("ПОЯВЛЕНИЕ И УХОД ПО ПОЛОСЕ — 120 мс контракта, а не 200 мс наезда", () => {
+    // Своего числа у полосы не было, и она ехала на длительности ВОЗВРАТА
+    // КАМЕРЫ просто потому, что обе прозрачности жили на одном элементе.
+    // `places-v3.2` дал полосе своё («чтобы у кромки не хлопало»), и числа
+    // разошлись — значит обязаны разойтись и слои.
+    expect(PLACE_BAND_MS).toBe(120);
+    expect(PLACE_BAND_MS).not.toBe(PLACE_CAMERA_FADE.backMs);
+    expect(placesContract.rule.drawIfWhole).toContain("появление и уход — 120 мс opacity");
+    expect(stage).toContain('"--place-band-ms": `${PLACE_BAND_MS}ms`');
+    // Коробка места везёт наезд, рисунок внутри — полосу.
+    const place = /\.place \{[\s\S]*?\n\}/u.exec(sceneCss)?.[0] ?? "";
+    expect(place).toContain("transition: opacity var(--place-in-ms) var(--ease-out);");
+    expect(place).toContain("opacity: var(--place-o);");
     expect(sceneCss).toMatch(
-      /@keyframes place-breath \{[\s\S]*calc\(var\(--place-o0\) \* var\(--place-on\)\)[\s\S]*calc\(var\(--place-o1\) \* var\(--place-on\)\)/u,
+      /\.placeFill,\s*\.placeCorner \{\s*opacity: var\(--place-on\);\s*transition: opacity var\(--place-band-ms\) var\(--ease-out\);\s*\}/u,
     );
+  });
+
+  it("НИ ОДНО СОСТОЯНИЕ ВИДА НЕ ВОСКРЕШАЕТ СКРЫТОЕ МЕСТО", () => {
+    // Раньше это держалось дисциплиной: множитель --place-on приходилось
+    // повторять в кейфреймах дыхания, в reduced-motion и в фокусе — анимация в
+    // каскаде выше обычных объявлений, и забытый множитель означал бы мигающее
+    // обрезанное место. Теперь полоса живёт СВОИМ слоем, и до неё не
+    // дотягивается ни одно состояние вида: `var(--place-on)` встречается в
+    // ПРАВИЛАХ ровно один раз — в объявлении рисунка. Это и есть вся проверка.
+    // Комментарии снимаем: в них та же переменная названа словами.
+    const rules = sceneCss.replace(/\/\*[\s\S]*?\*\//gu, "");
+    expect(rules.match(/var\(--place-on\)/gu) ?? []).toHaveLength(1);
+    expect(sceneCss).toMatch(/@keyframes place-breath \{[\s\S]*?var\(--place-o0\)[\s\S]*?\n\}/u);
     const reduced =
       /@media \(prefers-reduced-motion: reduce\) \{([\s\S]*?)\n\}/u.exec(sceneCss)?.[1] ?? "";
-    expect(reduced).toContain("opacity: calc(var(--place-o-reduced) * var(--place-on));");
+    expect(reduced).toContain("opacity: var(--place-o-reduced);");
     const focus = /\.hotspotSlot:has\(\.hotspot:focus-visible\) \.place \{([\s\S]*?)\n\}/u.exec(
       sceneCss,
     )?.[1];
-    expect(focus).toContain("opacity: var(--place-on);");
+    expect(focus).toContain("opacity: 1;");
   });
 });
 
@@ -550,12 +579,21 @@ describe("142 — вид места: числа контракта против 
     expect(placesContract.notDashed).toContain("ЧЕТВЁРТЫЙ УБРАН");
   });
 
-  it("ФОКУС МЕСТА СВОЙ, И ТЕПЕРЬ ЕГО ЧИСЛА — ДИЗАЙНА", () => {
+  it("ФОКУС МЕСТА СВОЙ, И ЕГО ЧИСЛА СНОВА НАШИ", () => {
     // Ловушка: `--zone-focus-outline` это `1px dashed {accent}` из контракта
     // (законный, но единственный законный) пунктир. Приди он на уголки места —
     // на тёмной пустой сцене человек прочтёт ровно умершее «хочу». Дизайн эту
-    // находку принял и записал её в контракт словом («dashed: НЕТ»).
-    expect(placesContract.states.focusVisible.dashed).toContain("НЕТ");
+    // находку принял и в `places-v3.2` закрыл ещё крепче: фокуса у места нет
+    // вовсе, оно `aria-hidden` и не в обходе. Первую половину принимаем — но
+    // фокус мы рисуем НЕ У МЕСТА: он на кнопке зоны, место подсвечивается
+    // вслед за ним, ровно как контрактные `zoneHover`/`zonePress`.
+    expect(placesContract.states.focusVisible.place).toContain("у места фокуса нет вовсе");
+    // Числа контракт снял вместе с ролью кнопки — остались НАШИМ дефолтом, и
+    // новых не выдумано. Вопрос выписан письмом 44 (пункт 9); тест сторожит,
+    // чтобы до ответа их никто не «уточнил».
+    expect(placesContract.behavior.a11y.dropped).toContain(
+      "наши states.focusVisible для места отменены",
+    );
     expect(PLACE_FOCUS.armPlusPx).toBe(2);
     expect(PLACE_FOCUS.strokePx).toBe(2);
     expect(placeFocusGlow()).toBe(
@@ -645,20 +683,42 @@ describe("142 — места живут ровно столько же, скол
     expect(placesContract.behavior.tap).toContain("наезд на его зону");
   });
 
-  it("КОНФЛИКТ: behavior.a11y просит кнопку — у нас её нет и не будет", () => {
-    // `places-v3 → behavior.a11y` требует role="button", имя «Открыть зону:
-    // {label}» и обход клавиатурой. Прямо против нашей реализации: место лежит
-    // ВНУТРИ прямоугольника своей зоны с общим центром, под ним кнопка этой же
-    // зоны, и тап проходит сквозь. Вторая кнопка удвоила бы зону в обходе и в
-    // дикторе, а фокус на ней пришёл бы нашей единственной законной рамкой —
-    // `1px dashed {accent}`, то есть ровно умершим «хочу» на тёмной сцене.
-    // Не переделываем; конфликт уходит письмом. Тест сторожит, что переделки
-    // не случилось молча.
-    expect(placesContract.behavior.a11y.role).toBe("button");
+  it("КОНФЛИКТ ЗАКРЫТ: место — не кнопка, и теперь так написано в контракте", () => {
+    // `places-v3` требовал role="button", имя «Открыть зону: {label}» и обход
+    // клавиатурой — прямо против нашей реализации, и мы не переделывали:
+    // место лежит ВНУТРИ прямоугольника своей зоны с общим центром, под ним
+    // кнопка этой же зоны, и тап проходит сквозь. `places-v3.2` принял наш
+    // вариант целиком («ПРИНИМАЕМ ВАШЕ ЦЕЛИКОМ, оно лучше нашего»), а ключей
+    // `role`/`name`/`order` в файле больше нет вовсе.
+    expect(placesContract.behavior.a11y.verdict).toContain("Место — не кнопка");
+    expect(placesContract.behavior.a11y.place).toContain('aria-hidden="true"');
+    // Роль и имя переехали С МЕСТА НА ЗОНУ — там они и были у нас всегда.
+    expect(placesContract.behavior.a11y.zone).toContain('role="button"');
+    for (const gone of ["role", "name", "order", "group", "breathNotAnnounced", "hidden"]) {
+      expect(Object.keys(placesContract.behavior.a11y), `${gone}: ключ вернулся`).not.toContain(
+        gone,
+      );
+    }
     expect(stage).toMatch(/aria-hidden\s*\n\s*className=\{place\.primary/u);
     expect(stage).not.toMatch(/<button[^>]*s\.place/u);
     expect(sceneCss).toMatch(/\.place \{[^}]*pointer-events: none;/u);
     // У зоны ровно одна цель нажатия, а не две.
     expect(stage.match(/<ZoneHotspot/gu) ?? []).toHaveLength(1);
+  });
+
+  it("hover и press — состояния ЗОНЫ, а не места: рисовать их месту нечем", () => {
+    // Мелочь письма 42, которую дизайн признал своей ошибкой: место прозрачно
+    // для указателя (`pointer-events: none`), вызвать у него hover и press
+    // некому. В `places-v3.2` они переименованы в `zoneHover`/`zonePress` и
+    // описаны как состояния КНОПКИ ЗОНЫ, за которыми место перерисовывается.
+    expect(placesContract.states.zoneHover.what).toContain("КНОПКИ ЗОНЫ");
+    expect(placesContract.states.zonePress.what).toContain("кнопку зоны");
+    expect(JSON.stringify(placesContract.states)).not.toContain('"hover"');
+    expect(JSON.stringify(placesContract.states)).not.toContain('"press"');
+    // Исключение из общего «нажимаемое проседает scale(.97)» осталось словом:
+    // уголки привязаны к предмету в кадре, масштаб сдвинул бы их с него.
+    expect(placesContract.states.zonePress.noScale).toContain("МЕСТО НЕ МАСШТАБИРУЕТСЯ");
+    const place = /\.place \{[\s\S]*?\n\}/u.exec(sceneCss)?.[0] ?? "";
+    expect(place).not.toMatch(/transform/u);
   });
 });
