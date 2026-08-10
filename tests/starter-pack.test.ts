@@ -1,15 +1,19 @@
-// Тикет 100 (доска Б23 · турн 12c): «Или начни с готового · +40».
+// Тикет 100 (доска Б23 · турн 12c): «Или начни с готового · +N».
 //
 // Набор — тот же курируемый список, что раньше рисовался призраками
 // (тикет 104 показ снял, вердикт дизайна оставил подборку «по согласию»).
+// С тикета 136 его зёрна приезжают КОНТРАКТОМ дизайна, а не лежат в коде.
 // Проверяем ровно то, чем набор отличается от призраков и от посева стенда:
+// - контракт целиком: 19 пулов по 5 зёрен, у каждого цена, ни одного «уже моё»;
 // - вещи настоящие, свои и появляются ТОЛЬКО по вызову;
 // - дарителей и годов он НЕ приносит: выдуманное воспоминание в
 //   сокровищнице — это ложь про человека (инвариант №2);
 // - повтор не плодит дублей и не трогает того, что заведено руками;
-// - «+40» считается по пулам ВИДИМЫХ зон, а не пишется числом в строку.
+// - «+N» считается по пулам ВИДИМЫХ зон, а не пишется числом в строку.
 import "dotenv/config";
 import { randomUUID } from "node:crypto";
+import { existsSync } from "node:fs";
+import { resolve } from "node:path";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 
 vi.mock("@/server/queues", () => ({
@@ -18,8 +22,10 @@ vi.mock("@/server/queues", () => ({
   enqueueImageIngest: vi.fn(async () => true),
 }));
 
+import seedsJson from "@design/seeds/seeds.json";
 import { prisma } from "../src/server/db";
 import { applyStarterPack, starterPackSize } from "../src/server/services/starter-pack";
+import { livePoolSeeds, packSeedsRejected } from "../src/server/services/pack-seeds";
 import { createItem } from "../src/server/services/items";
 import { rooms as roomPresets } from "../src/config/design";
 
@@ -53,7 +59,86 @@ afterAll(async () => {
   await prisma.$disconnect();
 });
 
-describe("starterPackSize — «+40» считается, а не обещается", () => {
+// ----------------------------------------------------------------- контракт
+//
+// Числа зафиксированы контрактом round33 (`handoff/seeds/seeds.json`, тикет
+// 136) и посчитаны нами по файлу. Тест упал — значит приехал новый пакет:
+// это повод сверить его с письмом, а не поправить ожидания.
+const CONTRACT = {
+  pools: 19,
+  seeds: 95,
+  perPool: 5,
+  withPhoto: 36,
+} as const;
+
+/** Зона без пула: там копилка на мечту, а не вещи (инвариант №9). */
+const MONEY_POOL = "money";
+
+const contractPools = (seedsJson as unknown as { pools: Record<string, unknown[]> }).pools;
+
+describe("контракт набора — зёрна приезжают из пакета, а не из кода", () => {
+  it("19 пулов ровно по 5 зёрен — всего 95", () => {
+    const keys = Object.keys(contractPools);
+    expect(keys).toHaveLength(CONTRACT.pools);
+    for (const key of keys) {
+      expect(livePoolSeeds(key), `пул ${key}`).toHaveLength(CONTRACT.perPool);
+    }
+    const total = keys.reduce((sum, key) => sum + livePoolSeeds(key).length, 0);
+    expect(total).toBe(CONTRACT.seeds);
+    // Пула `money` в контракте нет и не должно быть.
+    expect(livePoolSeeds(MONEY_POOL)).toEqual([]);
+    expect(livePoolSeeds("нет-такого-пула")).toEqual([]);
+  });
+
+  it("сторож не выбросил ни одного зерна: у всех цена и ни одного «уже моё»", () => {
+    // Ноль отброшенных — второе имя тех же двух правил: контракт им отвечает
+    // целиком, а не «в основном».
+    expect(packSeedsRejected).toEqual([]);
+
+    for (const key of Object.keys(contractPools)) {
+      for (const seed of livePoolSeeds(key)) {
+        expect(seed.mine, `«${seed.title}»`).toBe(false);
+        if (seed.mine) continue; // сузить тип для полей желания
+        expect(seed.priceRub, `цена «${seed.title}»`).toBeGreaterThan(0);
+        expect(Number.isFinite(seed.priceRub), `цена «${seed.title}»`).toBe(true);
+        expect(seed, `«${seed.title}»`).not.toHaveProperty("giverName");
+        expect(seed, `«${seed.title}»`).not.toHaveProperty("receivedYear");
+      }
+    }
+  });
+
+  it("36 зёрен с кадром, и каждый кадр лежит в пакете", () => {
+    const photos = Object.keys(contractPools)
+      .flatMap((key) => livePoolSeeds(key))
+      .map((seed) => seed.photo)
+      .filter((photo): photo is string => Boolean(photo));
+
+    expect(photos).toHaveLength(CONTRACT.withPhoto);
+    for (const photo of photos) {
+      // Путь раздачи, а не голое имя: его понимают и хранилище набора,
+      // и `itemPhotoUrl`.
+      expect(photo).toMatch(/^refs\/[a-z0-9][a-z0-9-]*\.jpg$/);
+      const file = resolve(process.cwd(), "design/package", photo);
+      expect(existsSync(file), `кадра ${photo} нет в пакете`).toBe(true);
+    }
+  });
+
+  it("у каждой видимой зоны продукта пул набора наполнен (кроме «Просто денег»)", () => {
+    for (const room of roomPresets) {
+      for (const zone of room.zones) {
+        if (zone.pool === MONEY_POOL) {
+          expect(livePoolSeeds(zone.pool), `${room.id}/${zone.key}`).toEqual([]);
+          continue;
+        }
+        expect(livePoolSeeds(zone.pool), `${room.id}/${zone.key}`).toHaveLength(
+          CONTRACT.perPool,
+        );
+      }
+    }
+  });
+});
+
+describe("starterPackSize — «+N» считается, а не обещается", () => {
   it("число складывается из пулов видимых зон и падает вместе с выключенной", () => {
     const cream = roomPresets.find((room) => room.id === "cream");
     const full = starterPackSize("cream", []);
@@ -64,6 +149,18 @@ describe("starterPackSize — «+40» считается, а не обещает
     expect(zone).toBeDefined();
     const withoutJewel = starterPackSize("cream", [zone!.key]);
     expect(withoutJewel).toBeLessThan(full);
+  });
+
+  it("число — сумма пулов КОНТРАКТА по видимым зонам, у каждого интерьера своя", () => {
+    for (const preset of roomPresets) {
+      const expected = preset.zones.reduce((sum, zone) => sum + livePoolSeeds(zone.pool).length, 0);
+      expect(starterPackSize(preset.id, []), preset.id).toBe(expected);
+      // Зона «Просто деньги» есть в каждой комнате и не приносит ни вещи,
+      // поэтому число всегда меньше «зон × 5».
+      expect(expected, preset.id).toBeLessThan(preset.zones.length * CONTRACT.perPool);
+    }
+    // Женский и мужской интерьеры считаются каждый по своим зонам.
+    expect(starterPackSize("cream", [])).not.toBe(starterPackSize("loft", []));
   });
 
   it("у мужского и женского интерьера числа СВОИ — одно на всех было бы обманом", () => {
@@ -95,6 +192,17 @@ describe("applyStarterPack — набор в свою комнату", () => {
     // ничего, инвариант №2).
     expect(items.length).toBeGreaterThan(0);
     expect(items.every((item) => item.price !== null)).toBe(true);
+
+    // Кадры контракта доехали: имя файла из `seeds.json` нашлось в пакете и
+    // легло в НАШЕ хранилище нашим же ключом — путь пакета в БД не попадает
+    // ни одной строкой (инвариант №6). Часть зёрен без кадра намеренно —
+    // такая вещь честно рисует серую заливку со значком пула (тикет 82).
+    expect(result.photos).toBeGreaterThan(0);
+    expect(items.filter((item) => item.photoKey !== null)).toHaveLength(result.photos);
+    expect(items.filter((item) => item.photoKey === null).length).toBeGreaterThan(0);
+    for (const item of items) {
+      expect(item.photoKey ?? "", item.title).not.toContain("refs/");
+    }
     // Призраков среди них нет по построению: `isDemo` — поле DTO, а не БД,
     // и всё это — настоящие строки таблицы вещей.
   });

@@ -14,6 +14,7 @@ import {
   LIGHT_COLORS,
   TIMES_OF_DAY,
   type LightColor,
+  type NativeTimeOfDay,
   type TimeOfDay,
 } from "@/components/scene/grading";
 import {
@@ -890,8 +891,11 @@ export function LightSection({
    * Родное время суток базы (тикет 107). Превью обязано считать от него же,
    * что и сама комната: иначе выбор «по картинке» показывает одно, а комната
    * становится другой — и у ночных баз это расхождение вдвое.
+   *
+   * ТИП ШИРЕ, ЧЕМ У РУЧКИ (тикет 133): выбрать «ночь» больше нельзя, а базы,
+   * снятые ночью, никуда не делись — их четыре из десяти.
    */
-  nativeTod: TimeOfDay;
+  nativeTod: NativeTimeOfDay;
 }) {
   const t = useTranslations("Settings");
   const { busy, error, run } = useSettingsAction();
@@ -910,7 +914,11 @@ export function LightSection({
       <p className="text-xs leading-relaxed text-text-faint">{t("lightHint")}</p>
 
       <p className="overline text-text-muted">{t("todLabel")}</p>
-      <div className="grid grid-cols-4 gap-2">
+      {/* ТРИ ПОЛОЖЕНИЯ, А НЕ ЧЕТЫРЕ (тикет 133): «ночь» упразднена — она давала
+          тот же кадр, что вечер, а два одинаковых положения с разными именами
+          это ложь интерфейсу. Число колонок берётся не из головы: оно обязано
+          совпадать с длиной TIMES_OF_DAY, иначе в ряду появится пустая клетка. */}
+      <div className="grid grid-cols-3 gap-2">
         {TIMES_OF_DAY.map((option) => (
           <button
             key={option}
