@@ -15,12 +15,12 @@
 // `action-treasury`, — и `IconHall` удалён: арки не осталось ни в одном файле
 // набора, сверять его стало не с чем. Место витрины в баре теперь рисует тот
 // же `IconTreasury`, что стоит в углу сцены.
-import { existsSync, readFileSync } from "node:fs";
+import { existsSync, readdirSync, readFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 import { renderToStaticMarkup } from "react-dom/server";
-import { createElement } from "react";
+import { createElement, type ReactElement } from "react";
 import {
   IconPeople,
   IconPerson,
@@ -30,6 +30,27 @@ import {
   IconTreasury,
 } from "../src/components/icons";
 
+const source = (file: string) =>
+  readFileSync(fileURLToPath(new URL(file, import.meta.url)), "utf8");
+
+/**
+ * Знаки, которые страница ставит в ОДИН РЯД, — по её же разметке.
+ *
+ * `ADD_ICON_SIZE` в списке размеров не роскошь: кружок «Добавить» стоит в баре
+ * пятым местом, а размер у него на единицу тише соседей. Без него сторож
+ * считал бар четырёхместным и не заметил бы, встань рядом с плюсом его двойник.
+ */
+const usedIn = (code: string): string[] => [
+  ...new Set(
+    [
+      ...code.matchAll(/<(Icon[A-Za-z]+) size=\{(?:CORNER_ICON_SIZE|ADD_ICON_SIZE|size)\}/gu),
+    ].map((m) => m[1] as string),
+  ),
+];
+
+const barRow = usedIn(source("../src/components/tab-bar/tab-slots.tsx"));
+const cornerRow = usedIn(source("../src/app/room/page.tsx"));
+
 /**
  * Файлы набора лежат В РЕПОЗИТОРИИ, а не в папке входящих пакетов: та живёт
  * на машине владельца, и тест, читающий оттуда, зелёный только у него —
@@ -37,13 +58,37 @@ import {
  */
 const PACKAGE_ICONS = path.join("design", "package", "handoff", "icons");
 
-/** Геометрия знака: пути и круги по порядку — без цвета и размеров. */
+/**
+ * Знаки ЗОН лежат отдельной папкой: она названа раундом первой поставки (15),
+ * правки приезжают в неё же. Ряд «комната списком» состоит из них, поэтому
+ * сторожу ряда нужны обе папки — набор один, а лежит в двух местах.
+ */
+const POOL_ICONS = path.join("design", "round15", "icons");
+
+/** Геометрия знака: пути, круги и прямоугольники — без цвета и размеров. */
 function shapeOf(svg: string): string[] {
   const paths = [...svg.matchAll(/d="([^"]+)"/g)].map((m) => `path:${m[1]}`);
   const circles = [...svg.matchAll(/<circle[^>]*cx="([\d.]+)"[^>]*cy="([\d.]+)"[^>]*r="([\d.]+)"/g)].map(
     (m) => `circle:${m[1]},${m[2]},${m[3]}`,
   );
-  return [...paths, ...circles].sort();
+  // `rect` добавлен раундом 36 (тикет 150): прежде прямоугольников в наборе не
+  // было вовсе, и сверка, которая их не видит, объявляла бы «путь в путь»
+  // знаку с разошедшейся оболочкой.
+  const rects = [
+    ...svg.matchAll(
+      /<rect[^>]*x="([\d.]+)"[^>]*y="([\d.]+)"[^>]*width="([\d.]+)"[^>]*height="([\d.]+)"(?:[^>]*rx="([\d.]+)")?/g,
+    ),
+  ].map((m) => `rect:${m[1]},${m[2]},${m[3]},${m[4]},${m[5] ?? "0"}`);
+  return [...paths, ...circles, ...rects].sort();
+}
+
+/** Путь к файлу набора по имени — знак может лежать в любой из двух папок. */
+function setFile(name: string): string {
+  for (const dir of [PACKAGE_ICONS, POOL_ICONS]) {
+    const candidate = path.join(dir, name);
+    if (existsSync(candidate)) return candidate;
+  }
+  throw new Error(`знака ${name} в наборе нет`);
 }
 
 function fromPackage(file: string): string[] {
@@ -126,29 +171,198 @@ describe("иконки таб-бара — путь в путь с наборо�
   });
 });
 
-describe("знаки живут В РЯДУ, и в ряду они обязаны различаться (тикет 147)", () => {
-  // ТРЕТИЙ СЛУЧАЙ ОДНОЙ БОЛЕЗНИ ЗА ДЕНЬ. Витрина в баре рисовалась аркой, а
-  // через одно место стоит «Комната» — та же арка с точкой (тикет 138).
-  // Шкатулку в углу владелец забраковал 09.08 как нечитаемую на 22 px.
-  // «Настройки» оказались силуэтом «Друзей», нарисованным один раз вместо
-  // двух (тикет 147, приёмка 10.08). Набор рисовался по знаку за раз, а живут
-  // знаки рядами по три-пять штук на одном экране размером 22 px.
+/**
+ * КОНТРАКТ РЯДОВ — `handoff/icons.json` (раунд 36, ответ на письмо 39).
+ *
+ * ЛЕЖИТ В РЕПОЗИТОРИИ, и это не удобство. Раунд 37 приехал в тот же день и
+ * забрал папку раунда 36 с диска вместе с `icons.json`: сторож, читающий из
+ * входящих пакетов, умер бы через три часа после того, как его написали.
+ */
+type IconsContract = {
+  guardRule: { wrong: string; right: string; key: string; size: string };
+  rows: Record<string, string[]>;
+  collisions: Array<{ pair: string[]; rows: string[]; verdict: string; fix: string }>;
+  cleared: Array<{ pair: string[]; why: string }>;
+};
+
+const contract = JSON.parse(
+  readFileSync(path.join("design", "package", "handoff", "icons.json"), "utf8"),
+) as IconsContract;
+
+/**
+ * СМЫСЛ знака — его имя без приставки МЕСТА. `tab-treasury`,
+ * `action-treasury` и `ui-treasury` — три места одного смысла «витрина»;
+ * `tab-friends` и `tab-profile` — два разных смысла, «друзья» и «профиль».
+ * Приставка кодирует, где знак стоит, а не что он называет.
+ */
+const meaningOf = (file: string) =>
+  file.replace(/\.svg$/u, "").replace(/^(?:tab|action|ui|pool)-/u, "");
+
+/** Пары, которые дизайн проверил и РАЗРЕШИЛ с причиной (`cleared`). */
+const clearedPairs = new Set<string>();
+for (const { pair } of contract.cleared) {
+  for (const a of pair) {
+    for (const b of pair) {
+      if (a !== b) clearedPairs.add([a, b].sort().join(" · "));
+    }
+  }
+}
+
+/**
+ * САМ СТОРОЖ. Возвращает нарушения ряда — пустой список значит «ряд чист».
+ *
+ * ПРАВИЛО ДИЗАЙНА ДОСЛОВНО (`guardRule.right`): в одном ряду не бывает
+ * одинакового силуэта у РАЗНЫХ смыслов; знаки одного смысла обязаны
+ * совпадать. Прежняя наша формулировка — «в ряду не бывает двух одинаковых
+ * силуэтов» — забраковала бы бриллиант рядом с бриллиантом, то есть
+ * правильную рифму: витрина у человека одна, и в баре, в углу и в листе она
+ * ОБЯЗАНА быть одним рисунком.
+ *
+ * ЧТО МАШИНА МОЖЕТ ДЕРЖАТЬ, А ЧЕГО НЕТ. Письмо 39 обещало у каждого знака
+ * силуэт тремя полями (оболочка · что внутри · число элементов) — в
+ * присланном `icons.json` этих полей НЕТ (проверено тестом ниже). Считать их
+ * самим значило бы придумать контракт вместо дизайна: его же семь вердиктов
+ * между собой не сходятся — «круг со стрелками» он приравнял к «кругу в
+ * круге», а «прямоугольник с горами» к «прямоугольнику с крышкой» не
+ * приравнял. Поэтому сторож держит НИЖНЮЮ ГРАНИЦУ силуэта — полное совпадение
+ * геометрии. Она считается точно, и забраковать правильное не может: рифмы
+ * одного смысла выведены из проверки по определению.
+ */
+function rowViolations(files: string[], shapeByFile: Map<string, string[]>): string[] {
+  const bad: string[] = [];
+  for (let i = 0; i < files.length; i += 1) {
+    for (let j = i + 1; j < files.length; j += 1) {
+      const [a, b] = [files[i] as string, files[j] as string];
+      if (meaningOf(a) === meaningOf(b)) continue; // рифма одного смысла — законна
+      if (clearedPairs.has([a, b].sort().join(" · "))) continue; // разрешено дизайном
+      const shapeA = shapeByFile.get(a);
+      const shapeB = shapeByFile.get(b);
+      if (shapeA && shapeB && JSON.stringify(shapeA) === JSON.stringify(shapeB)) {
+        bad.push(`${a} · ${b}`);
+      }
+    }
+  }
+  return bad;
+}
+
+describe("сторож ряда — ПО КОНТРАКТУ, а не по паре имён (тикет 151)", () => {
+  // ЧТО ЗДЕСЬ БЫЛО ВЧЕРА. Одна проверка с двумя именами внутри: «IconPerson и
+  // IconPeople в одном ряду не стоят» — пара, которую владелец увидел на
+  // приёмке 10.08. Она держала ровно один случай из семи и не знала ни про
+  // ряды, ни про смыслы. Дизайн разобрал набор рядами (письмо 39, работа 2) и
+  // назвал ещё четыре пары, все в самом длинном ряду продукта — «комната
+  // списком», тринадцать знаков зон столбцом.
   //
-  // ЧЕГО ЭТОТ ТЕСТ НЕ УМЕЕТ, И ЭТО ЧЕСТНО СКАЗАТЬ: «похоже ли» решает глаз, а
-  // не машина — `IconPerson` и `IconPeople` разными числами рисуют один и тот
-  // же силуэт, и никакая сверка путей этого не поймает. Аудит ряда заказан
-  // дизайну письмом 39. Здесь держим ровно то, что машина держать может:
-  // состав ряда и названную владельцем пару.
-  const source = (file: string) =>
-    readFileSync(fileURLToPath(new URL(file, import.meta.url)), "utf8");
+  // Теперь ряды, разрешённые пары и сама формулировка приезжают из
+  // `icons.json`, а имён в коде сторожа нет ни одного.
 
-  /** Знаки, которые страница ставит в один ряд, — по её же импорту и разметке. */
-  const usedIn = (code: string): string[] => [
-    ...new Set([...code.matchAll(/<(Icon[A-Za-z]+) size=\{(?:CORNER_ICON_SIZE|size)\}/gu)].map((m) => m[1] as string)),
-  ];
+  /** Все файлы набора обеих папок — с геометрией. */
+  const shapeByFile = new Map<string, string[]>();
+  for (const dir of [PACKAGE_ICONS, POOL_ICONS]) {
+    for (const name of readdirSync(dir).filter((f) => f.endsWith(".svg"))) {
+      shapeByFile.set(name, shapeOf(readFileSync(path.join(dir, name), "utf8")));
+    }
+  }
 
-  const barRow = usedIn(source("../src/components/tab-bar/tab-slots.tsx"));
-  const cornerRow = usedIn(source("../src/app/room/page.tsx"));
+  it("формулировка правила — та, под которую написан сторож", () => {
+    // Дизайн поправит правило — тест скажет об этом здесь, а не молча
+    // продолжит держать вчерашнее.
+    expect(contract.guardRule.right).toContain("РАЗНЫМ смыслом");
+    expect(contract.guardRule.right).toContain("знаки одного смысла обязаны совпадать");
+    expect(contract.guardRule.wrong).toContain("забракует бриллиант");
+  });
+
+  it("у каждого знака каждого ряда есть файл в наборе", () => {
+    // Знак, названный в ряду, но не лежащий в репозитории, — дыра в сторожe:
+    // геометрии нет, сравнивать нечего, пара тихо пропускается.
+    for (const [row, files] of Object.entries(contract.rows)) {
+      for (const file of files) {
+        expect(() => setFile(file), `${row}: ${file}`).not.toThrow();
+      }
+    }
+    // САМЫЙ ДЛИННЫЙ РЯД ПРОДУКТА — не бар из пяти, а «комната списком»:
+    // тринадцать знаков зон столбцом на 20 px, и обе его редакции (женская и
+    // мужская) полной длины. Ровно там дизайн нашёл четыре пары из семи.
+    for (const row of ["список зон Ж", "список зон М"]) {
+      expect(contract.rows[row], `ряд «${row}» усох`).toHaveLength(13);
+    }
+  });
+
+  it("ЗНАКИ ОДНОГО СМЫСЛА СОВПАДАЮТ — вторая половина правила", () => {
+    // Сегодня такой смысл один — витрина, три места: бар, угол, лист действий.
+    // Разойдись файлы — на одном экране окажутся два разных знака одной двери
+    // (в комнате угол сцены и таб-бар видны ОДНОВРЕМЕННО). Проверка общая, а
+    // не про витрину: заведётся второй смысл на два места — попадёт сюда сам.
+    const byMeaning = new Map<string, string[]>();
+    for (const file of shapeByFile.keys()) {
+      const key = meaningOf(file);
+      byMeaning.set(key, [...(byMeaning.get(key) ?? []), file]);
+    }
+    const shared = [...byMeaning.entries()].filter(([, files]) => files.length > 1);
+    expect(shared.length, "смыслов на несколько мест не осталось — проверь `meaningOf`").toBeGreaterThan(0);
+    for (const [meaning, files] of shared) {
+      const first = shapeByFile.get(files[0] as string);
+      for (const file of files.slice(1)) {
+        expect(shapeByFile.get(file), `смысл «${meaning}»: ${file} разошёлся с ${files[0]}`).toEqual(
+          first,
+        );
+      }
+    }
+  });
+
+  it("НИ В ОДНОМ РЯДУ нет одинакового силуэта у разных смыслов", () => {
+    for (const [row, files] of Object.entries(contract.rows)) {
+      expect(rowViolations(files, shapeByFile), `ряд «${row}»`).toEqual([]);
+    }
+  });
+
+  it("ряд, который рисует КОД, — тот же, что в контракте", () => {
+    // ВОТ ЧТО ЗАМЕНИЛО ПАРУ ИМЁН. Вчерашняя проверка запрещала конкретное
+    // соседство; эта требует совпадения состава с контрактом — и ловит ту же
+    // ошибку строже. Верни «Настройкам» силуэт человека — в углу окажется
+    // `tab-profile.svg`, которого в ряду контракта нет, и тест назовёт файл.
+    //
+    // Имена файлов не набиты руками: компонент опознаётся ПО ГЕОМЕТРИИ — тем
+    // же способом, каким сверяется с набором.
+    //
+    // СРАВНИВАЕМ ПО СМЫСЛУ, А НЕ ПО ИМЕНИ ФАЙЛА, и это не послабление. У
+    // витрины три файла одной геометрии (`tab-`, `action-`, `ui-`), и по
+    // рисунку они неразличимы НАРОЧНО — то самое, что дизайн просил не
+    // считать ошибкой. Опознание вернуло бы любой из трёх, и сверка имён
+    // падала бы на порядке чтения папки. Смысл же у них один, и он верный.
+    const meaningOfComponent = (name: string, element: ReactElement): string => {
+      const shape = JSON.stringify(shapeOf(renderToStaticMarkup(element)));
+      const hits = [...shapeByFile]
+        .filter(([, fileShape]) => JSON.stringify(fileShape) === shape)
+        .map(([file]) => meaningOf(file));
+      if (hits.length === 0) throw new Error(`${name}: знака нет в наборе — его никто не сверял`);
+      expect(new Set(hits).size, `${name}: один рисунок называет разные смыслы`).toBe(1);
+      return hits[0] as string;
+    };
+    // «Комната» опознаётся без тёплой точки: точка — наше законное исключение
+    // (tokens.json → icons.exception), файл её не знает.
+    const catalogue: Record<string, ReactElement> = {
+      IconRoom: createElement(IconRoom, { dot: false }),
+      IconPeople: createElement(IconPeople),
+      IconPlus: createElement(IconPlus),
+      IconTreasury: createElement(IconTreasury),
+      IconSettings: createElement(IconSettings),
+      IconPerson: createElement(IconPerson),
+    };
+    for (const [where, contractRow, drawn] of [
+      ["бар", "бар", barRow],
+      ["угол", "угол", cornerRow],
+    ] as const) {
+      const drawnMeanings = drawn.map((name) => {
+        const element = catalogue[name];
+        if (!element) throw new Error(`${where}: незнакомый знак ${name} — добавь его в каталог`);
+        return meaningOfComponent(name, element);
+      });
+      expect(drawnMeanings.sort(), `ряд «${where}» разошёлся с контрактом`).toEqual(
+        (contract.rows[contractRow] as string[]).map(meaningOf).sort(),
+      );
+    }
+  });
 
   it("в ряду нет одного знака дважды", () => {
     for (const [where, row] of [
@@ -159,18 +373,55 @@ describe("знаки живут В РЯДУ, и в ряду они обязан�
     }
   });
 
-  it("силуэт человека и силуэт двоих в одном ряду не стоят", () => {
-    // Пара, которую владелец увидел первым: «Друзья и настройки выглядят
-    // одинаково». Круг головы плюс дуга плеч — у соседа он же, просто дважды.
-    for (const [where, row] of [
-      ["таб-бар", barRow],
-      ["угол сцены", cornerRow],
-    ] as const) {
-      const both = row.includes("IconPerson") && row.includes("IconPeople");
-      expect(both, `${where}: силуэт человека снова стоит рядом с силуэтом двоих`).toBe(false);
-    }
+  it("СТОРОЖ ПРОВЕРЕН НА СЕБЕ: ловит запрещённое и пропускает правильное", () => {
+    // Сторож, который ничего не ловит, зелёный по той же причине, что и
+    // сторож, которому нечего ловить. Разница видна только на подложных
+    // данных, поэтому они здесь и есть.
+    const music = shapeByFile.get("pool-music.svg") as string[];
+
+    // 1. ЗАПРЕЩЁННОЕ. Два РАЗНЫХ смысла с одной геометрией в одном ряду —
+    //    ровно то, чем были пластинка и часы до раунда 36.
+    const forged = new Map(shapeByFile);
+    forged.set("pool-watches.svg", music);
+    expect(rowViolations(["pool-music.svg", "pool-watches.svg"], forged)).toEqual([
+      "pool-music.svg · pool-watches.svg",
+    ]);
+
+    // 2. ПРАВИЛЬНОЕ — БРИЛЛИАНТ РЯДОМ С БРИЛЛИАНТОМ. Тот самый случай, ради
+    //    которого дизайн и просил переписать правило: три файла витрины
+    //    совпадают НАРОЧНО, и сторож обязан молчать.
+    expect(
+      rowViolations(["tab-treasury.svg", "action-treasury.svg", "ui-treasury.svg"], shapeByFile),
+      "сторож забраковал правильную рифму одного смысла",
+    ).toEqual([]);
+
+    // 3. РАЗРЕШЁННОЕ ДИЗАЙНОМ. Пара из `cleared` молчит, даже совпав целиком.
+    const clearedForged = new Map(shapeByFile);
+    clearedForged.set("pool-grooming.svg", clearedForged.get("pool-perfume.svg") as string[]);
+    expect(
+      rowViolations(["pool-perfume.svg", "pool-grooming.svg"], clearedForged),
+      "список `cleared` перестал работать",
+    ).toEqual([]);
   });
 
+  it("силуэта ТРЕМЯ ПОЛЯМИ в контракте нет — письмо обещало, файл не привёз", () => {
+    // ЗАПИСАНО ТЕСТОМ, А НЕ ОБИДОЙ. `guardRule.key` говорит «поля у каждого
+    // знака ниже — сторожу их можно читать прямо отсюда»; ниже их нет.
+    // Приедут — тест покраснеет, и сторож станет строже: полное совпадение
+    // геометрии сменится совпадением силуэта, то есть начнёт ловить и
+    // «похоже», а не только «то же самое».
+    expect(contract.guardRule.key).toContain("Поля у каждого знака ниже");
+    const raw = JSON.stringify(contract);
+    for (const field of ['"shell"', '"inside"', '"means"']) {
+      expect(raw, `поле ${field} приехало — пора сделать сторожа строже`).not.toContain(field);
+    }
+  });
+});
+
+describe("что сторож ряда держать не может — держим отдельно (тикеты 147, 149)", () => {
+  // ЧЕСТНАЯ ГРАНИЦА. Сторож выше знает ряды и смыслы, но не знает, чем именно
+  // рисуется место: он сверяет состав, а не назначение. Две проверки ниже —
+  // про назначение, и машине его взять неоткуда, кроме как из кода.
   it("«Настройки» рисует шестерня, и она ИЗ НАБОРА (тикет 149)", () => {
     // ПЕРЕВЁРНУТО. Сутки здесь стояло обратное ожидание — файла шестерни в
     // наборе НЕТ, знак наш, держим правилом и спрашиваем письмом (так живёт
