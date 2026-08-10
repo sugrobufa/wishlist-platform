@@ -1,0 +1,524 @@
+{
+ "note": "Стартовый набор v3 (письмо 35): 19 пулов × 5 зёрен-ЖЕЛАНИЙ + money (копилка, зёрен нет). Правила: только желания — ни дарителей, ни годов, ни «уже моё»; цена обязательна. photo: файл из seed-photos/ этого пакета либо из refs прежних раундов; null — вещь без кадра (серая заливка + значок пула, тикет 82). Размер 5 выбран по ярусам round29: полный вид яруса 3–6 — первая широкая + четыре в две колонки.",
+ "pools": {
+  "fashionF": [
+   {
+    "name": "Пальто-халат",
+    "price": "39 000 ₽",
+    "photo": null
+   },
+   {
+    "name": "Слип-платье",
+    "price": "8 700 ₽",
+    "photo": null
+   },
+   {
+    "name": "Шёлковый шарф",
+    "price": "6 400 ₽",
+    "photo": "p-scarf.jpg"
+   },
+   {
+    "name": "Кашемировый кардиган",
+    "price": "24 000 ₽",
+    "photo": "p-cashmere.jpg"
+   },
+   {
+    "name": "Прямые джинсы",
+    "price": "9 800 ₽",
+    "photo": null
+   }
+  ],
+  "fashionM": [
+   {
+    "name": "Шерстяное пальто",
+    "price": "46 000 ₽",
+    "photo": "p-coatm.jpg"
+   },
+   {
+    "name": "Льняная рубашка",
+    "price": "7 900 ₽",
+    "photo": null
+   },
+   {
+    "name": "Кожаный ремень",
+    "price": "9 800 ₽",
+    "photo": null
+   },
+   {
+    "name": "Свитер из мериноса",
+    "price": "12 400 ₽",
+    "photo": null
+   },
+   {
+    "name": "Твидовый пиджак",
+    "price": "28 000 ₽",
+    "photo": null
+   }
+  ],
+  "jewel": [
+   {
+    "name": "Колье с жемчугом",
+    "price": "48 000 ₽",
+    "photo": "p-emerald.jpg"
+   },
+   {
+    "name": "Серьги-кольца",
+    "price": "7 900 ₽",
+    "photo": "p-earrings.jpg"
+   },
+   {
+    "name": "Цепочка",
+    "price": "12 400 ₽",
+    "photo": "p-chain.jpg"
+   },
+   {
+    "name": "Кольцо",
+    "price": "14 200 ₽",
+    "photo": null
+   },
+   {
+    "name": "Браслет-цепь",
+    "price": "9 600 ₽",
+    "photo": null
+   }
+  ],
+  "beauty": [
+   {
+    "name": "Сыворотка",
+    "price": "4 300 ₽",
+    "photo": "p-serum.jpg"
+   },
+   {
+    "name": "Парфюм Nº7",
+    "price": "14 900 ₽",
+    "photo": "p-warm.jpg"
+   },
+   {
+    "name": "Ночной крем",
+    "price": "5 600 ₽",
+    "photo": null
+   },
+   {
+    "name": "Палетка",
+    "price": "6 100 ₽",
+    "photo": "p-palette.jpg"
+   },
+   {
+    "name": "Набор кистей",
+    "price": "8 200 ₽",
+    "photo": null
+   }
+  ],
+  "bags": [
+   {
+    "name": "Стёганая сумка",
+    "price": "62 000 ₽",
+    "photo": "p-bag.jpg"
+   },
+   {
+    "name": "Клатч",
+    "price": "19 000 ₽",
+    "photo": "p-clutch.jpg"
+   },
+   {
+    "name": "Сумка на пояс",
+    "price": "11 500 ₽",
+    "photo": null
+   },
+   {
+    "name": "Дорожная сумка",
+    "price": "34 000 ₽",
+    "photo": null
+   },
+   {
+    "name": "Шоппер холщовый",
+    "price": "3 900 ₽",
+    "photo": null
+   }
+  ],
+  "tech": [
+   {
+    "name": "Наушники",
+    "price": "34 900 ₽",
+    "photo": "p-headphones.jpg"
+   },
+   {
+    "name": "Экшн-камера",
+    "price": "41 000 ₽",
+    "photo": "p-camera.jpg"
+   },
+   {
+    "name": "Док-станция",
+    "price": "8 900 ₽",
+    "photo": null
+   },
+   {
+    "name": "Клавиатура",
+    "price": "16 400 ₽",
+    "photo": null
+   },
+   {
+    "name": "Электронная читалка",
+    "price": "18 900 ₽",
+    "photo": null
+   }
+  ],
+  "watches": [
+   {
+    "name": "Дайвер, механика",
+    "price": "96 000 ₽",
+    "photo": "p-watch.jpg"
+   },
+   {
+    "name": "Хронограф",
+    "price": "140 000 ₽",
+    "photo": "p-chrono.jpg"
+   },
+   {
+    "name": "Полевые",
+    "price": "38 000 ₽",
+    "photo": null
+   },
+   {
+    "name": "Ремень из кордована",
+    "price": "9 500 ₽",
+    "photo": null
+   },
+   {
+    "name": "Подставка",
+    "price": "6 000 ₽",
+    "photo": null
+   }
+  ],
+  "music": [
+   {
+    "name": "Винил, первопресс",
+    "price": "12 000 ₽",
+    "photo": "p-vinyl.jpg"
+   },
+   {
+    "name": "Тонарм",
+    "price": "54 000 ₽",
+    "photo": null
+   },
+   {
+    "name": "Стойка для пластинок",
+    "price": "18 000 ₽",
+    "photo": null
+   },
+   {
+    "name": "Второй динамик",
+    "price": "46 000 ₽",
+    "photo": "p-speaker.jpg"
+   },
+   {
+    "name": "Открытые наушники",
+    "price": "29 000 ₽",
+    "photo": "p-headphones.jpg"
+   }
+  ],
+  "sneakers": [
+   {
+    "name": "Платформы",
+    "price": "11 400 ₽",
+    "photo": "p-bold.jpg"
+   },
+   {
+    "name": "Высокие кеды",
+    "price": "14 900 ₽",
+    "photo": "p-hightops.jpg"
+   },
+   {
+    "name": "Рюкзак",
+    "price": "17 200 ₽",
+    "photo": null
+   },
+   {
+    "name": "Сумка через плечо",
+    "price": "9 400 ₽",
+    "photo": null
+   },
+   {
+    "name": "Ретро-раннеры",
+    "price": "13 500 ₽",
+    "photo": "p-runners.jpg"
+   }
+  ],
+  "anything": [
+   {
+    "name": "Керамика ручной работы",
+    "price": "4 800 ₽",
+    "photo": "p-ceramic.jpg"
+   },
+   {
+    "name": "Сертификат в мастерскую",
+    "price": "7 000 ₽",
+    "photo": null
+   },
+   {
+    "name": "Настольная игра",
+    "price": "5 400 ₽",
+    "photo": "p-boardgame.jpg"
+   },
+   {
+    "name": "Подписка на кофе",
+    "price": "3 600 ₽",
+    "photo": null
+   },
+   {
+    "name": "Плёночный фотоаппарат",
+    "price": "15 000 ₽",
+    "photo": null
+   }
+  ],
+  "perfume": [
+   {
+    "name": "Парфюм Nº7",
+    "price": "14 900 ₽",
+    "photo": "p-warm.jpg"
+   },
+   {
+    "name": "Дорожный флакон",
+    "price": "5 200 ₽",
+    "photo": "p-flacon.jpg"
+   },
+   {
+    "name": "Свеча",
+    "price": "4 100 ₽",
+    "photo": null
+   },
+   {
+    "name": "Диффузор",
+    "price": "7 600 ₽",
+    "photo": null
+   },
+   {
+    "name": "Набор пробников",
+    "price": "3 900 ₽",
+    "photo": null
+   }
+  ],
+  "events": [
+   {
+    "name": "Билеты в оперу",
+    "price": "9 400 ₽",
+    "photo": "p-tickets.jpg"
+   },
+   {
+    "name": "Ужин на двоих",
+    "price": "12 000 ₽",
+    "photo": null
+   },
+   {
+    "name": "Мастер-класс",
+    "price": "4 500 ₽",
+    "photo": null
+   },
+   {
+    "name": "Фотосессия",
+    "price": "18 000 ₽",
+    "photo": null
+   },
+   {
+    "name": "Концерт",
+    "price": "4 200 ₽",
+    "photo": null
+   }
+  ],
+  "travel": [
+   {
+    "name": "Три дня в Тбилиси",
+    "price": "34 000 ₽",
+    "photo": null
+   },
+   {
+    "name": "Чемодан 55 см",
+    "price": "21 000 ₽",
+    "photo": "p-suitcase.jpg"
+   },
+   {
+    "name": "Поход в Дагестан",
+    "price": "48 000 ₽",
+    "photo": null
+   },
+   {
+    "name": "Дом в Сочи на неделю",
+    "price": "26 000 ₽",
+    "photo": null
+   },
+   {
+    "name": "Страховка",
+    "price": "3 200 ₽",
+    "photo": null
+   }
+  ],
+  "books": [
+   {
+    "name": "Монография о свете",
+    "price": "6 800 ₽",
+    "photo": null
+   },
+   {
+    "name": "Три романа",
+    "price": "2 400 ₽",
+    "photo": "p-books.jpg"
+   },
+   {
+    "name": "Подписка на книги",
+    "price": "1 900 ₽",
+    "photo": null
+   },
+   {
+    "name": "Лампа для чтения",
+    "price": "9 600 ₽",
+    "photo": null
+   },
+   {
+    "name": "Полка",
+    "price": "14 000 ₽",
+    "photo": null
+   }
+  ],
+  "gaming": [
+   {
+    "name": "Игра года",
+    "price": "5 400 ₽",
+    "photo": null
+   },
+   {
+    "name": "Второй геймпад",
+    "price": "8 900 ₽",
+    "photo": "p-gamepad.jpg"
+   },
+   {
+    "name": "Подписка",
+    "price": "3 200 ₽",
+    "photo": null
+   },
+   {
+    "name": "Кресло",
+    "price": "54 000 ₽",
+    "photo": null
+   },
+   {
+    "name": "Микрофон",
+    "price": "19 000 ₽",
+    "photo": null
+   }
+  ],
+  "sport": [
+   {
+    "name": "Гантели 12 кг",
+    "price": "11 000 ₽",
+    "photo": "p-dumbbells.jpg"
+   },
+   {
+    "name": "Коврик",
+    "price": "4 800 ₽",
+    "photo": null
+   },
+   {
+    "name": "Фитнес-браслет",
+    "price": "16 000 ₽",
+    "photo": null
+   },
+   {
+    "name": "Бутылка",
+    "price": "2 400 ₽",
+    "photo": null
+   },
+   {
+    "name": "Беговые кроссовки",
+    "price": "13 500 ₽",
+    "photo": "p-runners.jpg"
+   }
+  ],
+  "home": [
+   {
+    "name": "Плед из шерсти",
+    "price": "12 000 ₽",
+    "photo": "p-blanket.jpg"
+   },
+   {
+    "name": "Свечи",
+    "price": "3 400 ₽",
+    "photo": null
+   },
+   {
+    "name": "Постель из льна",
+    "price": "18 000 ₽",
+    "photo": null
+   },
+   {
+    "name": "Керамика ручной работы",
+    "price": "4 800 ₽",
+    "photo": "p-ceramic.jpg"
+   },
+   {
+    "name": "Кофейник гейзерный",
+    "price": "5 900 ₽",
+    "photo": null
+   }
+  ],
+  "flowers": [
+   {
+    "name": "Букет пионов",
+    "price": "8 900 ₽",
+    "photo": "p-peonies.jpg"
+   },
+   {
+    "name": "Подписка на цветы",
+    "price": "4 200 ₽",
+    "photo": null
+   },
+   {
+    "name": "Сухоцветы",
+    "price": "3 100 ₽",
+    "photo": null
+   },
+   {
+    "name": "Ваза",
+    "price": "6 800 ₽",
+    "photo": null
+   },
+   {
+    "name": "Орхидея",
+    "price": "5 400 ₽",
+    "photo": null
+   }
+  ],
+  "grooming": [
+   {
+    "name": "Станок и лезвия",
+    "price": "6 400 ₽",
+    "photo": "p-razor.jpg"
+   },
+   {
+    "name": "Триммер для бороды",
+    "price": "11 900 ₽",
+    "photo": null
+   },
+   {
+    "name": "Масло для бороды",
+    "price": "2 800 ₽",
+    "photo": null
+   },
+   {
+    "name": "Кожаный несессер",
+    "price": "9 200 ₽",
+    "photo": null
+   },
+   {
+    "name": "Одеколон, 100 мл",
+    "price": "13 500 ₽",
+    "photo": "p-flacon.jpg"
+   }
+  ]
+ },
+ "stats": {
+  "pools": 19,
+  "seeds": 95,
+  "withPhoto": 36,
+  "newPhotos": 19
+ }
+}
