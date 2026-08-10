@@ -409,7 +409,7 @@ describe("чего мы из контракта НЕ взяли — и поче�
     expect(contract.body.wish).toContain("5 px");
     expect(contract.body.wish).toContain("gap 4");
     const scaleCss = read("../src/components/item/desire-scale.module.css");
-    expect(scaleCss).toMatch(/\.card \.flame \{[\s\S]*?width: 6px;/u);
+    expect(scaleCss).toMatch(/\.flame \{[\s\S]*?width: 6px;/u);
     // В карточке стоит ввод, а не показ, — второго места ввода на экране нет.
     expect(card).toContain("<DesirePicker");
     expect(card).not.toContain("DesireScale");

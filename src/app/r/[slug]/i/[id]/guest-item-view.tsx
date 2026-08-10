@@ -103,7 +103,7 @@ export function GuestItemView({
                   {sum}
                 </span>
               )}
-              <DesireScale desire={desire} accent={accent} place="card" />
+              <DesireScale desire={desire} accent={accent} />
             </div>
           )}
           {!isWant && <p className="mt-2 text-sm text-text-muted">{t("loveCaption")}</p>}

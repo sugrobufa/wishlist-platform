@@ -11,6 +11,16 @@
 // Рендером, а не чтением исходника: правила шкалы («не скажу» не рисуется
 // нулём, светится только четвёртый огонёк) — про разметку, и увидеть их можно
 // только в ней.
+//
+// ВИД У ШКАЛЫ ОДИН (тикет 161). Файл описывал «два места — два вида»: 6 px со
+// словом в карточке и 5 px без слова в строке зоны. Второго не стало, и не
+// потому, что мы прибрались: строку у него забрал сам дизайн (`zone-row.json →
+// form.wishDot` — «четыре огонька в строке 52 съедают имя; лестница целиком
+// живёт в сетке и в карточке»), а тикет 152 это воплотил. После него у варианта
+// не осталось ни одного потребителя в продукте — дёргал его только этот тест.
+// Поэтому раздел «два места» заменён на «вид один», и он же держит решение от
+// молчаливого отката: проверяет, что вариант не вернулся и что причина его
+// снятия жива — точку в строке рисует сама строка.
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { createElement } from "react";
@@ -36,8 +46,8 @@ const { DesireScale, DESIRE_DREAM, DESIRE_STEPS } = await import(
 const read = (relative: string) =>
   readFileSync(fileURLToPath(new URL(relative, import.meta.url)), "utf8");
 
-const draw = (desire: number | null | undefined, place: "card" | "row" = "card") =>
-  renderToStaticMarkup(createElement(DesireScale, { desire, accent: "#E7C9A9", place }));
+const draw = (desire: number | null | undefined) =>
+  renderToStaticMarkup(createElement(DesireScale, { desire, accent: "#E7C9A9" }));
 
 /** Сколько огоньков нарисовано и сколько из них горит. */
 const flames = (markup: string) => (markup.match(/_flame_/gu) ?? []).length;
@@ -90,32 +100,64 @@ describe("«не скажу» — шкалы нет вовсе", () => {
   });
 });
 
-describe("два места — два вида (36d)", () => {
-  it("в карточке — со словом, шкала для читалки скрыта", () => {
-    const markup = draw(3, "card");
+describe("вид один — карточка (36d + zone-row.json)", () => {
+  it("слово рядом всегда, огоньки от читалки скрыты", () => {
+    const markup = draw(3);
     expect(markup).toContain(ru.AddItem.desire3);
     expect(markup).toContain('aria-hidden="true"');
   });
 
-  it("вид без слова — читалка слышит слово всё равно", () => {
-    // Второй вид завёлся для строки зоны, и в продукте её больше не одевает:
-    // раунд 36 оставил строке ОДИН огонёк вместо лестницы (zone-row.json →
-    // wishDot, «четыре огонька в строке 52 съедают имя»). Правило вида от
-    // этого не изменилось и проверяется как было.
-    const markup = draw(3, "row");
-    expect(markup).not.toContain(`>${ru.AddItem.desire3}<`);
-    expect(markup).toContain(`aria-label="${ru.AddItem.desire3}"`);
-  });
-
-  it("числа вида — с макета: 6 px в карточке, 5 px в строке", () => {
+  it("числа вида — с макета: 6 px с шагом 5", () => {
     const css = read("../src/components/item/desire-scale.module.css");
     expect(css).toContain("width: 6px");
-    expect(css).toContain("width: 5px");
     expect(css).toContain("gap: 5px");
-    expect(css).toContain("gap: 4px");
     // Пустой огонёк — .2; слово 12 px тоном .55.
     expect(css).toContain("background: rgba(255, 249, 242, 0.2)");
     expect(css).toContain("font: 400 12px/1 var(--font-ui)");
+  });
+
+  it("ВАРИАНТ СТРОКИ СНЯТ ЦЕЛИКОМ — ни пропа, ни правил, ни 5 px", () => {
+    // Снят целиком, а не «перестал вызываться»: иначе он вернулся бы первым же
+    // «а тут бы поменьше», и мёртвое правило снова стало бы живым кодом.
+    // Комментарии из исходника убираются: в них снятый вариант описан, и
+    // описан правильно — это объяснение, а не код.
+    const component = read("../src/components/item/desire-scale.tsx")
+      .replace(/\/\*[\s\S]*?\*\//gu, "")
+      .replace(/^\s*\/\/.*$/gmu, "");
+    const css = read("../src/components/item/desire-scale.module.css").replace(
+      /\/\*[\s\S]*?\*\//gu,
+      "",
+    );
+    expect(component, "у шкалы снова два вида").not.toMatch(/place/u);
+    expect(css).not.toMatch(/^\.row/mu);
+    expect(css).not.toContain("width: 5px");
+    expect(css).not.toContain("gap: 4px");
+    // Безсловной ветки не осталось: слово стоит всегда, и роль с подписью
+    // вместо него больше не нужна — ни в коде, ни в разметке.
+    expect(component).not.toContain('role="img"');
+    expect(draw(3)).not.toContain("aria-label");
+  });
+
+  it("причина снятия ЖИВА: точку в строке рисует сама строка", () => {
+    // Если строка когда-нибудь снова попросит лестницу, эта проверка упадёт
+    // первой — и вариант надо будет возвращать осознанно, а не по привычке.
+    const zoneRow = read("../src/components/zone-row/zone-row.tsx");
+    const contract = JSON.parse(read("../design/package/handoff/zone-row.json")) as {
+      form: { wishDot: { size: number; why: string } };
+    };
+    expect(contract.form.wishDot.size).toBe(5);
+    expect(contract.form.wishDot.why).toContain("лестница целиком живёт в сетке и в карточке");
+    expect(zoneRow).toContain("desire === DESIRE_DREAM");
+    expect(zoneRow, "в строку вернулась вся лестница").not.toContain("DesireScale");
+  });
+
+  it("потребитель у шкалы ровно один — гостевая карточка", () => {
+    // Второй появится — станет видно здесь, и вместе с ним придёт вопрос,
+    // хватает ли ему одного вида.
+    const guest = read("../src/app/r/[slug]/i/[id]/guest-item-view.tsx");
+    expect(guest).toContain("<DesireScale desire={desire} accent={accent} />");
+    const owner = read("../src/app/room/zone/[zone]/i/[id]/item-card.tsx");
+    expect(owner, "в карточке хозяйки показ вместо ввода").not.toContain("DesireScale");
   });
 });
 
@@ -176,7 +218,8 @@ describe("где показ обязан быть", () => {
   it("в карточке вещи у ГОСТЯ — тем же видом: он по шкале выбирает подарок", () => {
     const guest = read("../src/app/r/[slug]/i/[id]/guest-item-view.tsx");
     expect(guest).toContain("<DesireScale");
-    expect(guest).toContain('place="card"');
+    // Вида у шкалы один, и выбирать его нечем: пропа `place` больше нет
+    // (тикет 161) — раздел «вид один» выше держит это со стороны компонента.
     // Значение берётся из гостевого DTO, а не досочиняется на клиенте.
     expect(guest).toContain("const desire = item.inHall ? null : item.desire;");
   });
