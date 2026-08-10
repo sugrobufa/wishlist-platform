@@ -14,12 +14,23 @@
 // серверном словаре вне next-intl (почему именно там — комментарий в самом
 // файле). В этом модуле остались сборка, ссылки и отправка.
 //
+// ВЁРСТКА ДВУХ ГОСТЕВЫХ ПИСЕМ ТОЖЕ ЖИВЁТ НЕ ЗДЕСЬ (тикет 160): напоминание и
+// «вещь уехала» собираются из готовых почтовых шаблонов дизайна
+// (`mail-templates.ts`, раунд 39) — таблицы и инлайн-стили писал он, мы
+// подставляем значения. Служебные письма (вход, «что подарили») по-прежнему
+// собираются здесь простой разметкой: их дизайн не рисовал.
+//
 // ИНВАРИАНТ №1 (тихая бронь): письмо хозяйке не упоминает ни вещей, ни
 // имён — шаблон физически принимает только имя хозяйки и ссылку на
 // «что подарили». Покрыто тестом (tests/mailer.worker.test.ts).
 
 import type { Transporter } from "nodemailer";
+import { daysUntilOccasion } from "@/app/r/[slug]/welcome";
+import { zoneInfo } from "@/config/design";
+import { guestSeesPrice } from "@/server/dto/guest-items";
+import type { PriceVisibilityDto } from "@/server/dto/items";
 import { brandName, fillMail, mailMessages } from "./mail-messages";
+import { ITEM_GONE_HTML, REMINDER_HTML } from "./mail-templates";
 
 // ---------- Транспорт ----------
 
@@ -149,8 +160,10 @@ function escapeHtml(value: string): string {
     .replace(/'/g, "&#39;");
 }
 
-// Письма — простой светлый HTML на инлайн-стилях и системном шрифте:
-// веб-шрифты продукта (Archivo/Onest) в письма сознательно не тащим.
+// СЛУЖЕБНЫЕ письма (вход, «что подарили») — простой светлый HTML на
+// инлайн-стилях и системном шрифте: веб-шрифты продукта (Archivo/Onest) в
+// письма сознательно не тащим. Два ГОСТЕВЫХ письма с раунда 39 собираются не
+// здесь, а из готовой почтовой вёрстки дизайна (mail-templates.ts).
 const HTML_WRAP = [
   `<div style="font-family:-apple-system,'Segoe UI',Roboto,Arial,sans-serif;`,
   `font-size:15px;line-height:1.6;color:#333333;background:#ffffff;`,
@@ -164,12 +177,63 @@ export interface MailContent {
 }
 
 /**
- * Подстановка значений в строку словаря для HTML. Экранируется результат
- * целиком: строки словаря — обычная проза без разметки, а пользовательский
- * ввод (имя, название вещи) внутри них после этого безопасен наверняка.
+ * Подстановка в ГОТОВУЮ ПОЧТОВУЮ ВЁРСТКУ (mail-templates.ts): экранируется
+ * КАЖДОЕ ЗНАЧЕНИЕ, а шаблон — нет. Порядок обратный привычному «экранируем
+ * результат целиком», и по-другому нельзя: в шаблоне сама разметка,
+ * экранируй его — и человек получит письмо с `&lt;table&gt;`.
+ *
+ * Значения — уже собранные строки (имя, название вещи, цена, ссылки); ни в
+ * одной из них разметки нет и быть не должно.
  */
-function fillHtml(template: string, values: Record<string, string>): string {
-  return escapeHtml(fillMail(template, values));
+function renderMailTemplate(template: string, values: Record<string, string>): string {
+  return template.replace(/\{(\w+)\}/g, (whole, key: string) => {
+    const value = values[key];
+    return value === undefined ? whole : escapeHtml(value);
+  });
+}
+
+/**
+ * Знак и хвост локапа: «G» + «race». Оба берутся из ЕДИНСТВЕННОГО ключа имени
+ * площадки (`Brand.name`) — переименование остаётся правкой в одном месте.
+ * В вёрстке дизайна на месте знака стоит картинка с `alt="G"`; почему у нас
+ * там текст — в шапке mail-templates.ts.
+ */
+function brandMark(): { mark: string; brandTail: string } {
+  return { mark: brandName.slice(0, 1), brandTail: brandName.slice(1) };
+}
+
+/** «7 900 ₽» — цена вещи для письма; неизвестная валюта не роняет письмо. */
+function formatMailPrice(price: string | null, currency: string | null): string | null {
+  if (price === null) return null;
+  const value = Number(price);
+  if (!Number.isFinite(value)) return null;
+  try {
+    return new Intl.NumberFormat("ru-RU", {
+      style: "currency",
+      currency: currency ?? "RUB",
+      minimumFractionDigits: 0,
+      maximumFractionDigits: 2,
+    }).format(value);
+  } catch {
+    return `${price} ${currency ?? ""}`.trim();
+  }
+}
+
+/**
+ * Разделитель плашки — точка между НЕРАЗРЫВНЫМИ пробелами, как в вёрстке
+ * дизайна (`&nbsp;·&nbsp;`). Здесь это настоящие символы U+00A0: экранирование
+ * значений их не трогает, а в письме получается то же самое.
+ */
+const META_SEPARATOR = "\u00A0·\u00A0";
+
+/** Русская форма счётного слова: 1 вещь · 3 вещи · 19 вещей. */
+function pluralRu(count: number, one: string, few: string, many: string): string {
+  const mod100 = Math.abs(count) % 100;
+  const mod10 = mod100 % 10;
+  if (mod100 >= 11 && mod100 <= 14) return many;
+  if (mod10 === 1) return one;
+  if (mod10 >= 2 && mod10 <= 4) return few;
+  return many;
 }
 
 /**
@@ -214,64 +278,115 @@ export function signInMail(url: string): MailContent {
 // ---------- Шаблон: напоминание гостю за 3 дня ----------
 
 export interface ReminderGuestParams {
-  guestName: string;
   /** displayName хозяйки; null — имени нет, письмо обходится без него. */
   ownerName: string | null;
   itemTitle: string;
   occasionDate: Date;
-  roomSlug: string;
+  /** Ключ зоны вещи (`Item.zone`) — подпись полки берётся из zones.json. */
+  itemZone: string | null;
+  /** Цена Decimal строкой и её валюта; null — цены у вещи нет. */
+  price: string | null;
+  currency: string | null;
+  /**
+   * Настройка хозяйки на момент ОТПРАВКИ. `ME`/`NONE` — цены в письме нет
+   * вовсе (инвариант №8): письмо не имеет права показать гостю то, чего ему
+   * не показывает комната.
+   */
+  priceVisibility: PriceVisibilityDto;
+  /** «Сейчас» для счёта дней до праздника; в тестах подменяется. */
+  now?: Date;
 }
 
 /**
- * «Мила отмечает праздник 14 марта, подарок за тобой» + ссылки на «Мои
- * подарки» и комнату. Имя хозяйки — displayName как есть, поэтому фразы
- * построены под именительный падеж (склонять чужие имена нельзя).
- * Письмо содержит только СВОЮ бронь гостя — ничего о других.
+ * «Через три дня праздник у Милы» — контракт round39, вёрстка
+ * `REMINDER_HTML`. Письмо содержит только СВОЮ бронь гостя: ни одного слова
+ * о других гостях и о том, сколько вещей уже заняли (запрет контракта и
+ * инвариант №1 с другой стороны).
+ *
+ * Имя хозяйки — displayName как есть, поэтому фразы построены под
+ * именительный падеж (склонять чужие имена нельзя), а прошедшего времени в
+ * них нет: рода мы не знаем ни у хозяйки, ни у гостя.
  */
 export function reminderGuestMail(params: ReminderGuestParams): MailContent {
   const t = mailMessages.ReminderMail;
+  const now = params.now ?? new Date();
   const date = formatOccasionDate(params.occasionDate);
-  const myBookingsUrl = appUrl("/my-bookings");
-  const roomUrl = appUrl(`/r/${params.roomSlug}`);
+  const link = appUrl("/my-bookings");
 
-  const values = {
-    name: params.guestName,
-    owner: params.ownerName ?? "",
-    item: params.itemTitle,
-    date,
-  };
-  // Без displayName хозяйки фраза строится без неё — «null» в письме не место.
-  const occasion = params.ownerName ? t.occasion : t.occasionNoName;
+  // «Через три дня» — правда не всегда: тик ежечасный, а бронь могли занять,
+  // когда до праздника оставалось меньше. Счёт дней — общий с продуктом
+  // (welcome.daysUntilOccasion, те же UTC-сутки, что у formatOccasionDate).
+  const days = daysUntilOccasion(params.occasionDate.toISOString().slice(0, 10), now);
+  const when =
+    days === 0
+      ? t.whenToday
+      : days === 1
+        ? t.whenTomorrow
+        : days === 2
+          ? t.when2
+          : days === 3
+            ? t.when3
+            : t.whenSoon;
+
+  const named = params.ownerName !== null && params.ownerName !== "";
+  const values = { name: params.ownerName ?? "", item: params.itemTitle, date, when };
+
+  // Плашка вещи: «7 900 ₽ · полка «Одежда» · комната Милы». Каждая часть
+  // пропадает молча, если её нет: цены у вещи, подписи у зоны, имени у
+  // хозяйки. Скрытая цена (ME/NONE) — тот же случай, что «цены нет».
+  const price = guestSeesPrice(params.priceVisibility)
+    ? formatMailPrice(params.price, params.currency)
+    : null;
+  const zoneLabel = params.itemZone === null ? null : (zoneInfo(params.itemZone)?.label ?? null);
+  const meta = [
+    price,
+    zoneLabel === null ? null : fillMail(t.zone, { zone: zoneLabel }),
+    named ? fillMail(t.room, values) : null,
+  ]
+    .filter((part): part is string => part !== null)
+    .join(META_SEPARATOR);
+
+  const subject = fillMail(named ? t.subject : t.subjectNoName, values);
+  const title = fillMail(named ? t.title : t.titleNoName, values);
+  const quiet = fillMail(named ? t.quiet : t.quietNoName, values);
+  const tailTrail = fillMail(named ? t.tailTrail : t.tailTrailNoName, values);
 
   const text = [
-    fillMail(t.greeting, values),
+    subject,
     ``,
-    fillMail(occasion, values),
-    fillMail(t.taken, values),
+    quiet,
     ``,
-    `${t.bookings} — ${t.bookingsHint}: ${myBookingsUrl}`,
-    `${t.room}: ${roomUrl}`,
+    params.itemTitle,
+    ...(meta === "" ? [] : [meta]),
     ``,
-    t.quiet,
+    `${t.bookings} — ${t.bookingsHint}: ${link}`,
+    ``,
+    `${t.tailLead} ${t.tailAction}${tailTrail}`,
     ``,
     signature(),
   ].join("\n");
 
-  const html = [
-    HTML_WRAP,
-    `<p style="margin:0 0 16px;">${fillHtml(t.greeting, values)}</p>`,
-    `<p style="margin:0 0 16px;">${fillHtml(occasion, values)}<br/>`,
-    `${fillHtml(t.taken, values)}</p>`,
-    `<p style="margin:0 0 16px;">`,
-    `<a href="${escapeHtml(myBookingsUrl)}" style="color:#333333;">${escapeHtml(t.bookings)}</a>`,
-    ` — ${escapeHtml(t.bookingsHint)}<br/>`,
-    `<a href="${escapeHtml(roomUrl)}" style="color:#333333;">${escapeHtml(t.room)}</a></p>`,
-    `<p style="margin:0;color:#888888;font-size:13px;">${escapeHtml(t.quiet)}</p>`,
-    signatureHtml(),
-    `</div>`,
-  ].join("");
+  const html = renderMailTemplate(REMINDER_HTML, {
+    subject,
+    preheader: fillMail(t.preheader, values),
+    ...brandMark(),
+    overline: t.overline,
+    when,
+    title,
+    quiet,
+    item: params.itemTitle,
+    meta,
+    link,
+    cta: t.cta,
+    tailLead: t.tailLead,
+    tailAction: t.tailAction,
+    tailTrail,
+    footer: t.footer,
+    footerLink: t.bookings,
+    signature: signature(),
+  });
 
-  return { subject: fillMail(t.subject, values), text, html };
+  return { subject, text, html };
 }
 
 export async function sendReminderGuest(to: string, params: ReminderGuestParams): Promise<void> {
@@ -281,16 +396,30 @@ export async function sendReminderGuest(to: string, params: ReminderGuestParams)
 // ---------- Шаблон: гостю, когда вещь уехала в сокровищницу ----------
 
 export interface ItemGoneParams {
-  /** Имя гостя из его же брони; пустое — письмо здоровается без имени. */
-  guestName: string;
   itemTitle: string;
   roomSlug: string;
+  /** displayName хозяйки; null — фраза строится без имени. */
+  ownerName: string | null;
+  /**
+   * Сколько вещей комнаты свободно на момент ОТПРАВКИ; null — не считали
+   * (комната пропала). Считает `countFreeGiftsByRoom` — то же правило, что
+   * показывает сама комната, чтобы письмо и страница не спорили числами.
+   */
+  freeCount: number | null;
+  /** Дата праздника комнаты; null — даты нет или праздник уже прошёл. */
+  occasionDate: Date | null;
+  /** «Сейчас» — прошедший праздник в письме не называем. */
+  now?: Date;
 }
 
 /**
- * «Подарок больше не нужен» (тикет 124, раунд 28): хозяйка перенесла вещь в
- * сокровищницу, бронь снялась молча, и гость обязан узнать об этом ДО
- * праздника — иначе он придёт с подарком, который у хозяйки уже есть.
+ * «Вещь уехала — выбери другую» (тикет 124, раунд 28; слова и вёрстка —
+ * контракт round39, `ITEM_GONE_HTML`): вещь ушла из комнаты, бронь снялась
+ * молча, и гость обязан узнать об этом ДО праздника — иначе он придёт с
+ * подарком, которого в комнате уже нет.
+ *
+ * ПОЧЕМУ вещь уехала, письмо не говорит: правило контракта («мы этого не
+ * знаем, а догадка обидна»).
  *
  * ПИСЬМО ИДЁТ ТОЛЬКО ГОСТЮ и ничего не говорит о других бронях. Хозяйке о нём
  * не сообщается ничем, и ни один её экран от него не зависит (инвариант №1):
@@ -298,39 +427,66 @@ export interface ItemGoneParams {
  */
 export function itemGoneMail(params: ItemGoneParams): MailContent {
   const t = mailMessages.ItemGoneMail;
-  const myBookingsUrl = appUrl("/my-bookings");
+  const bookingsUrl = appUrl("/my-bookings");
   const roomUrl = appUrl(`/r/${params.roomSlug}`);
-  const values = { name: params.guestName, item: params.itemTitle };
-  // Имени нет — здороваемся без него и называем вещь общей фразой.
-  const greeting = params.guestName ? fillMail(t.greeting, values) : null;
-  const body = params.itemTitle ? fillMail(t.body, values) : t.bodyNoName;
+  const named = params.ownerName !== null && params.ownerName !== "";
+  const values = { name: params.ownerName ?? "", item: params.itemTitle };
+
+  const body = params.itemTitle ? fillMail(t.body, values) : t.bodyNoItem;
+  const preheader = params.itemTitle ? fillMail(t.preheader, values) : t.preheaderNoItem;
+
+  // «Сколько свободно и когда праздник». Обе половины необязательны: пустая
+  // комната про свободные вещи молчит, комната без даты — про праздник.
+  const free =
+    params.freeCount === null || params.freeCount <= 0
+      ? null
+      : fillMail(named ? t.free : t.freeNoName, {
+          ...values,
+          free: fillMail(
+            pluralRu(params.freeCount, t.thingsOne, t.thingsFew, t.thingsMany),
+            { count: String(params.freeCount) },
+          ),
+        });
+  const occasionAhead =
+    params.occasionDate !== null &&
+    daysUntilOccasion(
+      params.occasionDate.toISOString().slice(0, 10),
+      params.now ?? new Date(),
+    ) !== null;
+  const occasion =
+    params.occasionDate === null || !occasionAhead
+      ? null
+      : fillMail(t.occasion, { date: formatOccasionDate(params.occasionDate) });
+  const tail = [free, occasion].filter((part): part is string => part !== null).join(". ");
 
   const text = [
-    ...(greeting ? [greeting, ``] : []),
     body,
     ``,
-    `${t.room}: ${roomUrl}`,
-    `${t.bookings} — ${t.bookingsHint}: ${myBookingsUrl}`,
-    ``,
-    t.quiet,
+    `${t.cta}: ${roomUrl}`,
+    `${t.bookings} — ${t.bookingsHint}: ${bookingsUrl}`,
+    ...(tail === "" ? [] : [``, tail]),
     ``,
     signature(),
   ].join("\n");
 
-  const html = [
-    HTML_WRAP,
-    ...(greeting ? [`<p style="margin:0 0 16px;">${escapeHtml(greeting)}</p>`] : []),
-    `<p style="margin:0 0 16px;">${escapeHtml(body)}</p>`,
-    `<p style="margin:0 0 16px;">`,
-    `<a href="${escapeHtml(roomUrl)}" style="color:#333333;">${escapeHtml(t.room)}</a><br/>`,
-    `<a href="${escapeHtml(myBookingsUrl)}" style="color:#333333;">${escapeHtml(t.bookings)}</a>`,
-    ` — ${escapeHtml(t.bookingsHint)}</p>`,
-    `<p style="margin:0;color:#888888;font-size:13px;">${escapeHtml(t.quiet)}</p>`,
-    signatureHtml(),
-    `</div>`,
-  ].join("");
+  const html = renderMailTemplate(ITEM_GONE_HTML, {
+    subject: t.subject,
+    preheader,
+    ...brandMark(),
+    overline: t.overline,
+    title: t.title,
+    titleTail: t.titleTail,
+    body,
+    link: roomUrl,
+    cta: t.cta,
+    tail,
+    footer: t.footer,
+    footerLink: t.bookings,
+    footerLinkUrl: bookingsUrl,
+    signature: signature(),
+  });
 
-  return { subject: fillMail(t.subject, values), text, html };
+  return { subject: t.subject, text, html };
 }
 
 export async function sendItemGone(to: string, params: ItemGoneParams): Promise<void> {

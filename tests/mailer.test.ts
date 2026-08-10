@@ -10,6 +10,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   appUrl,
   formatOccasionDate,
+  itemGoneMail,
   occasionOwnerMail,
   reminderGuestMail,
   sendMagicLink,
@@ -20,6 +21,13 @@ import { brandName } from "../src/server/mail-messages";
 
 const BASE = "https://rooms.test";
 const OCCASION_DATE = new Date("2026-03-14T00:00:00.000Z");
+
+/**
+ * Неразрывные пробелы — в обычные. Цена («7 900 ₽») и разделители плашки
+ * набраны U+00A0: так их поставил дизайн (`&nbsp;·&nbsp;`) и так их отдаёт
+ * Intl. Сравнивать с ними глазами в тесте невозможно — нормализуем.
+ */
+const plain = (value: string) => value.replace(/\u00A0/g, " ");
 
 beforeEach(() => {
   vi.stubEnv("EMAIL_SERVER", ""); // dev-режим: консоль, nodemailer не трогаем
@@ -149,29 +157,70 @@ describe("тестовый шов E2E_MAIL_FILE (тикет 15)", () => {
 });
 
 describe("reminderGuestMail — напоминание гостю за 3 дня", () => {
+  // Ровно за трое суток до праздника — окно тика напоминаний.
+  const THREE_DAYS_BEFORE = new Date("2026-03-11T09:00:00.000Z");
   const params = {
-    guestName: "Паша",
     ownerName: "Мила",
     itemTitle: "Серьги-каффы",
     occasionDate: OCCASION_DATE,
-    roomSlug: "x7k2m9",
+    itemZone: "jewelry",
+    price: "7900",
+    currency: "RUB",
+    priceVisibility: "ALL" as const,
+    now: THREE_DAYS_BEFORE,
   };
 
-  it("несёт имя гостя, имя хозяйки, вещь, дату по-русски и обе ссылки", () => {
+  it("тема и заголовок — по контракту round39, дата праздника в письме есть", () => {
     const mail = reminderGuestMail(params);
 
-    expect(mail.subject).toBe("Праздник уже близко — 14 марта");
-    expect(mail.text).toContain("Привет, Паша");
-    // имя хозяйки — в именительном падеже, displayName не склоняем
-    expect(mail.text).toContain("Мила отмечает праздник 14 марта");
-    expect(mail.text).toContain("«Серьги-каффы»");
-    expect(mail.text).toContain(`${BASE}/my-bookings`);
-    expect(mail.text).toContain(`${BASE}/r/x7k2m9`);
+    // Контракт пишет «праздник у {name}» — это родительный падеж, а в
+    // displayName лежит «Мила». Имя прикреплено оборотом продукта («комната
+    // {name}»): склонять чужие имена нельзя.
+    expect(mail.subject).toBe("Через три дня праздник — комната Мила");
+    // Заголовок вёрстки разрезан переносом ровно там, где его поставил дизайн.
+    expect(mail.html).toContain("Через три дня<br>праздник — комната Мила");
+    // Дату блоки контракта просят в заголовке, а его же вёрстка её там не
+    // показывает: у нас она стоит в строке про тишину брони.
+    expect(mail.text).toContain("Праздник — 14 марта");
+    expect(mail.html).toContain("Праздник — 14 марта");
+  });
 
-    expect(mail.html).toContain(`href="${BASE}/my-bookings"`);
-    expect(mail.html).toContain(`href="${BASE}/r/x7k2m9"`);
+  it("плашка вещи: название, цена, полка, комната — и ссылка «Мои подарки»", () => {
+    const mail = reminderGuestMail(params);
+
     expect(mail.html).toContain("Серьги-каффы");
-    expect(mail.html).toContain("14 марта");
+    expect(plain(mail.html)).toContain("7 900 ₽");
+    expect(mail.html).toContain("полка «Украшения»"); // подпись из zones.json
+    expect(mail.html).toContain("комната Мила");
+    // Разделители плашки — неразрывные, как в вёрстке дизайна.
+    expect(plain(mail.html)).toContain("7 900 ₽ · полка «Украшения» · комната Мила");
+    expect(mail.html).toContain(`href="${BASE}/my-bookings"`);
+    expect(mail.text).toContain(`${BASE}/my-bookings`);
+  });
+
+  it("ИНВАРИАНТ №8: цену ME/NONE письмо не показывает — комната её прячет", () => {
+    // Настройка могла смениться, пока джоба лежала в очереди; письмо читает
+    // её свежей и обязано молчать так же, как страница вещи.
+    for (const visibility of ["ME", "NONE"] as const) {
+      const mail = reminderGuestMail({ ...params, priceVisibility: visibility });
+      expect(plain(mail.html)).not.toContain("7 900");
+      expect(plain(mail.text)).not.toContain("7 900");
+      expect(mail.html).not.toContain("₽");
+      // Полка и комната на месте — молчит именно цена.
+      expect(mail.html).toContain("полка «Украшения»");
+    }
+    // FRIENDS видит цену — то же правило, что у гостевого DTO вещи.
+    expect(plain(reminderGuestMail({ ...params, priceVisibility: "FRIENDS" }).html)).toContain(
+      "7 900 ₽",
+    );
+  });
+
+  it("«через три дня» не врёт: бронь могли занять позже — тогда «завтра»", () => {
+    const subjectAt = (iso: string) => reminderGuestMail({ ...params, now: new Date(iso) }).subject;
+
+    expect(subjectAt("2026-03-13T09:00:00.000Z")).toBe("Завтра праздник — комната Мила");
+    expect(subjectAt("2026-03-12T23:00:00.000Z")).toBe("Через два дня праздник — комната Мила");
+    expect(subjectAt("2026-03-14T06:00:00.000Z")).toBe("Сегодня праздник — комната Мила");
   });
 
   it("зовёт экран и действие словами продукта (тикет 32)", () => {
@@ -180,7 +229,7 @@ describe("reminderGuestMail — напоминание гостю за 3 дня"
     const mail = reminderGuestMail(params);
 
     expect(mail.text).toContain("Мои подарки — там можно освободить вещь");
-    expect(mail.html).toContain(">Мои подарки</a> — там можно освободить вещь");
+    expect(mail.html).toContain(">освободить вещь</a>");
     expect(mail.text).not.toMatch(/мои\s+брон/iu);
     expect(mail.text).not.toMatch(/снять\s+брон/iu);
   });
@@ -188,17 +237,36 @@ describe("reminderGuestMail — напоминание гостю за 3 дня"
   it("без displayName хозяйки письмо связно и без слова null", () => {
     const mail = reminderGuestMail({ ...params, ownerName: null });
 
-    expect(mail.subject).toBe("Праздник уже близко — 14 марта");
-    expect(mail.text).toContain("Праздник уже совсем скоро — 14 марта");
-    expect(mail.text).toContain("Подарок за тобой: «Серьги-каффы»");
+    expect(mail.subject).toBe("Через три дня праздник");
+    expect(mail.text).toContain("Праздник — 14 марта");
     expect(mail.text).not.toContain("null");
     expect(mail.html).not.toContain("null");
+    // Пустого «комната » в плашке не остаётся — сегмент пропадает целиком
+    // (слово «комната» в письме ещё есть — в подписи «комната, а не список»).
+    expect(plain(mail.html)).not.toContain(" · комната");
+    expect(mail.html).not.toContain("комната Мила");
   });
 
-  it("пользовательский ввод в HTML экранируется (имя и название вещи)", () => {
+  it("вещь без цены и с незнакомой зоной — плашка не разваливается", () => {
     const mail = reminderGuestMail({
       ...params,
-      guestName: `Паша <script>alert(1)</script>`,
+      price: null,
+      currency: null,
+      itemZone: "no-such-zone",
+    });
+
+    expect(mail.html).toContain("Серьги-каффы");
+    expect(mail.html).not.toContain("полка");
+    expect(mail.html).not.toContain("₽");
+    expect(mail.html).toContain("комната Мила");
+    // Разделителей от пропавших частей не остаётся.
+    expect(plain(mail.html)).not.toContain(" · комната");
+  });
+
+  it("пользовательский ввод в HTML экранируется (имя хозяйки и название вещи)", () => {
+    const mail = reminderGuestMail({
+      ...params,
+      ownerName: `Мила <script>alert(1)</script>`,
       itemTitle: `Кружка <странная> & "любимая"`,
     });
 
@@ -207,6 +275,80 @@ describe("reminderGuestMail — напоминание гостю за 3 дня"
     expect(mail.html).toContain("Кружка &lt;странная&gt; &amp; &quot;любимая&quot;");
     // plain-текст не трогаем — там экранировать нечего
     expect(mail.text).toContain(`Кружка <странная> & "любимая"`);
+  });
+});
+
+describe("itemGoneMail — гостю: вещь уехала, бронь снята", () => {
+  const params = {
+    itemTitle: "Стёганая сумка",
+    roomSlug: "mila",
+    ownerName: "Мила",
+    freeCount: 19,
+    occasionDate: OCCASION_DATE,
+    now: new Date("2026-03-11T09:00:00.000Z"),
+  };
+
+  it("тема и заголовок — дословно контракт round39, ссылка на комнату", () => {
+    const mail = itemGoneMail(params);
+
+    expect(mail.subject).toBe("Вещь уехала — выбери другую");
+    expect(mail.html).toContain("Вещь уехала —<br>выбери другую");
+    expect(mail.html).toContain("Бронь снята");
+    expect(mail.html).toContain(`href="${BASE}/r/mila"`);
+    expect(mail.text).toContain(`${BASE}/r/mila`);
+    expect(mail.text).toContain(`${BASE}/my-bookings`);
+  });
+
+  it("говорит ЧТО случилось и молчит ПОЧЕМУ — запрет контракта", () => {
+    const mail = itemGoneMail(params);
+
+    expect(mail.html).toContain("«Стёганая сумка» больше нет в комнате");
+    // Прежняя строка «уже у хозяйки» была догадкой о причине: для переезда в
+    // сокровищницу правда, для удаления вещи — нет.
+    expect(`${mail.text} ${mail.html}`).not.toContain("уже у хозяйки");
+    // «Деньги вернулись тем же путём» контракта не берём: денег сервис не
+    // принимает и не переводит (PRD §12а, инвариант №9) — возвращать нечего.
+    expect(`${mail.subject} ${mail.text} ${mail.html}`.toLowerCase()).not.toContain("деньги");
+  });
+
+  it("подвал: сколько свободно и когда праздник", () => {
+    expect(itemGoneMail(params).html).toContain("Комната Мила — свободно ещё 19 вещей");
+    expect(itemGoneMail(params).html).toContain("Праздник — 14 марта");
+    expect(itemGoneMail({ ...params, freeCount: 1 }).html).toContain("свободно ещё 1 вещь");
+    expect(itemGoneMail({ ...params, freeCount: 3 }).html).toContain("свободно ещё 3 вещи");
+    expect(itemGoneMail({ ...params, freeCount: 11 }).html).toContain("свободно ещё 11 вещей");
+  });
+
+  it("нечего сказать — не говорим: пустая комната, нет даты, праздник прошёл", () => {
+    const bare = itemGoneMail({ ...params, freeCount: 0, occasionDate: null });
+    expect(bare.html).not.toContain("свободно");
+    expect(bare.html).not.toContain("Праздник —");
+    // Дата в прошлом (письмо пролежало в очереди) — праздник не называем.
+    const past = itemGoneMail({ ...params, now: new Date("2026-03-20T00:00:00.000Z") });
+    expect(past.html).not.toContain("Праздник —");
+  });
+
+  it("без имени хозяйки и без названия вещи письмо связно и без слова null", () => {
+    const noName = itemGoneMail({ ...params, ownerName: null });
+    expect(noName.html).toContain("больше нет в комнате —");
+    expect(noName.html).toContain("В комнате свободно ещё 19 вещей");
+    expect(noName.html).not.toContain("null");
+
+    const noItem = itemGoneMail({ ...params, itemTitle: "" });
+    expect(noItem.html).toContain("Вещи из твоей брони больше нет в комнате");
+    expect(noItem.html).not.toContain("«»");
+  });
+
+  it("пользовательский ввод в HTML экранируется", () => {
+    const mail = itemGoneMail({
+      ...params,
+      itemTitle: `Сумка <script>alert(1)</script>`,
+      ownerName: `Мила & "К"`,
+    });
+
+    expect(mail.html).not.toContain("<script>");
+    expect(mail.html).toContain("&lt;script&gt;");
+    expect(mail.html).toContain("Мила &amp; &quot;К&quot;");
   });
 });
 
@@ -254,11 +396,22 @@ describe("имя площадки в письмах (тикет 58)", () => {
   const letters = {
     вход: signInMail(`${BASE}/signin/confirm?token=abc`),
     напоминание: reminderGuestMail({
-      guestName: "Паша",
       ownerName: "Мила",
       itemTitle: "Серьги-каффы",
       occasionDate: OCCASION_DATE,
-      roomSlug: "x7k2m9",
+      itemZone: "jewelry",
+      price: "7900",
+      currency: "RUB",
+      priceVisibility: "ALL",
+      now: new Date("2026-03-11T09:00:00.000Z"),
+    }),
+    "вещь уехала": itemGoneMail({
+      itemTitle: "Стёганая сумка",
+      roomSlug: "mila",
+      ownerName: "Мила",
+      freeCount: 19,
+      occasionDate: OCCASION_DATE,
+      now: new Date("2026-03-11T09:00:00.000Z"),
     }),
     праздник: occasionOwnerMail({ ownerName: "Мила", occasionUrl: `${BASE}/room/occasion` }),
   };

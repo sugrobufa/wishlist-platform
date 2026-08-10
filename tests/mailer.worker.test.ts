@@ -199,12 +199,35 @@ describe("processMailJob — reminder-guest", () => {
     expect(result).toEqual({ status: "sent" });
     expect(deps.sendReminderGuestImpl).toHaveBeenCalledTimes(1);
     expect(deps.sendReminderGuestImpl).toHaveBeenCalledWith(`guest-x${TEST_EMAIL_DOMAIN}`, {
-      guestName: "Паша",
       ownerName: "Мила",
       itemTitle: "Тайная вещь",
       occasionDate: FUTURE_DATE,
-      roomSlug: "x7k2m9",
+      // Плашка вещи (контракт round39) — из БД, а не из payload'а: цена и её
+      // видимость читаются СВЕЖИМИ, на момент отправки.
+      itemZone: "jewelry",
+      price: "5000",
+      currency: "RUB",
+      priceVisibility: "ALL",
     });
+  });
+
+  it("цена вещи и её видимость берутся СВЕЖИМИ — payload про них не знает", async () => {
+    // Хозяйка спрятала цену, пока джоба лежала в очереди. Письмо обязано
+    // молчать так же, как страница вещи (инвариант №8): значение приезжает в
+    // шаблон, а он его не показывает (проверка показа — tests/mailer.test.ts).
+    const { booking, item } = await createOwnerWithBooking();
+    await prisma.item.update({
+      where: { id: item.id },
+      data: { priceVisibility: "ME", price: "9999" },
+    });
+    const deps = sendSeams();
+
+    await processMailJob("reminder-guest", reminderPayload(booking.id), deps);
+
+    expect(deps.sendReminderGuestImpl).toHaveBeenCalledWith(
+      `guest-x${TEST_EMAIL_DOMAIN}`,
+      expect.objectContaining({ price: "9999", priceVisibility: "ME" }),
+    );
   });
 
   it("бронь сняли, пока джоба ждала → skipped booking-gone, тишина", async () => {
@@ -275,14 +298,51 @@ describe("processMailJob — item-gone (вещь уехала в сокрови�
     ...overrides,
   });
 
-  it("шлёт письмо гостю и НЕ ходит в БД: брони к этому моменту уже нет", async () => {
+  it("комнаты по слагу нет → письмо всё равно уходит, просто без подвала", async () => {
     const deps = sendSeams();
-    // Никаких строк в БД специально не заводим — джоба самодостаточна.
+    // За БРОНЬЮ в БД не ходим — её уже нет. Комната по слагу не находится
+    // (аккаунт удалён) — гость обязан узнать, что подарок отменился, поэтому
+    // письмо уходит без «сколько свободно» и без даты праздника.
     expect(await processMailJob("item-gone", payload(), deps)).toEqual({ status: "sent" });
     expect(deps.sendItemGoneImpl).toHaveBeenCalledWith("guest@mail.test", {
-      guestName: "Оля",
       itemTitle: "Стёганая сумка",
       roomSlug: "mila",
+      ownerName: null,
+      freeCount: null,
+      occasionDate: null,
+    });
+  });
+
+  it("комната жива → имя хозяйки, «сколько свободно» и дата праздника на месте", async () => {
+    // Числа контракта round39 считаются В МОМЕНТ ОТПРАВКИ и тем же правилом,
+    // что показывает сама комната (guest-room.countFreeGiftsByRoom): занятая
+    // вещь свободной не считается, спрятанная и уехавшая на витрину — тоже.
+    const { room, item } = await createOwnerWithBooking();
+    await prisma.item.createMany({
+      data: [
+        { roomId: room.id, zone: "jewelry", title: "Свободная 1" },
+        { roomId: room.id, zone: "jewelry", title: "Свободная 2" },
+        { roomId: room.id, zone: "jewelry", title: "Спрятанная", hidden: true },
+        { roomId: room.id, zone: "jewelry", title: "На витрине", inHall: true },
+      ],
+    });
+    const deps = sendSeams();
+
+    const result = await processMailJob(
+      "item-gone",
+      payload({ roomSlug: room.shareSlug, itemTitle: item.title }),
+      deps,
+    );
+
+    expect(result).toEqual({ status: "sent" });
+    expect(deps.sendItemGoneImpl).toHaveBeenCalledWith("guest@mail.test", {
+      itemTitle: "Тайная вещь",
+      roomSlug: room.shareSlug,
+      ownerName: "Мила",
+      // Две свободные: занятая бронью «Тайная вещь», спрятанная и витринная
+      // в счёт не идут.
+      freeCount: 2,
+      occasionDate: FUTURE_DATE,
     });
   });
 
