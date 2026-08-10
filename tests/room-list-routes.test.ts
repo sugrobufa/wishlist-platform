@@ -38,7 +38,7 @@ const settings = read("../src/app/settings/settings-sections.tsx");
 const ownerList = read("../src/app/room/list/page.tsx");
 const guestList = read("../src/app/r/[slug]/list/page.tsx");
 const shared = read("../src/components/room-list/room-list.module.css");
-const zoneOwn = read("../src/app/room/zone/[zone]/owner-zone-grid.module.css");
+const zoneOwn = read("../src/components/zone-row/zone-row.module.css");
 const dictionary = JSON.parse(read("../messages/ru.json")) as Record<
   string,
   Record<string, string>
@@ -113,15 +113,24 @@ describe("B — длинное имя без пробелов переносит
     expect(phone.length, "у общей строки появилась телефонная ветка").toBe(0);
   });
 
-  it("экран зоны сохранил своё правило — общее его не отменяет", () => {
-    // Правила одинаковые, и это нарочно: снимут общее — экран зоны не должен
-    // сломаться следом (там замер был 375 → 663).
-    expect(zoneOwn).toMatch(/\.rows \.title \{\r?\n {2}overflow-wrap: anywhere;\r?\n\}/u);
+  it("экран зоны держится своим способом — общее правило ему не опора", () => {
+    // ПЕРЕПИСАНО (тикет 152). Прежде оба экрана спасал один и тот же
+    // `overflow-wrap: anywhere`. Строку зоны собрали заново по контракту, и
+    // она стала ОДНОСТРОЧНОЙ с многоточием: переносить в ней нечего, а
+    // страницу вбок не пускает пара `min-width: 0` + `overflow: hidden`
+    // (замер 10.08 на 320: 62 знака без пробелов, scrollWidth остался 320).
+    // Снимут общее правило — экран зоны от этого по-прежнему не сломается.
+    expect(zoneOwn).toMatch(/\.main \{[^}]*min-width: 0;/u);
+    expect(zoneOwn).toMatch(/\.name \{[^}]*overflow: hidden;/u);
+    expect(zoneOwn, "в однострочной строке `anywhere` ничего не держит").not.toContain(
+      "overflow-wrap",
+    );
   });
 
-  it("миниатюра и промежуток строки не тронуты: отступ зоны считается по ним", () => {
-    // tests/zone-row-mobile ставит `--zr-meta-indent` = 72 + 16 из этого
-    // файла. Правка переноса не имеет права сдвинуть ни одно из двух чисел.
+  it("миниатюра и промежуток строки не тронуты: это числа «комнаты списком»", () => {
+    // 72 и 16 — её собственная форма из вердикта пакета (секции-зоны, без
+    // знаков). Экран зоны на них больше не опирается вовсе, но правка
+    // переноса не имеет права сдвинуть ни одно из двух.
     expect(shared).toMatch(/\.thumb \{[^}]*width: 72px;/u);
     expect(shared).toMatch(/\.row \{[^}]*gap: 16px;/u);
   });

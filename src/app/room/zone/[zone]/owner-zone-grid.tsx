@@ -9,12 +9,13 @@
 // Плитки никуда не делись: ими живут панель зоны в сцене и гостевой вид.
 // Строки — вид ЭТОГО экрана, а не замена `ZoneGrid`.
 //
-// ДЕЙСТВИЯ ВЕЩИ — ДВА ЗНАКА, А НЕ СТЕНА ТЕКСТА (тикет 123, турн 36b). Раньше
-// под каждой вещью стояло в строку «Изменить · Уже моё · Спрятать · Удалить»:
-// пять вещей — двадцать слов действий на экране, и владелец на приёмке 09.08
-// попросил это прекратить. Теперь на виду карандаш и «⋯», остальное — в листе
-// {В сокровищницу · Спрятать · Удалить} со знаком, титулом и подстрокой.
-// Точка входа в вещь — сама строка (карандаш ведёт туда же).
+// ДЕЙСТВИЯ ВЕЩИ — ОДИН ЗНАК, А НЕ СТЕНА ТЕКСТА (тикет 123, турн 36b; тикет
+// 152 свёл два знака к одному). Раньше под каждой вещью стояло в строку
+// «Изменить · Уже моё · Спрятать · Удалить»: пять вещей — двадцать слов
+// действий на экране, и владелец на приёмке 09.08 попросил это прекратить.
+// Дальше на виду остались карандаш и «⋯» — и в строке 52 карандаша не стало
+// тоже: контракт списка зоны говорит «знак в конце ОДИН», а точка входа в
+// вещь — САМА СТРОКА, теперь по-настоящему (она ссылка).
 //
 // Слот заполняется только у своих вещей: у демо-призраков меню нет — они не
 // в БД. «Бирки» здесь нет и не будет — она ровно одна, «подарить» у гостя
@@ -24,23 +25,20 @@ import { useRouter } from "next/navigation";
 import { useLocale, useTranslations } from "next-intl";
 import {
   IconActionDelete,
-  IconActionEdit,
   IconActionReturn,
   IconActionTreasury,
   IconCheck,
   IconEye,
   IconEyeOff,
 } from "@/components/icons";
-import { DesireScale } from "@/components/item/desire-scale";
 import { ItemActions, SIGN_SIZE, type ItemActionRow } from "@/components/item/item-actions";
-import { PoolIcon } from "@/components/pool-icons";
 import { tileAppearance } from "@/components/zone/tile-appearance";
-import rl from "@/components/room-list/room-list.module.css";
-// Телефонная поправка ЭТОГО экрана поверх общей строки: на 375 знаки действий
-// оставляли названию 71 px, и оно ложилось на цену (приёмка 10.08). Разбор —
-// в самом файле. Общую строку не трогаем: у «комнаты списком» знаков нет и
-// дефекта тоже.
-import z from "./owner-zone-grid.module.css";
+// Строка ЭТОГО экрана — 52 px по своему контракту (handoff/zone-row.json,
+// тикет 152). Прежде экран брал строку у «комнаты списком» и добавлял к ней
+// знаки: имени оставалось 71 px на 375. Общая строка при этом не трогается
+// вовсе — у «комнаты списком» своя форма в том же вердикте пакета.
+import { ZoneRow, ZONE_ROW_GLYPH } from "@/components/zone-row/zone-row";
+import zr from "@/components/zone-row/zone-row.module.css";
 import type { ZoneGridItem } from "@/components/zone/types";
 import {
   deleteItemAction,
@@ -232,19 +230,19 @@ export function OwnerZoneGrid({ items, accent, zoneKey, pool }: OwnerZoneGridPro
     ];
   };
 
-  /** Два знака на виду: карандаш (он же дорога в карточку) и «⋯». */
+  /**
+   * Знак в конце ОДИН — «⋯», за ним лист (контракт zone-row.json). Главного
+   * знака нет: дорога в карточку вещи — сама строка. У демо-призраков нет и
+   * этого: их не спрятать и не удалить, они не в БД.
+   */
   const renderItemAction = (item: ZoneGridItem): ReactNode => {
     if (item.isDemo) return null;
     return (
       <ItemActions
-        primary={{
-          icon: <IconActionEdit size={SIGN_SIZE} />,
-          label: t("itemEdit"),
-          href: `/room/zone/${zoneKey}/i/${item.id}`,
-        }}
         rows={sheetRows(item)}
         moreLabel={t("itemMore")}
         disabled={busyId === item.id}
+        glyph={ZONE_ROW_GLYPH}
       />
     );
   };
@@ -332,74 +330,57 @@ export function OwnerZoneGrid({ items, accent, zoneKey, pool }: OwnerZoneGridPro
         </button>
       </div>
 
-      {/* СТРОКИ 29b. Вид взят у экрана «вся комната списком» (29a) — там он
-          уже отрисован и проверен, второй раз рисовать незачем. */}
-      <ul className={`${rl.rows} ${z.rows}`} style={{ "--rl-accent": accent } as CSSProperties}>
+      {/* СТРОКИ 52 — своя форма экрана зоны (контракт handoff/zone-row.json,
+          тикет 152). Прежде вид брался у «комнаты списком» и обрастал знаками;
+          у той в том же вердикте пакета своя форма, и она осталась прежней. */}
+      <ul className={zr.rows}>
         {shown.map((item) => {
           const look = tileAppearance(item, pool);
           const price = formatPrice(item, locale);
           const on = picked.has(item.id);
           return (
-            <li key={item.id} className={`${rl.row} ${z.row}`}>
-              {/* Кружок выбора СЛЕВА — как на макете. У демо-призрака его нет:
-                  его не спрятать, он не в БД. */}
-              {picking && !item.isDemo && (
-                <button
-                  type="button"
-                  aria-pressed={on}
-                  aria-label={tl("selectAria", { title: item.title })}
-                  onClick={() => togglePicked(item.id)}
-                  className="pressable btn-quiet flex-none"
-                  style={on ? ({ "--pill-accent": accent } as CSSProperties) : undefined}
-                >
-                  {on ? (
-                    <IconCheck size={14} strokeWidth={2.4} />
-                  ) : (
-                    <span className="block h-3.5 w-3.5" />
-                  )}
-                </button>
-              )}
-              {/* Миниатюра одна на всех: пунктира не бывает ни у какой вещи
-                  (тикет 124, инвариант №3 отменён целиком). */}
-              <div
-                className={rl.thumb}
-                style={item.photoUrl ? { backgroundImage: `url(${item.photoUrl})` } : undefined}
-                aria-hidden
-              >
-                {look.poolIcon && (
-                  <span className={rl.monogram}>
-                    <PoolIcon pool={look.poolIcon} />
-                  </span>
-                )}
-                {look.monogram && <span className={rl.monogram}>{look.monogram}</span>}
-              </div>
-              <div className={rl.body}>
-                {/* Имя переносится в любом месте: без пробелов оно вылезало
-                    из полосы и тянуло за собой всю страницу вбок
-                    (owner-zone-grid.module.css). */}
-                <p className={`${rl.title} ${z.title}`}>{item.title}</p>
-                {/* Чип состояния («Хочу» / «Люблю») отменён тикетом 124 —
-                    в комнате все вещи одинаковы. Строку снимает заход про
-                    экраны; здесь она просто перестала рисоваться. */}
-                {item.hidden && (
-                  <span className="overline text-text-faint">{t("itemHiddenBadge")}</span>
-                )}
-                {/* Вопрос — под строкой: он длиннее знаков и им не место
-                    справа, где стоят цена и два знака. */}
-                {!picking && confirming?.id === item.id && renderConfirm(item, confirming.kind)}
-              </div>
-              {/* Цена и степень желания — одним блоком (36b): огоньки стоят
-                  ВОЗЛЕ цены, а не сами по себе. В строке зоны они без слова.
-                  На телефоне этот блок встаёт ПОД названием — иначе название
-                  ложится на него (owner-zone-grid.module.css). */}
-              {(price || item.desire != null) && (
-                <span className={`${rl.meta} ${z.meta}`}>
-                  {price && <span className={rl.price}>{price}</span>}
-                  <DesireScale desire={item.desire} accent={accent} place="row" />
-                </span>
-              )}
-              {!picking && renderItemAction(item)}
-            </li>
+            <ZoneRow
+              key={item.id}
+              // Дорога в вещь — сама строка. У демо-призрака её нет: карточки
+              // у него не существует, он не в БД. В режиме выбора строка тоже
+              // не ведёт никуда — палец там занят галочками.
+              href={
+                item.isDemo || picking ? undefined : `/room/zone/${zoneKey}/i/${item.id}`
+              }
+              title={item.title}
+              photoUrl={item.photoUrl}
+              poolIcon={look.poolIcon}
+              monogram={look.monogram}
+              price={price}
+              desire={item.desire}
+              accent={accent}
+              hidden={item.hidden}
+              // Кружок выбора СЛЕВА — как на макете. У демо-призрака его нет:
+              // его не спрятать, он не в БД.
+              leading={
+                picking && !item.isDemo ? (
+                  <button
+                    type="button"
+                    aria-pressed={on}
+                    aria-label={tl("selectAria", { title: item.title })}
+                    onClick={() => togglePicked(item.id)}
+                    className="pressable btn-quiet flex-none"
+                    style={on ? ({ "--pill-accent": accent } as CSSProperties) : undefined}
+                  >
+                    {on ? (
+                      <IconCheck size={14} strokeWidth={2.4} />
+                    ) : (
+                      <span className="block h-3.5 w-3.5" />
+                    )}
+                  </button>
+                ) : undefined
+              }
+              trailing={picking ? undefined : renderItemAction(item)}
+            >
+              {/* Вопрос — ПОД строкой: он длиннее её и в фиксированные 52 не
+                  помещается. */}
+              {!picking && confirming?.id === item.id && renderConfirm(item, confirming.kind)}
+            </ZoneRow>
           );
         })}
       </ul>

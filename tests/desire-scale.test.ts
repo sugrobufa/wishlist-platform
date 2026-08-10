@@ -97,7 +97,11 @@ describe("два места — два вида (36d)", () => {
     expect(markup).toContain('aria-hidden="true"');
   });
 
-  it("в строке зоны — без слова, но читалка его слышит", () => {
+  it("вид без слова — читалка слышит слово всё равно", () => {
+    // Второй вид завёлся для строки зоны, и в продукте её больше не одевает:
+    // раунд 36 оставил строке ОДИН огонёк вместо лестницы (zone-row.json →
+    // wishDot, «четыре огонька в строке 52 съедают имя»). Правило вида от
+    // этого не изменилось и проверяется как было.
     const markup = draw(3, "row");
     expect(markup).not.toContain(`>${ru.AddItem.desire3}<`);
     expect(markup).toContain(`aria-label="${ru.AddItem.desire3}"`);
@@ -177,10 +181,19 @@ describe("где показ обязан быть", () => {
     expect(guest).toContain("const desire = item.inHall ? null : item.desire;");
   });
 
-  it("в строке зоны — без слова и рядом с ценой", () => {
+  it("в строке зоны — ОДНОЙ точкой и только у «мечтаю» (тикет 152)", () => {
+    // ПЕРЕПИСАНО. Прежде здесь стояла вся лестница (`place="row"`), и это был
+    // верный вид до раунда 36. Его контракт строки 52 (zone-row.json →
+    // form.wishDot) оставил строке верхнюю ступень: «четыре огонька в строке
+    // 52 съедают имя; лестница целиком живёт в сетке и в карточке». Значение
+    // по-прежнему приезжает из DTO, а не досочиняется экраном.
     const rows = read("../src/app/room/zone/[zone]/owner-zone-grid.tsx");
-    expect(rows).toContain('place="row"');
+    const zoneRow = read("../src/components/zone-row/zone-row.tsx");
     expect(rows).toContain("desire={item.desire}");
+    expect(zoneRow).toContain("desire === DESIRE_DREAM");
+    expect(zoneRow, "в строку вернулась вся лестница").not.toContain("DesireScale");
+    // Номер верхней ступени берётся у шкалы — второго «4» в продукте нет.
+    expect(zoneRow).toContain('import { DESIRE_DREAM } from "@/components/item/desire-scale";');
   });
 
   it("значение доезжает до строки контрактом сетки, а не кастом", () => {

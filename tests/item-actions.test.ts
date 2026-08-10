@@ -1,4 +1,5 @@
 // Действия с вещью: два знака на виду, остальное под «⋯» (тикет 123, турн 36b).
+// В строке списка зоны знак ОДИН — «⋯»: главный там сама строка (тикет 152).
 //
 // ЗАЧЕМ ТЕСТ. Правило дизайна короткое — «на виду максимум ДВА знака» — и
 // ломается оно не переписыванием компонента, а одной добавленной кнопкой:
@@ -62,7 +63,7 @@ const row = (title: string, hint: string) => ({
   onSelect: () => {},
 });
 
-describe("на виду ровно два знака (36b)", () => {
+describe("на виду максимум два знака (36b)", () => {
   it("главный знак ссылкой и «⋯» — и больше ничего", () => {
     const markup = renderToStaticMarkup(
       createElement(ItemActions, {
@@ -90,10 +91,34 @@ describe("на виду ровно два знака (36b)", () => {
     expect(markup.match(/<button[\s>]/gu) ?? []).toHaveLength(2);
   });
 
+  it("главного знака может не быть вовсе — тогда «⋯» остаётся один", () => {
+    // ЭТО НЕ ПОСЛАБЛЕНИЕ ПРАВИЛА, А ВТОРОЙ ЕГО СЛУЧАЙ. Правило говорит «на
+    // виду МАКСИМУМ два знака: главный и ⋯». В списке зоны главный не
+    // рисуется: его роль играет сама строка — она ссылка в карточку вещи
+    // (контракт handoff/zone-row.json: «знак в конце ОДИН»). Три цели по 44
+    // — это 132 px из 335, половина строки на то, что нужно раз в месяц.
+    const markup = renderToStaticMarkup(
+      createElement(ItemActions, {
+        rows: [row("Спрятать", "видишь только ты")],
+        moreLabel: "Ещё",
+        glyph: 20,
+      }),
+    );
+    expect(markup.match(/<a[\s>]/gu) ?? []).toHaveLength(0);
+    expect(markup.match(/<button[\s>]/gu) ?? []).toHaveLength(1);
+    // Кегль «⋯» строка зоны просит свой — 20 вместо общих 19.
+    expect(markup).toContain('width="20"');
+  });
+
   it("знак 19 на цели 44 — числа доски, а не подобранные заново", () => {
     expect(SIGN_SIZE).toBe(19);
     expect(css).toContain("width: var(--hit-target-min, 44px)");
     expect(css).toContain("height: var(--hit-target-min, 44px)");
+    // Коробка знака и ЦЕЛЬ разведены (тикет 152): по умолчанию совпадают,
+    // а строка зоны отдаёт знаку 32 и добирает цель псевдоэлементом — по 6
+    // с каждой стороны, ровно до 44.
+    expect(css).toContain("width: var(--sign-box, var(--hit-target-min, 44px));");
+    expect(css).toMatch(/\.sign::after \{[^}]*transform: translate\(-50%, -50%\);/u);
     // Строка листа: знак + титул + подстрока, 52 в высоту (36b).
     expect(css).toContain("min-height: 52px");
     expect(css).toContain("font: 500 13.5px/1 var(--font-ui)");

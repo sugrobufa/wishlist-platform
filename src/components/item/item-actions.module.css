@@ -13,10 +13,19 @@
   gap: 2px;
 }
 
-/* Цель нажатия 44 при знаке 19 — контракт rooms.json → hitTargetMin. */
+/* Цель нажатия 44 при знаке 19 — контракт rooms.json → hitTargetMin.
+ *
+ * КОРОБКА И ЦЕЛЬ РАЗВЕДЕНЫ (тикет 152). По умолчанию они совпадают: 44 на 44,
+ * как было. Но строка списка зоны отдаёт знаку 32 и добирает цель за края —
+ * её контракт говорит «глиф 20, цель нажатия 44×44, цель заходит в правый
+ * отступ листа» (zone-row.json → form.trailing). Ширину задаёт СТРОКА
+ * (--sign-box в zone-row.module.css): из неё складывается ширина имени, и
+ * число это её, а не знака. Цель добирает `::after` — по 6 px с каждой
+ * стороны, ровно до 44. */
 .sign {
+  position: relative;
   display: inline-flex;
-  width: var(--hit-target-min, 44px);
+  width: var(--sign-box, var(--hit-target-min, 44px));
   height: var(--hit-target-min, 44px);
   align-items: center;
   justify-content: center;
@@ -25,6 +34,18 @@
   color: var(--color-text-muted, rgba(255, 249, 242, 0.6));
   cursor: pointer;
   -webkit-tap-highlight-color: transparent;
+}
+
+/* Цель нажатия не меньше 44 даже там, где коробка знака уже. Псевдоэлемент
+   принадлежит самой кнопке, поэтому палец попадает в неё, а не мимо. */
+.sign::after {
+  content: "";
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: var(--hit-target-min, 44px);
+  height: var(--hit-target-min, 44px);
+  transform: translate(-50%, -50%);
 }
 
 .sign:disabled {

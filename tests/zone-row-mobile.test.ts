@@ -8,9 +8,15 @@
 //   вместе с каждой новой вещью (строка 93 px: при двенадцати вещах — 1368 px
 //   от верха, почти два телефонных экрана). Ровно это замечание владельца
 //   тикет 139 уже исполнил в листе зоны внутри сцены.
-// B Мета-строка (цена + огоньки) на телефоне уходит ПОД название: знаки
-//   действий (90 px) оставляли названию 71 px на 375 и 56 на 360, и слово
-//   ложилось на цену — «Хронограф» заходил на «140 000 ₽» на 9 и 24 px.
+// B Название вещи не ложится на цену. Прежде знаки действий (90 px) оставляли
+//   названию 71 px на 375 и 56 на 360, и «Хронограф» заходил на «140 000 ₽»
+//   на 9 и 24 px. Утренняя правка уводила мету ПОД название и давала 141 —
+//   лечение симптома. Тикет 152 собрал строку заново по контракту
+//   `handoff/zone-row.json`: 52 в высоту, миниатюра 36, знак один. Имени стало
+//   173 на 375, 158 на 360, 118 на 320 (замер в браузере, образец цены
+//   «140 000 ₽» из контракта). Числовая сверка с пакетом — в соседнем файле
+//   tests/zone-row-52; здесь остаётся то, ради чего этот тест заводился:
+//   название и цена НЕ ДЕЛЯТ одно место, а длинное имя не тянет страницу вбок.
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
@@ -20,20 +26,13 @@ const read = (relative: string) =>
 
 const page = read("../src/app/room/zone/[zone]/page.tsx");
 const grid = read("../src/app/room/zone/[zone]/owner-zone-grid.tsx");
-const own = read("../src/app/room/zone/[zone]/owner-zone-grid.module.css");
+const own = read("../src/components/zone-row/zone-row.module.css");
+const row = read("../src/components/zone-row/zone-row.tsx");
 const shared = read("../src/components/room-list/room-list.module.css");
 
 /** Телефонная ветка раскладки — точное дополнение десктопной, порог один. */
 const PHONE_BRANCH = /@media not all and \(min-width: 1024px\) \{([\s\S]*?)\n\}/gu;
 const phoneBlocks = (css: string) => [...css.matchAll(PHONE_BRANCH)].map((m) => m[1] ?? "");
-
-/** Число из правила общей строки: `.thumb { width: 72px }` и т. п. */
-const numberIn = (css: string, selector: string, property: string): number => {
-  const block = new RegExp(`\\.${selector} \\{([^}]*)\\}`, "u").exec(css)?.[1] ?? "";
-  const raw = new RegExp(`${property}: (\\d+(?:\\.\\d+)?)px`, "u").exec(block)?.[1];
-  expect(raw, `в общей строке пропало правило .${selector} { ${property} }`).toBeTruthy();
-  return Number(raw);
-};
 
 describe("A — дорога «Добавить вещь» над списком зоны", () => {
   it("ссылка в зону идёт РАНЬШЕ сетки, а не под ней", () => {
@@ -52,67 +51,65 @@ describe("A — дорога «Добавить вещь» над списком
 });
 
 describe("B — название вещи не ложится на цену", () => {
-  it("поправка живёт ТОЛЬКО в телефонной ветке: десктоп её не видит", () => {
-    const phone = phoneBlocks(own);
-    expect(phone.length, "телефонная ветка поправки пропала").toBe(1);
-    expect(phone[0]).toContain("flex-wrap: wrap;");
-    expect(phone[0]).toContain("order: 3;");
-    // Вне ветки — только объявление отступа, никакой раскладки.
-    const outside = own.replace(PHONE_BRANCH, "");
-    expect(outside, "правило переноса вылезло из телефонной ветки").not.toContain("flex-wrap");
-    expect(outside).not.toContain("margin-left");
+  it("название и цена — соседи в одной полосе, а не два слоя", () => {
+    // Дефект 144 был именно наложением: полоса имени ужималась честно, а
+    // текст из неё выходил. Теперь имя обрезается многоточием и за свою
+    // границу не выходит вовсе, а цена стоит следующим узлом строки.
+    const name = /\.name \{([^}]*)\}/u.exec(own)?.[1] ?? "";
+    expect(name, "правило имени пропало").toContain("min-width: 0;");
+    expect(name, "имя снова может выйти за свою полосу").toContain("overflow: hidden;");
+    expect(name).toContain("text-overflow: ellipsis;");
+    expect(name).toContain("white-space: nowrap;");
   });
 
-  it("селекторы двухклассовые — иначе вес не перебьёт общую строку", () => {
-    // `.row` и `.meta` заданы в room-list одним классом. Правило такого же
-    // веса зависело бы от порядка склейки модулей в бандл, то есть молчало бы
-    // через раз.
-    expect(own).toMatch(/\.rows \.row \{/u);
-    expect(own).toMatch(/\.rows \.meta \{/u);
+  it("поправка-костыль снята: меты под названием больше нет", () => {
+    // Утреннее лечение симптома уводило цену ПОД имя телефонной веткой и
+    // считало отступ по чужой миниатюре (`--zr-meta-indent`). Сама болезнь
+    // — четвёртый жилец в полосе — вылечена, и ветка с ней не нужна.
+    expect(own).not.toContain("--zr-meta-indent");
+    expect(own, "перенос строки вернулся — значит вернулась и вторая строка").not.toContain(
+      "flex-wrap",
+    );
+    expect(
+      phoneBlocks(own).length,
+      "у строки зоны завелась телефонная ветка: форма 52 одна на все ширины",
+    ).toBe(0);
+    expect(() => read("../src/app/room/zone/[zone]/owner-zone-grid.module.css")).toThrow();
   });
 
-  it("отступ мета-строки СЧИТАЕТСЯ по общей строке, а не подобран на глаз", () => {
-    // Мета-строка встаёт под названием, значит её отступ — это миниатюра плюс
-    // промежуток строки. Числа принадлежат room-list.module.css; разъедутся
-    // там — тест скажет здесь.
-    const thumb = numberIn(shared, "thumb", "width");
-    const gap = numberIn(shared, "row", "gap");
-    const indent = /--zr-meta-indent: (\d+)px;/u.exec(own)?.[1];
-    expect(indent, "объявление --zr-meta-indent пропало").toBeTruthy();
-    expect(Number(indent), "отступ мета-строки разъехался с общей строкой").toBe(thumb + gap);
-    expect(own).toContain("margin-left: var(--zr-meta-indent);");
+  it("имя без пробелов не тянет страницу вбок", () => {
+    // Имя заводит человек: вставленный адрес товара в 63 знака растягивался
+    // на 555 px и раздвигал документ с 375 до 663. Держит это ПАРА правил —
+    // `min-width: 0` у полосы и `overflow: hidden` у имени; проверено
+    // замером 10.08 на 320 (62 знака без пробелов и дефисов — дефис браузер
+    // рвёт сам): scrollWidth остался 320.
+    //
+    // `overflow-wrap: anywhere` тут больше не при чём и не должен вернуться:
+    // он про ПЕРЕНОС, а строка теперь однострочная — переносить некуда.
+    expect(/\.main \{([^}]*)\}/u.exec(own)?.[1] ?? "").toContain("min-width: 0;");
+    expect(own).not.toContain("overflow-wrap");
   });
 
-  it("имя без пробелов переносится, а не тянет страницу вбок", () => {
-    // Имя заводит человек: вставленный адрес товара в 63 знака растягивался на
-    // 555 px и раздвигал документ с 375 до 663. Правило БЕЗ телефонной ветки:
-    // на десктопе полоса 504 px, и такое слово перерастает и её.
-    expect(own).toMatch(/\.rows \.title \{\n {2}overflow-wrap: anywhere;\n\}/u);
-    // `break-word` не годится: он не учитывается при подсчёте минимальной
-    // ширины, то есть внутри flex-строки не спасает.
-    expect(own).not.toContain("overflow-wrap: break-word");
-  });
-
-  it("классы поправки надеты на все четыре узла — иначе она молчит", () => {
-    // Правила ищут `.rows .row`, `.rows .meta` и `.rows .title`: потеряй экран
-    // любой из классов, и раскладка тихо вернётся к прежней.
-    expect(grid).toContain("${rl.rows} ${z.rows}");
-    expect(grid).toContain("${rl.row} ${z.row}");
-    expect(grid).toContain("${rl.meta} ${z.meta}");
-    expect(grid).toContain("${rl.title} ${z.title}");
+  it("высота строки не зависит от содержимого — и вопрос её не растягивает", () => {
+    // Прежняя строка росла: чип, вторая строка меты, вопрос-подтверждение.
+    // Из-за этого «Добавить вещь» и уезжала вниз (дефект A).
+    expect(/\.row \{([^}]*)\}/u.exec(own)?.[1] ?? "").toContain("height: 52px;");
+    expect(row).toContain("className={s.under}");
   });
 
   it("общая строка «комнаты списком» остаётся нетронутой", () => {
     // У неё три жильца вместо четырёх (знаков действий там нет по пакету), и
     // названию достаётся 168–182 px. Чинит себя экран зоны, а не все сразу.
     // (`flex-wrap` в файле есть — у пилюль фильтра; речь про саму строку.)
-    const row = /\.row \{([^}]*)\}/u.exec(shared)?.[1] ?? "";
-    expect(row, "правило общей строки пропало").toContain("display: flex;");
-    expect(row, "перенос уехал в общую строку — он телефонный и только зоны").not.toContain(
+    const shRow = /\.row \{([^}]*)\}/u.exec(shared)?.[1] ?? "";
+    expect(shRow, "правило общей строки пропало").toContain("display: flex;");
+    expect(shRow, "перенос уехал в общую строку — он был телефонным и только зоны").not.toContain(
       "flex-wrap",
     );
     expect(shared).not.toContain("--zr-meta-indent");
     // И телефонной ветки у общей строки по-прежнему нет вовсе.
     expect(phoneBlocks(shared).length).toBe(0);
+    // Экран зоны её модуль больше не читает вообще: два экрана разведены.
+    expect(grid, "экран зоны снова оделся в общую строку").not.toContain("room-list");
   });
 });

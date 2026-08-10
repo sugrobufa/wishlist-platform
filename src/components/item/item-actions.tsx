@@ -44,8 +44,14 @@ type ItemActionsProps = {
   /**
    * Главный знак: карандаш в комнате, перо-заметка в сокровищнице. Ведёт
    * ссылкой (карточка вещи) или делает что-то на месте — но он один.
+   *
+   * НЕОБЯЗАТЕЛЕН — и это не послабление правила, а второй его случай. Правило
+   * говорит «на виду МАКСИМУМ два знака: главный и ⋯»; в списке зоны главный
+   * знак не рисуется вовсе, потому что его роль играет сама строка (контракт
+   * `handoff/zone-row.json`: «знак в конце ОДИН»). Там же и причина: три цели
+   * по 44 — это 132 px из 335, половина строки на то, что нужно раз в месяц.
    */
-  primary: {
+  primary?: {
     icon: ReactNode;
     /** Слова на экране нет — оно в aria-label и в подсказке наведения. */
     label: string;
@@ -56,12 +62,24 @@ type ItemActionsProps = {
   /** Подпись знака «⋯» для читалки. */
   moreLabel: string;
   disabled?: boolean;
+  /**
+   * Кегль «⋯». По умолчанию 19 — общий размер знака в строке (36b). Список
+   * зоны просит 20 своим контрактом (zone-row.json → form.trailing.glyph):
+   * знак там один, и он сам себе ряд.
+   */
+  glyph?: number;
 };
 
 /** Знак в строке: 19 px на цели 44 (числа доски, не подбирать заново). */
 export const SIGN_SIZE = 19;
 
-export function ItemActions({ primary, rows, moreLabel, disabled }: ItemActionsProps) {
+export function ItemActions({
+  primary,
+  rows,
+  moreLabel,
+  disabled,
+  glyph = SIGN_SIZE,
+}: ItemActionsProps) {
   const [open, setOpen] = useState(false);
   const box = useRef<HTMLDivElement>(null);
 
@@ -78,27 +96,28 @@ export function ItemActions({ primary, rows, moreLabel, disabled }: ItemActionsP
 
   return (
     <div className={s.actions} ref={box}>
-      {primary.href ? (
-        <Link
-          href={primary.href}
-          aria-label={primary.label}
-          title={primary.label}
-          className={`pressable ${s.sign}`}
-        >
-          {primary.icon}
-        </Link>
-      ) : (
-        <button
-          type="button"
-          disabled={disabled}
-          aria-label={primary.label}
-          title={primary.label}
-          onClick={primary.onSelect}
-          className={`pressable ${s.sign}`}
-        >
-          {primary.icon}
-        </button>
-      )}
+      {primary &&
+        (primary.href ? (
+          <Link
+            href={primary.href}
+            aria-label={primary.label}
+            title={primary.label}
+            className={`pressable ${s.sign}`}
+          >
+            {primary.icon}
+          </Link>
+        ) : (
+          <button
+            type="button"
+            disabled={disabled}
+            aria-label={primary.label}
+            title={primary.label}
+            onClick={primary.onSelect}
+            className={`pressable ${s.sign}`}
+          >
+            {primary.icon}
+          </button>
+        ))}
 
       <button
         type="button"
@@ -110,7 +129,7 @@ export function ItemActions({ primary, rows, moreLabel, disabled }: ItemActionsP
         onClick={() => setOpen((value) => !value)}
         className={`pressable ${s.sign}`}
       >
-        <IconActionMore size={SIGN_SIZE} />
+        <IconActionMore size={glyph} />
       </button>
 
       {open && (
