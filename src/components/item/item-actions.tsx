@@ -62,27 +62,20 @@ type ItemActionsProps = {
   /** Подпись знака «⋯» для читалки. */
   moreLabel: string;
   disabled?: boolean;
-  /**
-   * Кегль «⋯». По умолчанию 19 — общий размер знака в строке (36b).
-   *
-   * СПИСОК ЗОНЫ ЕГО БОЛЬШЕ НЕ ПРОСИТ: его 20 были опиской пакета, дизайн
-   * поправил контракт на 19 («как весь набор», письмо 42) — и своего числа у
-   * строки зоны не осталось. Проп жив ради карточки вещи: у неё знак стоит
-   * над фото и просит 20 своим контрактом (item-card-owner.json → head.more).
-   */
-  glyph?: number;
 };
+
+// КЕГЛЯ «⋯» ПРОПОМ БОЛЬШЕ НЕ ПРОСЯТ — `glyph` удалён (тикет 170). Он жил ради
+// двух мест, у каждого из которых было своё число, и оба числа оказались
+// описками пакета: строка списка зоны просила 20 — дизайн поправил контракт на
+// 19, «как весь набор» (письмо 42, тикет 163); карточка вещи просила 20 над
+// фотографией — раунд 41 назвал там `action-more.svg` 19 тем же доводом.
+// Потребителей не осталось ни одного, а необязательное число, которое некому
+// передать, — это место, где однажды заведётся третий размер одного знака.
 
 /** Знак в строке: 19 px на цели 44 (числа доски, не подбирать заново). */
 export const SIGN_SIZE = 19;
 
-export function ItemActions({
-  primary,
-  rows,
-  moreLabel,
-  disabled,
-  glyph = SIGN_SIZE,
-}: ItemActionsProps) {
+export function ItemActions({ primary, rows, moreLabel, disabled }: ItemActionsProps) {
   const [open, setOpen] = useState(false);
   const box = useRef<HTMLDivElement>(null);
 
@@ -132,7 +125,7 @@ export function ItemActions({
         onClick={() => setOpen((value) => !value)}
         className={`pressable ${s.sign}`}
       >
-        <IconActionMore size={glyph} />
+        <IconActionMore size={SIGN_SIZE} />
       </button>
 
       {open && (

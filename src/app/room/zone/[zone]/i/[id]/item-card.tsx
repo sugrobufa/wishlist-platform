@@ -1,8 +1,15 @@
 "use client";
 
 // Карточка вещи глазами хозяйки, РЕДАКЦИЯ v2 (тикет 159, доска 47a; числа —
-// `design/package/handoff/round39/item-card-owner.json`). Прежняя редакция —
-// тикет 39, турны 11e и 8c.
+// `design/package/handoff/round41/item-card-owner.json`, тикет 170). Прежняя
+// редакция — тикет 39, турны 11e и 8c.
+//
+// КОНТРАКТ ПЕРЕЕХАЛ С round39 НА round41, и переехал он НАМ НАВСТРЕЧУ: все
+// пять расхождений, которые мы держали списком «чего не взяли», дизайн закрыл
+// сам — «Кадры вещи» сняты, огоньки 6/5 и ввод подтверждены, лист сведён к 52
+// и 500/13.5, «открыто» объяснено (это значение цены у денежной вещи, а не
+// замена пустой), у цены в витрине появился адресат. Плюс приехал знак
+// «назад». Список расхождений пуст — впервые с round39.
 //
 // ЧТО ИЗМЕНИЛОСЬ. Экран был ФОРМОЙ: открывался сразу в правке, все поля
 // наружу, «Сохранить» внизу. Вещь на нём нельзя было просто посмотреть.
@@ -46,6 +53,7 @@ import {
   IconActionDelete,
   IconActionReturn,
   IconActionTreasury,
+  IconBack,
   IconEye,
   IconEyeOff,
   IconMove,
@@ -86,8 +94,8 @@ const LABEL_CLASS = "text-sm text-text-muted";
 const EMPTY_PHOTO_SIGN = 34;
 /** Знак полки в строке-ссылке — 16 при .55 (contract → body.zone). */
 const ZONE_SIGN = 16;
-/** «⋯» над фотографией — 20 в цели 44 (contract → head.more). */
-const MORE_GLYPH = 20;
+/** Стрелка «назад» над фотографией — 20 в цели 44 (contract → head.back). */
+const BACK_SIGN = 20;
 
 /** "#RRGGBB" + альфа → 8-значный hex (ореол «полосы света», tokens.json). */
 function withAlpha(hex: string, alpha: number): string {
@@ -431,16 +439,23 @@ export function ItemCard({
           {!item.photoUrl && zonePool && <PoolIcon pool={zonePool} size={EMPTY_PHOTO_SIGN} />}
 
           <div className={s.head}>
-            {/* Стрелки 20 отдельным знаком в наборе дизайна НЕТ (`handoff/icons`
-                — двадцать файлов, ui-back среди них не приехал). Свою не рисуем
-                (правило тикета 150): назад ведёт та же «←» текстом, что стояла
-                здесь всегда, — но теперь на цели 44, как просит контракт. */}
+            {/* СТРЕЛКА СТАЛА ЗНАКОМ НАБОРА (тикет 169, `ui-back.svg` раунда 41).
+                Сутки здесь стояла «←» ТЕКСТОМ: контракт звал знак с round39, а
+                файла в наборе не было — своего мы не рисовали (правило тикета
+                150), сказали письмом 43 и ждали. Дизайн прислал файл и назвал
+                нашу же причину: глифов в интерфейсе быть не должно. Числа те же,
+                что и были: знак 20 в цели 44. */}
             <Link href={zoneHref} aria-label={zoneLabel} className={`pressable ${s.headSign}`}>
-              ←
+              <IconBack size={BACK_SIGN} />
             </Link>
 
+            {/* «⋯» — 19, общий кегль набора (contract round41 → head.more). Был
+                20 своим числом карточки; дизайн привёл его к остальному набору
+                молча, седьмой правкой сверх шести объявленных (см. отчёт по
+                тикету 170). Своего кегля у карточки не осталось — знак берёт
+                `SIGN_SIZE` листа действий. */}
             <span className={s.headActions}>
-              <ItemActions rows={sheetRows} moreLabel={t("itemMore")} glyph={MORE_GLYPH} />
+              <ItemActions rows={sheetRows} moreLabel={t("itemMore")} />
             </span>
           </div>
         </div>

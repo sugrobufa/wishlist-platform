@@ -1,4 +1,5 @@
-// Карточка вещи глазами хозяйки, редакция v2 (тикет 159, доска 47a).
+// Карточка вещи глазами хозяйки, редакция v2 (тикет 159, доска 47a; контракт
+// round41 — тикет 170).
 //
 // ЗАЧЕМ ТЕСТ. У этой карточки две обязанности, и обе ломаются молча.
 //
@@ -17,9 +18,19 @@
 // расхождение с пакетом = баг (CLAUDE.md), а названное вслух и проверенное —
 // решение. Разойдись причина с действительностью (дизайн поправит числа,
 // у нас появится галерея) — покраснеет здесь, а не на приёмке.
+//
+// СЕГОДНЯ ЭТОТ РАЗДЕЛ ПУСТ ПО СУЩЕСТВУ, И ЭТО ЕГО ЛУЧШИЙ ДЕНЬ (тикет 170).
+// Пять расхождений держались списком с round39; раунд 41 закрыл ВСЕ ПЯТЬ, и
+// закрыл в нашу сторону — четыре раза словами «вы поймали верно». Проверки не
+// удалены, а перевёрнуты: каждая теперь требует, чтобы контракт говорил то же,
+// что делает код. Уедет он обратно — покраснеет здесь.
 import { readFileSync } from "node:fs";
+import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { createElement } from "react";
+import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
+import { IconBack } from "../src/components/icons";
 import ru from "../messages/ru.json";
 import en from "../messages/en.json";
 
@@ -32,9 +43,9 @@ const css = read("../src/components/item/owner-card.module.css");
 const shopCss = read("../src/components/zone/shop-link.module.css");
 const dto = read("../src/server/dto/items.ts");
 
-/** Контракт карточки — источник чисел (раунд 39). */
+/** Контракт карточки — источник чисел (раунд 41, ответ на письмо 43). */
 const contract = JSON.parse(
-  read("../design/package/handoff/round39/item-card-owner.json"),
+  read("../design/package/handoff/round41/item-card-owner.json"),
 ) as {
   screen: { photo: { h: number; fit: string; empty: string }; surface: string };
   head: { back: string; more: string };
@@ -48,9 +59,15 @@ const contract = JSON.parse(
     order: string;
   };
   mainAction: { label: string; form: string; hit: string };
-  sheet: { form: string; rows: ReadonlyArray<{ label: string; icon: string }>; confirm: string };
+  sheet: {
+    form: string;
+    rows: ReadonlyArray<{ label: string; icon: string }>;
+    confirm: string;
+    galleryDropped: string;
+  };
   absent: Record<string, string>;
   treasuryVariant: string;
+  changedFrom: { baseline: string; changed: readonly string[] };
 };
 
 /** Первое число контрактной строки — «знак зоны 16 при .55», «⋯ 20 в цели 44». */
@@ -206,13 +223,60 @@ describe("числа контракта round39 — из контракта, а 
     expect(css).toMatch(/\.column \{[\s\S]*?min-height: 100vh;/u);
   });
 
-  it("знаки над фото: «⋯» 20 в цели 44", () => {
-    expect(card).toContain(`const MORE_GLYPH = ${firstNumber(contract.head.more)}`);
-    expect(card).toContain("glyph={MORE_GLYPH}");
+  it("знаки над фото: стрелка 20 и «⋯» 19, оба в целях 44", () => {
+    // ОБА ЗНАКА — РИСУНКИ НАБОРА (тикет 170). Стрелка приехала файлом
+    // `ui-back.svg` и рисуется `IconBack` своим числом; «⋯» рисует лист
+    // действий общим `SIGN_SIZE` — своего числа у карточки на него не осталось.
+    expect(card).toContain(`const BACK_SIGN = ${firstNumber(contract.head.back)}`);
+    expect(card).toContain("<IconBack size={BACK_SIGN} />");
+    expect(firstNumber(contract.head.more)).toBe(19);
+    expect(read("../src/components/item/item-actions.tsx")).toContain(
+      "export const SIGN_SIZE = 19;",
+    );
+    // Контракт зовёт знаки ПО ИМЕНАМ ФАЙЛОВ — оба лежат в наборе и сверены
+    // путь в путь (ui-back — здесь ниже, action-more — tests/item-actions).
+    expect(contract.head.back).toContain("ui-back.svg");
+    expect(contract.head.more).toContain("action-more.svg");
+    // Цели 44 у обоих, и они не трогались правкой знаков.
     expect(contract.head.more).toContain("44");
     expect(contract.head.back).toContain("44");
     expect(css).toMatch(/\.headSign \{[\s\S]*?width: var\(--hit-target-min, 44px\);/u);
-    expect(css).toMatch(/\.headSign \{[\s\S]*?font-size: 20px;/u);
+    expect(css).toMatch(/\.headSign \{[\s\S]*?height: var\(--hit-target-min, 44px\);/u);
+    // Кегль ушёл из CSS вместе с глифом: у рисунка размер задаёт проп, и два
+    // места одного числа развели бы его при первой правке.
+    expect(css).not.toMatch(/\.headSign \{[\s\S]*?font-size:/u);
+  });
+
+  it("стрелка «назад» — путь в путь с `ui-back.svg`, а не похожая", () => {
+    // Та же мерка, что у всего набора (tests/tab-icons, tests/item-actions):
+    // «похоже» в наборе не считается, а сдвинутый узел на 20 px не увидеть.
+    const file = readFileSync(
+      path.join("design", "package", "handoff", "icons", "ui-back.svg"),
+      "utf8",
+    );
+    const shape = (svg: string) => [...svg.matchAll(/d="([^"]+)"/gu)].map((m) => m[1] as string);
+    expect(shape(renderToStaticMarkup(createElement(IconBack)))).toEqual(shape(file));
+    // Формат набора: сетка 24, контур 1.7; цвет у нас `currentColor` — вшитого
+    // в файл #F2EDE4 быть не должно, знак горит цветом места.
+    const svg = renderToStaticMarkup(createElement(IconBack));
+    expect(svg).toContain('viewBox="0 0 24 24"');
+    expect(svg).toContain('stroke-width="1.7"');
+    expect(svg).toContain('stroke="currentColor"');
+    expect(svg).not.toContain("#F2EDE4");
+  });
+
+  it("тень под знаками шапки доехала до рисунка, а не осталась у текста", () => {
+    // `text-shadow` контур SVG не красит вовсе. Пока стрелка была глифом, тень
+    // работала у неё одной; знаком она потеряла бы её совсем, а на светлых
+    // комнатах знак .92 по мрамору без тени не читается.
+    expect(css).toMatch(/\.headSign svg,\s*\n\.headActions svg \{[\s\S]*?filter: drop-shadow/u);
+    // Правил с `text-shadow` не осталось. Сверяется КОД, а не комментарии: про
+    // текстовую тень в файле написано много и написано правильно — это разбор,
+    // а не разметка, и ловить его нельзя.
+    expect(strip(css)).not.toContain("text-shadow");
+    // ФИЛЬТР — НА САМОМ SVG. На обёртке он сделал бы её содержащим блоком для
+    // `position: fixed`, а лист «⋯» на телефоне именно fixed.
+    expect(css).not.toMatch(/\.headActions \{[^}]*filter:/u);
   });
 
   it("название 700 22/1.25 Onest, до двух строк", () => {
@@ -315,6 +379,12 @@ describe("лист «⋯»: состав по контракту, знаки rou
   it("знаки — те самые из набора round36, а не нарисованные заново", () => {
     // Контракт зовёт знаки по именам файлов; у нас на каждый есть компонент,
     // сверенный путь в путь в `tests/item-actions.test.ts`.
+    //
+    // СПИСОК ЗАКРЫТ ЦЕЛИКОМ (тикет 170). Прежде здесь была ветка «знака нет —
+    // проверь, не `action-gallery` ли это»: строку «Кадры вещи» контракт
+    // называл, а мы её не рисовали. Раунд 41 строку СНЯЛ, и ветка убрана —
+    // теперь любой незнакомый знак контракта красный сразу, без исключения,
+    // которое однажды прикрыло бы собой второй такой случай.
     const OURS: Record<string, string> = {
       "action-treasury.svg": "IconActionTreasury",
       "action-move.svg": "IconMove",
@@ -323,14 +393,7 @@ describe("лист «⋯»: состав по контракту, знаки rou
     };
     for (const row of contract.sheet.rows) {
       const ours = OURS[row.icon];
-      // «Кадры вещи» — единственная строка без нашего знака на экране: её нет
-      // целиком (см. раздел «чего мы не взяли»).
-      if (!ours) {
-        expect(row.icon, "новый знак контракта — проверь, есть ли он у нас").toBe(
-          "action-gallery.svg",
-        );
-        continue;
-      }
+      expect(ours, `${row.label}: новый знак контракта (${row.icon}) — у нас его нет`).toBeDefined();
       expect(card, row.label).toContain(`<${ours} size={SIGN_SIZE} />`);
     }
     // Размер знака берётся у листа, а не подбирается тут заново.
@@ -357,7 +420,9 @@ describe("лист «⋯»: состав по контракту, знаки rou
 
 describe("вариант сокровищницы (contract → treasuryVariant)", () => {
   it("шкалы желания нет: желание исполнено", () => {
-    expect(contract.treasuryVariant).toContain("шкалы нет");
+    // Round41 сказал это адреснее прежнего: «Шкалы нет НИ У КОГО» — то есть и
+    // хозяйке тоже, в отличие от цены, у которой адресат появился разный.
+    expect(contract.treasuryVariant).toContain("Шкалы нет ни у кого");
     // Шкала рисуется только у вещи КОМНАТЫ — тем же условием, что и цена.
     expect(card).toMatch(/\{!item\.inHall && \(\s*<div className=\{s\.priceRow\}>/u);
     expect(card).toContain("<DesirePicker");
@@ -377,69 +442,108 @@ describe("вариант сокровищницы (contract → treasuryVariant)
     expect(card).toContain('item.inHall ? tHall("noteAdd") : t("itemEdit")');
   });
 
-  it("ЦЕНА ОСТАЁТСЯ — инвариант №8 сильнее этой строки контракта", () => {
-    // Контракт пишет у витрины «цены нет». Его правило — про ГОСТЯ, и для
-    // гостя оно выполнено жёстче некуда: ключей price/currency нет в гостевом
-    // DTO вовсе. А инвариант №8 второй половиной говорит: «хозяйке её
-    // собственные цены видны ВСЕГДА, включая её собственную витрину».
-    // Исполнить контракт буквально значило бы нарушить инвариант.
-    expect(contract.treasuryVariant).toContain("цены нет");
+  it("У ЦЕНЫ В ВИТРИНЕ ПОЯВИЛСЯ АДРЕСАТ — контракт догнал инвариант №8", () => {
+    // ПЕРЕВЁРНУТО (тикет 170). Round39 писал у витрины просто «цены нет», и мы
+    // держали цену вопреки строке контракта: его правило про ГОСТЯ (для гостя
+    // оно выполнено жёстче некуда — ключей price/currency нет в гостевом DTO
+    // вовсе), а инвариант №8 второй половиной говорит «хозяйке её собственные
+    // цены видны ВСЕГДА, включая её собственную витрину».
+    //
+    // Раунд 41 признал формулировку своей ошибкой дословно: «без адресата…
+    // однажды по ней спрятали бы цену и от хозяйки». Расхождения больше нет —
+    // есть совпадение, и оно под тестом с обеих сторон.
+    expect(contract.treasuryVariant).toContain("ГОСТЮ цена не показывается");
+    expect(contract.treasuryVariant).toContain("ХОЗЯЙКЕ её собственные цены видны всегда");
     expect(card).toContain("hall?.price != null");
     expect(card).toContain("<PriceSeenBadge audience={hall.priceAudience} />");
   });
 });
 
-describe("чего мы из контракта НЕ взяли — и почему", () => {
-  it("«Кадры вещи»: галереи в продукте нет, строка вела бы в пустоту", () => {
+describe("чего мы из контракта НЕ взяли — ПЯТЬ ПРИЧИН ОТПАЛИ (round41)", () => {
+  // ЗАЧЕМ РАЗДЕЛ ОСТАЛСЯ, ЕСЛИ РАСХОЖДЕНИЙ НЕТ. Каждое из пяти мест — то, где
+  // контракт и код УЖЕ РАЗОШЛИСЬ ОДНАЖДЫ. Такие места и расходятся повторно:
+  // пришлёт дизайн следующий раунд с прежними числами — мы должны узнать об
+  // этом здесь, а не на приёмке. Поэтому проверки не удалены, а перевёрнуты:
+  // вчера они держали НАШУ причину не брать, сегодня — СОВПАДЕНИЕ сторон.
+  //
+  // Отдельно проверяется, что закрытие названо самим дизайном: у контракта
+  // есть блок `changedFrom` со списком правок, и мы сверяем его с базой,
+  // от которой считали (round39). Молчаливая правка чужого файла — такая же
+  // болезнь, как молчаливое расхождение нашего кода.
+
+  it("дизайн назвал базу и список правок — считаем от того же места", () => {
+    expect(contract.changedFrom.baseline).toContain("round39");
+    expect(contract.changedFrom.changed.length).toBeGreaterThanOrEqual(6);
+  });
+
+  it("1. «Кадры вещи» СНЯТЫ дизайном — галереи в продукте нет", () => {
     const schema = read("../prisma/schema.prisma");
     const model = /model Item \{[\s\S]*?\n\}/u.exec(schema)?.[0] ?? "";
     // У вещи ОДНА фотография — одна колонка и ни одного отношения к кадрам.
     expect(model).toContain("photoKey");
     expect(model).not.toMatch(/photos|ItemPhoto|gallery/iu);
     expect(card).not.toContain("IconGallery");
-    // Появится галерея — эта проверка покраснеет, и строку надо будет завести.
-    expect(contract.sheet.rows.map((row) => row.label)).toContain("Кадры вещи");
+    // Строки в контракте больше нет, и снятие объяснено отдельным ключом:
+    // «одна фотография это не бедность, а решение».
+    expect(contract.sheet.rows.map((row) => row.label)).not.toContain("Кадры вещи");
+    expect(contract.sheet.galleryDropped).toContain("СНЯТА");
+    // Появится галерея у НАС — покраснеет здесь, и строку надо будет вернуть
+    // вместе с ответом дизайна («вернёмся, если попросит хозяйка»).
+    expect(read("../src/components/icons.tsx")).toContain("export function IconGallery");
   });
 
-  it("огоньки 5 px: контракт даёт числа СТРОКИ ЗОНЫ, а не карточки", () => {
-    // Наш принятый контракт 36d (тикет 125): 6 px с шагом 5 в карточке, 5 px
-    // с шагом 4 в строке зоны. round39 просит в карточке 5/4 — это числа
-    // другого места. Плюс раунд 29 требует здесь не показ, а ВВОД тапом
-    // (task31.json → addFormScale.editInPlace), и он под тестом.
-    expect(contract.body.wish).toContain("5 px");
-    expect(contract.body.wish).toContain("gap 4");
+  it("2. огоньки 6/5 и ВВОД — дизайн подтвердил наши числа", () => {
+    // Было: round39 просил 5 px с шагом 4, а это числа СТРОКИ ЗОНЫ (наш
+    // контракт 36d, тикет 125). Стало: «числа 5/4 из нашего файла были числами
+    // СТРОКИ ЗОНЫ, вы поймали верно» — и ввод тапом подтверждён отдельно.
+    expect(contract.body.wish).toContain("6 px с шагом 5");
+    expect(contract.body.wish).toContain("ВВОД, а не показ");
     const scaleCss = read("../src/components/item/desire-scale.module.css");
     expect(scaleCss).toMatch(/\.flame \{[\s\S]*?width: 6px;/u);
     // В карточке стоит ввод, а не показ, — второго места ввода на экране нет.
     expect(card).toContain("<DesirePicker");
     expect(card).not.toContain("DesireScale");
+    // «Не задана — шкала не рисуется»: пустое не равно нулевому.
+    expect(contract.body.wish).toContain("не рисуется");
   });
 
-  it("строка листа 56 и подпись 600/14: контракт спорит со своей же ссылкой", () => {
-    // Он сам говорит «лист на знаках round36», а у round36 строка 52 и титул
-    // 500/13.5 (тикет 123, под тестом `item-actions`). Лист рисует свой
-    // модуль — второй его копии карточка не заводит.
-    expect(contract.sheet.form).toContain("строки 56");
+  it("3. лист 52 и подпись 500/13.5 — дизайн свёл два своих числа к одному", () => {
+    // Было: round39 писал строки 56 и подпись 600/14, ссылаясь при этом на
+    // знаки round36, где строка 52 и титул 500/13.5. Стало: «два числа одного
+    // листа в двух наших файлах, вы взяли верное».
+    expect(contract.sheet.form).toContain("строки 52");
+    expect(contract.sheet.form).toContain("подпись 500 13.5");
     expect(contract.sheet.form).toContain("знак 19 в цели 44");
     const sheetCss = read("../src/components/item/item-actions.module.css");
     expect(sheetCss).toContain("min-height: 52px");
+    expect(sheetCss).toContain("font: 500 13.5px/1 var(--font-ui)");
+    // Лист рисует свой модуль — второй его копии карточка не заводит.
     expect(css).not.toContain("56px");
   });
 
-  it("стрелка «назад»: знака 20 в наборе дизайна нет — своего не рисуем", () => {
-    // Правило тикета 150: контракт зовёт знак, которого у нас нет, — говорим,
-    // а не изобретаем. Назад ведёт «←» текстом, как и раньше, но на цели 44.
+  it("4. стрелка «назад» — знак приехал, и текст глифом ушёл", () => {
+    // Было: контракт звал знак, которого в наборе не лежало; по правилу тикета
+    // 150 мы сказали письмом и оставили «←» текстом. Стало: `ui-back.svg` в
+    // пакете, и дизайн назвал нашу же причину — глифов в интерфейсе не бывает.
     const icons = read("../src/components/icons.tsx");
-    expect(icons).not.toMatch(/IconBack|IconArrowLeft/u);
-    expect(contract.head.back).toContain("стрелка 20");
-    expect(card).toMatch(/className=\{`pressable \$\{s\.headSign\}`\}>\s*←/u);
+    expect(icons).toContain("export function IconBack");
+    expect(contract.head.back).toContain("ui-back.svg");
+    expect(contract.head.back).toContain("глифов в интерфейсе не бывает");
+    expect(card).toContain("<IconBack size={BACK_SIGN} />");
+    // Глифа в шапке не осталось ни одного — ни стрелки, ни «⋯» текстом.
+    expect(strip(card)).not.toMatch(/[←⋯]/u);
   });
 
-  it("«открыто» вместо суммы: нет цены — нет строки", () => {
-    // Чем слово «открыто» отвечает на «цены нет», контракт не объясняет.
-    // Ведём себя как в сокровищнице (тикет 35): сказать нечего — строки нет.
-    expect(contract.body.price).toContain("«открыто» вместо суммы, если цены нет");
+  it("5. «открыто» объяснено: это ЗНАЧЕНИЕ цены, а не замена пустой", () => {
+    // Было: «"открыто" вместо суммы, если цены нет» — чем слово отвечает на
+    // отсутствие цены, контракт не объяснял, и мы вели себя как в сокровищнице
+    // (тикет 35): сказать нечего — строки нет. Стало: «два разных случая
+    // слиплись в одну фразу, извините», и наше правило принято дословно.
+    expect(contract.body.price).toContain("НЕТ ЦЕНЫ — НЕТ СТРОКИ (ваше правило, принимаем)");
+    expect(contract.body.price).toContain("ЗНАЧЕНИЕ цены у денежной вещи");
     expect(card).toContain("{roomPrice !== null && <span className={s.price}>{roomPrice}</span>}");
+    // Слова «открыто» в продукте по-прежнему нет: денежная вещь — это зона
+    // `money` с копилкой (инвариант №9), а не строка цены в карточке.
     expect(ru.Settings).not.toHaveProperty("itemPriceOpen");
   });
 });
