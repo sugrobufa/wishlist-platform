@@ -13,6 +13,46 @@ import { roomImageUrl } from "@/app/rooms/room-image";
 
 export type PriceVisibilityDto = "ALL" | "FRIENDS" | "ME" | "NONE";
 
+/**
+ * Магазин вещи — «Где купить» (тикет 37, турны 8b/8e; в карточку хозяйки
+ * приехал тикетом 159).
+ *
+ * ЖИВЁТ ЗДЕСЬ, А НЕ В ГОСТЕВОМ DTO, где родился. Разбор адреса нужен обеим
+ * формам — гостю и хозяйке, — а второй разбор в продукте означал бы два
+ * ответа на вопрос «куда ведёт эта вещь». `guest-items.ts` берёт его отсюда
+ * же под своим прежним именем.
+ */
+export type ShopDto = {
+  /** Канонический адрес страницы товара — куда ведёт «Перейти →». */
+  url: string;
+  /** Хост без «www.»: человеку важно «ozon.ru», а не путь с параметрами. */
+  domain: string;
+};
+
+/**
+ * Ссылка на магазин из канонического адреса вещи. На вход — только
+ * `Item.canonicalUrl`: его посчитал сервер (services/items → normalizeUrl),
+ * а `Item.url` вводит человек, и наружу он не идёт (инвариант №6). Домен
+ * берётся из разобранного адреса, а не из колонки `Item.domain`: колонка
+ * могла отстать от адреса, а показываем мы именно то, куда уводим.
+ *
+ * Всё, что не разбирается в http(s)-адрес, ссылки не даёт вовсе: у вещи,
+ * добавленной руками, магазина просто нет, и это честнее пустой кнопки.
+ */
+export function shopOf(canonicalUrl: string | null): ShopDto | null {
+  if (canonicalUrl === null || canonicalUrl === "") return null;
+  let parsed: URL;
+  try {
+    parsed = new URL(canonicalUrl);
+  } catch {
+    return null;
+  }
+  if (parsed.protocol !== "https:" && parsed.protocol !== "http:") return null;
+  const domain = parsed.hostname.replace(/^www\./, "");
+  if (domain === "") return null;
+  return { url: parsed.toString(), domain };
+}
+
 /** Общие поля обеих форм вещи. */
 type OwnerItemBaseDto = {
   id: string;
@@ -68,6 +108,16 @@ export type OwnerRoomItemDto = OwnerItemBaseDto & {
   color: string | null;
   /** «Насколько хочется», 1–4 — единственная градация вещи (тикет 125). */
   desire: number | null;
+  /**
+   * «Где купить» — домен и адрес, `null` у вещи, добавленной руками.
+   *
+   * У ХОЗЯЙКИ ССЫЛКА НЕ ЗАВИСИТ ОТ `priceVisibility`, в отличие от гостевой
+   * формы: настройка говорит, что видит ГОСТЬ, а свои данные хозяйка видит
+   * всегда (инвариант №8, вторая половина). У формы сокровищницы ключа нет
+   * вовсе — там не покупают (контракт round39: «где купить» только в
+   * карточке вещи комнаты).
+   */
+  shop: ShopDto | null;
 };
 
 /**
@@ -135,5 +185,6 @@ export function itemForOwner(item: Item): OwnerItemDto {
     size: item.size,
     color: item.color,
     desire: item.desire,
+    shop: shopOf(item.canonicalUrl),
   };
 }

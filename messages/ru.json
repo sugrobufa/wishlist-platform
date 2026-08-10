@@ -368,6 +368,8 @@
     "itemHallAddHint": "уже твоя — покажи без цены",
     "itemHallRemove": "Убрать из сокровищницы",
     "itemHallRemoveHint": "встанет обратно в свою зону",
+    "itemMove": "Перенести в зону",
+    "itemMoveHint": "выбрать другую полку",
     "itemEdit": "Изменить",
     "itemSince": "В комнате с",
     "itemGiverRow": "Подарок от",
@@ -393,7 +395,8 @@
     "errGeneric": "Не получилось — попробуй ещё раз",
     "zoneItemCount": "{count, plural, one {# вещь} few {# вещи} many {# вещей} other {# вещи}}",
     "itemHallAddConfirm": "Перенести в сокровищницу?",
-    "itemHallAddYes": "Да, перенести"
+    "itemHallAddYes": "Да, перенести",
+    "itemHallAddNo": "Не переносить"
   },
   "DataSection": {
     "overline": "Твои данные",

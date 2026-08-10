@@ -79,7 +79,7 @@ export default async function OwnerItemPage({ params }: Params) {
   return (
     <ItemCard
       item={itemForOwner(item)}
-      lovePrice={
+      hall={
         hall === null
           ? null
           : {
@@ -87,10 +87,14 @@ export default async function OwnerItemPage({ params }: Params) {
               currency: hall.currency,
               rounded: hall.rounded,
               priceAudience: hall.priceAudience,
+              hiddenFromObservers: hall.hiddenFromObservers,
             }
       }
       zones={zones}
       zoneLabel={zone.label}
+      // Знак полки — значок ПУЛА зоны (тикет 82): у вещи категории нет, у зоны
+      // есть всегда. Он же встаёт на месте отсутствующего фото.
+      zonePool={zoneInfo(item.zone)?.pool ?? null}
       accent={preset.accent}
       ink={preset.ink}
     />

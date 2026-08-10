@@ -1,0 +1,277 @@
+/* Карточка вещи глазами хозяйки, редакция v2 — числа контракта
+ * `design/package/handoff/round39/item-card-owner.json` (доска 47a, тикет 159).
+ *
+ * Всё, что здесь стоит числом, снято с контракта: фото 260, знак пула 34 при
+ * .35, цели 44, название 700 22/1.25 до двух строк, цена 500 15 при .72
+ * tabular-nums, знак полки 16 при .55 и подпись 13 при .72, заметка
+ * 400 13.5/1.55 при .72 до четырёх строк. Своих чисел файл не заводит.
+ *
+ * ЧЕГО ЗДЕСЬ НЕТ И ПОЧЕМУ (сверка тикета 159, подробности — в файле тикета):
+ * - огоньки 5 px с шагом 4 не берутся: наш принятый контракт 36d говорит про
+ *   карточку 6 px с шагом 5, а 5/4 — числа СТРОКИ ЗОНЫ. Шкала рисуется своим
+ *   модулем (`desire-picker`), сюда её числа не переезжают;
+ * - строка листа 56 и подпись 600/14 не берутся: контракт сам говорит «лист на
+ *   знаках round36», а у round36 строка 52 и титул 500/13.5 (тикет 123).
+ *   Лист рисует `item-actions.module.css`, и второй его копии здесь нет. */
+
+.screen {
+  min-height: 100vh;
+  background: var(--color-surface-app-ground, #0b0806);
+}
+
+.column {
+  display: flex;
+  width: 100%;
+  max-width: 560px;
+  min-height: 100vh;
+  flex-direction: column;
+  margin: 0 auto;
+}
+
+/* --- Фото 260 и знаки НАД ним (contract → screen.photo, head) ------------- */
+
+.photo {
+  position: relative;
+  height: 260px;
+  flex: none;
+  background-color: var(--color-surface-fill, rgba(255, 255, 255, 0.05));
+  background-position: center;
+  background-size: cover;
+}
+
+/* Фотографии нет — заливка .05 и знак пула зоны при .35: у ВЕЩИ категории нет,
+   а у зоны есть всегда (тикет 82). Чёрной дыры на 260 px не остаётся. */
+.photoEmpty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background-color: rgba(255, 255, 255, 0.05);
+  color: rgba(255, 249, 242, 0.35);
+}
+
+/* Знаки стоят НА фотографии, поэтому под ними тень: на светлых комнатах
+   (Кремовая, Пентхаус) знак .82 по светлому мрамору не читается — тот же
+   разбор, что у пилюли на кадре (globals.css → .btn-quiet-on-photo). */
+.head {
+  position: absolute;
+  top: 0;
+  right: 0;
+  left: 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 4px;
+}
+
+.headSign {
+  display: inline-flex;
+  width: var(--hit-target-min, 44px);
+  height: var(--hit-target-min, 44px);
+  align-items: center;
+  justify-content: center;
+  border: none;
+  background: none;
+  color: rgba(255, 249, 242, 0.92);
+  font-size: 20px;
+  line-height: 1;
+  text-decoration: none;
+  text-shadow: 0 1px 6px rgba(11, 8, 6, 0.85);
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.headSign:focus-visible {
+  outline: 1px dashed currentColor;
+  outline-offset: -6px;
+}
+
+/* «⋯» приходит компонентом листа (round36) — ему нужна та же тень и тот же
+   цвет, что у стрелки: они стоят на одной фотографии в одном ряду. */
+.headActions {
+  color: rgba(255, 249, 242, 0.92);
+  text-shadow: 0 1px 6px rgba(11, 8, 6, 0.85);
+}
+
+/* --- Одна поверхность: от нижней кромки фото до низа экрана ---------------- */
+
+.surface {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  gap: 14px;
+  padding: 18px 20px 32px;
+  background: var(--color-surface-fill, rgba(255, 255, 255, 0.05));
+}
+
+/* --- Тело: название → цена и огоньки → полка → заметка → где купить -------- */
+
+.name {
+  display: -webkit-box;
+  overflow: hidden;
+  margin: 0;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  font: 700 22px/1.25 var(--font-ui);
+  color: var(--color-text-primary, #fff9f2);
+}
+
+/* Подпись витрины — «Подарок 2026 года · от Кати». Стоит ПОД названием и
+   только в сокровищнице: имя раскрыто один раз (инвариант №2), вещь уже
+   переехала, и брони за этой строкой нет никакой. */
+.caption {
+  margin: -6px 0 0;
+  font: 400 13px/1.4 var(--font-ui);
+  color: rgba(255, 249, 242, 0.55);
+}
+
+.priceRow {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 14px;
+}
+
+.price {
+  font: 500 15px/1.2 var(--font-ui);
+  font-variant-numeric: tabular-nums;
+  color: rgba(255, 249, 242, 0.72);
+}
+
+/* Полка — строка-ссылка: знак зоны 16 при .55, подпись 13 при .72. Цель
+   нажатия добирается до 44, как у любой строки продукта. */
+.zoneRow {
+  display: flex;
+  min-height: var(--hit-target-min, 44px);
+  align-items: center;
+  gap: 8px;
+  text-decoration: none;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.zoneSign {
+  display: inline-flex;
+  flex: none;
+  color: rgba(255, 249, 242, 0.55);
+}
+
+.zoneLabel {
+  overflow: hidden;
+  font: 400 13px/1.2 var(--font-ui);
+  color: rgba(255, 249, 242, 0.72);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .zoneRow:hover .zoneLabel {
+    color: var(--color-text-primary, #fff9f2);
+  }
+}
+
+.note {
+  display: -webkit-box;
+  overflow: hidden;
+  margin: 0;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 4;
+  font: 400 13.5px/1.55 var(--font-ui);
+  color: rgba(255, 249, 242, 0.72);
+  white-space: pre-line;
+}
+
+/* --- Главное действие: «полоса света» (турн 22, tokens.json → button.primary)
+ *
+ * Числа НЕ ПОДБИРАЛИСЬ: это тот же рецепт, что у «Сохранить» в карточке
+ * добавления (`add-item.module.css` → .lightBar) — нижняя граница 2 px
+ * акцентом, ореол `0 4px 18px -3px` при .42, заливки нет. Отличие одно и оно
+ * из контракта: цель нажатия — ВСЯ СТРОКА, минимум 44. */
+
+.mainAction {
+  display: flex;
+  width: 100%;
+  min-height: var(--hit-target-min, 44px);
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: auto;
+  padding: 14px 2px;
+  border: 0;
+  border-bottom: 2px solid var(--card-accent);
+  background: none;
+  box-shadow: 0 4px 18px -3px var(--card-glow-42);
+  font: 600 15px/1 var(--font-ui);
+  color: var(--color-text-primary, #fff9f2);
+  text-align: start;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .mainAction {
+    transition:
+      box-shadow 240ms var(--card-ease),
+      border-color 240ms var(--card-ease);
+  }
+
+  .mainAction:hover:not(:disabled) {
+    box-shadow: 0 6px 32px 0 var(--card-glow-85);
+  }
+}
+
+.mainAction:active:not(:disabled) {
+  box-shadow: 0 2px 7px -4px var(--card-glow-25);
+  border-color: var(--card-accent-active);
+}
+
+.mainAction:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+/* Стрелка — часть главной кнопки, и только её (турн 22). */
+.mainActionGo {
+  flex: none;
+  color: var(--card-accent);
+}
+
+/* Вопрос перед необратимым — про ВЕЩЬ, о брони в нём ни слова (contract →
+   sheet.confirm). Стоит на месте главного действия: это и есть его ответ. */
+.confirm {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 16px;
+  margin-top: auto;
+  padding-top: 14px;
+  font: 400 13.5px/1.4 var(--font-ui);
+  color: rgba(255, 249, 242, 0.72);
+}
+
+.confirmTitle {
+  width: 100%;
+  color: var(--color-text-primary, #fff9f2);
+}
+
+.confirmYes,
+.confirmNo {
+  min-height: var(--hit-target-min, 44px);
+  border: none;
+  background: none;
+  font: 600 13.5px/1 var(--font-ui);
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.confirmYes {
+  color: var(--color-text-strong, rgba(255, 249, 242, 0.82));
+}
+
+.confirmNo {
+  color: var(--color-text-muted, rgba(255, 249, 242, 0.6));
+}
+
+.error {
+  margin: 0;
+  font: 400 13px/1.4 var(--font-ui);
+  color: var(--color-text-muted, rgba(255, 249, 242, 0.6));
+}

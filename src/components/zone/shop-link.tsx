@@ -14,12 +14,21 @@
 import { useTranslations } from "next-intl";
 import s from "./shop-link.module.css";
 
-/** Где нажали: плитка в сетке зоны или лист брони (колонка context в БД). */
-export type ShopLinkPlace = "tile" | "sheet";
+/**
+ * Где нажали: плитка в сетке зоны, лист брони или карточка вещи хозяйки.
+ *
+ * `null` — место, которое НЕ СЧИТАЕТСЯ. Счётчик переходов меряет интерес
+ * ГОСТЕЙ (тикет 37), а карточка хозяйки — её собственный экран: она ходит по
+ * своей же ссылке проверить цену, и такие переходы в счётчике чужого интереса
+ * не данные, а шум. Поэтому «считать или нет» решает не отдельный флаг, а само
+ * место: у него либо есть колонка `context` в БД, либо его там нет.
+ */
+export type ShopLinkPlace = "tile" | "sheet" | "card";
 
-const CONTEXT: Record<ShopLinkPlace, "ZONE" | "RESERVE_PAGE"> = {
+const CONTEXT: Record<ShopLinkPlace, "ZONE" | "RESERVE_PAGE" | null> = {
   tile: "ZONE",
   sheet: "RESERVE_PAGE",
+  card: null,
 };
 
 /**
@@ -30,10 +39,13 @@ const CONTEXT: Record<ShopLinkPlace, "ZONE" | "RESERVE_PAGE"> = {
  * вкладке (блокировщик всплывающих окон).
  */
 function recordOutbound(itemId: string, place: ShopLinkPlace): void {
+  const context = CONTEXT[place];
+  // Место без колонки `context` не считается вовсе — см. `ShopLinkPlace`.
+  if (context === null) return;
   void fetch(`/api/v1/items/${encodeURIComponent(itemId)}/outbound`, {
     method: "POST",
     headers: { "content-type": "application/json" },
-    body: JSON.stringify({ context: CONTEXT[place] }),
+    body: JSON.stringify({ context }),
     keepalive: true,
   }).catch(() => {});
 }
@@ -45,8 +57,18 @@ type ShopLinkProps = {
   url: string;
   /** Хост без «www.» (guest-DTO → shop.domain). */
   domain: string;
-  /** Плитка — компактно в столбик; лист брони — строкой, как в турне 8b. */
+  /**
+   * Плитка — компактно в столбик; лист брони — строкой, как в турне 8b;
+   * карточка — строка тела карточки вещи хозяйки (round39 → body.link).
+   */
   place?: ShopLinkPlace;
+};
+
+/** Вид места: класс модуля. Разбор в одном месте — иначе он расползётся. */
+const LOOK: Record<ShopLinkPlace, string | undefined> = {
+  tile: s.tile,
+  sheet: s.sheet,
+  card: s.card,
 };
 
 export function ShopLink({ itemId, url, domain, place = "tile" }: ShopLinkProps) {
@@ -54,7 +76,7 @@ export function ShopLink({ itemId, url, domain, place = "tile" }: ShopLinkProps)
 
   return (
     <a
-      className={`pressable ${s.link} ${place === "sheet" ? s.sheet : s.tile}`}
+      className={`pressable ${s.link} ${LOOK[place]}`}
       href={url}
       target="_blank"
       rel="noopener noreferrer"

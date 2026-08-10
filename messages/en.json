@@ -368,6 +368,8 @@
     "itemHallAddHint": "already yours — show it without a price",
     "itemHallRemove": "Remove from the treasure room",
     "itemHallRemoveHint": "goes back to its own zone",
+    "itemMove": "Move to a shelf",
+    "itemMoveHint": "pick another shelf",
     "itemEdit": "Edit",
     "itemSince": "In the room since",
     "itemGiverRow": "A gift from",
@@ -393,7 +395,8 @@
     "errGeneric": "Something went wrong — try again",
     "zoneItemCount": "{count, plural, one {# thing} other {# things}}",
     "itemHallAddConfirm": "Move to the treasury?",
-    "itemHallAddYes": "Yes, move it"
+    "itemHallAddYes": "Yes, move it",
+    "itemHallAddNo": "Keep it here"
   },
   "DataSection": {
     "overline": "Your data",

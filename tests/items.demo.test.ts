@@ -31,6 +31,10 @@ const ROOM_KEYS = [
   "photoUrl",
   "price",
   "priceVisibility",
+  // «Где купить» (тикет 159). У призрака магазина нет и быть не может — он
+  // выдуман, адреса у него нет, — но КЛЮЧ у формы комнаты есть: набор
+  // перечисляет форму, а не заполненность. Значение проверяется ниже.
+  "shop",
   "size",
   "title",
   "validUntil",
@@ -127,6 +131,10 @@ describe("demoGhostsFor — DTO-совместимость", () => {
         expect(ghost.isDemo).toBe(true);
         expect(ghost.hidden).toBe(false);
         expect(ghost.zone).toBe("jewelry");
+        // Магазина у призрака нет: он выдуман, адреса у него нет. «Где купить»
+        // на нём не нарисуется — та же причина, что и у гостевой формы.
+        // Ветка всегда живая: форма призрака — комната, проверено строкой выше.
+        if (!ghost.inHall) expect(ghost.shop, `магазин «${ghost.title}»`).toBeNull();
       }
     }
   });

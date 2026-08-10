@@ -34,7 +34,7 @@
 //   параметры выброшены). Сырой `Item.url` — пользовательский ввод, и гостю
 //   он не показывается ни адресом, ни доменом (инвариант №6).
 import type { Item } from "@prisma/client";
-import { itemPhotoUrl, type PriceVisibilityDto } from "@/server/dto/items";
+import { itemPhotoUrl, shopOf, type PriceVisibilityDto, type ShopDto } from "@/server/dto/items";
 import { isExpired } from "@/server/dto/experience";
 import type { DemoGhostDto } from "@/config/demo-pools";
 
@@ -55,13 +55,17 @@ type GuestItemBaseDto = {
  * Полный блок доски — это несколько магазинов с ценами и наличием; у вещи
  * ссылка одна, поэтому честно отдаём одну (мультимагазинность — каталог за
  * флагом CATALOG_ENABLED, отдельный разговор).
+ *
+ * ТИП И РАЗБОР ПЕРЕЕХАЛИ В `dto/items.ts` (тикет 159): «где купить» появилось
+ * и в карточке хозяйки, а два разбора одного адреса — это два ответа на
+ * вопрос «куда ведёт эта вещь». Имена здесь оставлены прежними: гостевая
+ * половина продукта зовёт их так с тикета 37, и переименование ничего бы не
+ * прояснило. РАЗНИЦА НЕ В РАЗБОРЕ, А В ПРАВИЛЕ ПОКАЗА — и она ниже, в самой
+ * форме: гостю ключа `shop` при скрытой цене не достаётся вовсе, хозяйке
+ * ссылка видна всегда.
  */
-export type GuestShopDto = {
-  /** Канонический адрес страницы товара — куда ведёт «Перейти →». */
-  url: string;
-  /** Хост без «www.»: человеку важно «ozon.ru», а не путь с параметрами. */
-  domain: string;
-};
+export type GuestShopDto = ShopDto;
+export const guestShop = shopOf;
 
 /**
  * Вещь КОМНАТЫ для гостя: размер/цвет/желание видны всегда, цена — только при
@@ -127,30 +131,6 @@ export type GuestItemDto = GuestRoomItemDto | GuestHallItemDto;
  */
 export function guestSeesPrice(visibility: PriceVisibilityDto): boolean {
   return visibility === "ALL" || visibility === "FRIENDS";
-}
-
-/**
- * Ссылка на магазин из канонического адреса вещи. На вход — только
- * `Item.canonicalUrl`: его посчитал сервер (services/items → normalizeUrl),
- * а `Item.url` вводит человек, и наружу он не идёт (инвариант №6). Домен
- * берётся из разобранного адреса, а не из колонки `Item.domain`: колонка
- * могла отстать от адреса, а показываем мы именно то, куда уводим.
- *
- * Всё, что не разбирается в http(s)-адрес, ссылки не даёт вовсе: у вещи,
- * добавленной руками, магазина просто нет, и это честнее пустой кнопки.
- */
-export function guestShop(canonicalUrl: string | null): GuestShopDto | null {
-  if (canonicalUrl === null || canonicalUrl === "") return null;
-  let parsed: URL;
-  try {
-    parsed = new URL(canonicalUrl);
-  } catch {
-    return null;
-  }
-  if (parsed.protocol !== "https:" && parsed.protocol !== "http:") return null;
-  const domain = parsed.hostname.replace(/^www\./, "");
-  if (domain === "") return null;
-  return { url: parsed.toString(), domain };
 }
 
 /**

@@ -237,6 +237,10 @@ export function demoGhostsFor(zoneKey: string, poolKey: string): DemoGhostDto[] 
         size: null,
         color: null,
         desire: null,
+        // Магазина у призрака нет и быть не может: он выдуман, адреса у него
+        // нет — та же причина, по которой у него нет ключа `shop` в гостевой
+        // форме. «Где купить» на нём не рисуется.
+        shop: null,
         eventWhen: null,
         eventWhere: null,
         validUntil: null,
@@ -256,6 +260,7 @@ export function demoGhostsFor(zoneKey: string, poolKey: string): DemoGhostDto[] 
       size: null,
       color: null,
       desire: null,
+      shop: null,
       eventWhen: null,
       eventWhere: null,
       validUntil: null,
