@@ -1,8 +1,11 @@
 import { readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
+import { createElement } from "react";
+import { renderToStaticMarkup } from "react-dom/server";
 import { describe, it, expect } from "vitest";
 import tokensJson from "@design/tokens.json";
+import { TabSlots } from "../src/components/tab-bar/tab-slots";
 import { ADD_HREF, TAB_HREF, TAB_KEYS, TAB_SLOTS } from "../src/components/tab-bar/tabs";
 
 // Таб-бар (тикет 52; переработан тикетом 65) — контракт, записанный числами и
@@ -176,6 +179,42 @@ describe("числа 25a в CSS", () => {
     // света» (25a). border-top есть у самой полосы, у вкладок — ничего.
     expect(css).not.toContain("text-decoration: underline");
     expect(css).not.toContain("border-bottom");
+  });
+});
+
+describe("у каждого места бара есть знак (приёмка 10.08, замечание 1)", () => {
+  // «Сокровищница не прорисована иконка» — владелец на снимке с телефона.
+  // Место вернулось в бар тикетом 132, подпись ему дали, а ветку в `SlotIcon`
+  // — нет: switch без ветки молча отдавал undefined, и в баре стояло голое
+  // слово, съехавшее вверх относительно соседей.
+  //
+  // Тест рисует ПОЛОСУ ЦЕЛИКОМ, а не перечисляет знаки поимённо: перечень
+  // повторил бы ту же ошибку — забыли ветку, забыли и строку в списке.
+  const markup = renderToStaticMarkup(
+    createElement(TabSlots, {
+      active: "room" as const,
+      labels: {
+        room: "Комната",
+        connections: "Друзья",
+        add: "Добавить",
+        hall: "Сокровищница",
+        settings: "Настройки",
+      },
+    }),
+  );
+
+  it("знаков ровно столько же, сколько мест", () => {
+    const icons = markup.match(/<svg/gu)?.length ?? 0;
+    expect(icons, `в баре ${TAB_SLOTS.length} мест, а знаков ${icons}`).toBe(TAB_SLOTS.length);
+  });
+
+  it("у «Сокровищницы» знак — бриллиант витрины, а не голое слово", () => {
+    // Расхождение с `tab-treasury.svg` осознанное (разбор — tab-slots.tsx):
+    // арка уже занята «Комнатой», а витрину владелец 09.08 просил рисовать
+    // бриллиантом. Ловим саму грань знака — она есть только у него.
+    const slot = markup.split('href="/room/hall"')[1] ?? "";
+    expect(slot).toContain("Сокровищница");
+    expect(slot, "у места витрины пропал знак").toContain('d="M8 4.5h8l4 5-8 11-8-11 4-5z"');
   });
 });
 
