@@ -1,6 +1,6 @@
 import "dotenv/config";
 import { defineConfig, devices } from "@playwright/test";
-import { E2E_BASE_URL, E2E_MAIL_FILE, E2E_PORT } from "./e2e/env";
+import { E2E_BASE_URL, E2E_DIST_DIR, E2E_MAIL_FILE, E2E_PORT } from "./e2e/env";
 
 export default defineConfig({
   testDir: "./e2e",
@@ -30,15 +30,24 @@ export default defineConfig({
     },
   ],
   webServer: {
-    // СВОЙ dev-сервер на своём порту (тикет 15): возможный чужой на :3000
-    // не переиспользуем и не трогаем. Порт параметризован через e2e/env.ts
-    // (E2E_PORT), сам скрипт package.json не меняется — next dev читает PORT.
+    // СВОЙ dev-сервер на своём порту И В СВОЁМ КАТАЛОГЕ СБОРКИ (тикеты 15, 155):
+    // возможный чужой на :3000 не переиспользуем и не трогаем. Порт и каталог
+    // параметризованы через e2e/env.ts (E2E_PORT, E2E_DIST_DIR), сам скрипт
+    // package.json не меняется — next dev читает PORT, next.config.ts читает
+    // NEXT_DIST_DIR.
+    //
+    // Одного порта МАЛО: Next 16 блокирует КАТАЛОГ сборки (`<distDir>/dev/lock`),
+    // а не порт, и второй `next dev` в том же каталоге не стартует вовсе —
+    // «Another next dev server is already running». Пока каталог был общий,
+    // локальный прогон был невозможен рядом с живым `npm run dev`; в CI это не
+    // видно, там второго сервера нет.
     command: "npm run dev",
     url: E2E_BASE_URL,
     reuseExistingServer: false,
     timeout: 180_000,
     env: {
       PORT: String(E2E_PORT),
+      NEXT_DIST_DIR: E2E_DIST_DIR,
       // Абсолютные ссылки (письма, OG) собираются от адреса e2e-сервера.
       APP_BASE_URL: E2E_BASE_URL,
       // Тестовые швы тикета 15: перехват писем + фикстурный магазин парсера.

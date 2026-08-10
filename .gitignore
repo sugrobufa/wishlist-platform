@@ -28,3 +28,10 @@ Thumbs.db
 .turbo
 
 *.tsbuildinfo
+
+# Пишет сам Next при каждом старте (`next dev`/`next build`), содержимое зависит
+# от каталога сборки: обычный dev пишет пути `.next/dev/...`, e2e-сервер со своим
+# distDir — `.next/e2e/dev/...` (тикет 155). Под гитом файл только мигал бы туда-
+# сюда после каждого прогона. Так велит и сам Next: «Add it to .gitignore. If your
+# project already tracks the file, remove it from Git» (docs/config/typescript).
+next-env.d.ts
