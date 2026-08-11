@@ -2,8 +2,10 @@ import type { Metadata } from "next";
 import { notFound, redirect } from "next/navigation";
 import {
   attemptQuickLogin,
+  isEmptyRoomRequested,
   isFreshRequested,
   isReportRequested,
+  QUICK_LOGIN_EMPTY_PARAM,
   QUICK_LOGIN_FRESH_PARAM,
   QUICK_LOGIN_KEY_PARAM,
 } from "@/server/quick-login";
@@ -21,11 +23,13 @@ export const metadata: Metadata = { robots: { index: false, follow: false } };
  * вопросов. Форма с полем для ключа исчезла вместе с обязательностью ключа;
  * старая закладка `?key=…` продолжает работать (обратная совместимость).
  *
- * Четыре адреса, одна дорога:
+ * Пять адресов, одна дорога:
  *   /dev-login          → вход + посев пустых зон комнаты → /room
  *   /dev-login?fresh=1  → вход + сброс комнаты владельца → /onboarding
  *   /dev-login?seed=1   → то же, что голый /dev-login (тикет 70)
  *   /dev-login?report=1 → отчёт посева текстом, БЕЗ входа и без редиректа
+ *   /dev-login?empty=1  → вход ВТОРЫМ пользователем стенда, у которого комната
+ *                         заведомо пустая (тикет 190): ни сброса, ни посева
  *
  * ОТЧЁТ ЗАВЕДЁН, ПОТОМУ ЧТО ПОСЕВ МОЛЧИТ (07.08). Он возвращает подробный
  * разбор — нашёлся ли пользователь, нашлась ли комната, что создано в каждой
@@ -52,23 +56,30 @@ export default async function DevLoginPage({
     fresh?: string | string[];
     seed?: string | string[];
     report?: string | string[];
+    empty?: string | string[];
   }>;
 }) {
   const params = await searchParams;
-  // Страница читает два параметра — ключ и «заново». Третий, `?seed=1`,
-  // остался в типе ради старых закладок, но ни на что не влияет: наполнение
-  // безусловно (тикет 70). Ни почты, ни «кого стереть/наполнить» здесь нет и
-  // быть не может: это берётся из окружения.
+  // Страница читает три параметра — ключ, «заново» и «пустая комната».
+  // Четвёртый, `?seed=1`, остался в типе ради старых закладок, но ни на что не
+  // влияет: наполнение безусловно (тикет 70). Ни почты, ни «кого стереть/
+  // наполнить» здесь нет и быть не может: это берётся из окружения — включая
+  // почту пустой комнаты, которую `?empty=1` только ВЫБИРАЕТ, а не приносит.
   const raw = params[QUICK_LOGIN_KEY_PARAM];
   const key = Array.isArray(raw) ? raw[0] : raw;
+  const empty = isEmptyRoomRequested(params[QUICK_LOGIN_EMPTY_PARAM]);
 
   const outcome = await attemptQuickLogin({
     key,
+    empty,
     fresh: isFreshRequested(params[QUICK_LOGIN_FRESH_PARAM]),
     // Посев — ВСЕГДА (тикет 70), а не по `?seed=1`. Он идемпотентен: зона с
     // вещами пропускается целиком, и у полной комнаты вся работа — тринадцать
     // `count` и ноль записей. Заведённое руками не трогается.
-    seed: true,
+    //
+    // …КРОМЕ ВХОДА В ПУСТУЮ КОМНАТУ: там сеять нечего и некому — комната чужая
+    // (не `QUICK_LOGIN_EMAIL`), а сам смысл этого входа в том, что она пустая.
+    seed: !empty,
   });
   if (!outcome.ok) notFound();
 

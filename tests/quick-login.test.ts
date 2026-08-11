@@ -25,6 +25,7 @@ import { handlers } from "@/server/auth";
 import { AFTER_SIGNIN_PATH, AUTH_BASE_PATH, MAGIC_PROVIDER_ID } from "@/server/auth-links";
 import {
   attemptQuickLogin,
+  isEmptyRoomRequested,
   isFreshRequested,
   readQuickLoginConfig,
   resetQuickLoginWarnings,
@@ -42,6 +43,8 @@ import enMessages from "../messages/en.json";
 const ORIGIN = "http://localhost:3000";
 const TEST_EMAIL_DOMAIN = "@quick-login.test";
 const OWNER_EMAIL = `owner${TEST_EMAIL_DOMAIN}`;
+/** Второй пользователь стенда — тот, у кого комната пустая (тикет 190). */
+const EMPTY_EMAIL = `empty${TEST_EMAIL_DOMAIN}`;
 const SECRET = "s3cret-длиной-строго-больше-24-символов-0123456789";
 const NOT_FOUND_DIGEST = "NEXT_HTTP_ERROR_FALLBACK;404";
 
@@ -72,7 +75,12 @@ function blindStorage(): StandResetStorage {
 
 // ---------------------------------------------------------------- окружение
 
-const ENV_KEYS = ["QUICK_LOGIN_ENABLED", "QUICK_LOGIN_SECRET", "QUICK_LOGIN_EMAIL"] as const;
+const ENV_KEYS = [
+  "QUICK_LOGIN_ENABLED",
+  "QUICK_LOGIN_SECRET",
+  "QUICK_LOGIN_EMAIL",
+  "QUICK_LOGIN_EMPTY_EMAIL",
+] as const;
 const savedEnv = new Map<string, string | undefined>();
 
 /** Настоящий process.env — его читает страница (она зовёт конфиг без аргумента). */
@@ -96,7 +104,13 @@ function restoreProcessEnv(): void {
 // ------------------------------------------------------------- помощники
 
 /** Открыть страницу (GET). Она НИЧЕГО не рисует: всегда редирект или 404. */
-async function openPage(params: { key?: string | string[]; fresh?: string | string[] } = {}) {
+async function openPage(
+  params: {
+    key?: string | string[];
+    fresh?: string | string[];
+    empty?: string | string[];
+  } = {},
+) {
   return DevLoginPage({ searchParams: Promise.resolve(params) });
 }
 
@@ -680,6 +694,156 @@ describe("?fresh=1 — комната владельца стирается, а�
     if (!result.ok) return;
     expect(result.reset).toMatchObject({ userFound: false, roomDeleted: false });
     expect(callbackUrlOf(result.redirectTo)).toBe(QUICK_LOGIN_FRESH_PATH);
+  });
+});
+
+// ------------------------------------------- ?empty=1: вторая, пустая комната
+
+/**
+ * ТИКЕТ 190. Комната владельца стенда полна и наполняется при КАЖДОМ входе, а
+ * «первое действие пустой комнаты ведёт в /room/add» — утверждение о ПУСТОЙ
+ * комнате. Опустошить стенд можно было только `?fresh=1`, то есть снести его.
+ *
+ * Поэтому у стенда появился ВТОРОЙ пользователь с заведомо пустой комнатой
+ * (`prisma/seed.ts`), а у входа — адрес `?empty=1`. Под замком здесь три вещи:
+ * этот вход НИЧЕГО НЕ СЕЕТ (иначе комната сразу перестала бы быть пустой),
+ * НИЧЕГО НЕ СТИРАЕТ и берёт почту ТОЛЬКО из окружения — правило «чужой аккаунт
+ * этим входом не открыть» не ослаблено ни на шаг.
+ */
+describe("?empty=1 — вход второй, заведомо пустой комнатой (тикет 190)", () => {
+  /** Окружение стенда с объявленной второй почтой. */
+  function envWithEmpty(overrides: QuickLoginEnv = {}): QuickLoginEnv {
+    return goodEnv({ QUICK_LOGIN_EMPTY_EMAIL: EMPTY_EMAIL, ...overrides });
+  }
+
+  it.each([
+    ["1", true],
+    ["", true],
+    ["true", true],
+    ["0", false],
+    ["false", false],
+    ["no", false],
+  ])("empty=%s → %s", (value, expected) => {
+    expect(isEmptyRoomRequested(value)).toBe(expected);
+  });
+
+  it("токен выпускается на ВТОРУЮ почту из env, а вход ведёт в /room", async () => {
+    const result = await attemptQuickLogin({ empty: true, env: envWithEmpty() });
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    const target = new URL(result.redirectTo, ORIGIN);
+    expect(target.searchParams.get("email")).toBe(EMPTY_EMAIL);
+    expect(callbackUrlOf(result.redirectTo)).toBe(AFTER_SIGNIN_PATH);
+    expect(await tokensFor(EMPTY_EMAIL)).toBe(1);
+    // …и владельцу при этом ничего не выписано: вход не «двойной».
+    expect(await tokensFor(OWNER_EMAIL)).toBe(0);
+  });
+
+  it("НЕ СЕЕТ и НЕ СТИРАЕТ: обе комнаты остаются такими, какими были", async () => {
+    // Главное свойство адреса. Посев наполнил бы пустую комнату в первую же
+    // секунду (а он ходит по почте владельца — наполнил бы вообще не ту), сброс
+    // снёс бы комнату владельца. Ни того, ни другого здесь нет.
+    const owner = await createUserWithRoom(OWNER_EMAIL);
+    const filled = await fillRoom(owner.user.id, owner.room.id);
+    const empty = await createUserWithRoom(EMPTY_EMAIL);
+
+    const result = await attemptQuickLogin({
+      empty: true,
+      // Флаги «наполнить» и «стереть» принесены ОБА и оба обязаны молчать:
+      // они про комнату владельца, а этот вход к ней не относится.
+      seed: true,
+      fresh: true,
+      env: envWithEmpty(),
+      storage: blindStorage(),
+    });
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.seed, "посев при входе в пустую комнату не запускается").toBeNull();
+    expect(result.reset, "сброс при входе в пустую комнату не запускается").toBeNull();
+
+    expect(await prisma.item.count({ where: { roomId: empty.room.id } })).toBe(0);
+    expect(await prisma.room.count({ where: { id: owner.room.id } })).toBe(1);
+    expect(await prisma.item.count({ where: { id: filled.item.id } })).toBe(1);
+  });
+
+  it("страница ?empty=1 уводит на ту же почту — и комнату владельца не трогает", async () => {
+    const owner = await createUserWithRoom(OWNER_EMAIL);
+    await fillRoom(owner.user.id, owner.room.id);
+    await createUserWithRoom(EMPTY_EMAIL);
+    setProcessEnv(envWithEmpty());
+
+    const target = await redirectTarget(openPage({ empty: "1" }));
+
+    expect(target).toContain(encodeURIComponent(EMPTY_EMAIL));
+    expect(target).not.toContain(encodeURIComponent(OWNER_EMAIL));
+    expect(await prisma.item.count({ where: { roomId: owner.room.id } })).toBe(1);
+  });
+
+  it("почта пустой комнаты — тоже только из env: адрес её не приносит", async () => {
+    const stranger = `stranger${TEST_EMAIL_DOMAIN}`;
+    setProcessEnv(envWithEmpty());
+
+    const target = await redirectTarget(
+      openPage({ empty: "1", email: stranger, identifier: stranger } as {
+        empty?: string | string[];
+      }),
+    );
+
+    expect(target).toContain(encodeURIComponent(EMPTY_EMAIL));
+    expect(await tokensFor(stranger)).toBe(0);
+  });
+
+  it("вторая почта не объявлена — адреса просто нет: 404 и ни одного токена", async () => {
+    // Переменная необязательная, и её отсутствие не должно ломать обычный вход.
+    expect(await attemptQuickLogin({ empty: true, env: goodEnv() })).toEqual({
+      ok: false,
+      reason: "no-empty-room",
+    });
+
+    setProcessEnv(goodEnv());
+    await expectNotFound(openPage({ empty: "1" }));
+    expect(await tokensFor(EMPTY_EMAIL)).toBe(0);
+    // …а голый /dev-login при этом работает как работал.
+    expect(await redirectTarget(openPage())).toContain(encodeURIComponent(OWNER_EMAIL));
+  });
+
+  it("вторая почта задана мусором — 404 и предупреждение, обычный вход цел", async () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => undefined);
+    const env = envWithEmpty({ QUICK_LOGIN_EMPTY_EMAIL: "не-почта" });
+
+    const config = readQuickLoginConfig(env);
+
+    expect(config?.email, "обычный вход от опечатки во ВТОРОЙ почте не страдает").toBe(OWNER_EMAIL);
+    expect(config?.emptyEmail).toBeNull();
+    expect(warn).toHaveBeenCalledTimes(1);
+    expect(String(warn.mock.calls[0]?.[0])).toContain("QUICK_LOGIN_EMPTY_EMAIL");
+    expect(await attemptQuickLogin({ empty: true, env })).toEqual({
+      ok: false,
+      reason: "no-empty-room",
+    });
+  });
+
+  it("пустая переменная — не ошибка и в лог не шумит", () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => undefined);
+
+    expect(readQuickLoginConfig(goodEnv())?.emptyEmail).toBeNull();
+    expect(readQuickLoginConfig(envWithEmpty({ QUICK_LOGIN_EMPTY_EMAIL: "  " }))?.emptyEmail).toBeNull();
+    expect(warn).not.toHaveBeenCalled();
+  });
+
+  it("вторая почта приводится к тому же виду, что и первая", () => {
+    const config = readQuickLoginConfig(
+      envWithEmpty({ QUICK_LOGIN_EMPTY_EMAIL: `  EMPTY${TEST_EMAIL_DOMAIN}  ` }),
+    );
+    expect(config?.emptyEmail).toBe(EMPTY_EMAIL);
+  });
+
+  it("выключенный флаг гасит и этот адрес", async () => {
+    setProcessEnv({});
+    await expectNotFound(openPage({ empty: "1" }));
+    expect(await tokensFor(EMPTY_EMAIL)).toBe(0);
   });
 });
 

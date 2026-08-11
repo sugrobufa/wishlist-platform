@@ -106,6 +106,12 @@ export default defineConfig({
       // `prisma db seed`: пользователь с комнатой уже есть и в CI, и локально.
       QUICK_LOGIN_ENABLED: "true",
       QUICK_LOGIN_EMAIL: "demo@wishlist.local",
+      // ВТОРАЯ КОМНАТА СТЕНДА — ЗАВЕДОМО ПУСТАЯ (тикет 190). Её заводит тот же
+      // `prisma db seed`, и `/dev-login?empty=1` входит ею, ничего не сея:
+      // иначе «первое действие пустой комнаты» проверять было бы негде —
+      // комната владельца полна, а опустошает её только разрушительный
+      // `?fresh=1`.
+      QUICK_LOGIN_EMPTY_EMAIL: "empty@wishlist.local",
     },
   },
 });

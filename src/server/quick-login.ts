@@ -44,6 +44,19 @@
 // /room смотреть.
 // Что именно создаётся — src/server/services/stand-seed.ts. Защита у обеих
 // операций одна и та же и живёт здесь: флаг + почта из окружения.
+//
+// ?empty=1 — вход ВТОРЫМ пользователем стенда, у которого комната ЗАВЕДОМО
+// ПУСТАЯ (тикет 190). Комната владельца полна и наполняется при каждом входе,
+// а «первое действие пустой комнаты» проверять на ней нечем; опустошать её
+// ради проверки — значит сносить стенд (?fresh=1). Поэтому пустая комната у
+// стенда своя, отдельным человеком: `prisma/seed.ts` заводит её пустой, а этот
+// вход НЕ СЕЕТ и НЕ СБРАСЫВАЕТ ничего — иначе она перестала бы быть пустой в
+// первую же секунду.
+//
+// ПОЧТА И ЗДЕСЬ ТОЛЬКО ИЗ ОКРУЖЕНИЯ — QUICK_LOGIN_EMPTY_EMAIL. Параметр
+// выбирает между ДВУМЯ заранее объявленными почтами и ничего не сообщает о
+// третьей: правило «чужой аккаунт этим входом не открыть» не ослаблено ни на
+// шаг. Переменная не задана — адрес отвечает 404, как и всё остальное здесь.
 
 import { createHash, randomBytes, timingSafeEqual } from "node:crypto";
 import { prisma } from "./db";
@@ -62,6 +75,9 @@ export const QUICK_LOGIN_FRESH_PARAM = "fresh";
 
 /** Имя параметра «наполнить комнату»: /dev-login?seed=1 (тикет 61). */
 export const QUICK_LOGIN_SEED_PARAM = "seed";
+
+/** Имя параметра «войти в пустую комнату»: /dev-login?empty=1 (тикет 190). */
+export const QUICK_LOGIN_EMPTY_PARAM = "empty";
 
 /**
  * Куда уводить после сброса. /room и сам увёл бы в /onboarding (комнаты уже
@@ -94,6 +110,7 @@ export interface QuickLoginEnv {
   QUICK_LOGIN_ENABLED?: string;
   QUICK_LOGIN_SECRET?: string;
   QUICK_LOGIN_EMAIL?: string;
+  QUICK_LOGIN_EMPTY_EMAIL?: string;
   AUTH_SECRET?: string;
   [key: string]: string | undefined;
 }
@@ -106,6 +123,12 @@ export interface QuickLoginConfig {
   secret: string | null;
   /** Единственная почта, которой разрешён быстрый вход (нормализована). */
   email: string;
+  /**
+   * Почта второго пользователя стенда — того, у кого комната заведомо пустая
+   * (тикет 190). null — такого пользователя не объявляли, и `?empty=1` тогда
+   * 404, как всё незаданное здесь.
+   */
+  emptyEmail: string | null;
   /** AUTH_SECRET: им Auth.js солит токен в БД. */
   authSecret: string;
 }
@@ -116,7 +139,7 @@ export interface QuickLoginConfig {
  */
 export type QuickLoginResult =
   | { ok: true; redirectTo: string; reset: StandResetResult | null; seed: StandSeedResult | null }
-  | { ok: false; reason: "disabled" | "bad-key" };
+  | { ok: false; reason: "disabled" | "bad-key" | "no-empty-room" };
 
 // ---------------------------------------------------------------------------
 // Состояние процесса (переживает HMR — паттерн src/server/db.ts)
@@ -197,7 +220,20 @@ export function readQuickLoginConfig(env: QuickLoginEnv = process.env): QuickLog
     );
   }
 
-  return { secret, email, authSecret };
+  // Вторая почта НЕОБЯЗАТЕЛЬНА и на сам механизм не влияет: не задана — просто
+  // нет адреса `?empty=1`, остальное работает как работало. Задана мусором —
+  // предупреждаем, потому что молча превратить опечатку в 404 значит отправить
+  // владельца искать несуществующую поломку.
+  const rawEmpty = env.QUICK_LOGIN_EMPTY_EMAIL ?? "";
+  const emptyEmail = rawEmpty.trim() === "" ? null : normalizeEmail(rawEmpty);
+  if (rawEmpty.trim() !== "" && emptyEmail === null) {
+    warnOnce(
+      "QUICK_LOGIN_EMPTY_EMAIL задан, но не похож на почту.",
+      "Адрес /dev-login?empty=1 отвечает 404; обычный вход работает как обычно.",
+    );
+  }
+
+  return { secret, email, emptyEmail, authSecret };
 }
 
 /**
@@ -232,6 +268,11 @@ export function isSeedRequested(raw: string | string[] | undefined): boolean {
   return isFlagRequested(raw);
 }
 
+/** Просили ли войти пользователем с пустой комнатой (?empty=1, тикет 190). */
+export function isEmptyRoomRequested(raw: string | string[] | undefined): boolean {
+  return isFlagRequested(raw);
+}
+
 // ---------------------------------------------------------------------------
 // Попытка входа
 // ---------------------------------------------------------------------------
@@ -253,11 +294,11 @@ function secretMatches(provided: string, expected: string): boolean {
  * сырой токен уходит в ссылку (@auth/core/lib/actions/signin/send-token.js).
  * Проверять его будет callback провайдера, а не мы.
  */
-async function issueVerificationToken(config: QuickLoginConfig): Promise<string> {
+async function issueVerificationToken(config: QuickLoginConfig, email: string): Promise<string> {
   const rawToken = randomBytes(32).toString("hex");
   await prisma.verificationToken.create({
     data: {
-      identifier: config.email,
+      identifier: email,
       token: createHash("sha256").update(`${rawToken}${config.authSecret}`).digest("hex"),
       expires: new Date(Date.now() + QUICK_LOGIN_TOKEN_TTL_MS),
     },
@@ -288,6 +329,12 @@ export interface QuickLoginAttempt {
    * поле всегда (тикет 70); адрес `?seed=1` на него больше не влияет.
    */
   seed?: boolean;
+  /**
+   * Войти ВТОРЫМ пользователем стенда — тем, у кого комната пустая (тикет 190).
+   * Взаимоисключающе с `fresh` и `seed`: и сброс, и посев работают по комнате
+   * ВЛАДЕЛЬЦА, а этот вход к ней не относится вовсе.
+   */
+  empty?: boolean;
   /** Подмена окружения — тестам; в приложении не передаётся. */
   env?: QuickLoginEnv;
   /** Шов хранилища для сброса — тестам; в приложении настоящий S3. */
@@ -302,9 +349,9 @@ export interface QuickLoginAttempt {
  * заведение пользователя, уход в /room или /onboarding) делает сам Auth.js.
  *
  * Порядок намеренный: сначала «механизма нет», потом ключ (если он вообще
- * задан в окружении и передан в адресе), потом сброс и посев — и только
- * последним выпуск токена, чтобы неудавшаяся операция не оставила в БД живой
- * токен.
+ * задан в окружении и передан в адресе), потом развилка «чья это комната»
+ * (`?empty=1`, тикет 190), потом сброс и посев — и только последним выпуск
+ * токена, чтобы неудавшаяся операция не оставила в БД живой токен.
  *
  * КТО РЕШАЕТ, СЕЯТЬ ЛИ (тикет 70). Здесь — только исполнение флага; решение
  * принимает вход стенда (`src/app/dev-login/page.tsx`), и с тикета 70 он
@@ -331,12 +378,27 @@ export async function attemptQuickLogin(attempt: QuickLoginAttempt): Promise<Qui
     if (!secretMatches(attempt.key, config.secret)) return { ok: false, reason: "bad-key" };
   }
 
+  // ПУСТАЯ КОМНАТА (тикет 190) — отдельная дорога и самая короткая: выпустить
+  // токен на ВТОРУЮ почту из окружения и уйти. Ни сброса, ни посева здесь нет
+  // и быть не может — оба работают по комнате владельца, а посев вдобавок
+  // немедленно перестал бы делать эту комнату пустой.
+  if (attempt.empty) {
+    if (config.emptyEmail === null) return { ok: false, reason: "no-empty-room" };
+    const emptyToken = await issueVerificationToken(config, config.emptyEmail);
+    return {
+      ok: true,
+      redirectTo: magicLinkVerifyAction(emptyToken, config.emptyEmail),
+      reset: null,
+      seed: null,
+    };
+  }
+
   // Сброс и посев — ТОЛЬКО комната владельца стенда: почта берётся из конфига,
   // то есть из окружения. Ни один параметр запроса на неё не влияет.
   const reset = attempt.fresh ? await resetStandRoom(config.email, attempt.storage) : null;
   const seed = attempt.seed ? await seedStandRoom(config.email, attempt.seedStorage) : null;
 
-  const rawToken = await issueVerificationToken(config);
+  const rawToken = await issueVerificationToken(config, config.email);
   // Тот же адрес, куда шлёт форма подтверждения штатного входа (тикет 19);
   // после сброса — сразу на онбординг, без прыжка через пустую /room. После
   // посева адрес штатный: /room — это и есть наполненная комната.
