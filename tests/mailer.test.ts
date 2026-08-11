@@ -302,7 +302,10 @@ describe("itemGoneMail — гостю: вещь уехала, бронь сня�
   it("говорит ЧТО случилось и молчит ПОЧЕМУ — запрет контракта", () => {
     const mail = itemGoneMail(params);
 
-    expect(mail.html).toContain("«Стёганая сумка» больше нет в комнате");
+    // «Больше НЕ В комнате», а не «больше нет»: назывной оборот не требует
+    // родительного падежа, а название вещи приезжает в именительном (раунд 42).
+    expect(mail.html).toContain("«Стёганая сумка» больше не в комнате");
+    expect(mail.html).not.toContain("«Стёганая сумка» больше нет");
     // Прежняя строка «уже у хозяйки» была догадкой о причине: для переезда в
     // сокровищницу правда, для удаления вещи — нет.
     expect(`${mail.text} ${mail.html}`).not.toContain("уже у хозяйки");
@@ -330,10 +333,12 @@ describe("itemGoneMail — гостю: вещь уехала, бронь сня�
 
   it("без имени хозяйки и без названия вещи письмо связно и без слова null", () => {
     const noName = itemGoneMail({ ...params, ownerName: null });
-    expect(noName.html).toContain("больше нет в комнате —");
+    expect(noName.html).toContain("больше не в комнате —");
     expect(noName.html).toContain("В комнате свободно ещё 19 вещей");
     expect(noName.html).not.toContain("null");
 
+    // Строка БЕЗ токена падежной ловушкой не задета: «больше нет» стоит при
+    // согласованном родительном («вещи из твоей брони») и остаётся как была.
     const noItem = itemGoneMail({ ...params, itemTitle: "" });
     expect(noItem.html).toContain("Вещи из твоей брони больше нет в комнате");
     expect(noItem.html).not.toContain("«»");
@@ -376,13 +381,14 @@ describe("occasionOwnerMail — хозяйке после праздника", (
   });
 
   it("разводит раскрытие имён и «Дошло» — это две разные необратимости", () => {
-    // Контракт писал «Отметишь „дошло" — … и тогда же станет видно, от кого
-    // она». Имена раскрывает ПЕРВОЕ ОТКРЫТИЕ экрана (`revealedAt`), а «Дошло»
-    // увозит вещь в сокровищницу и закрепляет имя у неё (`receiveGift`).
+    // До раунда 42 контракт писал «Отметишь „дошло" — … и тогда же станет
+    // видно, от кого она», и строку переписывали мы. Теперь она контрактная и
+    // взята дословно: имена раскрывает ПЕРВОЕ ОТКРЫТИЕ экрана (`revealedAt`), а
+    // «Дошло» увозит вещь в сокровищницу и закрепляет имя у неё (`receiveGift`).
     const mail = occasionOwnerMail({ occasionUrl: `${BASE}/room/occasion` });
 
-    expect(mail.text).toContain("когда откроешь страницу");
-    expect(mail.text).toContain("ровно один раз");
+    expect(mail.text).toContain("когда её откроешь");
+    expect(mail.text).toContain("один раз и насовсем");
     expect(mail.text).toContain("вещь уезжает в сокровищницу");
     expect(`${mail.text} ${mail.html}`).not.toContain("тогда же");
   });

@@ -11,11 +11,19 @@
 // подвала целиком. Поэтому сверка вёрстки здесь СТРОГАЯ: инлайн-стили и теги
 // обязаны совпасть один в один, без единого исключения.
 //
+// РАУНД 42 ЗАКРЫЛ И ГЛАВНУЮ НАХОДКУ РАУНДА 41 — прехедеры обоих гостевых
+// писем, которыми контракт нарушал собственное правило рода. Дизайн признал,
+// переписал обе строки назывными оборотами и заодно расширил правило на ВСЕ
+// поля письма; мы взяли обе строки дословно, и спорить здесь больше не о чем.
+// Его дельта перенесена в файлы этого каталога точечно.
+//
 // И здесь же два сторожа, которых больше нигде нет:
 // - ИНВАРИАНТ №1 со стороны почты: письмо хозяйке не имеет права назвать ни
 //   вещь, ни дарителя, ни цену, ни ЧИСЛО — ни в теме, ни в теле, ни в
 //   preheader'е (его видно в списке входящих, и утекает он так же);
-// - ПРЕХЕДЕРЫ ГОСТЕВЫХ ПИСЕМ, где контракт спорит сам с собой (см. ниже).
+// - ПРЕХЕДЕРЫ: единственное оставшееся расхождение (письмо хозяйке) лежит в
+//   именованном списке `PREHEADER_DRIFT` с причиной, а полнота этого списка
+//   выводится из данных, а не берётся на слово (см. ниже).
 import { readFileSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { describe, expect, it } from "vitest";
@@ -210,7 +218,7 @@ describe("темы и блоки — против letters.json", () => {
     expect(contract.templates.itemGone?.blocks).toHaveLength(5);
     expect(itemGone.html).toContain(">Бронь снята<");
     expect(itemGone.html).toContain("Вещь уехала —<br>выбери другую");
-    expect(itemGone.html).toContain("больше нет в комнате");
+    expect(itemGone.html).toContain("больше не в комнате");
     expect(itemGone.html).toContain(">Посмотреть комнату</a>");
     expect(itemGone.html).toContain("свободно ещё 19 вещей");
     expect(itemGone.html).toContain("Праздник — 14 марта");
@@ -256,62 +264,110 @@ describe("темы и блоки — против letters.json", () => {
 });
 
 /**
- * ГЛАВНАЯ НАХОДКА РАУНДА 41, и она про сам контракт.
+ * ГЛАВНАЯ НАХОДКА РАУНДА 41 И ЗАКРЫТЫЙ СЧЁТ РАУНДА 42.
  *
- * Дизайн написал новое правило рода (`rules.gender`: имя хозяйки может быть
- * мужским, имени гостя мы не знаем вовсе — значит «Ты обещал», «Мила убрала»,
- * «ты ничего не должен» запрещены) и ПЕРЕПИСАЛ ПО НЕМУ ТЕЛА ОБЕИХ ВЁРСТОК.
- * А прехедеры не тронул: и в `letters.json`, и в самих HTML на месте остались
+ * Раунд 41: дизайн написал правило рода (`rules.gender`: имя хозяйки может
+ * быть мужским, имени гостя мы не знаем вовсе — значит «Ты обещал», «{name}
+ * убрала», «ты ничего не должен» запрещены), ПЕРЕПИСАЛ ПО НЕМУ ТЕЛА ОБЕИХ
+ * ВЁРСТОК, а прехедеры не тронул: в `letters.json` и в самих HTML остались
  * дословно те три фразы, которые правило перечисляет запрещёнными.
  *
- * Прехедер видно в списке входящих — это вторая по заметности строка письма.
- * Наши прехедеры назывные с тикета 160, и мы оставляем свои. Расхождение
- * записано здесь ЯВНО и доказывается счётом из самого пакета: правило и его
- * нарушение лежат в одном файле. Тот, кто придёт следующим, не должен
- * «синхронизировать» прехедеры обратно.
+ * Раунд 42: признал целиком и назвал причину, которая дороже самих строк —
+ * **прехедер не считали текстом**, потому что в вёрстке он спрятан в
+ * невидимом `<span>`, а в макете его нет. Человек читает его в списке
+ * входящих второй строкой после темы. Обе строки переписаны назывными
+ * оборотами, обе взяты нами ДОСЛОВНО, правило расширено на ВСЕ поля письма.
+ *
+ * ОСТАЛОСЬ ОДНО РАСХОЖДЕНИЕ, И ОНО НАШЕ — прехедер письма хозяйке. Оно лежит
+ * в ИМЕНОВАННОМ СПИСКЕ с причиной, а не держится комментарием: комментарий
+ * никто не сверяет, а список — сверяется, и полнота его выводится из данных.
  */
-describe("прехедеры гостевых писем — контракт спорит сам с собой", () => {
+describe("прехедеры — контракт взят дословно, кроме одного названного расхождения", () => {
   /** Фразы, которые правило рода САМО перечисляет запрещёнными. */
-  const forbiddenByRule = [
-    ...(contract.rules.gender ?? "").split("запрещены")[0]!.matchAll(/«([^»]+)»/gu),
-  ].map((found) => found[1] ?? "");
+  const forbiddenByRule = [...(contract.rules.gender ?? "").matchAll(/«([^»]+)»/gu)].map(
+    (found) => found[1] ?? "",
+  );
 
-  it("правило рода в пакете есть и называет три запрещённые формы", () => {
+  /** Наш прехедер против контрактного — по именам шаблонов контракта. */
+  const OUR_PREHEADER: Record<string, string> = {
+    reminder: mailMessages.ReminderMail.preheader,
+    itemGone: mailMessages.ItemGoneMail.preheader,
+    afterParty: mailMessages.OccasionMail.preheader,
+  };
+
+  /**
+   * НАЗВАННЫЕ РАСХОЖДЕНИЯ ПО ПРЕХЕДЕРАМ — та же форма, что `SUBJECT_DRIFT`
+   * выше, и заведён список ровно потому, что вторая по заметности строка
+   * письма заслуживает того же замка, что и первая.
+   */
+  const PREHEADER_DRIFT: Record<string, string> = {
+    // Контрактный «Комната ждёт: посмотри, что подарили» дословно повторил бы
+    // НАШУ ТЕМУ («Праздник прошёл — посмотри, что подарили»): две самые
+    // заметные строки списка входящих сказали бы одно и то же. Слова взяты
+    // его, заменена только вторая половина — на то, чего в теме нет. О правиле
+    // рода здесь не спорят: родовых форм в контрактной строке нет.
+    afterParty: "Комната ждёт: итог праздника уже собран",
+  };
+
+  it("правило рода расширено на ВСЕ поля письма и по-прежнему называет три формы", () => {
     // Список выведен из текста самого правила, а не переписан руками: если
     // дизайн его перепишет — тест велит перечитать, а не проехать мимо.
-    expect(contract.rules.gender).toContain("НОВОЕ ПРАВИЛО");
-    expect(forbiddenByRule).toEqual(["Ты обещал", "Мила убрала", "ты ничего не должен"]);
+    expect(contract.rules.gender).toContain("ПРАВИЛО РАСШИРЕНО");
+    expect(contract.rules.gender).toContain("ВСЕ поля письма");
+    expect(forbiddenByRule).toEqual(["Ты обещал", "{name} убрала", "ты ничего не должен"]);
+    // Отдельным правилом прехедер объявлен текстом — это и был весь спор.
+    expect(contract.rules.preheaderIsText).toContain("а не служебное поле");
   });
 
-  it("прехедеры контракта нарушают его же правило — все три формы на месте", () => {
-    const contractPreheaders = [
+  it("прехедеры контракта больше не нарушают его же правило", () => {
+    const everywhere = [
       contract.templates.reminder?.preheader ?? "",
       contract.templates.itemGone?.preheader ?? "",
-      // Те же строки лежат и в самих вёрстках — правка не забыта где-то в
-      // одном файле из двух, она не сделана нигде.
+      // И в самих вёрстках тоже: правка сделана в обоих файлах, а не в одном.
       preheaderOf(designReminder),
       preheaderOf(designItemGone),
+      preheaderOf(designAfterParty),
     ].join("\n");
 
     for (const phrase of forbiddenByRule) {
-      // «Мила убрала» в JSON стоит подстановкой «{name} убрала» — сравниваем
-      // по глаголу, он и несёт род.
-      expect(contractPreheaders).toContain(phrase.replace("Мила ", ""));
+      // «{name} убрала» в вёрстке стоит примером «Мила убрала» — сравниваем по
+      // глаголу, он и несёт род.
+      expect(everywhere).not.toContain(phrase.replace("{name} ", ""));
     }
-    expect(preheaderOf(designReminder)).toContain("Ты обещал");
-    expect(preheaderOf(designItemGone)).toContain("Мила убрала");
-    expect(preheaderOf(designItemGone)).toContain("ты ничего не должен");
   });
 
-  it("тела тех же вёрсток по правилу переписаны — значит забыт именно прехедер", () => {
-    // Доказательство, что это недосмотр, а не спор: в том же файле, где
-    // прехедер говорит «Мила убрала… ты ничего не должен», тело письма уже
-    // говорит назывным оборотом из примеров правила.
-    const body = visibleText(designItemGone);
-    expect(body).toContain("Шёлкового шарфа больше нет в комнате Милы");
-    expect(body).toContain("делать ничего не нужно");
-    expect(body).not.toContain("ты ничего не должен");
-    expect(visibleText(designReminder)).not.toContain("Ты обещал");
+  it("оба гостевых прехедера взяты у контракта ДОСЛОВНО", () => {
+    expect(mailMessages.ReminderMail.preheader).toBe(contract.templates.reminder?.preheader);
+    expect(mailMessages.ItemGoneMail.preheader).toBe(contract.templates.itemGone?.preheader);
+    // И в собранном письме стоит она же — с подставленным названием вещи.
+    expect(preheaderOf(reminder.html)).toBe("Подарок за тобой: «Серьги-каффы»");
+    expect(preheaderOf(itemGone.html)).toBe(
+      "Бронь снята: «Стёганая сумка» больше не в комнате — делать ничего не нужно",
+    );
+  });
+
+  it("прехедер письма хозяйке расходится с контрактом ровно там, где записано", () => {
+    const drift = PREHEADER_DRIFT.afterParty;
+    expect(drift).toBeDefined();
+    expect(mailMessages.OccasionMail.preheader).toBe(drift);
+    expect(preheaderOf(afterParty.html)).toBe(drift);
+    // Расхождение НАСТОЯЩЕЕ, а не выданная вперёд индульгенция.
+    expect(contract.templates.afterParty?.preheader).not.toBe(drift);
+    // И причина жива: контрактный прехедер — это хвост нашей же темы.
+    const contractLine = String(contract.templates.afterParty?.preheader);
+    expect(contractLine).toContain("посмотри, что подарили");
+    expect(afterParty.subject).toContain("посмотри, что подарили");
+    expect(drift?.startsWith("Комната ждёт: ")).toBe(true); // первая половина — его
+  });
+
+  it("других расхождений по прехедерам нет — список полон, а не выборочен", () => {
+    // Замок с той же стороны, что и «записанное расхождение — настоящее»:
+    // список выводится из данных, а не берётся на слово.
+    const drifted = Object.entries(contract.templates)
+      .filter(([name, template]) => OUR_PREHEADER[name] !== template.preheader)
+      .map(([name]) => name)
+      .sort();
+    expect(drifted).toEqual(Object.keys(PREHEADER_DRIFT).sort());
   });
 
   it("наши прехедеры назывные — ни одной родовой формы", () => {
@@ -319,53 +375,67 @@ describe("прехедеры гостевых писем — контракт с
       mailMessages.ReminderMail.preheader,
       mailMessages.ItemGoneMail.preheader,
       mailMessages.ItemGoneMail.preheaderNoItem,
+      mailMessages.OccasionMail.preheader,
       preheaderOf(reminder.html),
       preheaderOf(itemGone.html),
     ].join("\n");
 
     for (const phrase of forbiddenByRule) {
-      expect(ours).not.toContain(phrase.replace("Мила ", ""));
+      expect(ours).not.toContain(phrase.replace("{name} ", ""));
     }
-    expect(mailMessages.ReminderMail.preheader).toBe(
-      "Подарок за тобой: «{item}» — напоминаем, чтобы не забылось",
-    );
+    expect(mailMessages.ReminderMail.preheader).toBe("Подарок за тобой: «{item}»");
     expect(mailMessages.ItemGoneMail.preheader).toBe(
-      "«{item}» больше нет в комнате — бронь снята, и делать ничего не нужно",
+      "Бронь снята: «{item}» больше не в комнате — делать ничего не нужно",
     );
   });
 
-  it("прехедер письма хозяйке — единственный, который взят почти дословно", () => {
-    // Здесь спорить не с чем: родовых форм в нём нет. Наш отличается одной
-    // половиной, и только потому, что наша ТЕМА длиннее контрактной и уже
-    // несёт «посмотри, что подарили» — контрактный прехедер повторил бы её
-    // слово в слово в той же строке списка входящих.
-    expect(contract.templates.afterParty?.preheader).toBe("Комната ждёт: посмотри, что подарили");
-    expect(mailMessages.OccasionMail.preheader).toBe("Комната ждёт: итог праздника уже собран");
-    expect(preheaderOf(afterParty.html)).toBe(mailMessages.OccasionMail.preheader);
+  it("падежная ловушка развязана и в прехедере, и в теле «вещь уехала»", () => {
+    // «Больше нет» требует родительного («шёлкового шарфа»), а {item} приезжает
+    // в именительном. Наши обе строки стояли в этой ловушке; лечение назывное.
+    for (const line of [
+      mailMessages.ItemGoneMail.preheader,
+      mailMessages.ItemGoneMail.body,
+    ]) {
+      expect(line).toContain("{item}");
+      expect(line).toContain("больше не в комнате");
+      expect(line).not.toContain("больше нет");
+    }
+    // Строки БЕЗ токена ловушкой не задеты и остаются согласованными.
+    for (const line of [
+      mailMessages.ItemGoneMail.preheaderNoItem,
+      mailMessages.ItemGoneMail.bodyNoItem,
+    ]) {
+      expect(line).not.toContain("{item}");
+      expect(line).toContain("больше нет в комнате");
+    }
   });
 });
 
 /**
- * СТРОКА ПРО «ДОШЛО» — единственная переписанная строка вёрстки хозяйки, и
- * переписана она не по вкусу, а по механике продукта. Контракт склеил две
- * РАЗНЫЕ необратимости в одну фразу; путать их опасно.
+ * СТРОКА ПРО «ДОШЛО» — та, из-за которой раунд 41 записал ЕДИНСТВЕННОЕ
+ * отступление от присланной вёрстки. Контракт склеивал две РАЗНЫЕ
+ * необратимости в одну фразу («Отметишь „дошло" — вещь уедет в сокровищницу, и
+ * ТОГДА ЖЕ станет видно, от кого она»), и это была неправда дважды: имена
+ * живых броней видны, как только экран «что подарили» открылся первый раз
+ * (`OccasionSummary.revealedAt`, services/occasions.ts), а «Дошло»
+ * (`receiveGift`) увозит вещь в сокровищницу и закрепляет имя у неё.
+ *
+ * РАУНД 42 ПРИНЯЛ ДОВОД ЦЕЛИКОМ — «необратимое действие, поданное как
+ * отложенное, лишает человека выбора, о котором он не знал», — и переписал
+ * строку сам. Теперь она КОНТРАКТНАЯ и взята дословно: отступлений от вёрсток
+ * не осталось ни одного.
  */
 describe("две необратимости письма хозяйке не склеены", () => {
-  it("контракт обещает раскрытие имён по «Дошло» — а у нас его делает открытие экрана", () => {
-    // Строка дизайна: «Отметишь „дошло" — вещь уедет в сокровищницу, и ТОГДА
-    // ЖЕ станет видно, от кого она». Неправда дважды: имена живых броней
-    // видны сразу, как только экран «что подарили» открылся первый раз
-    // (`OccasionSummary.revealedAt`, services/occasions.ts), а «Дошло»
-    // (`receiveGift`) закрепляет имя у вещи и увозит её в сокровищницу.
-    const designTail = visibleText(designAfterParty);
-    expect(designTail).toContain("и тогда же станет видно, от кого она");
-
+  it("строка вёрстки взята дословно и разводит раскрытие имён с «Дошло»", () => {
     const ours = mailMessages.OccasionMail.tail;
-    expect(ours).not.toContain("тогда же");
-    // Раскрытие привязано к ОТКРЫТИЮ страницы и названо однократным.
-    expect(ours).toContain("когда откроешь страницу");
-    expect(ours).toContain("ровно один раз");
-    // «Дошло» названо отдельно и про вещь, а не про имена.
+    // Дословно из присланной вёрстки, а не пересказ.
+    expect(visibleText(designAfterParty)).toContain(ours);
+    // Склейки нет ни у нас, ни у него.
+    expect(`${ours}\n${visibleText(designAfterParty)}`).not.toContain("тогда же");
+    // РАСКРЫТИЕ привязано к открытию страницы и названо однократным.
+    expect(ours).toContain("когда её откроешь");
+    expect(ours).toContain("один раз и насовсем");
+    // «ДОШЛО» названо отдельно и про вещь, а не про имена.
     expect(ours).toContain("вещь уезжает в сокровищницу");
     expect(afterParty.html).toContain(ours);
     expect(afterParty.text).toContain(ours);

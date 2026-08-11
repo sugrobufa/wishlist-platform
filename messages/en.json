@@ -321,6 +321,8 @@
     "presetApplying": "Moving…",
     "presetMoved": "{count, plural, one {# item moved} other {# items moved}} to “Anything”",
     "presetMovedNone": "All items stayed in their zones",
+    "studioApplied": "This is how the room looks",
+    "studioPending": "“{name}” is not in the room yet — tap “Move in”",
     "setLabelF": "Feminine",
     "setLabelM": "Masculine",
     "setLabelALL": "All 10",

@@ -1,7 +1,13 @@
 import { describe, it, expect } from "vitest";
 import { readFileSync } from "node:fs";
-import { resolve } from "node:path";
+import { join, resolve } from "node:path";
 import { mailMessages } from "../src/server/mail-messages";
+import {
+  itemGoneMail,
+  occasionOwnerMail,
+  reminderGuestMail,
+  signInMail,
+} from "../src/server/mailer";
 
 // Тон интерфейса (тикет 25) и писем (тикет 32). Памятка —
 // design/package/handoff/tone.md, словарь-источник —
@@ -103,6 +109,14 @@ const GENDERED =
 const GAP = "(?:\\s+[^\\s]+){0,2}[\\s,—:-]+";
 
 /**
+ * Само правило рода отдельным именем: с раунда 42 оно проверяет не только
+ * словарь, но и КОНТРАКТ, и присланные вёрстки, и собранное письмо целиком
+ * (описание — у `describe` ниже), а один и тот же предикат в четырёх местах
+ * обязан быть одним и тем же объектом, а не четырьмя копиями регекспа.
+ */
+const GENDER_RULE = asWord(`(?:${SUBJECT})${GAP}(?:${GENDERED})|(?:${GENDERED})\\s+\\{name\\}`);
+
+/**
  * Правила памятки, которые машина умеет проверить.
  *
  * Чего в списке НЕТ и почему:
@@ -129,9 +143,10 @@ const TONE_RULES: ReadonlyArray<readonly [string, RegExp]> = [
   //
   // Правило поймало нас самих ровно дважды: `Settings.lightHint` («какой ты
   // выбрала») и `StarterPack.caption` («который ты выбрала»). Обе строки
-  // переписаны тикетом 172 — вторая при этом уехала от доски, откуда была
-  // взята дословно (запись об этом — в списке сирот ниже).
-  ["род человека", asWord(`(?:${SUBJECT})${GAP}(?:${GENDERED})|(?:${GENDERED})\\s+\\{name\\}`)],
+  // переписаны тикетом 172; вторая тогда уехала от доски, откуда была взята
+  // дословно, а раундом 42 дизайн прислал ровно нашу редакцию — расхождения
+  // больше нет (запись об этом — в списке сирот ниже).
+  ["род человека", GENDER_RULE],
   // «Слово „ошибка“ в текстах не встречается ни разу.»
   ["слово «ошибка»", asWord("ошибк[а-я]*")],
   // Везде «ты»: комната — своё пространство, а не учреждение.
@@ -157,6 +172,73 @@ const TONE_RULES: ReadonlyArray<readonly [string, RegExp]> = [
         "коллекци[а-я]*|архив[а-я]*|упс",
     ),
   ],
+];
+
+/**
+ * ПАДЕЖНАЯ ЛОВУШКА ТОКЕНА — вторая ловушка ровно того же устройства, что род
+ * (раунд 42, письмо 45; `round41/letters.json` → `templates.itemGone`,
+ * памятка `design/round42/tone.md` → «Падеж — вторая ловушка токена»).
+ *
+ * Разбор дизайна: «больше нет» требует РОДИТЕЛЬНОГО падежа («шёлкового
+ * шарфа»), а `{item}` приезжает в ИМЕНИТЕЛЬНОМ — фраза ломается на первом же
+ * подставленном значении: «„Шёлковый шарф" больше нет в комнате». Лечение то
+ * же, что у рода: назывной оборот, падежа не требующий («больше НЕ В
+ * комнате»), — он держит любое значение.
+ *
+ * ЛОВИТСЯ НЕ СЛОВО, А СОСЕДСТВО, И В ОБЕ СТОРОНЫ. Падеж требуется и когда
+ * токен стоит после оборота («больше нет {item}»), и когда перед ним
+ * («„{item}" больше нет»): это одно и то же управление. Наши обе строки были
+ * ВТОРЫМ случаем — правило, написанное только на первый, проверяло бы пустоту.
+ *
+ * СПИСОК ОБОРОТОВ — НЕ ГРАММАТИКА, А ПЕРЕЧЕНЬ ИЗВЕСТНЫХ ЛОВУШЕК, и он обязан
+ * расти: начат с тех, что уже поймали. Токены — только те, на месте которых
+ * встаёт СУЩЕСТВИТЕЛЬНОЕ человека; `{count}`, `{date}`, `{percent}`, `{free}`
+ * в падежные обороты не попадают — там число или дата.
+ */
+const CASE_TOKEN = "«?\\{(?:item|name|giver|zone|label)\\}»?";
+/** До двух слов между оборотом и токеном — дальше это уже другая клауза. */
+const CASE_NEAR = "(?:\\s+[^\\s.;:!?]+){0,2}\\s+";
+const CASE_TRAPS: ReadonlyArray<readonly [string, string]> = [
+  ["«больше нет» — родительный", "больше\\s+нет"],
+  ["«нет …» — родительный", "нет"],
+  ["«не стало» — родительный", "не\\s+стало"],
+  ["«лишился» — родительный", "лишил(?:ся|ась|ись)"],
+];
+
+/** Оборот и токен в одной клаузе, в любом порядке. */
+const caseTrap = (turn: string): RegExp => {
+  const phrase = `(?<!${LETTER})(?:${turn})(?!${LETTER})`;
+  return new RegExp(
+    `(?:${CASE_TOKEN})${CASE_NEAR}${phrase}|${phrase}${CASE_NEAR}(?:${CASE_TOKEN})`,
+    "iu",
+  );
+};
+
+/**
+ * ПОЛЯ ПИСЬМА ПОИМЁННО. Вывод раунда 42 стоит того, чтобы стать кодом:
+ * **«проверять надо прочитанное, а не написанное»**. Прехедеры двух вёрсток
+ * прошли мимо правила рода не потому, что правило было слабым, а потому что
+ * прехедер не считали текстом: в вёрстке он спрятан в невидимом `<span>`, а
+ * человек читает его в списке входящих второй строкой после темы.
+ *
+ * Отсюда карта: КАЖДЫЙ ключ словаря писем обязан попасть в какое-то поле, и
+ * каждое поле проходит правило рода. Появится новый ключ — тест назовёт его
+ * неотнесённым, и мимо правила он не проедет.
+ */
+const MAIL_FIELDS: ReadonlyArray<readonly [string, RegExp]> = [
+  ["тема", /^subject(?:NoName)?$/u],
+  // `taken` — та же строка прехедера, оставшаяся с тикета 160; сборкой письма
+  // она не читается, но лежит в словаре и правило проходит наравне с прочими.
+  ["прехедер", /^(?:preheader(?:NoItem)?|taken)$/u],
+  ["надстрочная", /^overline$/u],
+  ["заголовок", /^(?:title|titleNoName|titleTail|when[A-Za-z0-9]+)$/u],
+  [
+    "тело и тихая строка",
+    /^(?:body|bodyNoItem|quiet|quietNoName|hint|tail|tailLead|tailAction|tailTrail|tailTrailNoName)$/u,
+  ],
+  ["плашка вещи", /^(?:item|zone|room|free|freeNoName|things(?:One|Few|Many)|occasion)$/u],
+  ["кнопка и дорога", /^(?:cta|link|bookings|bookingsHint)$/u],
+  ["подвал", /^(?:footer|signature)$/u],
 ];
 
 /** Кнопка, подпись, заголовок — без точки. Длиннее — уже фраза, ей точка можно. */
@@ -214,6 +296,226 @@ describe("тон писем", () => {
 
   it("пустых значений нет", () => {
     expect(violations((value) => value.trim() === "", mail)).toEqual([]);
+  });
+});
+
+// ---------- Раунд 42: сторож читает ПРОЧИТАННОЕ, а не написанное ----------
+//
+// Единственный вывод раунда, который стоит вынести за пределы почты, дизайн
+// сформулировал сам: **«проверять надо прочитанное, а не написанное»**. Оба
+// прехедера прошли мимо правила рода не потому, что правило слабое, а потому
+// что прехедер не считали текстом: в вёрстке он спрятан в невидимом `<span>`,
+// в макете его нет — а человек читает его в списке входящих второй строкой
+// после темы, часто ВМЕСТО тела.
+//
+// Отсюда четыре источника, а не один: наш словарь (по полям), контракт
+// (`round41/letters.json`), присланные вёрстки и СОБРАННОЕ письмо со всеми
+// подстановками. Строка, которой нет ни в одном из четырёх, человеку не
+// показывается вовсе.
+
+const ROUND41 = resolve(__dirname, "../design/package/handoff/round41");
+const readDesign = (file: string) => readFileSync(join(ROUND41, file), "utf8");
+
+type LettersContract = {
+  rules: Record<string, string>;
+  templates: Record<string, { subject: string; preheader: string }>;
+};
+const letters = JSON.parse(readDesign("letters.json")) as LettersContract;
+
+/** Прехедер — скрытый span в начале письма; в списке входящих он виден. */
+const preheaderOf = (html: string) =>
+  /<span[^>]*display:none[^>]*>([\s\S]*?)<\/span>/u.exec(html)?.[1] ?? "";
+/** Тема — так её печатает вкладка почтового клиента. */
+const titleOf = (html: string) => /<title>([\s\S]*?)<\/title>/u.exec(html)?.[1] ?? "";
+/** Подписи картинок. Их ноль — картинок в письмах нет вовсе (rules.noImages). */
+const altsOf = (html: string) => [...html.matchAll(/\balt="([^"]*)"/gu)].map((m) => m[1] ?? "");
+/** Видимый текст: надстрочная, заголовок, тело, плашка, кнопка, подвал. */
+const visibleText = (html: string) =>
+  html
+    .replace(/<span[^>]*display:none[^>]*>[\s\S]*?<\/span>/gu, " ")
+    .replace(/<head>[\s\S]*?<\/head>/u, " ")
+    .replace(/<[^>]+>/gu, " ")
+    .replace(/&nbsp;/gu, " ")
+    .replace(/&#8381;/gu, "₽")
+    .replace(/\s+/gu, " ")
+    .trim();
+
+/** Поля КОНТРАКТА, которые читает человек: тема и прехедер трёх писем. */
+const contractRead = new Map<string, string>();
+for (const [name, template] of Object.entries(letters.templates)) {
+  contractRead.set(`letters.json → ${name}.subject`, template.subject);
+  contractRead.set(`letters.json → ${name}.preheader`, template.preheader);
+}
+
+/** Те же поля в ПРИСЛАННЫХ ВЁРСТКАХ: тема, прехедер, видимый текст, alt. */
+const DESIGN_LETTERS = ["reminder.html", "item-gone.html", "after-party.html"] as const;
+const designHtml = DESIGN_LETTERS.map((file) => [file, readDesign(file)] as const);
+const designRead = new Map<string, string>();
+for (const [file, html] of designHtml) {
+  designRead.set(`${file} → тема`, titleOf(html));
+  designRead.set(`${file} → прехедер`, preheaderOf(html));
+  designRead.set(`${file} → текст`, visibleText(html));
+  altsOf(html).forEach((alt, index) => designRead.set(`${file} → alt ${index + 1}`, alt));
+}
+
+/**
+ * СОБРАННОЕ ПИСЬМО — не то же самое, что словарь. Имя хозяйки и название вещи
+ * подставлены САМИМИ ТОКЕНАМИ: строка, которая ломается на мужском имени,
+ * ломается и здесь, а склейка из нескольких ключей («Не получается —
+ * освободить вещь, её займёт кто-то другой…») проверяется целиком, а не по
+ * кускам, из которых её собрали.
+ */
+const ASSEMBLY_OCCASION = new Date("2026-03-14T00:00:00.000Z");
+const ASSEMBLY_NOW = new Date("2026-03-11T09:00:00.000Z");
+const assembled = [
+  ["вход", signInMail("https://rooms.test/signin?token=abc")],
+  [
+    "напоминание",
+    reminderGuestMail({
+      ownerName: "{name}",
+      itemTitle: "{item}",
+      occasionDate: ASSEMBLY_OCCASION,
+      itemZone: "jewelry",
+      price: "7900",
+      currency: "RUB",
+      priceVisibility: "ALL",
+      now: ASSEMBLY_NOW,
+    }),
+  ],
+  [
+    "вещь уехала",
+    itemGoneMail({
+      itemTitle: "{item}",
+      roomSlug: "mila",
+      ownerName: "{name}",
+      freeCount: 19,
+      occasionDate: ASSEMBLY_OCCASION,
+      now: ASSEMBLY_NOW,
+    }),
+  ],
+  ["после праздника", occasionOwnerMail({ occasionUrl: "https://rooms.test/room/occasion" })],
+] as const;
+
+const assembledRead = new Map<string, string>();
+for (const [name, content] of assembled) {
+  assembledRead.set(`${name} → тема`, content.subject);
+  assembledRead.set(`${name} → прехедер`, preheaderOf(content.html));
+  assembledRead.set(`${name} → текст письма`, visibleText(content.html));
+  assembledRead.set(`${name} → простой текст`, content.text);
+  altsOf(content.html).forEach((alt, index) =>
+    assembledRead.set(`${name} → alt ${index + 1}`, alt),
+  );
+}
+
+describe("правило рода — ВСЕ поля письма, а не только тело", () => {
+  it("каждый ключ словаря писем отнесён к полю — новый мимо правила не проедет", () => {
+    const unclassified = [...mail.keys()]
+      .filter((key) => !MAIL_FIELDS.some(([, shape]) => shape.test(key.split(".")[1] ?? "")))
+      .sort();
+    expect(unclassified).toEqual([]);
+  });
+
+  for (const [field, shape] of MAIL_FIELDS) {
+    it(`поле «${field}» — ни одной родовой формы`, () => {
+      const lines = [...mail].filter(([key]) => shape.test(key.split(".")[1] ?? ""));
+      expect(
+        lines.length,
+        `поле «${field}» пусто — правило проверяло бы пустоту`,
+      ).toBeGreaterThan(0);
+      expect(
+        lines
+          .filter(([, value]) => GENDER_RULE.test(value))
+          .map(([key, value]) => `${key} = ${JSON.stringify(value)}`),
+      ).toEqual([]);
+    });
+  }
+
+  it("тема и прехедер КОНТРАКТА проходят его же правило", () => {
+    // Ровно та дыра, о которой раунд 42: правило и его нарушение лежали в
+    // одном файле, и никто не свёл их вместе.
+    expect(violations((value) => GENDER_RULE.test(value), contractRead)).toEqual([]);
+  });
+
+  it("тема, прехедер, текст и alt ПРИСЛАННЫХ ВЁРСТОК — тем же правилом", () => {
+    expect(violations((value) => GENDER_RULE.test(value), designRead)).toEqual([]);
+  });
+
+  it("СОБРАННОЕ письмо — тем же правилом, со всеми подстановками", () => {
+    expect(violations((value) => GENDER_RULE.test(value), assembledRead)).toEqual([]);
+  });
+
+  it("alt пуст, потому что картинок нет вовсе, а не потому что забыт", () => {
+    // Поле alt стоит в правиле дизайна и в нашем разборе; проверять в нём
+    // сейчас нечего — и это не умолчание, а закреплённый факт.
+    for (const [, html] of designHtml) expect(html).not.toContain("<img");
+    for (const [, content] of assembled) expect(content.html).not.toContain("<img");
+    expect([...designRead.keys(), ...assembledRead.keys()].filter((k) => k.includes("alt"))).toEqual(
+      [],
+    );
+  });
+
+  it("правило самого контракта называет поля, а не только «тело»", () => {
+    // Формулировку расширил сам дизайн (письмо 45). Если он её перепишет —
+    // тест велит перечитать правило, а не проехать мимо.
+    expect(letters.rules.gender).toContain("ВСЕ поля письма");
+    for (const field of ["тема", "ПРЕХЕДЕР", "плашка", "подвал", "alt"]) {
+      expect(letters.rules.gender).toContain(field);
+    }
+    expect(letters.rules.preheaderIsText).toContain("не служебное поле");
+  });
+
+  it("сторож не проверяет пустоту: снятые прехедеры он ловит", () => {
+    // Обе строки, которыми контракт нарушал своё же правило до раунда 42.
+    // Они здесь ровно затем, чтобы правило нельзя было тихо ослабить.
+    for (const line of [
+      "Ты обещал {item} — напоминаем, чтобы не забылось",
+      "{name} убрала {item} из комнаты. Бронь снята, ты ничего не должен",
+    ]) {
+      expect(GENDER_RULE.test(line)).toBe(true);
+    }
+  });
+});
+
+describe("падежная ловушка токена", () => {
+  /**
+   * Присланных вёрсток в источниках нет нарочно: в них стоят ПРИМЕРЫ
+   * («шёлкового шарфа»), уже согласованные по падежу вручную. Ловушка живёт
+   * там, где вместо примера встанет токен, — в словаре, контракте и в
+   * собранном письме.
+   */
+  const sources: ReadonlyArray<readonly [string, Map<string, string>]> = [
+    ["словарь продукта", ru],
+    ["словарь писем", mail],
+    ["контракт писем", contractRead],
+    ["собранное письмо", assembledRead],
+  ];
+
+  for (const [turnName, turn] of CASE_TRAPS) {
+    const pattern = caseTrap(turn);
+    for (const [sourceName, dictionary] of sources) {
+      it(`${turnName}: токена рядом нет (${sourceName})`, () => {
+        expect(violations((value) => pattern.test(value), dictionary)).toEqual([]);
+      });
+    }
+  }
+
+  it("ловит в обе стороны и пропускает вылеченное — проверяет не пустоту", () => {
+    const trap = caseTrap("больше\\s+нет");
+    // Строка дизайна: токен ПОСЛЕ оборота.
+    expect(trap.test("Бронь снята: больше нет {item} — делать ничего не нужно")).toBe(true);
+    // Наши две строки: токен ПЕРЕД оборотом — то же самое управление.
+    expect(
+      trap.test("«{item}» больше нет в комнате — бронь снята, и делать ничего не нужно"),
+    ).toBe(true);
+    expect(
+      trap.test("«{item}» больше нет в комнате — бронь снялась сама, и делать ничего не нужно"),
+    ).toBe(true);
+    // Лечение: назывной оборот падежа не требует и держит любое значение.
+    expect(
+      trap.test("«{item}» больше не в комнате — бронь снята, и делать ничего не нужно"),
+    ).toBe(false);
+    // Токена нет — оборот стоит целиком и согласован, «чинить» нечего.
+    expect(trap.test("Вещи из твоей брони больше нет в комнате — бронь снята")).toBe(false);
   });
 });
 
@@ -416,35 +718,6 @@ const OWNER_REWRITE_89: readonly string[] = ["Hall.empty"];
 const OWNER_REWRITE_105: readonly string[] = [];
 
 /**
- * ЧЕТВЁРТЫЙ список того же рода (тикет 173). Механика у доски другая, и здесь
- * это не вкус, а ФАКТ: строка обещает человеку то, чего продукт не делает.
- *
- * Пакет: «Отметь, что дошло — вещь переедет в сокровищницу, а даритель станет
- * виден».
- *
- * ПРОДУКТ ДЕЛАЕТ ДВЕ РАЗНЫЕ ВЕЩИ, и склеивать их нельзя:
- * - **имена раскрывает ПЕРВОЕ ОТКРЫТИЕ этого экрана.** `getOccasionView`
- *   ставит `OccasionSummary.revealedAt` и сразу отдаёт строки живых броней с
- *   именами (`src/server/services/occasions.ts`). К тому такту, когда человек
- *   читает эту подсказку, дарители УЖЕ видны — строка описывает будущее,
- *   которое случилось секунду назад;
- * - **«Дошло» (`receiveGift`) — про ВЕЩЬ**: `inHall = true`, имя закрепляется
- *   у вещи, бронь закрывается, рождается связь. Место обратимо («Вернуть в
- *   комнату»), а раскрытие имени — нет (инвариант №2).
- *
- * ЧЕМ ЭТО ОПАСНО, а не просто неточно. Человек читает «даритель станет виден»
- * и понимает: имена можно посмотреть ПОТОМ, когда буду готова. И открывает
- * экран, не зная, что этим уже всё и раскрыла. Необратимое действие,
- * поданное как отложенное, — худший вид неточности в интерфейсе.
- *
- * ТУ ЖЕ СКЛЕЙКУ мы вчера убрали из письма хозяйке (тикет 171): там строка была
- * наша, и правка не стоила ничего. Здесь строка пакета — поэтому расхождение
- * записано, а не сделано молча; просьба переформулировать ушла письмом 45.
- * Приедет новая редакция — эта запись обязана отсюда уйти.
- */
-const PRODUCT_TRUTH_173: readonly string[] = ["Occasion.hint"];
-
-/**
  * ЧЕТВЁРТЫЙ список — ОБРАТНОЕ РАСХОЖДЕНИЕ: строки, которые в пакете есть, а в
  * нашем словаре такого ключа нет вовсе. До раунда 27 списка не требовалось:
  * словарь продукта был надмножеством пакета, и «перенесено дословно» читалось
@@ -487,11 +760,19 @@ const PRODUCT_TRUTH_173: readonly string[] = ["Occasion.hint"];
  *    САМ ВОПРОС ЖИВ ДОСЛОВНО: `wantsTitle`, `wantsSubtitle` и `wantsMax`
  *    сверяются обычным путём.
  *
- * 3. СТРОКИ ЕЩЁ НЕ ПОСТРОЕННЫХ СОСТОЯНИЙ. `Consent.oneWayRow`, `quietGiver`,
- *    `quietGiverF` — подписи в «Друзьях» для односторонней связи и для
- *    дарителя, который подарил тихо. `ZoneGrid.guestFilterAll` /
- *    `guestFilterFree` — гостевой переключатель сетки зоны из v2 (`ZoneGrid._v2`).
- *    Строки приняты, экраны их пока не показывают.
+ * 3. СТРОКИ ЕЩЁ НЕ ПОСТРОЕННЫХ СОСТОЯНИЙ. `Consent.oneWayRow` и `quietGiver` —
+ *    подписи в «Друзьях» для односторонней связи и для дарителя, который
+ *    подарил тихо. `ZoneGrid.guestFilterAll` / `guestFilterFree` — гостевой
+ *    переключатель сетки зоны из v2 (`ZoneGrid._v2`). Строки приняты, экраны
+ *    их пока не показывают.
+ *
+ *    `Consent.quietGiverF` ОТСЮДА УШЁЛ ВМЕСТЕ С КЛЮЧОМ (раунд 42). Пара
+ *    `quietGiver` / `quietGiverF` была родом, разложенным на два ключа, — той
+ *    же болезнью, что родовая скобка, только по разным строкам словаря. Дизайн
+ *    свёл пару в одну назывную строку («тихий подарок — предложения связи
+ *    нет») и ключ УДАЛИЛ, а не переименовал. Снимать его надо было ровно
+ *    здесь и в самом словаре пакета ОДНИМ движением: замок ниже сверяет этот
+ *    список на РАВЕНСТВО и упал бы на любой половине.
  */
 const PACKAGE_ONLY: readonly string[] = [
   "Access.add",
@@ -511,7 +792,6 @@ const PACKAGE_ONLY: readonly string[] = [
   "Access.waysOverline",
   "Consent.oneWayRow",
   "Consent.quietGiver",
-  "Consent.quietGiverF",
   "Hall.addItem",
   "Hall.deleteConfirmTitle",
   "Hall.deleteKeep",
@@ -540,7 +820,6 @@ describe("словарь и дизайн-пакет", () => {
       ...PACKAGE_DRIFT,
       ...OWNER_REWRITE_89,
       ...OWNER_REWRITE_105,
-      ...PRODUCT_TRUTH_173,
       ...PACKAGE_ONLY,
     ]);
     const drift = [...handoff]
@@ -555,12 +834,7 @@ describe("словарь и дизайн-пакет", () => {
   it("записанное расхождение — настоящее, а не выданная вперёд индульгенция", () => {
     // Ключ, который на самом деле совпадает с пакетом, разрешал бы менять эту
     // строку как угодно и навсегда. Такой записи здесь не место.
-    const stale = [
-      ...PACKAGE_DRIFT,
-      ...OWNER_REWRITE_89,
-      ...OWNER_REWRITE_105,
-      ...PRODUCT_TRUTH_173,
-    ]
+    const stale = [...PACKAGE_DRIFT, ...OWNER_REWRITE_89, ...OWNER_REWRITE_105]
       .filter((key) => !handoff.has(key) || ru.get(key) === handoff.get(key))
       .sort();
     expect(stale).toEqual([]);
@@ -1196,13 +1470,17 @@ describe("словарь и дизайн-пакет", () => {
       // В messages-ru.json пакета этого экрана нет: словарь собирали до
       // турна 12.
       //
-      // А ВОТ ПОДПИСЬ ОТ ДОСКИ УШЛА (тикет 172). Её написал сам дизайн —
-      // `starterPack.caption`, «Подборка по интерьеру, который ты выбрала.
-      // Можно менять и удалять потом», — и сам же запретил раундом 41:
-      // родовая форма, обращённая к человеку. Стало «Подборка под твой
-      // интерьер» — смысл тот же, рода нет. Раздел доски со строчной буквы,
-      // `flatten` его не читает, поэтому запись живёт здесь, а не в списке
-      // расхождений с пакетом.
+      // А ВОТ ПОДПИСЬ ОТ ДОСКИ УХОДИЛА (тикет 172) И ВЕРНУЛАСЬ К НЕЙ ЖЕ
+      // (раунд 42). Её написал сам дизайн — `starterPack.caption`, «Подборка
+      // по интерьеру, который ты выбрала. Можно менять и удалять потом», — и
+      // сам же запретил раундом 41: родовая форма, обращённая к человеку. Мы
+      // переписали на «Подборка под твой интерьер», а раунд 42 прислал ЭТУ ЖЕ
+      // строку, слово в слово с нашей, и исправил её у себя в трёх местах.
+      // Расхождения больше нет; ключ остаётся здесь по другой причине —
+      // раздел доски со строчной буквы, `flatten` его не читает, сверять
+      // всё равно нечем. Переносить ли строку в словарь ключом
+      // `Empty.starterCaption` дизайн спросил отдельно: не переносим, она уже
+      // здесь и под своим именем.
       "StarterPack.busy",
       "StarterPack.caption",
       "StarterPack.errGeneric",
