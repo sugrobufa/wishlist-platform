@@ -36,7 +36,7 @@ const EXPECTED_ORDER = [
   "ProfileSection", // О себе
   "NickSection", // Адрес комнаты
   "ZonesSection", // Полки
-  "OccasionSection", // Праздник
+  "BirthdaySection", // День рождения (тикет 187 — был «Праздник»)
   "HallSection", // Сокровищница
   "AccessSection", // Вход и доступ
   "DataSection", // Данные

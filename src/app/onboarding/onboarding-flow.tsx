@@ -3,9 +3,10 @@
 import { useState } from "react";
 import { useFormStatus } from "react-dom";
 import { useTranslations } from "next-intl";
+import { BirthdayPicker } from "@/components/birthday-picker";
 import { IconCheck } from "@/components/icons";
 import { createRoomAction } from "./actions";
-import { initialOccasionValue } from "./occasion-date";
+import { initialBirthdayValue } from "./occasion-date";
 
 export type PresetCard = {
   id: string;
@@ -95,7 +96,11 @@ export function OnboardingFlow({
   const [step, setStep] = useState<Step>(1);
   const [zoneSet, setZoneSet] = useState<ZoneSet | null>(null);
   const [presetId, setPresetId] = useState<string | null>(null);
-  const [occasionDate, setOccasionDate] = useState(() => initialOccasionValue(initialOccasionDate));
+  // Предзаполнение снаружи (тикет 38): холодный гость мог назвать день
+  // рождения, когда тихо занимал подарок. Берём из него ТОЛЬКО день и месяц:
+  // год там — год ближайшего праздника, а не год рождения, и класть его в
+  // комнату значило бы записать неправду (тикет 187).
+  const [birthday, setBirthday] = useState(() => initialBirthdayValue(initialOccasionDate));
   const [displayName, setDisplayName] = useState(() => (initialName ?? "").trim());
 
   // Акценты наборов — из данных rooms.json (первая комната набора), не из кода.
@@ -286,7 +291,15 @@ export function OnboardingFlow({
     );
   }
 
-  // ---- Шаг 3: дата праздника (тикет 43) ----
+  // ---- Шаг 3: день рождения (тикеты 43 и 187) ----
+  //
+  // ШАГ СПРАШИВАЛ «ДАТУ» — слово, которое ничего не называет: человек не знал
+  // ни чья это дата, ни повторяется ли она, ни что случится, когда она пройдёт
+  // (приёмка владельца 11.08.2026). Спрашиваем день рождения — единственную
+  // дату, которую человек знает не думая; она повторяется сама, и следующая
+  // считается без второго вопроса. Год не спрашиваем: возраст продукту не
+  // нужен ни для чего. Остальные праздники (Новый год, 8 марта) у всех в один
+  // день — их незачем спрашивать, комната предложит сама (отдельный тикет).
   //
   // ЗДЕСЬ СТОЯЛ ЧЕТВЁРТЫЙ ШАГ — «что чаще всего хочется» (тикет 113, доска
   // 34b). Он уехал целиком в первое открытие «начни с готового»: единственное,
@@ -295,7 +308,8 @@ export function OnboardingFlow({
   // правило «3–4», ни то, что на комнату он не влияет, не менялись — сменилось
   // место (`src/app/room/starter-pack.tsx`, письмо 33 · турн 40b).
 
-  const dateMissing = occasionDate === "";
+  // Кнопку запирает НЕПОЛНАЯ дата: один список без другого — это не ответ.
+  const dateMissing = birthday.day === null || birthday.month === null;
 
   return (
     <main className={STEP_MAIN_CLASS}>
@@ -331,16 +345,13 @@ export function OnboardingFlow({
             )}
           </label>
 
-          <label className="flex flex-col gap-1.5">
+          {/* День рождения, а не безымянная «Дата» (тикет 187). Год не
+            спрашиваем: продукту он не нужен, а дата повторяется сама —
+            ближайшая считается от сегодня. */}
+          <div className="flex flex-col gap-1.5">
             <span className="text-sm text-text-muted">{t("occasionLabel")}</span>
-            <input
-              type="date"
-              name="occasionDate"
-              value={occasionDate}
-              onChange={(event) => setOccasionDate(event.target.value)}
-              className="border border-surface-hairline-strong bg-surface-app-ground px-3 py-2.5 text-sm text-text-primary outline-none focus:border-text-faint"
-            />
-          </label>
+            <BirthdayPicker day={birthday.day} month={birthday.month} onChange={setBirthday} />
+          </div>
 
           {/* Кнопка заперта, пока поля нет: пропуск бывает только осознанным. */}
           <CreateRoomButton accent={selected.accent} disabled={dateMissing} />

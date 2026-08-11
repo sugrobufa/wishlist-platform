@@ -12,9 +12,9 @@ import {
   getSessionUserId,
   newAvatarKey,
   setDemoGhostsOff,
+  setBirthday,
   setHallSettings,
   setLightSettings,
-  setOccasionDate,
   setOwnerAvatar,
   setRoomNick,
   setZoneOff,
@@ -143,10 +143,16 @@ export async function toggleZoneAction(zoneKey: string, off: boolean): Promise<S
   return runForOwner((userId) => setZoneOff(userId, String(zoneKey), Boolean(off)));
 }
 
-// ---------- Дата праздника и демо-призраки ----------
+// ---------- День рождения и демо-призраки ----------
 
-export async function setOccasionDateAction(date: string | null): Promise<SettingsResult> {
-  return runForOwner((userId) => setOccasionDate(userId, date === null ? null : String(date)));
+/**
+ * День рождения хозяйки: `{day, month}` из двух списков или null («убрать»).
+ * Разбор и отказ на мусор — в сервисе, экшен остаётся тонким (тикет 187).
+ */
+export async function setBirthdayAction(
+  birthday: { day: number | null; month: number | null } | null,
+): Promise<SettingsResult> {
+  return runForOwner((userId) => setBirthday(userId, birthday));
 }
 
 export async function setDemoGhostsAction(off: boolean): Promise<SettingsResult> {

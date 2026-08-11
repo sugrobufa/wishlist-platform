@@ -1,12 +1,13 @@
 // Сервис «Комната» (Room): создание при онбординге, чтение для хозяйки и
 // гостя, настройки хозяйки (тикет 13: профиль, ник, смена пресета, зоны,
-// дата праздника, демо-призраки).
+// день рождения, демо-призраки).
 // Бизнес-логика живёт здесь, роуты/экшены остаются тонкими (CLAUDE.md).
 import { randomBytes } from "node:crypto";
 import { revalidateTag } from "next/cache";
 import { Prisma, type Room, type User } from "@prisma/client";
 import { z } from "zod";
 import { prisma } from "@/server/db";
+import { birthdayColumns, parseBirthday } from "@/server/birthday";
 import { recordRoomEvent } from "@/server/services/room-events";
 import { rooms as roomPresets } from "@/config/design";
 import { roomCacheTag } from "@/server/services/items";
@@ -420,23 +421,43 @@ export async function setZoneOff(userId: string, zoneKey: string, off: boolean):
   return updated;
 }
 
-// ---------- Дата праздника и демо-призраки ----------
-
-/** YYYY-MM-DD из date-инпута. */
-const occasionDateSchema = z.iso.date();
+// ---------- День рождения и демо-призраки ----------
 
 /**
- * Задать/очистить (null) дату праздника. Таймзона честно: полночь UTC
- * выбранной даты — «что подарили» откроется по этой отметке (тикет 10).
+ * Задать/очистить (null) день рождения хозяйки — ЕДИНСТВЕННОЕ место записи
+ * (и из онбординга, и из настроек). Вход — то, что назвал человек: `YYYY-MM-DD`
+ * из прежнего поля даты и предзаполнения гостя или `{day, month, year?}` из
+ * двух списков экрана.
+ *
+ * Дата тут больше не «момент праздника», а повторяющийся день (тикет 187):
+ * храним день и месяц, год необязателен, ближайший праздник считается на
+ * чтении (`birthday.nextOccasion`). Полночь UTC никуда не делась — она просто
+ * переехала из колонки в вычисление, и всё, что считало по ней (напоминания,
+ * «что подарили», отсчёт в гостевой комнате), считает по ней же.
+ *
+ * Мусор — отказ ZodError, как и раньше: 31 февраля и «завтра» днём рождения
+ * не бывают.
  */
-export async function setOccasionDate(userId: string, date: string | null): Promise<Room> {
+export async function setBirthday(userId: string, raw: unknown): Promise<Room> {
   const room = await requireRoom(userId);
-  const occasionDate =
-    date === null ? null : new Date(`${occasionDateSchema.parse(date)}T00:00:00.000Z`);
-  const updated = await prisma.room.update({ where: { id: room.id }, data: { occasionDate } });
+  const updated = await prisma.room.update({
+    where: { id: room.id },
+    data: birthdayColumns(birthdaySchema.parse(raw)),
+  });
   revalidateRoom(room.id);
   return updated;
 }
+
+/** null — «убрать»; всё остальное разбирает домен, мусор — ZodError. */
+const birthdaySchema = z.unknown().transform((raw, ctx) => {
+  if (raw === null || raw === undefined) return null;
+  const birthday = parseBirthday(raw);
+  if (birthday === null) {
+    ctx.addIssue({ code: "custom", message: "такого дня рождения не бывает" });
+    return z.NEVER;
+  }
+  return birthday;
+});
 
 /**
  * Ответ «что чаще всего хочется» (тикет 113, доска 34b). Пишется теперь не из

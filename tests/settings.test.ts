@@ -7,13 +7,14 @@ import "dotenv/config";
 import { randomUUID } from "node:crypto";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import { prisma } from "../src/server/db";
+import { birthdayOf, nextOccasion } from "../src/server/birthday";
 import {
   AVATAR_MAX_BYTES,
   changeRoomPreset,
   getOwnerProfile,
   isReservedNick,
   newAvatarKey,
-  setOccasionDate,
+  setBirthday,
   setOwnerAvatar,
   setRoomNick,
   setZoneOff,
@@ -302,22 +303,46 @@ describe("setZoneSet / setZoneOff", () => {
   });
 });
 
-// ---------- Дата праздника ----------
+// ---------- День рождения ----------
 
-describe("setOccasionDate — полночь UTC, честно", () => {
-  it("YYYY-MM-DD пишется полночью UTC; null очищает", async () => {
+describe("setBirthday — день и месяц, год необязателен (тикет 187)", () => {
+  it("день и месяц из двух списков ложатся в комнату; null очищает", async () => {
     const { user } = await createOwnerWithRoom();
-    const updated = await setOccasionDate(user.id, "2027-03-08");
-    expect(updated.occasionDate?.getTime()).toBe(Date.UTC(2027, 2, 8));
+    const updated = await setBirthday(user.id, { day: 8, month: 3 });
+    expect(birthdayOf(updated)).toEqual({ day: 8, month: 3, year: null });
+    // Ближайший праздник считается на чтении — полночь UTC того же дня.
+    expect(nextOccasion(birthdayOf(updated)!, new Date("2027-01-01T00:00:00.000Z"))).toEqual(
+      new Date("2027-03-08T00:00:00.000Z"),
+    );
 
-    const cleared = await setOccasionDate(user.id, null);
-    expect(cleared.occasionDate).toBeNull();
+    const cleared = await setBirthday(user.id, null);
+    expect(birthdayOf(cleared)).toBeNull();
+    expect(cleared.birthdayYear).toBeNull();
+  });
+
+  it("календарный день строкой — та же дорога, и год из неё сохраняется", async () => {
+    // Так приезжает предзаполнение гостя и так лежала прежняя колонка. Год
+    // продукту не нужен ни для чего и нигде не показывается, но выбрасывать
+    // названное человеком мы не станем.
+    const { user } = await createOwnerWithRoom();
+    const updated = await setBirthday(user.id, "1990-03-08");
+    expect(birthdayOf(updated)).toEqual({ day: 8, month: 3, year: 1990 });
   });
 
   it("мусорный формат → ZodError", async () => {
     const { user } = await createOwnerWithRoom();
-    for (const bad of ["08.03.2027", "2027-3-8", "завтра", "2027-13-40"]) {
-      await expect(setOccasionDate(user.id, bad)).rejects.toThrow();
+    const trash: unknown[] = [
+      "08.03.2027",
+      "2027-3-8",
+      "завтра",
+      "2027-13-40",
+      { day: 31, month: 2 }, // такого дня не бывает
+      { day: 8 }, // половина ответа
+      { month: 3 },
+      {},
+    ];
+    for (const bad of trash) {
+      await expect(setBirthday(user.id, bad)).rejects.toThrow();
     }
   });
 });

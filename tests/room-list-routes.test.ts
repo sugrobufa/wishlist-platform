@@ -54,7 +54,7 @@ describe("A — у экрана списка снова есть дорога", 
 
   it("ссылка стоит в настройках, в секции полок", () => {
     const zones = settings.slice(settings.indexOf("export function ZonesSection"));
-    const hall = zones.indexOf("export function OccasionSection");
+    const hall = zones.indexOf("export function BirthdaySection");
     const inZones = hall > -1 ? zones.slice(0, hall) : zones;
     expect(inZones, "запасная лестница в «комнату списком» пропала").toContain('href="/room/list"');
   });

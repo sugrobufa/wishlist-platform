@@ -9,6 +9,7 @@
 // ключей guestName/guestEmail/cancelToken не существует (под тест-регексом).
 import { z } from "zod";
 import { prisma } from "@/server/db";
+import { birthdayOf } from "@/server/birthday";
 import { ownerTakenCount } from "@/server/services/bookings";
 import { deleteObjects, listKeysByPrefix } from "@/server/s3";
 
@@ -50,7 +51,13 @@ export type AccountExport = {
     zonesOff: string[];
     shareSlug: string;
     nick: string | null;
-    occasionDate: string | null;
+    /**
+     * День рождения так, как он лежит в комнате (тикет 187): день и месяц,
+     * год — если человек его называл. ИМЕННО ХРАНИМОЕ, а не «ближайший
+     * праздник»: экспорт отдаёт свои данные, а не вычисленную из них дату,
+     * которая назавтра станет другой.
+     */
+    birthday: { day: number; month: number; year: number | null } | null;
     demoGhostsOff: boolean;
     createdAt: string;
   } | null;
@@ -122,7 +129,9 @@ export async function buildExport(userId: string): Promise<AccountExport | null>
       zonesOff: true,
       shareSlug: true,
       nick: true,
-      occasionDate: true,
+      birthdayDay: true,
+      birthdayMonth: true,
+      birthdayYear: true,
       demoGhostsOff: true,
       createdAt: true,
     },
@@ -160,7 +169,7 @@ export async function buildExport(userId: string): Promise<AccountExport | null>
           zonesOff: room.zonesOff,
           shareSlug: room.shareSlug,
           nick: room.nick,
-          occasionDate: room.occasionDate ? room.occasionDate.toISOString() : null,
+          birthday: birthdayOf(room),
           demoGhostsOff: room.demoGhostsOff,
           createdAt: room.createdAt.toISOString(),
         }

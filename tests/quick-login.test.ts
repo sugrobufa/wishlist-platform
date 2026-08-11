@@ -175,8 +175,8 @@ async function fillRoom(userId: string, roomId: string) {
     data: { itemId: item.id, price: "4900", currency: "RUB" },
   });
   // Дата в БУДУЩЕМ: processOccasionClose() из соседнего форка выбирает все
-  // комнаты с occasionDate < now и заводит им сводки — прошедшая дата дала бы
-  // гонку на (roomId, date). Само значение ни на один ассерт не влияет.
+  // комнаты, у которых праздник уже наступил, и заводит им сводки — прошедшая
+  // дата дала бы гонку на (roomId, date). Само значение ни на что не влияет.
   const summary = await prisma.occasionSummary.create({
     data: { roomId, date: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000) },
   });

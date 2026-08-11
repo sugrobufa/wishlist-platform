@@ -8,6 +8,7 @@ import { useRef, useState, useTransition, type CSSProperties, type ReactNode } f
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
+import { BirthdayPicker } from "@/components/birthday-picker";
 import { IconCheck } from "@/components/icons";
 import { gradingFilter, LIGHT_COLORS, TIMES_OF_DAY } from "@/components/scene/grading";
 import { useRoomStudio } from "./room-studio";
@@ -18,8 +19,8 @@ import {
   saveAvatarAction,
   setHallSettingsAction,
   setLightSettingsAction,
+  setBirthdayAction,
   setNickAction,
-  setOccasionDateAction,
   setZoneSetAction,
   toggleZoneAction,
   updateDisplayNameAction,
@@ -649,50 +650,61 @@ export function ZonesSection({
   );
 }
 
-// ---------- Дата праздника ----------
+// ---------- День рождения ----------
 
-export function OccasionSection({
-  occasionDate,
+/**
+ * День рождения хозяйки (тикет 187). Раздел звался «Праздник» и спрашивал
+ * безымянную «Дату» одним полем с годом; теперь это день и месяц двумя
+ * списками — та же дата, что на третьем шаге онбординга, и тем же компонентом.
+ *
+ * ГОД НЕ ПОКАЗЫВАЕТСЯ И НЕ СПРАШИВАЕТСЯ. У комнат, чья дата приехала
+ * миграцией, он лежит в строке, но живёт ровно с той датой, с которой пришёл:
+ * человек назвал новый день — записываются ровно названные день и месяц, а
+ * год уходит вместе со старой датой. Стеречь невидимое поле, чтобы потом
+ * приписать чужой год новому дню, хуже, чем не хранить его вовсе: продукт им
+ * не пользуется нигде.
+ */
+export function BirthdaySection({
+  birthday,
   accent,
 }: {
-  /** YYYY-MM-DD или null. */
-  occasionDate: string | null;
+  /** День и месяц из комнаты; null — «Пока не знаю» (законный ответ). */
+  birthday: { day: number; month: number } | null;
   accent: string;
 }) {
   const t = useTranslations("Settings");
   const { busy, error, saved, run } = useSettingsAction();
-  const [value, setValue] = useState(occasionDate ?? "");
+  const [value, setValue] = useState<{ day: number | null; month: number | null }>(
+    birthday ?? { day: null, month: null },
+  );
 
   return (
     <Section overline={t("occasionOverline")}>
-      <label className="flex flex-col gap-1.5">
+      <div className="flex flex-col gap-1.5">
         <span className="text-sm text-text-muted">{t("occasionLabel")}</span>
-        <input
-          type="date"
-          value={value}
-          onChange={(event) => setValue(event.target.value)}
-          className="border border-surface-hairline-strong bg-surface-app-ground px-3 py-2.5 text-sm text-text-primary outline-none focus:border-text-faint"
-        />
-      </label>
+        <BirthdayPicker day={value.day} month={value.month} onChange={setValue} />
+      </div>
       <p className="text-xs text-text-faint">{t("occasionHint")}</p>
       <div className="flex items-center gap-4">
         <LightButton
           accent={accent}
           busy={busy}
           onClick={() => {
-            if (!value) return;
-            run(() => setOccasionDateAction(value));
+            // Половина даты — не дата: сохранять нечего, пока не назван и
+            // день, и месяц.
+            if (value.day === null || value.month === null) return;
+            run(() => setBirthdayAction({ day: value.day, month: value.month }));
           }}
         >
           {busy ? t("saving") : saved ? t("saved") : t("save")}
         </LightButton>
-        {occasionDate && (
+        {birthday && (
           <button
             type="button"
             disabled={busy}
             onClick={() => {
-              setValue("");
-              run(() => setOccasionDateAction(null));
+              setValue({ day: null, month: null });
+              run(() => setBirthdayAction(null));
             }}
             className="pressable text-sm font-semibold text-text-muted hover:text-text-strong disabled:opacity-60"
           >

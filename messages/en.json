@@ -58,10 +58,10 @@
     "presetSubtitle": "You can swap the whole room later — it is not forever.",
     "back": "Zone set",
     "next": "Next",
-    "occasionStep": "Occasion",
-    "occasionTitle": "When is the occasion?",
-    "occasionSubtitle": "Three days before, we quietly remind everyone who already picked a gift. After the day, “what you got” opens up.",
-    "occasionLabel": "Date",
+    "occasionStep": "Birthday",
+    "occasionTitle": "When is your birthday?",
+    "occasionSubtitle": "Three days before, we quietly remind everyone who already picked a gift, and after the day “what you got” opens up. The date repeats every year — we will not ask again.",
+    "occasionLabel": "Birthday",
     "occasionButtonHint": "The button lights up once there is a date",
     "occasionSkip": "I don't know yet",
     "occasionSkipHint": "Then reminders and “what you got” will wait — you can add the date later in settings",
@@ -327,9 +327,9 @@
     "setLabelALL": "All 10",
     "zonesOverline": "Room zones",
     "zonesHint": "A switched-off zone disappears with its furniture. Your items stay and return with the zone.",
-    "occasionOverline": "Occasion",
-    "occasionLabel": "Occasion date",
-    "occasionHint": "After this date, “what was gifted” opens.",
+    "occasionOverline": "Birthday",
+    "occasionLabel": "Birthday",
+    "occasionHint": "The date repeats every year. Three days before, we remind everyone who already picked a gift; after the day “what was gifted” opens.",
     "occasionClear": "Clear",
     "demoOverline": "Samples",
     "demoHint": "Samples live in empty zones and disappear on their own once your items arrive.",
@@ -634,5 +634,9 @@
     "removeTitle": "Take this shelf out of the room",
     "removeSub": "If this shelf is not for you. The things stay, and the shelf can come back from settings",
     "errGeneric": "Something went wrong — try again"
+  },
+  "Birthday": {
+    "day": "Day",
+    "month": "Month"
   }
 }

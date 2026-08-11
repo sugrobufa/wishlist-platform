@@ -7,6 +7,7 @@ import { randomUUID } from "node:crypto";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import type { Prisma } from "@prisma/client";
 import { prisma } from "../src/server/db";
+import { birthdayColumns, nextOccasionDay, parseBirthday } from "../src/server/birthday";
 import { getGuestRoom } from "../src/server/services/guest-room";
 
 // Вне Next-рантайма у unstable_cache нет incremental cache — в тестах чтение
@@ -17,6 +18,11 @@ vi.mock("next/cache", () => ({
     (...args: Parameters<T>) =>
       fn(...args),
 }));
+
+/** День рождения комнаты из отметки: в комнате день и месяц (тикет 187). */
+function birthdayOn(date: Date | null) {
+  return birthdayColumns(date === null ? null : parseBirthday(date.toISOString().slice(0, 10)));
+}
 
 const TEST_EMAIL_DOMAIN = "@guest-room.test";
 
@@ -36,7 +42,7 @@ async function createTestRoom(
       zoneSet: "F",
       shareSlug: `g-${randomUUID().slice(0, 12)}`,
       zonesOff: options.zonesOff ?? [],
-      occasionDate: options.occasionDate,
+      ...birthdayOn(options.occasionDate ?? null),
     },
   });
 }
@@ -207,11 +213,13 @@ describe("getGuestRoom", () => {
   });
 
   it("дата праздника отдаётся календарным днём и не съезжает от часового пояса", async () => {
-    // Дата пишется полночью UTC (services/rooms.setOccasionDate). Читать её
-    // поясом машины значило бы получить 30 декабря в Москве — проверяем
+    // Ближайший праздник считается полночью UTC (server/birthday). Читать
+    // его поясом машины значило бы получить 30 декабря в Москве — проверяем
     // именно край года, где ошибка на сутки видна.
     const room = await createTestRoom({ occasionDate: new Date("2026-12-31T00:00:00.000Z") });
-    expect((await getGuestRoom(room.shareSlug))?.occasionDate).toBe("2026-12-31");
+    expect((await getGuestRoom(room.shareSlug))?.occasionDate).toBe(
+      nextOccasionDay({ day: 31, month: 12, year: null }, new Date()),
+    );
 
     const noDate = await createTestRoom();
     expect((await getGuestRoom(noDate.shareSlug))?.occasionDate).toBeNull();

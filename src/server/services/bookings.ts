@@ -17,6 +17,7 @@ import { isExpired } from "@/server/dto/experience";
 import { Prisma } from "@prisma/client";
 import { z } from "zod";
 import { prisma } from "@/server/db";
+import { birthdayOf, dueOccasion, type BirthdayColumns } from "@/server/birthday";
 import { itemPhotoUrl } from "@/server/dto/items";
 import { enqueueItemGoneMail } from "@/server/queues";
 import { hallOpenToViewer } from "@/server/services/hall-access";
@@ -217,7 +218,12 @@ export async function offerConnection(cancelToken: string, offers: boolean): Pro
     where: { cancelToken: token },
     select: {
       guestUserId: true,
-      item: { select: { roomId: true, room: { select: { occasionDate: true } } } },
+      item: {
+        select: {
+          roomId: true,
+          room: { select: { birthdayDay: true, birthdayMonth: true, birthdayYear: true } },
+        },
+      },
     },
   });
   if (!mine) {
@@ -253,16 +259,19 @@ export async function offerConnection(cancelToken: string, offers: boolean): Pro
  * подарок занять, и на вопрос ответить.
  *
  * Обратный случай — комната МЕЖДУ праздниками: прошлый итог закрыт, но
- * впереди уже стоит новая дата, и брони копятся к ней (то же правило, что у
- * баннера комнаты — `occasions.occasionBannerVisible`). Такой ответ снова
- * живой: он про следующий праздник, а не про закрытый.
+ * впереди уже стоит следующий день рождения, и брони копятся к нему (то же
+ * правило, что у баннера комнаты — `occasions.occasionBannerVisible`). Такой
+ * ответ снова живой: он про следующий праздник, а не про закрытый.
+ *
+ * С повторяющейся датой (тикет 187) «впереди» она ВСЕГДА, поэтому «между
+ * праздниками» задаётся хвостом: пока день рождения считается наступившим
+ * (`birthday.dueOccasion`), закрытый итог держит ответ; кончился хвост —
+ * ответ снова живой. Комната без дня рождения запирается закрытием итога, как
+ * и раньше: другого края у её праздника нет.
  */
-function consentAnswerLocked(
-  room: { occasionDate: Date | null },
-  closed: boolean,
-  now: Date,
-): boolean {
-  if (room.occasionDate && room.occasionDate > now) return false;
+function consentAnswerLocked(room: BirthdayColumns, closed: boolean, now: Date): boolean {
+  const birthday = birthdayOf(room);
+  if (birthday && dueOccasion(birthday, now) === null) return false;
   return closed;
 }
 
@@ -339,7 +348,9 @@ export async function listBookingsByTokens(tokens: readonly string[]): Promise<M
             select: {
               id: true,
               shareSlug: true,
-              occasionDate: true,
+              birthdayDay: true,
+              birthdayMonth: true,
+              birthdayYear: true,
               user: { select: { displayName: true, name: true } },
             },
           },

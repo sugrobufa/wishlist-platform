@@ -6,22 +6,22 @@ import { auth } from "@/server/auth";
 import {
   createRoomForUser,
   getSessionUserId,
-  setOccasionDate,
+  setBirthday,
   updateDisplayName,
 } from "@/server/services/rooms";
 import { GUEST_INTRO_COOKIE } from "./guest-intro";
-import { readOccasionDate } from "./occasion-date";
+import { readBirthdayForm } from "./occasion-date";
 
 /**
  * Финал онбординга: создать комнату {preset, zoneSet, shareSlug}, записать имя
- * и дату праздника и увести хозяйку в /room. Экшен тонкий — валидация и
+ * и день рождения и увести хозяйку в /room. Экшен тонкий — валидация и
  * идемпотентность в сервисах.
  *
  * Имя и дата идут ТЕМИ ЖЕ путями, что из настроек: `updateDisplayName` и
- * `setOccasionDate` остаются единственными местами, которые пишут
- * `User.displayName` и `Room.occasionDate` (и единственным, которое знает про
- * полночь UTC). Вторых путей специально не заводим — иначе таймзона однажды
- * разъедется между онбордингом и настройками.
+ * `setBirthday` остаются единственными местами, которые пишут
+ * `User.displayName` и день рождения комнаты. Вторых путей специально не
+ * заводим — иначе правила даты однажды разъедутся между онбордингом и
+ * настройками.
  */
 export async function createRoomAction(formData: FormData): Promise<void> {
   const session = await auth();
@@ -46,14 +46,16 @@ export async function createRoomAction(formData: FormData): Promise<void> {
     await updateDisplayName(userId, displayName);
   }
 
-  // «Пока не знаю» — сабмит с пометкой: поле даты вообще не читаем.
+  // «Пока не знаю» — сабмит с пометкой: списки даты вообще не читаем.
   const skipped = formData.get("skipDate") === "1";
-  const occasionDate = skipped ? null : readOccasionDate(formData.get("occasionDate"));
+  const birthday = skipped
+    ? null
+    : readBirthdayForm(formData.get("birthdayDay"), formData.get("birthdayMonth"));
   // Пропуск — это «не задавать», а не «стереть»: у новой комнаты даты и так
   // нет, а повторный проход онбординга (комната уже есть) не должен обнулять
-  // дату, выставленную в настройках.
-  if (occasionDate !== null) {
-    await setOccasionDate(userId, occasionDate);
+  // день рождения, выставленный в настройках.
+  if (birthday !== null) {
+    await setBirthday(userId, birthday);
   }
 
   // Предзаполнение одноразовое: комната собрана, дальше cookie только вводила

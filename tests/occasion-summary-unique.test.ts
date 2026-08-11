@@ -17,6 +17,7 @@ vi.mock("@/server/queues", () => ({
 
 import { enqueueOccasionOwnerMail } from "@/server/queues";
 import { prisma } from "../src/server/db";
+import { birthdayColumns, parseBirthday } from "../src/server/birthday";
 import { closeOccasion } from "../src/server/services/occasions";
 
 const TEST_EMAIL_DOMAIN = "@occasion-unique.test";
@@ -39,7 +40,9 @@ async function createOwnerWithRoom(occasionDate: Date | null) {
       preset: "cream",
       zoneSet: "F",
       shareSlug: `ou-${randomUUID().slice(0, 12)}`,
-      occasionDate,
+      ...birthdayColumns(
+        occasionDate === null ? null : parseBirthday(occasionDate.toISOString().slice(0, 10)),
+      ),
     },
   });
   return { user, room };

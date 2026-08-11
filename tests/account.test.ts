@@ -14,6 +14,7 @@ import { randomBytes, randomUUID } from "node:crypto";
 import { Buffer } from "node:buffer";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import { prisma } from "../src/server/db";
+import { birthdayColumns, parseBirthday } from "../src/server/birthday";
 import {
   AccountError,
   DELETE_ACCOUNT_PHRASE,
@@ -30,6 +31,11 @@ function hex(bytes: number): string {
   return randomBytes(bytes).toString("hex");
 }
 
+/** День рождения комнаты из отметки: в комнате день и месяц (тикет 187). */
+function birthdayOn(date: Date | null) {
+  return birthdayColumns(date === null ? null : parseBirthday(date.toISOString().slice(0, 10)));
+}
+
 async function createOwnerWithRoom(overrides?: { occasionDate?: Date; nick?: string }) {
   const user = await prisma.user.create({
     data: { email: `owner-${randomUUID()}${TEST_EMAIL_DOMAIN}`, displayName: "Мила" },
@@ -40,7 +46,7 @@ async function createOwnerWithRoom(overrides?: { occasionDate?: Date; nick?: str
       preset: "cream",
       zoneSet: "F",
       shareSlug: `ac${randomUUID().replace(/-/g, "").slice(0, 10)}`,
-      occasionDate: overrides?.occasionDate ?? null,
+      ...birthdayOn(overrides?.occasionDate ?? null),
       nick: overrides?.nick ?? null,
     },
   });
@@ -166,7 +172,10 @@ describe("buildExport — полнота", () => {
       zonesOff: ["beauty"],
       shareSlug: room.shareSlug,
       nick,
-      occasionDate: "2026-12-31T00:00:00.000Z",
+      // День рождения так, как он лежит в комнате: день, месяц и год (тикет
+      // 187). Не «ближайший праздник» — экспорт отдаёт свои данные, а не
+      // вычисленную из них дату, которая назавтра станет другой.
+      birthday: { day: 31, month: 12, year: 2026 },
       demoGhostsOff: true,
       createdAt: expect.any(String),
     });
@@ -249,15 +258,15 @@ describe("buildExport — полнота", () => {
 describe("deleteAccount — в БД не остаётся ни одной строки пользователя", () => {
   it("каскад + явные deleteMany сносят всё; сосед с комнатой и бронью не тронут", async () => {
     // --- Полный граф пользователя A ---
-    // Дата праздника — В БУДУЩЕМ, и это принципиально (тикет 30).
-    // `processOccasionClose()` в соседнем форке выбирает ВСЕ комнаты базы с
-    // `occasionDate < now` и заводит каждой `OccasionSummary`. С прошедшей
-    // датой он успевал закрыть эту комнату раньше самого теста, и собственный
-    // `occasionSummary.create` ниже падал с `P2002 (roomId, date)`.
+    // День рождения — В БУДУЩЕМ, и это принципиально (тикет 30).
+    // `processOccasionClose()` в соседнем форке выбирает ВСЕ комнаты базы, у
+    // которых праздник уже наступил, и заводит каждой `OccasionSummary`. С
+    // прошедшей датой он успевал закрыть эту комнату раньше самого теста, и
+    // собственный `occasionSummary.create` ниже падал с `P2002 (roomId, date)`.
+    // Полгода вперёд — заведомо вне хвоста праздника (тикет 187: две недели).
     // Само значение даты ни на один ассерт не влияет — нужен лишь факт строки
     // в модели без FK на User, чтобы доказать, что её сносит явный deleteMany.
-    // Дата считается от «сейчас», чтобы через год не стать снова прошедшей.
-    const occasionDate = new Date(Date.now() + 365 * 24 * 60 * 60 * 1000);
+    const occasionDate = new Date(Date.now() + 182 * 24 * 60 * 60 * 1000);
     const a = await createOwnerWithRoom({ occasionDate });
     await prisma.user.update({
       where: { id: a.user.id },

@@ -3,6 +3,7 @@ import Link from "next/link";
 import { getTranslations } from "next-intl/server";
 import { redirect } from "next/navigation";
 import { auth } from "@/server/auth";
+import { birthdayOf } from "@/server/birthday";
 import {
   getOwnerProfile,
   getRoomForUser,
@@ -21,11 +22,11 @@ import { RoomStudio } from "./room-studio";
 import type { PresetCard } from "./room-preview";
 import {
   AccessSection,
+  BirthdaySection,
   DataSection,
   LightSection,
   HallSection,
   NickSection,
-  OccasionSection,
   PresetSection,
   ProfileSection,
   ZonesSection,
@@ -38,7 +39,7 @@ export const metadata: Metadata = { robots: { index: false, follow: false } };
 /**
  * Настройки хозяйки (тикет 13): профиль (имя, аватар), красивый ник,
  * смена пресета без потери вещей, набор зон и вкл/выкл отдельных зон,
- * дата праздника, зал славы (тикет 35), демо-призраки, выход. Скрытие и
+ * день рождения, зал славы (тикет 35), демо-призраки, выход. Скрытие и
  * удаление вещей живёт на плитках зоны (/room/zone/[zone]), скрытие цены
  * отдельной вещи — на её карточке в зале; здесь только настройки комнаты.
  */
@@ -85,7 +86,9 @@ export default async function SettingsPage() {
   }));
 
   const zoneSet = room.zoneSet === "F" || room.zoneSet === "M" ? room.zoneSet : "ALL";
-  const occasionDate = room.occasionDate ? room.occasionDate.toISOString().slice(0, 10) : null;
+  // День рождения так, как он лежит в комнате: день и месяц (тикет 187).
+  // Год экран не показывает — продукт им не пользуется.
+  const birthday = birthdayOf(room);
   // Настройки сокровищницы: показ цены и прочее — из DTO зала (тикет 35), а
   // «кто видит витрину» приезжает прямо из строки комнаты (тикет 116).
   // В DTO цены оно НЕ переехало сознательно: настройки про разное, и общий
@@ -146,7 +149,7 @@ export default async function SettingsPage() {
         />
         <NickSection nick={room.nick} shareSlug={room.shareSlug} accent={accent} />
         <ZonesSection zones={zones} zonesOff={room.zonesOff} accent={accent} />
-        <OccasionSection occasionDate={occasionDate} accent={accent} />
+        <BirthdaySection birthday={birthday} accent={accent} />
         <HallSection settings={hallSettings} accent={accent} />
         {/* Секции «Примеры» здесь больше нет (тикет 104): демо-призраки
             сняты целиком, и тумблеру «Убрать примеры» стало нечего убирать.

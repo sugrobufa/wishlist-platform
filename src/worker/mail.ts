@@ -10,6 +10,7 @@ import { z } from "zod";
 import { rooms as roomPresets } from "@/config/design";
 import { visibleZones } from "@/components/scene/zones";
 import { prisma } from "../server/db";
+import { nextOccasionOf } from "../server/birthday";
 import { appUrl, sendItemGone, sendOccasionOwner, sendReminderGuest } from "../server/mailer";
 import { countFreeGiftsByRoom, findRoomBySlug } from "../server/services/guest-room";
 
@@ -183,7 +184,9 @@ async function processItemGone(data: unknown, deps: MailJobDeps): Promise<MailJo
     roomSlug: job.roomSlug,
     ownerName: room?.user.displayName ?? null,
     freeCount,
-    occasionDate: room?.occasionDate ?? null,
+    // Ближайший день рождения (тикет 187): письмо зовёт выбрать другой подарок,
+    // и срок в нём — тот же, что видит гость в комнате.
+    occasionDate: room === null ? null : nextOccasionOf(room, deps.now?.() ?? new Date()),
   });
   return { status: "sent" };
 }

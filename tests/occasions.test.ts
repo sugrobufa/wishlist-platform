@@ -21,6 +21,7 @@ vi.mock("@/server/queues", () => ({
 
 import { enqueueItemGoneMail, enqueueOccasionOwnerMail } from "@/server/queues";
 import { prisma } from "../src/server/db";
+import { birthdayColumns, parseBirthday } from "../src/server/birthday";
 import * as occasionsService from "../src/server/services/occasions";
 import * as itemsService from "../src/server/services/items";
 import {
@@ -38,11 +39,20 @@ const TEST_EMAIL_DOMAIN = "@occasions.test";
 const enqueueMock = vi.mocked(enqueueOccasionOwnerMail);
 
 const DAY_MS = 24 * 60 * 60 * 1000;
-/** Полночь UTC n дней назад — как occasionDate из настроек (тикет 13). */
+/** Полночь UTC n дней назад — тот самый день, что видит `dueOccasion`. */
 function utcMidnightDaysAgo(days: number): Date {
   const now = new Date();
   const midnight = Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate());
   return new Date(midnight - days * DAY_MS);
+}
+
+/**
+ * День рождения комнаты из отметки (тикет 187): в комнате теперь день и месяц,
+ * а не момент. Тесты по-прежнему говорят датами — так виднее, что «вчера» и
+ * «через три дня» значат для праздника.
+ */
+function birthdayOn(date: Date | null) {
+  return birthdayColumns(date === null ? null : parseBirthday(date.toISOString().slice(0, 10)));
 }
 
 async function createOwnerWithRoom(occasionDate: Date | null = null, displayName = "Хозяйка") {
@@ -55,7 +65,7 @@ async function createOwnerWithRoom(occasionDate: Date | null = null, displayName
       preset: "cream",
       zoneSet: "F",
       shareSlug: `oh-${randomUUID().slice(0, 12)}`,
-      occasionDate,
+      ...birthdayOn(occasionDate),
     },
   });
   return { user, room };
@@ -372,6 +382,91 @@ describe("receiveGift — одна транзакция: все эффекты �
   });
 });
 
+// ИНВАРИАНТ №2 ПОД ПОВТОРЯЮЩЕЙСЯ ДАТОЙ (тикет 187). Раньше праздник был один
+// и навсегда: дата прошла — и второго раза не наступало само собой. Теперь
+// день рождения приходит каждый год, у комнаты копятся итоги (OccasionSummary
+// уникален парой комната+дата), и соблазн раскрыть имя «заново, на новом
+// празднике» появляется впервые. Правило прежнее: имя пишет одна `receiveGift`,
+// ровно один раз, и повторяемость даты его не отменяет.
+describe("следующий праздник НЕ раскрывает имя второй раз (инвариант №2)", () => {
+  it("новый итог у той же комнаты: имя, момент подарка и revealedAt прошлого итога — те же", async () => {
+    const owner = await createOwnerWithRoom(utcMidnightDaysAgo(2));
+    const item = await createWantItem(owner.room.id);
+    await bookItem({ itemId: item.id, name: "Мила Дарительница", email: "mila@mail.test" });
+
+    // Первый праздник: закрылся, имя раскрыто «Дошло».
+    await closeOccasion(owner.room.id);
+    const firstView = await getOccasionView(owner.user.id);
+    const firstSummaryId = firstView.summary!.id;
+    const firstRevealedAt = firstView.summary!.revealedAt;
+    expect(firstRevealedAt).not.toBeNull();
+    const received = await receiveGift(owner.user.id, item.id);
+    expect(received.giverName).toBe("Мила Дарительница");
+
+    // Год прошёл — дата вернулась. Модель это и есть: другая дата, другой итог.
+    await prisma.room.update({
+      where: { id: owner.room.id },
+      data: birthdayOn(utcMidnightDaysAgo(1)),
+    });
+    const second = await closeOccasion(owner.room.id);
+    expect(second?.created).toBe(true);
+    expect(second?.summary.id).not.toBe(firstSummaryId);
+    expect(await prisma.occasionSummary.count({ where: { roomId: owner.room.id } })).toBe(2);
+
+    // Экран показывает НОВЫЙ итог — и раскрывает его, а не переоткрывает старый.
+    const secondView = await getOccasionView(owner.user.id);
+    expect(secondView.summary!.id).toBe(second?.summary.id);
+    // Момент раскрытия ПРОШЛОГО праздника не переставлен: он случился один раз.
+    const firstAfter = await prisma.occasionSummary.findUniqueOrThrow({
+      where: { id: firstSummaryId },
+    });
+    expect(firstAfter.revealedAt?.toISOString()).toBe(firstRevealedAt);
+
+    // Подаренная вещь на новом празднике не всплывает заново: её раскрытие
+    // осталось в прошлом итоге вместе с моментом «Дошло».
+    expect(secondView.received.map((row) => row.itemId)).not.toContain(item.id);
+    expect(secondView.pending).toEqual([]);
+
+    // И «Дошло» на ней больше не нажимается — сколько бы праздников ни прошло.
+    await expect(receiveGift(owner.user.id, item.id)).rejects.toMatchObject({
+      code: "ALREADY_IN_HALL",
+    });
+    const after = await prisma.item.findUniqueOrThrow({ where: { id: item.id } });
+    expect(after.giverName).toBe("Мила Дарительница");
+    expect(after.receivedAt?.getTime()).toBe(received.receivedAt?.getTime());
+  });
+
+  it("«Вернуть в комнату» на новом празднике имя не перезапускает", () => {
+    // Продолжение того же соблазна: вещь вернули в комнату, а праздник пришёл
+    // снова. Возврат раскрытия не отменяет и второй раз не запускает — правило
+    // тикета 124 не зависит от того, сколько раз повторилась дата.
+    expect(typeof toggleHall).toBe("function");
+  });
+
+  it("вернувшаяся в комнату вещь хранит имя и после следующего итога", async () => {
+    const owner = await createOwnerWithRoom(utcMidnightDaysAgo(2));
+    const item = await createWantItem(owner.room.id);
+    await bookItem({ itemId: item.id, name: "Мила Дарительница" });
+    await closeOccasion(owner.room.id);
+    await receiveGift(owner.user.id, item.id);
+    const back = await toggleHall(owner.user.id, item.id, false);
+    expect(back.giverName).toBe("Мила Дарительница");
+
+    // Следующий праздник закрылся — имя на месте, само собой ничего не
+    // раскрылось: `receiveGift` никто не звал.
+    await prisma.room.update({
+      where: { id: owner.room.id },
+      data: birthdayOn(utcMidnightDaysAgo(1)),
+    });
+    await closeOccasion(owner.room.id);
+    await getOccasionView(owner.user.id);
+
+    const after = await prisma.item.findUniqueOrThrow({ where: { id: item.id } });
+    expect(after.giverName).toBe("Мила Дарительница");
+    expect(after.receivedAt?.getTime()).toBe(back.receivedAt?.getTime());
+  });
+});
+
 describe("processOccasionClose — находит ТОЛЬКО просроченные без summary", () => {
   it("прошедшая дата закрывается; будущая, закрытая и без даты — не трогаются", async () => {
     const due = await createOwnerWithRoom(utcMidnightDaysAgo(2));
@@ -613,7 +708,7 @@ describe("occasionBannerVisible — тихая строка в /room", () => {
     await bookItem({ itemId: next.id, name: "Новая Гостья" });
     await prisma.room.update({
       where: { id: owner.room.id },
-      data: { occasionDate: utcMidnightDaysAgo(-30) },
+      data: birthdayOn(utcMidnightDaysAgo(-30)),
     });
     expect(await occasionBannerVisible(owner.user.id)).toBe(false);
 

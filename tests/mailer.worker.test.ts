@@ -7,6 +7,7 @@ import "dotenv/config";
 import { randomUUID } from "node:crypto";
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import { prisma } from "../src/server/db";
+import { birthdayColumns, nextOccasion } from "../src/server/birthday";
 import { processMailJob } from "../src/worker/mail";
 
 const TEST_EMAIL_DOMAIN = "@mailer-worker.test";
@@ -25,7 +26,7 @@ async function createOwnerWithBooking(options: { displayName?: string | null } =
       preset: "cream",
       zoneSet: "F",
       shareSlug: `mw-${randomUUID().slice(0, 12)}`,
-      occasionDate: FUTURE_DATE,
+      ...birthdayColumns({ day: 14, month: 3, year: null }),
     },
   });
   const item = await prisma.item.create({
@@ -342,7 +343,9 @@ describe("processMailJob — item-gone (вещь уехала в сокрови�
       // Две свободные: занятая бронью «Тайная вещь», спрятанная и витринная
       // в счёт не идут.
       freeCount: 2,
-      occasionDate: FUTURE_DATE,
+      // Ближайший праздник считается на отправке (тикет 187): комната хранит
+      // день и месяц, письмо несёт ту же дату, что видит гость в комнате.
+      occasionDate: nextOccasion({ day: 14, month: 3, year: null }, new Date()),
     });
   });
 

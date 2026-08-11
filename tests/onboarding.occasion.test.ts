@@ -1,10 +1,10 @@
-// Дата праздника из онбординга (тикет 43): третий шаг пишет `Room.occasionDate`
-// тем же сервисом, что и настройки, и от этой записи просыпаются напоминания.
-// Тест держит два обещания тикета:
+// День рождения из онбординга (тикеты 43 и 187): третий шаг пишет день и месяц
+// комнаты тем же сервисом, что и настройки, и от этой записи просыпаются
+// напоминания. Тест держит два обещания тикета:
 //
 // 1. КАЛЕНДАРНАЯ ДАТА НЕ СЪЕЗЖАЕТ. Человек называет день, а не момент
-//    времени; в БД лежит ровно полночь UTC этого дня (mailer.ts и цикл
-//    праздника считают отметку именно так).
+//    времени; в БД лежат день и месяц, а ближайший праздник считается ровно
+//    полночью UTC этого дня (mailer.ts и цикл праздника считают её так же).
 // 2. СМЕНА ДАТЫ НЕ ОСТАВЛЯЕТ ОСИРОТЕВШИХ НАПОМИНАНИЙ. `reminderGuestJobId`
 //    строится из даты, поэтому важно, что джобы не планируются заранее:
 //    ежечасный тик каждый раз читает ТЕКУЩУЮ дату комнаты. Сменили дату —
@@ -17,8 +17,9 @@ import "dotenv/config";
 import { randomUUID } from "node:crypto";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import { prisma } from "../src/server/db";
-import { createRoomForUser, setOccasionDate } from "../src/server/services/rooms";
-import { readOccasionDate } from "../src/app/onboarding/occasion-date";
+import { createRoomForUser, setBirthday } from "../src/server/services/rooms";
+import { birthdayOf, nextOccasion } from "../src/server/birthday";
+import { readBirthdayForm } from "../src/app/onboarding/occasion-date";
 import type { ReminderGuestMailJobData } from "../src/server/queues";
 import { reminderGuestJobId } from "../src/server/queues";
 import { processReminderTick } from "../src/worker/reminders";
@@ -33,18 +34,21 @@ const DATE_FAR = "2026-10-01";
 
 /**
  * Дорога даты из `createRoomAction` после третьего шага: комната создаётся
- * сервисом, дата уходит в `setOccasionDate` — второго пути к
- * `Room.occasionDate` в продукте нет. Остальное, что делает экшен (имя из
- * брони, гашение cookie предзаполнения — тикет 38), к дате отношения не имеет
- * и здесь не повторяется.
+ * сервисом, день рождения уходит в `setBirthday` — второго пути к нему в
+ * продукте нет. Остальное, что делает экшен (имя из брони, гашение cookie
+ * предзаполнения — тикет 38), к дате отношения не имеет и здесь не повторяется.
+ *
+ * Форма присылает ДВА ПОЛЯ — день и месяц (тикет 187); тесты записывают их
+ * календарным днём, чтобы было видно, о каком празднике речь.
  */
 async function finishOnboarding(
   userId: string,
   form: { preset: string; zoneSet: string; occasionDate?: string; skipDate?: boolean },
 ) {
   const room = await createRoomForUser(userId, { preset: form.preset, zoneSet: form.zoneSet });
-  const date = form.skipDate ? null : readOccasionDate(form.occasionDate);
-  if (date !== null) await setOccasionDate(userId, date);
+  const [, month, day] = (form.occasionDate ?? "").split("-");
+  const birthday = form.skipDate ? null : readBirthdayForm(day, month);
+  if (birthday !== null) await setBirthday(userId, birthday);
   return prisma.room.findUniqueOrThrow({ where: { id: room.id } });
 }
 
@@ -101,7 +105,7 @@ afterAll(async () => {
 });
 
 describe("третий шаг онбординга — календарная дата, не момент времени", () => {
-  it("день из формы ложится ровно в полночь UTC этого же дня", async () => {
+  it("день и месяц из формы ложатся в комнату, год не спрашивается", async () => {
     const user = await createOwner();
     const room = await finishOnboarding(user.id, {
       preset: "cream",
@@ -109,15 +113,17 @@ describe("третий шаг онбординга — календарная д
       occasionDate: "2026-12-31",
     });
 
-    // Проверка от часового пояса машины не зависит: сравнивается сама
-    // отметка. Локальная полночь в любом поясе восточнее Гринвича дала бы
-    // 2026-12-30T21:00:00Z и уронила бы тест.
-    expect(room.occasionDate?.toISOString()).toBe("2026-12-31T00:00:00.000Z");
-    // И обратно: настройки покажут тот же день, что человек назвал.
-    expect(room.occasionDate?.toISOString().slice(0, 10)).toBe("2026-12-31");
+    expect(birthdayOf(room)).toEqual({ day: 31, month: 12, year: null });
+    // Ближайший праздник — ровно полночь UTC этого дня. Проверка от часового
+    // пояса машины не зависит: сравнивается сама отметка. Локальная полночь в
+    // любом поясе восточнее Гринвича дала бы 2026-12-30T21:00:00Z.
+    const birthday = birthdayOf(room);
+    expect(nextOccasion(birthday!, new Date("2026-12-01T09:00:00.000Z")).toISOString()).toBe(
+      "2026-12-31T00:00:00.000Z",
+    );
   });
 
-  it("новогодний край не переезжает на сутки назад", async () => {
+  it("новогодний край не переезжает на сутки назад — и повторяется через год", async () => {
     const user = await createOwner();
     const room = await finishOnboarding(user.id, {
       preset: "cream",
@@ -125,8 +131,15 @@ describe("третий шаг онбординга — календарная д
       occasionDate: "2027-01-01",
     });
 
-    expect(room.occasionDate?.toISOString()).toBe("2027-01-01T00:00:00.000Z");
-    expect(room.occasionDate?.getUTCFullYear()).toBe(2027);
+    expect(birthdayOf(room)).toEqual({ day: 1, month: 1, year: null });
+    const birthday = birthdayOf(room);
+    expect(nextOccasion(birthday!, new Date("2026-12-31T21:00:00.000Z")).toISOString()).toBe(
+      "2027-01-01T00:00:00.000Z",
+    );
+    // ПРОШЁЛ — И СЛЕДУЮЩИЙ САМ СТАЛ ЧЕРЕЗ ГОД: спрашивать больше нечего.
+    expect(nextOccasion(birthday!, new Date("2027-01-02T00:00:00.000Z")).toISOString()).toBe(
+      "2028-01-01T00:00:00.000Z",
+    );
   });
 
   it("«Пока не знаю» — комната есть, даты нет, ничего не сломано", async () => {
@@ -135,14 +148,16 @@ describe("третий шаг онбординга — календарная д
       preset: "cream",
       zoneSet: "F",
       occasionDate: "2026-12-31",
-      skipDate: true, // сабмит кнопкой пропуска: поле даты не читается вовсе
+      skipDate: true, // сабмит кнопкой пропуска: списки даты не читаются вовсе
     });
 
-    expect(room.occasionDate).toBeNull();
+    expect(birthdayOf(room)).toBeNull();
+    expect(room.birthdayDay).toBeNull();
+    expect(room.birthdayMonth).toBeNull();
     expect(room.shareSlug).toMatch(/^[a-z0-9]{6}$/);
   });
 
-  it("пустое поле не создаёт даты (пропуск не бывает молчаливым сбоем)", async () => {
+  it("пустые списки не создают даты (пропуск не бывает молчаливым сбоем)", async () => {
     const user = await createOwner();
     const room = await finishOnboarding(user.id, {
       preset: "cream",
@@ -150,7 +165,7 @@ describe("третий шаг онбординга — календарная д
       occasionDate: "",
     });
 
-    expect(room.occasionDate).toBeNull();
+    expect(birthdayOf(room)).toBeNull();
   });
 });
 
@@ -217,8 +232,8 @@ describe("смена даты не оставляет осиротевших н�
     const before = enqueueMock();
     expect((await processReminderTick(NOW, { enqueue: before })).enqueued).toContain(oldJobId);
 
-    // Тот же сервис, что зовут настройки: перенос праздника на сутки.
-    await setOccasionDate(user.id, DATE_LATER);
+    // Тот же сервис, что зовут настройки: перенос дня рождения на сутки.
+    await setBirthday(user.id, DATE_LATER);
 
     const after = enqueueMock();
     const result = await processReminderTick(NOW, { enqueue: after });
@@ -241,7 +256,7 @@ describe("смена даты не оставляет осиротевших н�
     const booking = await createBooking(room.id);
 
     await processReminderTick(NOW, { enqueue: enqueueMock() });
-    await setOccasionDate(user.id, DATE_LATER);
+    await setBirthday(user.id, DATE_LATER);
 
     const enqueue = enqueueMock();
     await processReminderTick(NOW, { enqueue });
@@ -260,7 +275,7 @@ describe("смена даты не оставляет осиротевших н�
     const booking = await createBooking(room.id);
 
     await processReminderTick(NOW, { enqueue: enqueueMock() });
-    await setOccasionDate(user.id, DATE_FAR);
+    await setBirthday(user.id, DATE_FAR);
 
     const enqueue = enqueueMock();
     await processReminderTick(NOW, { enqueue });
@@ -278,7 +293,7 @@ describe("смена даты не оставляет осиротевших н�
     const booking = await createBooking(room.id);
 
     await processReminderTick(NOW, { enqueue: enqueueMock() });
-    await setOccasionDate(user.id, null);
+    await setBirthday(user.id, null);
 
     const enqueue = enqueueMock();
     const result = await processReminderTick(NOW, { enqueue });

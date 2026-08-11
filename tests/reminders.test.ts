@@ -10,6 +10,7 @@ import "dotenv/config";
 import { randomUUID } from "node:crypto";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import { prisma } from "../src/server/db";
+import { birthdayColumns, parseBirthday } from "../src/server/birthday";
 import type { ReminderGuestMailJobData } from "../src/server/queues";
 import { reminderGuestJobId } from "../src/server/queues";
 import { processReminderTick, REMINDER_WINDOW_DAYS } from "../src/worker/reminders";
@@ -18,8 +19,22 @@ const TEST_EMAIL_DOMAIN = "@reminders.test";
 const NOW = new Date("2026-08-04T12:00:00.000Z");
 const DAY_MS = 24 * 60 * 60 * 1000;
 
+/**
+ * Полночь UTC дня, отстоящего от NOW на `days` суток. ПОЛНОЧЬ, А НЕ «NOW плюс
+ * сутки»: с тикета 187 комната хранит день и месяц, и праздник — это день
+ * целиком. Окно тика от этого не поехало — оно по-прежнему трое суток от
+ * «сейчас», просто попадают в него дни, а не моменты.
+ */
 function daysFromNow(days: number): Date {
-  return new Date(NOW.getTime() + days * DAY_MS);
+  const shifted = new Date(NOW.getTime() + days * DAY_MS);
+  return new Date(
+    Date.UTC(shifted.getUTCFullYear(), shifted.getUTCMonth(), shifted.getUTCDate()),
+  );
+}
+
+/** День рождения комнаты из отметки — тесты по-прежнему говорят датами. */
+function birthdayOn(date: Date | null) {
+  return birthdayColumns(date === null ? null : parseBirthday(date.toISOString().slice(0, 10)));
 }
 
 async function createCase(options: {
@@ -40,7 +55,7 @@ async function createCase(options: {
       preset: "cream",
       zoneSet: "F",
       shareSlug: `rt-${randomUUID().slice(0, 12)}`,
-      occasionDate: options.occasionDate,
+      ...birthdayOn(options.occasionDate),
     },
   });
   const item = await prisma.item.create({
@@ -94,7 +109,9 @@ describe("processReminderTick — окно ровно 3 суток", () => {
     const exactly3d = await createCase({ occasionDate: daysFromNow(REMINDER_WINDOW_DAYS) });
     const inside = await createCase({ occasionDate: daysFromNow(1) });
     const tooEarly = await createCase({ occasionDate: daysFromNow(4) });
-    const today = await createCase({ occasionDate: NOW });
+    const today = await createCase({ occasionDate: daysFromNow(0) });
+    // Вчерашний день рождения — это праздник в СЛЕДУЮЩЕМ году (тикет 187),
+    // и до него куда больше трёх суток: комната молчит.
     const passed = await createCase({ occasionDate: daysFromNow(-1) });
     const noDate = await createCase({ occasionDate: null });
 
@@ -117,8 +134,11 @@ describe("processReminderTick — окно ровно 3 суток", () => {
       reminderGuestJobId(exactly3d.booking.id, daysFromNow(REMINDER_WINDOW_DAYS)),
     );
     expect(result.enqueued).toContain(reminderGuestJobId(inside.booking.id, daysFromNow(1)));
-    for (const excluded of [tooEarly, today, passed]) {
-      const date = excluded.room.occasionDate ?? NOW;
+    for (const [excluded, date] of [
+      [tooEarly, daysFromNow(4)],
+      [today, daysFromNow(0)],
+      [passed, daysFromNow(-1)],
+    ] as const) {
       expect(result.enqueued).not.toContain(reminderGuestJobId(excluded.booking.id, date));
     }
   });

@@ -17,6 +17,7 @@ import { revalidateTag } from "next/cache";
 import { Prisma, type Item, type OccasionSummary } from "@prisma/client";
 import { z } from "zod";
 import { prisma } from "@/server/db";
+import { birthdayOf, dueOccasion } from "@/server/birthday";
 import { roomCacheTag } from "@/server/services/items";
 import {
   listPendingConsent,
@@ -77,9 +78,10 @@ export type CloseOccasionResult = {
  * хозяйке «открой „что подарили"» (джоба occasion-owner в очереди mail;
  * enqueue не бросает — summary важнее письма, шаблон — тикет 12).
  *
- * Дата итога: наступившая occasionDate — это итог ПРАЗДНИКА, не клика;
- * без даты (или дата ещё впереди) ручной запуск закрывает «сегодня» (now).
- * Автозапуск (воркер) без наступившей даты не закрывает ничего → null.
+ * Дата итога: наступивший день рождения — это итог ПРАЗДНИКА, не клика;
+ * без него (даты нет вовсе или до неё ещё далеко) ручной запуск закрывает
+ * «сегодня» (now). Автозапуск (воркер) без наступившего праздника не
+ * закрывает ничего → null.
  *
  * Идемпотентно на «уже есть summary этой даты» (UTC-сутки): повторный вызов —
  * и ручной после автозакрытия, и автозакрытие после ручного — возвращает
@@ -99,9 +101,14 @@ export async function closeOccasion(
   }
 
   const now = new Date();
-  const dueDate = room.occasionDate && room.occasionDate <= now ? room.occasionDate : null;
+  // Наступивший день рождения — тот, что прошёл не раньше двух недель назад
+  // (тикет 187, `birthday.dueOccasion`). Дата теперь повторяется, поэтому
+  // «прошла» без хвоста означало бы «прошла год назад», и итог закрывался бы
+  // у каждой комнаты в первый же тик.
+  const birthday = birthdayOf(room);
+  const dueDate = birthday ? dueOccasion(birthday, now) : null;
   const date = dueDate ?? (options.manual ? now : null);
-  if (!date) return null; // автозакрытию нечего закрывать — даты нет или впереди
+  if (!date) return null; // автозакрытию нечего закрывать — праздник не наступил
 
   const existing = await prisma.occasionSummary.findFirst({
     where: { roomId: room.id, date: utcDayRange(date) },
@@ -427,28 +434,38 @@ export async function receiveGift(userId: string, itemId: string): Promise<Item>
 
 /**
  * Показывать ли в /room тихую строку «Праздник прошёл — открой „что подарили"».
- * true, если (а) occasionDate прошла, а summary этой даты ещё нет, ИЛИ
- * (б) summary есть, а неотмеченные подарки (живые брони) остались — но не
- * когда хозяйка уже поставила НОВУЮ будущую дату: между праздниками комната
- * молчит, свежие брони копятся к следующему поводу.
+ * true, если (а) день рождения наступил, а summary этой даты ещё нет, ИЛИ
+ * (б) summary есть, а неотмеченные подарки (живые брони) остались.
+ *
+ * МЕЖДУ ПРАЗДНИКАМИ КОМНАТА МОЛЧИТ — правило прежнее, изменилось только то,
+ * чем «между» задаётся. Раньше тишину включала рука: хозяйка ставила новую
+ * будущую дату, и свежие брони копились к ней. Дата теперь повторяется сама,
+ * «впереди» она всегда, и рукой включать нечего — тишина наступает, когда
+ * хвост праздника кончился (`birthday.dueOccasion` вернул null).
+ *
+ * Комната БЕЗ дня рождения ведёт себя как раньше: закрыть итог она может
+ * только рукой, и пока в нём есть неотмеченные подарки, строка висит.
  * Возврат — ГОЛЫЙ boolean: о бронях он говорит не больше, чем счётчик 09.
  */
 export async function occasionBannerVisible(userId: string): Promise<boolean> {
   const room = await prisma.room.findUnique({
     where: { userId: idSchema.parse(userId) },
-    select: { id: true, occasionDate: true },
+    select: { id: true, birthdayDay: true, birthdayMonth: true, birthdayYear: true },
   });
   if (!room) return false;
 
   const now = new Date();
-  if (room.occasionDate && room.occasionDate <= now) {
+  const birthday = birthdayOf(room);
+  const due = birthday ? dueOccasion(birthday, now) : null;
+  if (due) {
     const closed = await prisma.occasionSummary.findFirst({
-      where: { roomId: room.id, date: utcDayRange(room.occasionDate) },
+      where: { roomId: room.id, date: utcDayRange(due) },
       select: { id: true },
     });
     if (!closed) return true; // праздник прошёл, а итога ещё нет
+  } else if (birthday) {
+    return false; // до следующего дня рождения комнате сказать нечего
   }
-  if (room.occasionDate && room.occasionDate > now) return false;
 
   const summary = await prisma.occasionSummary.findFirst({
     where: { roomId: room.id },

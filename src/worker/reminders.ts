@@ -14,10 +14,11 @@
 // Чистая функция processReminderTick тестируется напрямую
 // (tests/reminders.test.ts); воркер (index.ts) её лишь регистрирует.
 import { prisma } from "../server/db";
+import { birthdayOf, nextOccasion, occasionKeysBetween } from "../server/birthday";
 import { enqueueReminderGuest, reminderGuestJobId } from "../server/queues";
 import type { ReminderGuestMailJobData } from "../server/queues";
 
-/** Окно напоминания: (occasionDate − 3 суток) ≤ now < occasionDate. */
+/** Окно напоминания: (ближайший праздник − 3 суток) ≤ now < сам праздник. */
 export const REMINDER_WINDOW_DAYS = 3;
 const DAY_MS = 24 * 60 * 60 * 1000;
 
@@ -34,10 +35,15 @@ export interface ReminderTickDeps {
 }
 
 /**
- * Один тик напоминаний. Границы окна: ровно за 3 суток (occasionDate − 3д ==
- * now) бронь уже в деле, день праздника и всё после — нет; комнаты без даты
- * не участвуют. Payload самодостаточен — обработчик (worker/mail) письма
- * рендерит без БД.
+ * Один тик напоминаний. Границы окна: ровно за 3 суток (ближайший праздник − 3д
+ * == now) бронь уже в деле, день праздника и всё после — нет; комнаты без дня
+ * рождения не участвуют. Payload самодостаточен — обработчик (worker/mail)
+ * письма рендерит без БД.
+ *
+ * ОТСЧЁТ ИДЁТ ОТ БЛИЖАЙШЕЙ ДАТЫ, А НЕ ОТ СОХРАНЁННОЙ (тикет 187): комната
+ * хранит день и месяц, поэтому выборка перечисляет три дня окна парами
+ * «месяц·день» (`birthday.occasionKeysBetween`), а точное вхождение считает
+ * `nextOccasion` — оно же уезжает в письмо и в jobId.
  */
 export async function processReminderTick(
   now: Date = new Date(),
@@ -45,15 +51,15 @@ export async function processReminderTick(
 ): Promise<ReminderTickResult> {
   const enqueue = deps.enqueue ?? enqueueReminderGuest;
 
+  const until = new Date(now.getTime() + REMINDER_WINDOW_DAYS * DAY_MS);
+  const keys = occasionKeysBetween(now, until);
+
   const bookings = await prisma.booking.findMany({
     where: {
       guestEmail: { not: null },
       item: {
         room: {
-          occasionDate: {
-            gt: now,
-            lte: new Date(now.getTime() + REMINDER_WINDOW_DAYS * DAY_MS),
-          },
+          OR: keys.map((key) => ({ birthdayMonth: key.month, birthdayDay: key.day })),
         },
       },
     },
@@ -67,7 +73,9 @@ export async function processReminderTick(
           room: {
             select: {
               shareSlug: true,
-              occasionDate: true,
+              birthdayDay: true,
+              birthdayMonth: true,
+              birthdayYear: true,
               user: { select: { displayName: true } },
             },
           },
@@ -81,19 +89,24 @@ export async function processReminderTick(
   const failed: string[] = [];
   for (const booking of bookings) {
     const room = booking.item.room;
+    const birthday = birthdayOf(room);
     // where уже отфильтровал; guard сужает типы и отсекает гипотетическую "".
-    if (!booking.guestEmail || !room.occasionDate) continue;
+    if (!booking.guestEmail || !birthday) continue;
+    // Выборка шла по дню и месяцу — окно проверяем отметкой: 29 февраля в
+    // невисокосный год празднуется 28-го, и её край считает только эта функция.
+    const occasionDate = nextOccasion(birthday, now);
+    if (occasionDate <= now || occasionDate > until) continue;
 
     const data: ReminderGuestMailJobData = {
       bookingId: booking.id,
       email: booking.guestEmail,
       guestName: booking.guestName,
       ownerName: room.user.displayName,
-      occasionDate: room.occasionDate.toISOString(),
+      occasionDate: occasionDate.toISOString(),
       itemTitle: booking.item.title,
       roomSlug: room.shareSlug,
     };
-    const jobId = reminderGuestJobId(booking.id, room.occasionDate);
+    const jobId = reminderGuestJobId(booking.id, occasionDate);
     if (await enqueue(data)) {
       enqueued.push(jobId);
     } else {

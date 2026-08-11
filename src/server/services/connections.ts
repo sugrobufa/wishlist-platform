@@ -32,6 +32,7 @@
 import { Prisma, type Connection, type ConnectionKind, type HallVisibility } from "@prisma/client";
 import { z } from "zod";
 import { prisma } from "@/server/db";
+import { birthdayOf, nextOccasionDay } from "@/server/birthday";
 import { itemPhotoUrl } from "@/server/dto/items";
 import { hallItemShownToObservers } from "@/server/dto/hall";
 import { rooms as roomPresets } from "@/config/design";
@@ -603,7 +604,11 @@ export type ConnectionRoomDto = {
   slug: string;
   /** id пресета — кадр и акцент страница берёт из конфига. */
   preset: string;
-  /** Календарный день `YYYY-MM-DD` или null. Гостю он и так виден в комнате. */
+  /**
+   * БЛИЖАЙШИЙ день рождения календарным днём `YYYY-MM-DD`; null — его не
+   * задавали. Считается от «сегодня» (тикет 187): в комнате хранится день и
+   * месяц, а лента показывает ту же дату, что видит гость, открыв комнату.
+   */
   occasionDate: string | null;
   /**
    * «N можно подарить» — вещи «хочу» без брони среди видимых. Ровно то же
@@ -630,7 +635,9 @@ const personSelect = {
         preset: true,
         shareSlug: true,
         nick: true,
-        occasionDate: true,
+        birthdayDay: true,
+        birthdayMonth: true,
+        birthdayYear: true,
         zonesOff: true,
         // Открыта ли витрина СЕЙЧАС (тикет 116, ADR-0011) — лента обязана
         // спросить об этом сама: строка «Сокровищница теперь открыта» живёт
@@ -728,6 +735,10 @@ export async function listConnections(
   });
   const freeByRoom = await countFreeGiftsByRoom(visitedRooms);
 
+  // Ближайший день рождения считается от одного «сейчас» на весь список —
+  // иначе строки, собранные по разные стороны полуночи, разъехались бы на сутки.
+  const now = new Date();
+
   const result = rows.map((row) => {
     const meIsA = row.aUserId === id;
     const other = meIsA ? row.b : row.a;
@@ -787,10 +798,7 @@ export async function listConnections(
           ? {
               slug: other.room.nick ?? other.room.shareSlug,
               preset: other.room.preset,
-              occasionDate:
-                other.room.occasionDate === null
-                  ? null
-                  : other.room.occasionDate.toISOString().slice(0, 10),
+              occasionDate: nextOccasionDay(birthdayOf(other.room), now),
               freeGifts: freeByRoom.get(other.room.id) ?? 0,
             }
           : null,

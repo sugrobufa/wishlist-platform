@@ -12,6 +12,7 @@ import { unstable_cache } from "next/cache";
 import type { HallVisibility, Prisma } from "@prisma/client";
 import { z } from "zod";
 import { prisma } from "@/server/db";
+import { birthdayOf, nextOccasionDay } from "@/server/birthday";
 import { MONEY_ZONE_KEY, rooms as roomPresets } from "@/config/design";
 import { visibleZones } from "@/components/scene/zones";
 import { itemForGuest, type GuestItemDto } from "@/server/dto/guest-items";
@@ -63,11 +64,15 @@ export type GuestRoomView = {
    */
   summariesByZone: Record<string, ZoneSummaryDto>;
   /**
-   * Дата праздника комнаты календарным днём `YYYY-MM-DD`; null — не задана
-   * (тикет 38, приветственный блок «Праздник через 12 дней»). Дата и так
+   * БЛИЖАЙШИЙ день рождения хозяйки календарным днём `YYYY-MM-DD`; null — не
+   * задан (тикет 38, приветственный блок «Праздник через 12 дней»). Дата и так
    * уезжает гостю в приглашении и в письме-напоминании — тайны в ней нет.
    * Отсчёт «через сколько дней» считает страница (app/r/[slug]/welcome.ts):
    * он зависит от «сегодня», а не от комнаты.
+   *
+   * ДАТА ПОВТОРЯЕТСЯ (тикет 187): комната хранит день и месяц, ближайшее
+   * вхождение считается здесь. Год перевалит — и отсчёт пойдёт к следующему,
+   * а не замрёт на прошедшем.
    */
   occasionDate: string | null;
   /**
@@ -162,10 +167,10 @@ export async function getGuestRoom(slug: string): Promise<GuestRoomView | null> 
     ownerAvatarUrl: itemPhotoUrl(room.user.avatarKey),
     itemsByZone,
     summariesByZone,
-    // Календарный день, а не момент: Room.occasionDate пишется полночью UTC
-    // (services/rooms.setOccasionDate — единственное место), и обратно читаем
-    // тем же поясом, иначе день уедет на сутки на машине восточнее Гринвича.
-    occasionDate: room.occasionDate === null ? null : room.occasionDate.toISOString().slice(0, 10),
+    // Календарный день, а не момент: ближайшее вхождение дня рождения
+    // считается полночью UTC (server/birthday) — тем же поясом, которым живёт
+    // весь цикл праздника, иначе день уехал бы на сутки восточнее Гринвича.
+    occasionDate: nextOccasionDay(birthdayOf(room), new Date()),
     freeGiftCount: await countFreeGifts(
       room.id,
       visible.map((zone) => zone.key),

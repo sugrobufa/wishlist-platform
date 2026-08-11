@@ -27,6 +27,7 @@ vi.mock("@/server/auth", () => ({ auth: vi.fn(async () => null) }));
 
 import { auth } from "@/server/auth";
 import { prisma } from "../src/server/db";
+import { birthdayColumns, nextOccasionDay, parseBirthday } from "../src/server/birthday";
 import * as connectionsService from "../src/server/services/connections";
 import {
   connectionStatus,
@@ -48,6 +49,11 @@ import { setHiddenFromHall } from "../src/server/services/items";
 import { closeOccasion, receiveGift } from "../src/server/services/occasions";
 import { POST as bookRoute } from "../src/app/api/v1/items/[id]/book/route";
 import { POST as visitRoute } from "../src/app/api/v1/rooms/[slug]/visit/route";
+
+/** День рождения комнаты из отметки: в комнате день и месяц (тикет 187). */
+function birthdayOn(date: Date | null) {
+  return birthdayColumns(date === null ? null : parseBirthday(date.toISOString().slice(0, 10)));
+}
 
 const TEST_EMAIL_DOMAIN = "@connections.test";
 const authMock = vi.mocked(auth) as unknown as ReturnType<typeof vi.fn>;
@@ -500,7 +506,7 @@ describe("listConnections — DTO без email, происхождение по 
     await recordVisit(owner.user.id, watcher.user.id);
     await prisma.room.update({
       where: { id: watcher.room.id },
-      data: { occasionDate: new Date("2026-09-01T00:00:00.000Z") },
+      data: { birthdayDay: 1, birthdayMonth: 9, birthdayYear: null },
     });
 
     const bothWays = await listConnections(owner.user.id);
@@ -508,7 +514,11 @@ describe("listConnections — DTO без email, происхождение по 
     expect(hers).not.toBeNull();
     expect(hers?.slug).toBe(watcher.room.shareSlug);
     expect(hers?.preset).toBe("cream");
-    expect(hers?.occasionDate).toBe("2026-09-01");
+    // БЛИЖАЙШИЙ праздник, а не сохранённая дата (тикет 187): комната хранит
+    // день и месяц, лента показывает ту же дату, что видит гость в комнате.
+    expect(hers?.occasionDate).toBe(
+      nextOccasionDay({ day: 1, month: 9, year: null }, new Date()),
+    );
     // Свободных подарков у неё нет — «всё разобрали», а не выдуманное число.
     expect(hers?.freeGifts).toBe(0);
 
@@ -853,7 +863,7 @@ describe("хвост 98b — передумать до праздника и о�
     // «что подарили» молчит, и «Дошло» не отмечается) — менять можно.
     await prisma.room.update({
       where: { id: owner.room.id },
-      data: { occasionDate: new Date(Date.now() - 24 * HOUR_MS) },
+      data: birthdayOn(new Date(Date.now() - 24 * HOUR_MS)),
     });
     expect((await connectionRow(cancelToken))?.editable).toBe(true);
 
@@ -861,11 +871,12 @@ describe("хвост 98b — передумать до праздника и о�
     await closeOccasion(owner.room.id);
     expect((await connectionRow(cancelToken))?.editable).toBe(false);
 
-    // Между праздниками: следующая дата впереди — брони копятся к ней, и
-    // ответ снова живой (то же правило, что у баннера комнаты).
+    // Между праздниками: следующий день рождения впереди, хвост прошедшего
+    // кончился — брони копятся к нему, и ответ снова живой (то же правило,
+    // что у баннера комнаты).
     await prisma.room.update({
       where: { id: owner.room.id },
-      data: { occasionDate: new Date(Date.now() + 30 * 24 * HOUR_MS) },
+      data: birthdayOn(new Date(Date.now() + 30 * 24 * HOUR_MS)),
     });
     expect((await connectionRow(cancelToken))?.editable).toBe(true);
     await offerConnection(cancelToken, false);
