@@ -122,7 +122,9 @@
     "openFull": "See the whole zone",
     "addItem": "Add an item",
     "zoneCounts": "{total, plural, one {# item} other {# items}}{want, plural, =0 {} other { · # to gift}}",
-    "backToRoom": "Back to the room"
+    "backToRoom": "Back to the room",
+    "guestTakenTitle": "already being gifted",
+    "guestTakenHint": "there are free ones in the room"
   },
   "Experience": {
     "when": "When",
@@ -205,7 +207,21 @@
     "urlShops": "Gold Apple · Wildberries · Ozon · Lamoda · DNS · Yandex Market — and any other site",
     "roomLabel": "To the room",
     "roomHint": "Something you want. The spot is ready",
-    "desireGuestHint": "This is the main hint for a guest choosing a gift"
+    "desireGuestHint": "This is the main hint for a guest choosing a gift",
+    "cardPriceVisALL": "everyone sees the price",
+    "cardPriceVisFRIENDS": "friends see the price",
+    "cardPriceVisME": "only you see the price",
+    "cardShelfLine": "Stands {where}",
+    "cardAddedOn": "In the room since {date}",
+    "cardStores": "Where to buy · {count, plural, one {# store} other {# stores}}",
+    "cardStoresFrom": "from {price}",
+    "cardNoteOverline": "Note",
+    "cardAddPhoto": "Add a photo",
+    "cardPoolNote": "Pricey for one — chip in together",
+    "cardQuietHint": "no one will know until the day",
+    "cardStoreOpen": "Open",
+    "cardStorePriceByStore": "The store will show the price",
+    "priceHiddenPathHint": "A guest still sees the store link — the store shows the price there"
   },
   "Booking": {
     "tagFor": "for {name}",

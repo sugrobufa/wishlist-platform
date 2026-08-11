@@ -464,6 +464,35 @@ export async function getOwnItem(userId: string, itemId: string): Promise<Item |
  * его «моих броней» (симметрично тихому появлению). Показ обратно (false)
  * бронь НЕ воскрешает. Идемпотентно.
  */
+/**
+ * Поставить вещи фотографию (тикет 196, contract round45 → cases.noPhoto).
+ *
+ * ЗАЧЕМ ОТДЕЛЬНАЯ ФУНКЦИЯ, А НЕ ПОЛЕ В `updateItem`. У карточки без фотографии
+ * полосу света занимает «Добавить фотографию» — единственный случай, когда она
+ * уступает «Изменить». Кнопка обязана вести туда, где фотография правда
+ * появляется; при этом `updateItem` пишет ВСЕ поля своей формы, и добавить в
+ * неё `photoKey` значило бы, что всякая правка степени желания трогает ещё и
+ * фотографию (та же болезнь, что поймана в тикете 97 с полями впечатления).
+ *
+ * Ключ проверяется тем же `photoKeySchema` и той же принадлежностью комнате,
+ * что и при добавлении: чужой ключ в чужую комнату не поставить.
+ */
+export async function setItemPhoto(
+  userId: string,
+  itemId: string,
+  photoKey: string,
+): Promise<Item> {
+  const key = photoKeySchema.parse(photoKey);
+  const item = await requireOwnItem(userId, itemId);
+  if (typeof key !== "string" || !key.startsWith(`items/${item.roomId}/`)) {
+    throw new ItemMutationError("NOT_FOUND", "photoKey из чужой комнаты");
+  }
+
+  const updated = await prisma.item.update({ where: { id: item.id }, data: { photoKey: key } });
+  revalidateRoom(item.roomId);
+  return updated;
+}
+
 export async function setItemHidden(userId: string, itemId: string, hidden: boolean): Promise<Item> {
   const wantHidden = z.boolean().parse(hidden);
   const item = await requireOwnItem(userId, itemId);

@@ -62,6 +62,21 @@ type ShopLinkProps = {
    * карточка — строка тела карточки вещи хозяйки (round39 → body.link).
    */
   place?: ShopLinkPlace;
+  /**
+   * ГЛАВНАЯ ДВЕРЬ (тикет 196, contract round46 → storeBlock.primaryRow):
+   * та же ссылка, но крупно и в рамке. Включается там, где путь стал якорем
+   * экрана, — на гостевой карточке со скрытой ценой.
+   *
+   * Это ВИД, а не место: считается переход по-прежнему местом (`place`), и
+   * второй записи в `OutboundClick` дверь не заводит.
+   */
+  door?: boolean;
+  /**
+   * Слово действия. По умолчанию «Перейти →» из словаря `Shop` (турн 8b:
+   * стрелка типографская, часть текста). Дверь зовёт его «Открыть» — слово
+   * приезжает пропом, потому что живёт в разделе карточки, а не магазина.
+   */
+  action?: string;
 };
 
 /** Вид места: класс модуля. Разбор в одном месте — иначе он расползётся. */
@@ -71,12 +86,19 @@ const LOOK: Record<ShopLinkPlace, string | undefined> = {
   card: s.card,
 };
 
-export function ShopLink({ itemId, url, domain, place = "tile" }: ShopLinkProps) {
+export function ShopLink({
+  itemId,
+  url,
+  domain,
+  place = "tile",
+  door = false,
+  action,
+}: ShopLinkProps) {
   const t = useTranslations("Shop");
 
   return (
     <a
-      className={`pressable ${s.link} ${LOOK[place]}`}
+      className={`pressable ${s.link} ${door ? s.door : LOOK[place]}`}
       href={url}
       target="_blank"
       rel="noopener noreferrer"
@@ -84,7 +106,7 @@ export function ShopLink({ itemId, url, domain, place = "tile" }: ShopLinkProps)
       onClick={() => recordOutbound(itemId, place)}
     >
       <span className={s.domain}>{domain}</span>
-      <span className={s.go}>{t("go")}</span>
+      <span className={s.go}>{action ?? t("go")}</span>
     </a>
   );
 }

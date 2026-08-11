@@ -41,6 +41,7 @@ const card = read("../src/app/room/zone/[zone]/i/[id]/item-card.tsx");
 const page = read("../src/app/room/zone/[zone]/i/[id]/page.tsx");
 const css = read("../src/components/item/owner-card.module.css");
 const shopCss = read("../src/components/zone/shop-link.module.css");
+const thumb = read("../src/components/item/shelf-frame.ts");
 const dto = read("../src/server/dto/items.ts");
 
 /** Контракт карточки — источник чисел (раунд 41, ответ на письмо 43). */
@@ -75,6 +76,47 @@ const contract = JSON.parse(
   changedFrom: { baseline: string; changed: readonly string[] };
 };
 
+/**
+ * КОНТРАКТ ЭКРАНА ЧТЕНИЯ — round45, а не round44 (тикет 196, INTAKE-round45).
+ * Разница не косметическая: в round45 у КАЖДОГО блока чисел стоит свой
+ * `frameWidth` и рядом правило переноса. Одного `measuredFrom` на файл не
+ * хватило — оно спорило с соседним числом, мы это поймали письмом 48, и дизайн
+ * починил нашей же правкой.
+ *
+ * `scaling` — то самое правило: высоты привязаны к 430 и переносятся на 375
+ * умножением на 0.872. Не переносятся, они абсолютные: цели нажатия 44, строки
+ * листа 56, полоса света 2, бирка 218×66.
+ */
+const reading = JSON.parse(read("../design/package/handoff/round45/item-card.json")) as {
+  principle: string;
+  owner: {
+    question: string;
+    photo: { w: number; h: number; frameWidth: number; measuredFrom: string };
+    order: readonly string[];
+    changedFrom47a: readonly string[];
+    unchangedFrom47a: readonly string[];
+    storesCollapsed: string;
+    bookingInvariant: string;
+  };
+  guest: {
+    question: string;
+    photo: { w: number; h: number };
+    order: readonly string[];
+    notShown: readonly string[];
+    tag: { w: number; h: number; rule: string };
+    privacy: string;
+    pool: { collapsed: string; invariant: string };
+    taken: { photo: string; tag: string; instead: string };
+  };
+  cases: {
+    noPhoto: { fill: string; h: number; inside: string; ownerAction: string; guestAction: string };
+    treasury: { gone: readonly string[]; instead: string; mainAction: string; guest: string };
+    noPriceNoStore: { holdsIt: string; alsoChanges: readonly string[]; noPlaceholders: string };
+  };
+  a11y: { targets: string; contrast: string };
+  scaling: string;
+};
+
 /** Первое число контрактной строки — «знак зоны 16 при .55», «⋯ 20 в цели 44». */
 const firstNumber = (text: string): number => Number(/(\d+(?:\.\d+)?)/u.exec(text)?.[1]);
 
@@ -83,7 +125,8 @@ const firstNumber = (text: string): number => Number(/(\d+(?:\.\d+)?)/u.exec(tex
  * строка контракта начинается с цвета заливки («rgba(255,255,255,.05)»), и
  * первое число в ней — 255, а не размер знака.
  */
-const poolSignSize = (text: string): number => Number(/знак пула (\d+)/u.exec(text)?.[1]);
+const poolSignSize = (text: string): number =>
+  Number(/(?:знак|значок) пула (\d+)/u.exec(text)?.[1]);
 
 /**
  * Исходник без комментариев. Про бронь в комментариях написано много и
@@ -102,6 +145,13 @@ function sheetKeys(source: string): string[] {
   return [...new Set(keys)];
 }
 
+/** Кусок исходника, в котором собирается лист «⋯», — от `sheetRows` до JSX. */
+function sheetSource(source: string): string {
+  const from = source.indexOf("const sheetRows: ItemActionRow[]");
+  expect(from, "sheetRows — не нашлось").toBeGreaterThan(-1);
+  return source.slice(from, source.indexOf("<main className={s.screen}"));
+}
+
 describe("инвариант №1: в карточке нет ни слова о брони", () => {
   // Слова, которыми нарушение только и может выглядеть. Список нарочно шире
   // нужного: «свободна» и «осталась» ловят попытку сказать то же самое
@@ -112,6 +162,28 @@ describe("инвариант №1: в карточке нет ни слова о
   it("ни в тексте карточки, ни в её стилях", () => {
     expect(strip(card)).not.toMatch(FORBIDDEN);
     expect(strip(css)).not.toMatch(FORBIDDEN);
+  });
+
+  it("ИСХОДНИК КАРТОЧКИ НЕ ОБРАЩАЕТСЯ К ПОЛЮ `booking` ВООБЩЕ", () => {
+    // ГЛАВНАЯ ПРОВЕРКА ИНВАРИАНТА №1, и она ТЕКСТОВАЯ, а не по разметке —
+    // так велит и тикет 196, и сам контракт (round45 → owner.bookingInvariant:
+    // «карточка собирается из полей вещи и НЕ ЧИТАЕТ поле booking вообще. Это
+    // дешевле проверить, чем „не показывать": тест — отсутствие обращения к
+    // полю, а не отсутствие строки на экране»).
+    //
+    // Почему она сильнее проверки экрана: «не показали» обходится вёрсткой —
+    // условием, `opacity: 0`, порядком блоков, — а «не прочитали» обойти
+    // нечем. Читать нечего: в owner-DTO ключа `booking` нет (`booking!` в
+    // сериализации), и появиться он может только новой строкой в этом файле.
+    expect(reading.owner.bookingInvariant).toContain("НЕ ЧИТАЕТ поле booking");
+    // Обращение к полю в любом виде: `.booking`, `booking:`, `booking =`,
+    // `booking?.`, деструктуризация `{ booking }`. Комментарии сняты — про
+    // бронь в них написано много и написано правильно.
+    expect(strip(card)).not.toMatch(/\bbooking\b/iu);
+    // И у гостевой половины та же мерка с другой стороны: там бронь ЧИТАЕТСЯ,
+    // но не полем вещи, а отдельным некэшируемым каналом (тикет 08). Если
+    // однажды `booking` появится в самом DTO, покраснеет здесь.
+    expect(dto).toContain("booking!");
   });
 
   it("и ни в одном атрибуте, уезжающем в разметку", () => {
@@ -175,11 +247,26 @@ describe("инвариант №8: цена комнаты по правилу, 
     // остался переключателем в форме правки.
     expect(card).toContain("const roomPrice =");
     expect(card).toMatch(/want\?\.price == null \? null : formatHallMoney/u);
-    // ПОКАЗ ни разу не спрашивает про видимость. Проверяется именно показ —
-    // всё до формы правки: в самой форме `priceVisibility` законно живёт
-    // переключателем «кто видит цену», и это про гостя.
+    // ПОКАЗ НИ РАЗУ НЕ СПРАШИВАЕТ ПРО ВИДИМОСТЬ, ЧТОБЫ РЕШИТЬ, ПОКАЗЫВАТЬ ЛИ.
+    //
+    // ПЕРЕВЁРНУТО ТОЧЕЧНО (тикет 196). Прежде здесь стояло «в показе слова
+    // `priceVisibility` нет вовсе» — и это было верно ровно до контракта
+    // round45, который просит СТРОКУ «цену видят все» (owner.order). Строка
+    // читает то же поле, и запрет на слово поймал бы её первой.
+    //
+    // Настоящее правило не про слово, а про роль: видимость НАЗЫВАЕТ адресата
+    // и решает, показать ли ЧУЖОЕ число, — но не решает, рисовать ли ЕЁ цену.
+    // Поэтому проверяется, где именно поле встречается: строка-подпись (два
+    // обращения) и «от {price}» в свёрнутых магазинах (третье, round46 —
+    // строка магазинов зеркалит то, что получит гость).
     const view = card.slice(card.indexOf("<main className={s.screen}"), card.indexOf("{editing && ("));
-    expect(view).not.toContain("priceVisibility");
+    expect([...view.matchAll(/priceVisibility/gu)]).toHaveLength(3);
+    expect(view).toContain('want?.priceVisibility !== "NONE" && (');
+    expect(view).toContain('tField(`cardPriceVis${want?.priceVisibility ?? "ALL"}`)');
+    expect(view).toContain('guestSeesPrice(want?.priceVisibility ?? "ALL")');
+    // Сама цена по-прежнему нарисована БЕЗ единого условия про видимость:
+    // хозяйке её собственная цена видна всегда (инвариант №8).
+    expect(view).toContain("{roomPrice !== null && <span className={s.price}>{roomPrice}</span>}");
   });
 
   it("цена вещи ВИТРИНЫ приходит отдельным путём и только хозяйке", () => {
@@ -210,16 +297,54 @@ describe("инвариант №8: цена комнаты по правилу, 
   });
 });
 
-describe("числа контракта round39 — из контракта, а не набитые", () => {
-  it("фото: высота, cover и заливка с знаком пула на пустом", () => {
-    expect(css).toContain(`height: ${contract.screen.photo.h}px`);
-    expect(contract.screen.photo.fit).toBe("cover");
+describe("числа контракта round45 — из контракта, а не набитые", () => {
+  it("ПРАВИЛО ПЕРЕНОСА взято как правило, а не как множитель в коде", () => {
+    // Контракт: высоты привязаны к 430 и переносятся на 375 умножением на
+    // 0.872. У нас это записано `aspect-ratio` от контрактной пары — высота
+    // считается ОТ ШИРИНЫ и на 375 выходит сама. Множитель, вбитый руками,
+    // врал бы на любой третьей ширине, а их у продукта больше двух.
+    expect(reading.scaling).toContain("0.872");
+    expect(reading.owner.photo.frameWidth).toBe(430);
+    // 375 / 430 и есть 0.872 — правило контракта проверяется арифметикой, а не
+    // доверием: разойдись оно с числом, покраснеет здесь.
+    expect(Math.round((375 / reading.owner.photo.frameWidth) * 1000) / 1000).toBe(0.872);
+    // И обещанные 307 на 375 — те же 352 × 0.872.
+    expect(reading.owner.photo.measuredFrom).toContain("307");
+    expect(Math.round(reading.owner.photo.h * (375 / 430))).toBe(307);
+    // Абсолютные числа переносу НЕ подлежат и стоят числом.
+    for (const absolute of ["44", "56", "2", "218×66"]) {
+      expect(reading.scaling, absolute).toContain(absolute);
+    }
+  });
+
+  it("фотография 430×352 пропорцией, cover; на пустом — 236, знак 38 при .3", () => {
+    expect([reading.owner.photo.w, reading.owner.photo.h]).toEqual([430, 352]);
+    expect(css).toContain(
+      `aspect-ratio: ${reading.owner.photo.w} / ${reading.owner.photo.h}`,
+    );
     expect(css).toContain("background-size: cover");
-    // Пустое: заливка .05 и знак 34 при .35.
-    expect(contract.screen.photo.empty).toContain("rgba(255,255,255,.05)");
+    // ПУСТОЕ НЕ ЗАНИМАЕТ СТОЛЬКО ЖЕ, СКОЛЬКО ПОЛНОЕ: 236 вместо 352.
+    expect(reading.cases.noPhoto.h).toBe(236);
+    expect(css).toContain(`aspect-ratio: ${reading.owner.photo.w} / ${reading.cases.noPhoto.h}`);
+    expect(reading.cases.noPhoto.fill).toBe("rgba(255,255,255,.05)");
     expect(css).toContain("background-color: rgba(255, 255, 255, 0.05)");
-    expect(card).toContain(`const EMPTY_PHOTO_SIGN = ${poolSignSize(contract.screen.photo.empty)}`);
-    expect(css).toContain("color: rgba(255, 249, 242, 0.35)");
+    // Знак пула вырос с 34 (round41) до 38, ступень — .3 вместо .35.
+    expect(card).toContain(`const EMPTY_PHOTO_SIGN = ${poolSignSize(reading.cases.noPhoto.inside)}`);
+    expect(poolSignSize(reading.cases.noPhoto.inside)).toBe(38);
+    expect(css).toContain("color: rgba(255, 249, 242, 0.3)");
+    // Подпись полки под знаком — 11/.14em uppercase при .42.
+    expect(reading.cases.noPhoto.inside).toContain("подпись полки 11/.14em uppercase .42");
+    expect(css).toMatch(/\.photoEmptyLabel \{[\s\S]*?font: 400 11px\/1\.2 var\(--font-ui\);/u);
+    expect(css).toMatch(/\.photoEmptyLabel \{[\s\S]*?letter-spacing: 0\.14em;/u);
+    expect(css).toMatch(/\.photoEmptyLabel \{[\s\S]*?color: rgba\(255, 249, 242, 0\.42\);/u);
+  });
+
+  it("прежние числа round41 УШЛИ, а не остались рядом", () => {
+    // Молчаливое сосуществование двух редакций — то, ради чего этот раздел и
+    // заведён: экран показывал бы round45, а половина чисел жила бы от 47a.
+    expect(css).not.toContain(`height: ${contract.screen.photo.h}px`);
+    expect(css).not.toContain("font: 700 22px/1.25");
+    expect(css).not.toContain("font: 500 15px/1.2");
   });
 
   it("одна поверхность под фото — до низа экрана", () => {
@@ -249,7 +374,10 @@ describe("числа контракта round39 — из контракта, а 
     expect(css).toMatch(/\.headSign \{[\s\S]*?height: var\(--hit-target-min, 44px\);/u);
     // Кегль ушёл из CSS вместе с глифом: у рисунка размер задаёт проп, и два
     // места одного числа развели бы его при первой правке.
-    expect(css).not.toMatch(/\.headSign \{[\s\S]*?font-size:/u);
+    // Правило `.headSign` целиком — `[^}]*`, а не «до первого font-size в
+    // файле»: с тикета 196 в модуле есть свои `font-size` (`.nameBig`,
+    // `.noteBody`), и ленивый поиск через весь файл ловил бы их.
+    expect(css).not.toMatch(/\.headSign \{[^}]*font-size:/u);
   });
 
   it("стрелка «назад» — путь в путь с `ui-back.svg`, а не похожая", () => {
@@ -284,65 +412,119 @@ describe("числа контракта round39 — из контракта, а 
     expect(css).not.toMatch(/\.headActions \{[^}]*filter:/u);
   });
 
-  it("название 700 22/1.25 Onest, до двух строк", () => {
-    expect(contract.body.name).toContain("700 22/1.25");
-    expect(css).toContain("font: 700 22px/1.25 var(--font-ui)");
+  it("название 700 24/1.28 Onest, до двух строк (было 22)", () => {
+    expect(reading.owner.order).toContain("название 700 24/1.28 (было 22)");
+    expect(css).toContain("font: 700 24px/1.28 var(--font-ui)");
     expect(css).toMatch(/\.name \{[\s\S]*?-webkit-line-clamp: 2;/u);
   });
 
-  it("цена 500 15 при .72, tabular-nums", () => {
-    expect(contract.body.price).toContain("500 15");
-    expect(contract.body.price).toContain("tabular-nums");
-    expect(css).toContain("font: 500 15px/1.2 var(--font-ui)");
+  it("цена 500 16 в строке с огоньками, tabular-nums", () => {
+    // ЦЕНА ОСТАЛАСЬ У ОГОНЬКОВ — довод 47a контракт подтверждает дословно:
+    // «оба про „насколько нужно"». Выросла только величина: 16 вместо 15.
+    expect(reading.owner.order).toContain("строка: цена 500 16 · разделитель · огоньки · слово");
+    expect(reading.owner.unchangedFrom47a.join(" ")).toContain("цена 16 в строке с огоньками");
+    expect(css).toContain("font: 500 16px/1.2 var(--font-ui)");
     expect(css).toContain("font-variant-numeric: tabular-nums");
     // Ступень .72 с тикета 174 пишется ИМЕНЕМ: значение её стоит в одном месте
     // (объявление токена), и равенство «пакет = токен» держит design-contract.
     expect(css).toMatch(/\.price \{[\s\S]*?color: var\(--color-text-body\);/u);
+    // Огоньки стоят У ЦЕНЫ — в той же строке, а не отдельным блоком.
+    expect(card).toMatch(/<div className=\{s\.priceRow\}>[\s\S]{0,400}?<DesirePicker/u);
   });
 
-  it("полка — строка-ссылка: знак 16 при .55, подпись 13 при .72", () => {
-    expect(card).toContain(`const ZONE_SIGN = ${firstNumber(contract.body.zone)}`);
-    expect(css).toMatch(/\.zoneSign \{[\s\S]*?color: rgba\(255, 249, 242, 0\.55\);/u);
-    expect(css).toMatch(/\.zoneLabel \{[\s\S]*?font: 400 13px\/1\.2 var\(--font-ui\);/u);
-    expect(css).toMatch(/\.zoneLabel \{[\s\S]*?color: var\(--color-text-body\);/u);
-    // «тап ведёт в зону» — и цель добирается до 44, как у любой строки.
-    expect(contract.body.zone).toContain("тап ведёт в зону");
-    expect(css).toMatch(/\.zoneRow \{[\s\S]*?min-height: var\(--hit-target-min, 44px\);/u);
+  it("«цену видят все» — 11 при .5, и у NONE её нет вовсе", () => {
+    expect(reading.owner.order).toContain("строка «цену видят все» 11/.5");
+    expect(css).toMatch(/\.priceSeen \{[\s\S]*?font: 400 11px\/1\.3 var\(--font-ui\);/u);
+    expect(css).toMatch(/\.priceSeen \{[\s\S]*?color: rgba\(255, 249, 242, 0\.5\);/u);
+    // Строка про ГОСТЯ: у `NONE` адресата нет, и слова у дизайна тоже нет —
+    // в дельте лежат ровно три ключа, ALL/FRIENDS/ME.
+    expect(card).toContain('want?.priceVisibility !== "NONE"');
+    for (const audience of ["ALL", "FRIENDS", "ME"] as const) {
+      expect(ru.AddItem, audience).toHaveProperty(`cardPriceVis${audience}`);
+    }
+    expect(ru.AddItem).not.toHaveProperty("cardPriceVisNONE");
   });
 
-  it("заметка 400 13.5/1.55 при .72, до четырёх строк", () => {
-    expect(contract.body.note).toContain("400 13.5/1.55");
+  it("разделитель 1 px между «насколько нужно» и «где стоит»", () => {
+    expect(reading.owner.order).toContain("разделитель 1 px");
+    expect(css).toMatch(/\.divider \{[\s\S]*?height: 1px;/u);
+    expect(card).toContain("<hr className={s.divider} />");
+  });
+
+  it("полка — МИНИАТЮРА КАДРА 76×48, а не строка со знаком", () => {
+    expect(reading.owner.changedFrom47a).toContain("полка — миниатюра кадра вместо строки со знаком");
+    expect(reading.owner.order).toContain("полка миниатюрой кадра 76×48 + «Полка целиком»");
+    expect(thumb).toContain("export const SHELF_THUMB = { w: 76, h: 48 } as const;");
+    expect(css).toMatch(/\.shelfFrame \{[\s\S]*?width: 76px;/u);
+    expect(css).toMatch(/\.shelfFrame \{[\s\S]*?height: 48px;/u);
+    // Знака зоны на этом месте больше нет — его заменил кадр.
+    expect(card).not.toContain("ZONE_SIGN");
+    expect(css).not.toContain(".zoneSign");
+    // Цель добирается до 44, как у любой строки продукта.
+    expect(css).toMatch(/\.shelfRow \{[\s\S]*?min-height: var\(--hit-target-min, 44px\);/u);
+    // КООРДИНАТЫ ТОЛЬКО ИЗ rooms.json, в системе кадра 630×351 (ADR-0006):
+    // своей карты у карточки нет и появиться не может.
+    expect(thumb).toContain("export const FRAME = { w: 630, h: 351 } as const;");
+    expect(thumb).not.toMatch(/\b(?:1120|430)\b/u);
+    expect(page).toContain("zoneRect={preset.zones.find(");
+  });
+
+  it("заметка — СВОИМ БЛОКОМ С НАДСТРОЧНОЙ, 400 13.5/1.55", () => {
+    expect(reading.owner.changedFrom47a).toContain("заметка — блок с надстрочной вместо абзаца");
     expect(css).toContain("font: 400 13.5px/1.55 var(--font-ui)");
     expect(css).toMatch(/\.note \{[\s\S]*?-webkit-line-clamp: 4;/u);
+    expect(card).toContain('<span className={s.noteOverline}>{tField("cardNoteOverline")}</span>');
+    expect(ru.AddItem.cardNoteOverline).toBe("Заметка");
   });
 
-  it("«где купить» — домен 13 при .72 со стрелкой 14, ведёт наружу", () => {
-    expect(contract.body.link).toContain("13");
+  it("«Где купить» — СТРОКОЙ с числом магазинов и «от {price}», раскрывается", () => {
+    expect(reading.owner.changedFrom47a).toContain(
+      "«Где купить» — число магазинов и «от {price}» вместо одного домена",
+    );
+    // Довод пакета взят целиком: 200 px ответа на вопрос, которого у хозяйки
+    // нет — ссылки положила она сама.
+    expect(reading.owner.storesCollapsed).toContain("200 px ответа на вопрос");
+    expect(reading.owner.storesCollapsed).toContain("Раскрывается нажатием");
+    expect(card).toContain('tField("cardStores", { count: storeCount })');
+    expect(card).toContain('tField("cardStoresFrom", { price: roomPrice })');
+    expect(card).toContain("aria-expanded={storesOpen}");
+    // Внутри раскрытого — блок 8b БЕЗ ИЗМЕНЕНИЙ, тот же якорь продукта.
     expect(shopCss).toMatch(/\.card \{[\s\S]*?font: 500 13px\/1\.2 var\(--font-ui\);/u);
-    expect(shopCss).toMatch(/\.card \{[\s\S]*?color: var\(--color-text-body\);/u);
     expect(shopCss).toMatch(/\.card \.go \{[\s\S]*?font-size: 14px;/u);
     expect(card).toContain('place="card"');
     // Якорь один на весь продукт — своего карточка не заводит (тикет 37).
     expect(card).not.toMatch(/<a[\s>]/u);
   });
 
-  it("порядок тела: название → цена и огоньки → полка → заметка → где купить", () => {
-    expect(contract.body.order).toBe("название → цена и огоньки → полка → заметка → где купить");
+  it("«Стоит в комнате с 3 августа» — 11 при .48, последней строкой", () => {
+    expect(reading.owner.order.at(-1)).toContain("«Стоит в комнате с 3 августа» 11/.48");
+    expect(css).toMatch(/\.since \{[\s\S]*?font: 400 11px\/1\.3 var\(--font-ui\);/u);
+    expect(css).toMatch(/\.since \{[\s\S]*?color: rgba\(255, 249, 242, 0\.48\);/u);
+    expect(card).toContain('tField("cardAddedOn"');
+  });
+
+  it("порядок блоков — ровно `owner.order` контракта", () => {
     const at = (needle: string) => {
       const index = card.indexOf(needle);
       expect(index, needle).toBeGreaterThan(-1);
       return index;
     };
     const order = [
-      at("<h1 className={s.name}>"),
-      at("<div className={s.priceRow}>"),
-      at("className={`pressable ${s.zoneRow}`}"),
-      at("<p className={s.note}>{item.note}</p>"),
-      at("<ShopLink"),
+      at("<div\n          className={["), // фотография
+      at("<h1 className={"), // название 24
+      at("<div className={s.priceRow}>"), // цена и огоньки
+      at("<p className={s.priceSeen}>"), // «цену видят все»
+      at("<hr className={s.divider} />"), // разделитель 1 px
+      at("className={`pressable ${s.shelfRow}`}"), // полка миниатюрой кадра
+      at("<div className={s.noteBlock}>"), // заметка блоком
+      at("className={`pressable ${s.storesRow}`}"), // «Где купить» строкой
+      at("className={`pressable ${s.mainAction}`}"), // «Изменить» полосой света
+      at("<p className={s.since}>"), // «Стоит в комнате с»
     ];
     expect([...order].sort((a, b) => a - b)).toEqual(order);
-    // Огоньки стоят У ЦЕНЫ — в той же строке, а не отдельным блоком.
-    expect(card).toMatch(/<div className=\{s\.priceRow\}>[\s\S]{0,400}?<DesirePicker/u);
+    // Столько же блоков, сколько строк у контракта, минус надстрочная бренда —
+    // её у нас нет и взять неоткуда (раздел «чего не взяли» ниже).
+    expect(reading.owner.order).toHaveLength(order.length + 1);
   });
 
   it("главное действие: «Изменить» полосой света, цель — вся строка от 44", () => {
@@ -431,7 +613,7 @@ describe("лист «⋯»: состав по контракту, знаки rou
     // У карточки перо не рисуется вовсе: главное действие здесь — строка
     // «полосой света» со словом, а знак заметки живёт на плитке витрины.
     expect(card).not.toContain("IconActionNote");
-    expect(card).toContain('item.inHall ? tHall("noteAdd") : t("itemEdit")');
+    expect(card).toContain('? tHall("noteAdd")');
   });
 
   it("знаки — те самые из набора round36, а не нарисованные заново", () => {
@@ -496,8 +678,42 @@ describe("вариант сокровищницы (contract → treasuryVariant)
 
   it("главное действие — «Записать заметку»", () => {
     expect(contract.treasuryVariant).toContain("Записать заметку");
+    expect(reading.cases.treasury.mainAction).toContain("Записать заметку");
     expect(ru.Hall.noteAdd).toBe("Записать заметку");
-    expect(card).toContain('item.inHall ? tHall("noteAdd") : t("itemEdit")');
+    // Развилка теперь ТРОЙНАЯ (round45 → cases.noPhoto.ownerAction): у вещи
+    // комнаты БЕЗ фотографии полосу света занимает «Добавить фотографию» —
+    // «единственный случай, когда „Изменить" уступает главное действие».
+    // Витрины это не касается: её полоса — «Записать заметку» (round41).
+    expect(card).toContain("const needsPhoto = !item.inHall && !item.photoUrl;");
+    expect(card).toMatch(
+      /const mainActionLabel = needsPhoto\s*\n\s*\? tField\("cardAddPhoto"\)\s*\n\s*: item\.inHall\s*\n\s*\? tHall\("noteAdd"\)\s*\n\s*: t\("itemEdit"\);/u,
+    );
+  });
+
+  it("«Добавить фотографию» ведёт туда, где фотография правда появляется", () => {
+    // Полоса света, ведущая в форму без поля фотографии, была бы враньём
+    // громче, чем её отсутствие. Дорога та же, что в карточке добавления:
+    // presign → PUT браузером → экшен получает только ключ.
+    expect(reading.cases.noPhoto.ownerAction).toContain("Добавить фотографию");
+    expect(card).toContain("presignItemPhotoAction({ contentType: file.type, size: file.size })");
+    expect(card).toContain("setItemPhotoAction(item.id, presigned.key)");
+    // Сервис проверяет ключ тем же разбором и ту же принадлежность комнате.
+    const service = read("../src/server/services/items.ts");
+    expect(service).toContain("export async function setItemPhoto(");
+    expect(service).toContain("const key = photoKeySchema.parse(photoKey);");
+    expect(service).toContain("!key.startsWith(`items/${item.roomId}/`)");
+    // И `updateItem` фотографии по-прежнему НЕ пишет: правка степени желания
+    // ходит тем же `buildInput`, и лишний ключ трогал бы ещё и фотографию
+    // (та же болезнь, что поймана в тикете 97 с полями впечатления).
+    const update = /export async function updateItem\([\s\S]*?\n\}/u.exec(service)?.[0] ?? "";
+    expect(update).not.toContain("photoKey");
+  });
+
+  it("гостю на месте пустой фотографии не предлагается НИЧЕГО", () => {
+    // Contract → cases.noPhoto.guestAction: «ничего: у гостя бирка,
+    // фотографии он не добавляет».
+    expect(reading.cases.noPhoto.guestAction).toContain("ничего");
+    expect(read("../src/app/r/[slug]/i/[id]/guest-item-view.tsx")).not.toContain("cardAddPhoto");
   });
 
   it("У ЦЕНЫ В ВИТРИНЕ ПОЯВИЛСЯ АДРЕСАТ — контракт догнал инвариант №8", () => {
@@ -529,6 +745,28 @@ describe("чего мы из контракта НЕ взяли — ПЯТЬ П�
   // от которой считали (round39). Молчаливая правка чужого файла — такая же
   // болезнь, как молчаливое расхождение нашего кода.
 
+  it("НАДСТРОЧНОЙ БРЕНДА НЕТ — И ВЗЯТЬ ЕЁ НЕОТКУДА (round45, новое)", () => {
+    // Единственное расхождение с контрактом round45, и оно не про вкус: обе
+    // половины экрана просят «надстрочную бренда 9/.18em», а у вещи ПОЛЯ
+    // БРЕНДА НЕТ — ни в модели, ни в парсере, ни в форме добавления. Марка
+    // живёт у каталожного товара (`CatalogProduct.brand`), а каталог — за
+    // флагом `CATALOG_ENABLED` и до карточки не доезжает.
+    //
+    // Рисовать надстрочную из домена магазина («GOLDAPPLE.RU») мы не станем:
+    // это не марка вещи, а место покупки, и оно уже сказано в «Где купить».
+    // Появится поле у вещи — покраснеет здесь, и строку надо будет вернуть
+    // первой в обоих порядках. Дизайну сказано письмом 49.
+    expect(reading.owner.order[1]).toContain("надстрочная бренда");
+    expect(reading.guest.order[1]).toContain("надстрочная бренда");
+    const schema = read("../prisma/schema.prisma");
+    const model = /model Item \{[\s\S]*?\n\}/u.exec(schema)?.[0] ?? "";
+    expect(model).not.toMatch(/\bbrand\b/u);
+    // Марка есть у КАТАЛОЖНОГО товара — и это другая сущность, за флагом.
+    expect(schema).toMatch(/model CatalogProduct \{[\s\S]*?\n {2}brand/u);
+    expect(card).not.toContain("brand");
+    expect(read("../src/app/r/[slug]/i/[id]/guest-item-view.tsx")).not.toContain("brand");
+  });
+
   it("дизайн назвал базу и список правок — считаем от того же места", () => {
     expect(contract.changedFrom.baseline).toContain("round39");
     expect(contract.changedFrom.changed.length).toBeGreaterThanOrEqual(6);
@@ -553,7 +791,13 @@ describe("чего мы из контракта НЕ взяли — ПЯТЬ П�
     // У вещи ОДНА фотография — одна колонка и ни одного отношения к кадрам.
     expect(model).toContain("photoKey");
     expect(model).not.toMatch(/photos|ItemPhoto|gallery/iu);
-    expect(card).not.toContain("IconGallery");
+    // Знак галереи в ЛИСТЕ ДЕЙСТВИЙ — вот чего быть не должно: строка «Кадры
+    // вещи» снята дизайном. Сам компонент знака с тикета 196 в карточке есть —
+    // им подписан выбор ОДНОЙ фотографии в форме правки, тот же знак и то же
+    // слово, что в карточке добавления. Это не галерея: фотография у вещи
+    // по-прежнему одна, и модель это держит строкой выше.
+    expect(sheetSource(card)).not.toContain("IconGallery");
+    expect(card).not.toMatch(/rows=\{[\s\S]{0,200}gallery/iu);
     // Строки в контракте больше нет, и снятие объяснено отдельным ключом:
     // «одна фотография это не бедность, а решение».
     expect(contract.sheet.rows.map((row) => row.label)).not.toContain("Кадры вещи");

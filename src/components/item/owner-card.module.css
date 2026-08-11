@@ -1,11 +1,22 @@
-/* Карточка вещи глазами хозяйки, редакция v2 — числа контракта
- * `design/package/handoff/round41/item-card-owner.json` (доска 47a, тикеты 159
- * и 170).
+/* Карточка вещи глазами хозяйки — ЭКРАН ЧТЕНИЯ (тикет 196, доска 51a; числа
+ * контракта `design/package/handoff/round45/item-card.json` → owner). Лист
+ * действий и его числа по-прежнему из round41 (round45: «unchangedFrom47a —
+ * лист действий целиком»).
  *
- * Всё, что здесь стоит числом, снято с контракта: фото 260, знак пула 34 при
- * .35, цели 44, название 700 22/1.25 до двух строк, цена 500 15 при .72
- * tabular-nums, знак полки 16 при .55 и подпись 13 при .72, заметка
- * 400 13.5/1.55 при .72 до четырёх строк. Своих чисел файл не заводит.
+ * ПРАВИЛО ПЕРЕНОСА ЧИСЕЛ (пакет 45). Карточка нарисована на кадре 430; на 375
+ * высоты переносятся умножением на 0.872. Здесь это записано не множителем, а
+ * `aspect-ratio` от контрактной пары: 430/352 у фотографии и 430/236 у пустого
+ * места — высота считается ОТ ШИРИНЫ, и на 375 сама выходит 307 и 206, ровно
+ * как в контракте. Множитель, вбитый руками, врал бы на любой третьей ширине.
+ *
+ * НЕ ПЕРЕНОСЯТСЯ, ОНИ АБСОЛЮТНЫЕ (contract → scaling): цели нажатия 44, строки
+ * листа 56 (у нас 52 — сведённое число round41, см. tests/item-card-owner),
+ * полоса света 2, бирка 218×66. Они стоят числом и на 375, и на 430.
+ *
+ * Остальное с контракта: название 700 24/1.28 до двух строк, цена 500 16 при
+ * .72 tabular-nums, строка «кто видит цену» 11 при .5, разделитель 1 px,
+ * миниатюра кадра 76×48, заметка блоком с надстрочной, «Стоит в комнате с»
+ * 11 при .48, знак пула 38 при .3 на пустом месте. Своих чисел файл не заводит.
  *
  * ЧЕГО ЗДЕСЬ НЕТ И ПОЧЕМУ — СПИСОК ЗАКРЫТ (тикет 170). Сутки тут стояли два
  * расхождения с round39: огоньки 5/4 и строка листа 56 с подписью 600/14.
@@ -29,25 +40,38 @@
   margin: 0 auto;
 }
 
-/* --- Фото 260 и знаки НАД ним (contract → screen.photo, head) ------------- */
+/* --- Фото 430×352 и знаки НАД ним (contract → owner.photo, head) ---------- */
 
 .photo {
   position: relative;
-  height: 260px;
+  aspect-ratio: 430 / 352;
   flex: none;
   background-color: var(--color-surface-fill, rgba(255, 255, 255, 0.05));
   background-position: center;
   background-size: cover;
 }
 
-/* Фотографии нет — заливка .05 и знак пула зоны при .35: у ВЕЩИ категории нет,
-   а у зоны есть всегда (тикет 82). Чёрной дыры на 260 px не остаётся. */
+/* Фотографии нет — заливка .05, знак пула зоны 38 при .3 и подпись полки: у
+   ВЕЩИ категории нет, а у зоны есть всегда (тикет 82).
+   ВЫСОТА МЕНЬШЕ — 236 против 352 (contract → cases.noPhoto): «пустое не
+   занимает столько же, сколько полное». Место занято смыслом, а не заглушкой. */
 .photoEmpty {
+  aspect-ratio: 430 / 236;
   display: flex;
+  flex-direction: column;
   align-items: center;
   justify-content: center;
+  gap: 10px;
   background-color: rgba(255, 255, 255, 0.05);
-  color: rgba(255, 249, 242, 0.35);
+  color: rgba(255, 249, 242, 0.3);
+}
+
+/* Подпись полки под знаком — 11/.14em uppercase при .42 (contract). */
+.photoEmptyLabel {
+  font: 400 11px/1.2 var(--font-ui);
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: rgba(255, 249, 242, 0.42);
 }
 
 /* Знаки стоят НА фотографии, поэтому под ними тень: на светлых комнатах
@@ -128,8 +152,19 @@
   margin: 0;
   -webkit-box-orient: vertical;
   -webkit-line-clamp: 2;
-  font: 700 22px/1.25 var(--font-ui);
+  font: 700 24px/1.28 var(--font-ui);
   color: var(--color-text-primary, #fff9f2);
+}
+
+/* СЛУЧАЙ «БЕЗ ЦЕНЫ И БЕЗ МАГАЗИНА» (contract → cases.noPriceNoStore):
+   название +3 px, фотография ниже на 44 (352 − 44 = 308). Порядок сигналов тот
+   же, просто у одного выпали два соседа. */
+.nameBig {
+  font-size: 27px;
+}
+
+.photoShort {
+  aspect-ratio: 430 / 308;
 }
 
 /* Подпись витрины — «Подарок 2026 года · от Кати». Стоит ПОД названием и
@@ -141,6 +176,13 @@
   color: rgba(255, 249, 242, 0.55);
 }
 
+/* АКЦЕНТОМ (contract → cases.treasury.instead): у витринной вещи эта строка
+   стоит на месте четырёх снятых — цены, степени желания, «где купить» и
+   бирки, — и вес ей достаётся их. Тихой она читалась бы сноской. */
+.captionAccent {
+  color: var(--card-accent);
+}
+
 .priceRow {
   display: flex;
   flex-wrap: wrap;
@@ -149,26 +191,48 @@
 }
 
 .price {
-  font: 500 15px/1.2 var(--font-ui);
+  font: 500 16px/1.2 var(--font-ui);
   font-variant-numeric: tabular-nums;
   color: var(--color-text-body);
 }
 
-/* Полка — строка-ссылка: знак зоны 16 при .55, подпись 13 при .72. Цель
-   нажатия добирается до 44, как у любой строки продукта. */
-.zoneRow {
+/* «цену видят все» — 11 при .5 (contract → owner.order). Строка про ГОСТЯ:
+   хозяйке её собственная цена видна всегда (инвариант №8), и здесь сказано
+   ровно то, кто КРОМЕ неё её увидит. */
+.priceSeen {
+  margin: -8px 0 0;
+  font: 400 11px/1.3 var(--font-ui);
+  color: rgba(255, 249, 242, 0.5);
+}
+
+/* Разделитель 1 px (contract → owner.order): выше — про «насколько нужно»,
+   ниже — про «где стоит и что записано». */
+.divider {
+  height: 1px;
+  margin: 2px 0;
+  border: 0;
+  background: var(--color-surface-hairline, rgba(255, 255, 255, 0.09));
+}
+
+/* Полка — МИНИАТЮРА КАДРА 76×48 и подпись (contract → owner.order; было
+   строкой со знаком). Кадр отвечает на вопрос «там ли она стоит» точнее
+   значка: хозяйка узнаёт своё место глазами, а не по имени полки. */
+.shelfRow {
   display: flex;
   min-height: var(--hit-target-min, 44px);
   align-items: center;
-  gap: 8px;
+  gap: 12px;
   text-decoration: none;
   -webkit-tap-highlight-color: transparent;
 }
 
-.zoneSign {
-  display: inline-flex;
+.shelfFrame {
+  display: block;
+  width: 76px;
+  height: 48px;
   flex: none;
-  color: rgba(255, 249, 242, 0.55);
+  background-color: rgba(255, 255, 255, 0.05);
+  background-repeat: no-repeat;
 }
 
 .zoneLabel {
@@ -180,9 +244,24 @@
 }
 
 @media (hover: hover) and (pointer: fine) {
-  .zoneRow:hover .zoneLabel {
+  .shelfRow:hover .zoneLabel {
     color: var(--color-text-primary, #fff9f2);
   }
+}
+
+/* Заметка — СВОИМ БЛОКОМ С НАДСТРОЧНОЙ (contract → owner.changedFrom47a):
+   абзацем она читалась подписью к цене, а это отдельный голос хозяйки. */
+.noteBlock {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.noteOverline {
+  font: 500 9px/1 var(--font-ui);
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: rgba(255, 249, 242, 0.42);
 }
 
 .note {
@@ -194,6 +273,74 @@
   font: 400 13.5px/1.55 var(--font-ui);
   color: var(--color-text-body);
   white-space: pre-line;
+}
+
+/* Заметка ТЕЛОМ карточки (contract → cases.noPriceNoStore.holdsIt): 14.5
+   вместо 12.5 и .78 вместо .62 — она заняла место цены и магазинов, потому что
+   здесь именно она отвечает на вопрос читателя. */
+.noteBody {
+  font-size: 14.5px;
+  color: rgba(255, 249, 242, 0.78);
+}
+
+/* --- «Где купить» СТРОКОЙ, раскрывается нажатием (contract → storesCollapsed)
+ *
+ * Довод пакета: три магазина — 200 px ответа на вопрос, которого у хозяйки
+ * нет: ссылки положила она сама. Строка сообщает, что магазины на месте и цена
+ * не съехала; внутри раскрытого — блок 8b без изменений (`ShopLink`). */
+
+.storesRow {
+  display: flex;
+  width: 100%;
+  min-height: var(--hit-target-min, 44px);
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 0;
+  border: 0;
+  background: none;
+  font: 400 13px/1.2 var(--font-ui);
+  color: var(--color-text-body);
+  text-align: start;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.storesFrom {
+  flex: none;
+  font-variant-numeric: tabular-nums;
+  color: rgba(255, 249, 242, 0.55);
+}
+
+/* Выбор фотографии в форме правки — цель 44, как у всякой строки продукта. */
+.photoPick {
+  display: flex;
+  min-height: var(--hit-target-min, 44px);
+  align-items: center;
+  gap: 10px;
+  align-self: flex-start;
+  padding: 0 14px 0 12px;
+  border: 1px solid var(--color-surface-hairline-strong, rgba(255, 255, 255, 0.16));
+  font: 500 13px/1 var(--font-ui);
+  color: var(--color-text-body);
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* «Стоит в комнате с 3 августа» — 11 при .48, ниже главного действия. */
+.since {
+  margin: 0;
+  font: 400 11px/1.3 var(--font-ui);
+  color: rgba(255, 249, 242, 0.48);
+}
+
+/* Подсказка ФОРМЫ ПРАВКИ — под переключателем «Кто видит цену» (тикет 196,
+   contract round46 → ownerString). Свой класс, а не `.since`: та стоит в
+   показе последней строкой, и делить их значило бы однажды подвинуть обе. */
+.hint {
+  margin: 0;
+  font: 400 11.5px/1.35 var(--font-ui);
+  color: rgba(255, 249, 242, 0.5);
 }
 
 /* --- Главное действие: «полоса света» (турн 22, tokens.json → button.primary)

@@ -1,8 +1,19 @@
 "use client";
 
-// Карточка вещи глазами хозяйки, РЕДАКЦИЯ v2 (тикет 159, доска 47a; числа —
-// `design/package/handoff/round41/item-card-owner.json`, тикет 170). Прежняя
-// редакция — тикет 39, турны 11e и 8c.
+// Карточка вещи глазами хозяйки — ЭКРАН ЧТЕНИЯ (тикет 196, доска 51a; числа —
+// `design/package/handoff/round45/item-card.json` → owner). Прежние редакции:
+// тикет 39 (турны 11e и 8c) и тикет 159 (доска 47a, round41).
+//
+// ЗАЧЕМ ПЕРЕДЕЛАНО. «Форма упорядочена по полям модели, экран чтения — по
+// вопросу читателя» (принцип пакета 45). Форма ставит всё одним весом, потому
+// что заполнить надо всё; на экране чтения крупным обязано быть то, что
+// отвечает на вопрос. Вопрос хозяйки — «та ли это вещь и там ли она стоит»,
+// отсюда крупная фотография (352 против 260) и название 24 против 22, полка
+// миниатюрой КАДРА вместо строки со знаком, заметка своим блоком с
+// надстрочной, «Где купить» числом магазинов и «от {price}» вместо домена.
+//
+// Вопрос гостя другой — «дарить ли это», — и отвечает на него отдельный экран
+// (`/r/[slug]/i/[id]`): там крупно ЦЕНА и МАГАЗИНЫ, а полки нет вовсе.
 //
 // КОНТРАКТ ПЕРЕЕХАЛ С round39 НА round41, и переехал он НАМ НАВСТРЕЧУ: все
 // пять расхождений, которые мы держали списком «чего не взяли», дизайн закрыл
@@ -44,9 +55,11 @@
 import { useState, useTransition, type CSSProperties } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useLocale, useTranslations } from "next-intl";
+import { useFormatter, useLocale, useTranslations } from "next-intl";
 import { DesirePicker } from "@/components/item/desire-picker";
 import { ItemActions, SIGN_SIZE, type ItemActionRow } from "@/components/item/item-actions";
+import { shelfFrameBackground } from "@/components/item/shelf-frame";
+import type { ZoneRect } from "@/config/design";
 import { ShopLink } from "@/components/zone/shop-link";
 import { PoolIcon } from "@/components/pool-icons";
 import {
@@ -56,18 +69,22 @@ import {
   IconBack,
   IconEye,
   IconEyeOff,
+  IconGallery,
   IconMove,
 } from "@/components/icons";
 import type { OwnerItemDto } from "@/server/dto/items";
+import { guestSeesPrice } from "@/server/dto/guest-items";
 import { isExperienceZone } from "@/server/dto/experience";
 import type { HallPriceAudience } from "@/server/dto/hall";
 import { formatHallMoney } from "@/app/room/hall/money";
 import { PriceSeenBadge } from "@/app/room/hall/price-seen-badge";
 import { setHallHiddenAction } from "@/app/room/hall/actions";
 import s from "@/components/item/owner-card.module.css";
+import { presignItemPhotoAction } from "@/app/room/add/actions";
 import {
   deleteItemAction,
   setItemHiddenAction,
+  setItemPhotoAction,
   toggleHallAction,
   updateItemAction,
   type ItemActionResult,
@@ -90,10 +107,8 @@ const INPUT_CLASS =
   "w-full border border-surface-hairline-strong bg-surface-app-ground px-3 py-2.5 text-sm text-text-primary outline-none focus:border-text-faint";
 const LABEL_CLASS = "text-sm text-text-muted";
 
-/** Знак пула на месте отсутствующего фото — 34 при .35 (contract → photo.empty). */
-const EMPTY_PHOTO_SIGN = 34;
-/** Знак полки в строке-ссылке — 16 при .55 (contract → body.zone). */
-const ZONE_SIGN = 16;
+/** Знак пула на месте отсутствующего фото — 38 при .3 (contract → cases.noPhoto). */
+const EMPTY_PHOTO_SIGN = 38;
 /** Стрелка «назад» над фотографией — 20 в цели 44 (contract → head.back). */
 const BACK_SIGN = 20;
 
@@ -170,8 +185,12 @@ type ItemCardProps = {
   zones: ZoneOption[];
   /** Подпись зоны, в которой вещь лежит сейчас (путь назад). */
   zoneLabel: string;
-  /** Ключ пула зоны — знак полки в строке-ссылке и на пустом фото. */
+  /** Ключ пула зоны — знак на месте отсутствующей фотографии. */
   zonePool: string | null;
+  /** Прямоугольник зоны в кадре 630×351 — из него режется миниатюра 76×48. */
+  zoneRect: ZoneRect | null;
+  /** Адрес базового кадра комнаты; `null` — миниатюры не будет. */
+  frameUrl: string | null;
   accent: string;
   ink: string;
 };
@@ -182,6 +201,8 @@ export function ItemCard({
   zones,
   zoneLabel,
   zonePool,
+  zoneRect,
+  frameUrl,
   accent,
   ink,
 }: ItemCardProps) {
@@ -195,6 +216,7 @@ export function ItemCard({
   const tHall = useTranslations("Hall");
   const tExp = useTranslations("Experience");
   const locale = useLocale();
+  const format = useFormatter();
   const router = useRouter();
 
   // Форму карточки решает МЕСТО вещи (тикет 124): комната — цена и желание,
@@ -227,6 +249,10 @@ export function ItemCard({
   const [errorKey, setErrorKey] = useState<string | null>(null);
   // Показ или правка. Экран открывается ПОКАЗОМ: вещь сначала смотрят.
   const [editing, setEditing] = useState(false);
+  // Магазины у хозяйки СВЁРНУТЫ в строку (contract → owner.storesCollapsed):
+  // три магазина это 200 px ответа на вопрос, которого у неё нет — ссылки
+  // положила она сама. Раскрывается нажатием, внутри блок 8b без изменений.
+  const [storesOpen, setStoresOpen] = useState(false);
   // Вопрос перед необратимым. Он про ВЕЩЬ, о брони в нём ни слова: «переезд
   // снимет чью-то бронь» — это ровно то, чего хозяйке знать нельзя.
   const [confirming, setConfirming] = useState<"delete" | "treasury" | null>(null);
@@ -346,6 +372,83 @@ export function ItemCard({
     want?.price == null ? null : formatHallMoney(want.price, want.currency, locale);
 
   /**
+   * СЛУЧАЙ «БЕЗ ЦЕНЫ И БЕЗ МАГАЗИНА» (contract → cases.noPriceNoStore).
+   * Заметка становится ТЕЛОМ карточки: 14.5 вместо 12.5 и .78 вместо .62 —
+   * «она заняла место цены и магазинов, потому что здесь именно она отвечает
+   * на вопрос». Строк «цена не указана» и «магазины не добавлены» НЕТ:
+   * отсутствие цены — не пробел, а способ сказать «любая».
+   */
+  const noteHoldsCard = !item.inHall && roomPrice === null && !want?.shop;
+
+  /**
+   * Число магазинов у вещи РОВНО ОДНО, пока у неё одна ссылка (`canonicalUrl`).
+   * Множественное число в строке — от дизайна, который рисовал блок каталога;
+   * подставляем настоящее число, а не нарисованное (мультимагазинность живёт
+   * за флагом `CATALOG_ENABLED` и сюда не приезжает).
+   */
+  const storeCount = want?.shop ? 1 : 0;
+
+  /**
+   * ГЛАВНОЕ ДЕЙСТВИЕ. По умолчанию «Изменить», в сокровищнице «Записать
+   * заметку» (там правят не цену, а память). У вещи КОМНАТЫ БЕЗ ФОТОГРАФИИ —
+   * «Добавить фотографию»: contract → cases.noPhoto.ownerAction, «единственный
+   * случай, когда „Изменить" уступает главное действие». Витрины это не
+   * касается — её полосу занимает «Записать заметку» по решению round41.
+   */
+  const needsPhoto = !item.inHall && !item.photoUrl;
+  const mainActionLabel = needsPhoto
+    ? tField("cardAddPhoto")
+    : item.inHall
+      ? tHall("noteAdd")
+      : t("itemEdit");
+
+  /**
+   * Загрузка фотографии той же дорогой, что и в карточке добавления: presign →
+   * PUT в S3 браузером → экшен получает только ключ. Второго пути к нашему
+   * бакету в продукте нет и заводить его не за чем.
+   */
+  async function onPickPhoto(file: File) {
+    setBusy(true);
+    setErrorKey(null);
+    try {
+      const presigned = await presignItemPhotoAction({ contentType: file.type, size: file.size });
+      if ("error" in presigned) {
+        // Отказы presign говорят своими словами карточки добавления: «больше
+        // 10 МБ» и «нужна фотография» — это про файл, а не про вещь.
+        setErrorKey(
+          presigned.error === "TOO_LARGE"
+            ? "errTooLarge"
+            : presigned.error === "BAD_TYPE"
+              ? "errBadType"
+              : presigned.error === "AUTH"
+                ? "errAuth"
+                : "errGeneric",
+        );
+        return;
+      }
+      const put = await fetch(presigned.url, {
+        method: "PUT",
+        headers: { "Content-Type": file.type },
+        body: file,
+      });
+      if (!put.ok) {
+        setErrorKey("errUpload");
+        return;
+      }
+      const result = await setItemPhotoAction(item.id, presigned.key);
+      if (result?.error) {
+        setErrorKey(errorToKey(result.error));
+        return;
+      }
+      router.refresh();
+    } catch {
+      setErrorKey("errGeneric");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  /**
    * Лист «⋯» — состав по контракту round39, знаки round36 (тикет 150).
    *
    * «Кадры вещи» в списке НЕТ: у вещи одно фото (`Item.photoKey`), галереи в
@@ -437,12 +540,26 @@ export function ItemCard({
   return (
     <main className={s.screen} style={style}>
       <div className={s.column}>
-        {/* Фото 260, `cover`; знаки — НАД ним (contract → screen.photo, head). */}
+        {/* Фотография 430×352, `cover`; знаки — НАД ней (contract → owner.photo,
+            head). БЕЗ ФОТОГРАФИИ высота 236, а не 352 (cases.noPhoto): пустое
+            не занимает столько же, сколько полное, — внутри знак пула 38 и
+            подпись полки. */}
         <div
-          className={item.photoUrl ? s.photo : `${s.photo} ${s.photoEmpty}`}
+          className={[
+            s.photo,
+            item.photoUrl ? null : s.photoEmpty,
+            item.photoUrl && noteHoldsCard ? s.photoShort : null,
+          ]
+            .filter(Boolean)
+            .join(" ")}
           style={item.photoUrl ? { backgroundImage: `url(${item.photoUrl})` } : undefined}
         >
-          {!item.photoUrl && zonePool && <PoolIcon pool={zonePool} size={EMPTY_PHOTO_SIGN} />}
+          {!item.photoUrl && (
+            <>
+              {zonePool && <PoolIcon pool={zonePool} size={EMPTY_PHOTO_SIGN} />}
+              <span className={s.photoEmptyLabel}>{zoneLabel}</span>
+            </>
+          )}
 
           <div className={s.head}>
             {/* СТРЕЛКА СТАЛА ЗНАКОМ НАБОРА (тикет 169, `ui-back.svg` раунда 41).
@@ -468,13 +585,16 @@ export function ItemCard({
 
         {/* Одна поверхность: от нижней кромки фото до низа экрана. */}
         <div className={s.surface}>
-          <h1 className={s.name}>{item.title}</h1>
+          <h1 className={noteHoldsCard ? `${s.name} ${s.nameBig}` : s.name}>{item.title}</h1>
 
-          {/* Подпись витрины — «Подарок 2026 года · от Кати». Имя видит только
-              хозяйка и только здесь: оно раскрыто один раз на «что подарили»
-              (инвариант №2), вещь уже переехала, брони за ним нет. */}
+          {/* Подпись витрины — «Подарок 2026 года · от Кати», АКЦЕНТОМ. Имя
+              видит только хозяйка и только здесь: оно раскрыто один раз на
+              «что подарили» (инвариант №2), вещь уже переехала, брони за ним
+              нет. Четыре блока витринной вещи сняты (contract →
+              cases.treasury.gone) — цена, степень желания, «где купить» и
+              бирка: желание исполнено, покупать и бронировать нечего. */}
           {item.inHall && (
-            <p className={s.caption}>
+            <p className={`${s.caption} ${s.captionAccent}`}>
               {love?.giverName
                 ? tHall("captionYearGiver", { year: sinceYear, giver: love.giverName })
                 : tHall("captionYear", { year: sinceYear })}
@@ -490,6 +610,12 @@ export function ItemCard({
               {roomPrice !== null && <span className={s.price}>{roomPrice}</span>}
               <DesirePicker desire={desire} accent={accent} onPick={onPickDesire} disabled={busy} />
             </div>
+          )}
+
+          {/* «Цену видят все» — 11 при .5 (contract → owner.order). Строка
+              про ГОСТЯ: у `NONE` слова нет вовсе, потому что и адресата нет. */}
+          {!item.inHall && roomPrice !== null && want?.priceVisibility !== "NONE" && (
+            <p className={s.priceSeen}>{tField(`cardPriceVis${want?.priceVisibility ?? "ALL"}`)}</p>
           )}
 
           {/* Цена вещи СОКРОВИЩНИЦЫ. Хозяйке своя цена видна всегда (инвариант
@@ -508,28 +634,59 @@ export function ItemCard({
             </div>
           )}
 
-          {/* Полка — строка-ссылка: знак зоны 16 при .55 + подпись 13 при .72. */}
-          <Link href={zoneHref} className={`pressable ${s.zoneRow}`}>
-            {zonePool && (
-              <span className={s.zoneSign} aria-hidden>
-                <PoolIcon pool={zonePool} size={ZONE_SIGN} />
-              </span>
-            )}
-            <span className={s.zoneLabel}>{zoneLabel}</span>
+          <hr className={s.divider} />
+
+          {/* Полка — МИНИАТЮРА КАДРА 76×48 и подпись (contract → owner.order).
+              Кадр отвечает на вторую половину вопроса хозяйки — «там ли она
+              стоит» — тем же куском её интерьера, который она увидит, нажав. */}
+          <Link href={zoneHref} className={`pressable ${s.shelfRow}`}>
+            <span
+              className={s.shelfFrame}
+              aria-hidden
+              style={
+                zoneRect && frameUrl ? shelfFrameBackground(zoneRect, frameUrl) : undefined
+              }
+            />
+            <span className={s.zoneLabel}>{tField("cardShelfLine", { where: zoneLabel })}</span>
           </Link>
 
-          {item.note && !editing && <p className={s.note}>{item.note}</p>}
+          {/* Заметка — СВОИМ БЛОКОМ С НАДСТРОЧНОЙ (contract → changedFrom47a). */}
+          {item.note && !editing && (
+            <div className={s.noteBlock}>
+              <span className={s.noteOverline}>{tField("cardNoteOverline")}</span>
+              <p className={noteHoldsCard ? `${s.note} ${s.noteBody}` : s.note}>{item.note}</p>
+            </div>
+          )}
 
-          {/* «Где купить» — тот же единственный якорь продукта, что у гостя
-              (тикет 37). Место `card` не считается: переходы хозяйки по своей
-              же ссылке — не интерес гостей. */}
+          {/* «Где купить» СТРОКОЙ — число магазинов и «от {price}» вместо
+              одного домена (contract → owner.storesCollapsed). Раскрывается
+              нажатием, внутри тот же якорь продукта, что у гостя (тикет 37).
+              Место `card` не считается: переходы хозяйки по своей же ссылке —
+              не интерес гостей. */}
           {!item.inHall && want?.shop && (
-            <ShopLink
-              itemId={item.id}
-              url={want.shop.url}
-              domain={want.shop.domain}
-              place="card"
-            />
+            <>
+              <button
+                type="button"
+                aria-expanded={storesOpen}
+                onClick={() => setStoresOpen((open) => !open)}
+                className={`pressable ${s.storesRow}`}
+              >
+                <span>{tField("cardStores", { count: storeCount })}</span>
+                {roomPrice !== null && guestSeesPrice(want?.priceVisibility ?? "ALL") && (
+                  <span className={s.storesFrom}>
+                    {tField("cardStoresFrom", { price: roomPrice })}
+                  </span>
+                )}
+              </button>
+              {storesOpen && (
+                <ShopLink
+                  itemId={item.id}
+                  url={want.shop.url}
+                  domain={want.shop.domain}
+                  place="card"
+                />
+              )}
+            </>
           )}
 
           {/* Впечатление в показе — «Когда · Где» строкой; правится в форме. */}
@@ -545,6 +702,26 @@ export function ItemCard({
           {editing && (
             <section className="flex flex-col gap-4">
               <p className="overline text-text-muted">{t("itemEdit")}</p>
+
+              {/* ФОТОГРАФИЯ (тикет 196). Полоса света у вещи без фотографии
+                  зовётся «Добавить фотографию» — значит место, где она правда
+                  добавляется, обязано быть здесь, а не в карточке добавления.
+                  Дорога та же: presign → PUT браузером → экшен с ключом. */}
+              <label className={`pressable ${s.photoPick}`}>
+                <IconGallery size={17} />
+                <span>{item.photoUrl ? tField("photoLabel") : tField("cardAddPhoto")}</span>
+                <input
+                  type="file"
+                  accept="image/*"
+                  disabled={busy}
+                  className="sr-only"
+                  onChange={(event) => {
+                    const file = event.target.files?.[0];
+                    event.target.value = "";
+                    if (file) void onPickPhoto(file);
+                  }}
+                />
+              </label>
 
               <label className="flex flex-col gap-1.5">
                 <span className={LABEL_CLASS}>{tField("titleLabel")}</span>
@@ -631,6 +808,15 @@ export function ItemCard({
                         );
                       })}
                     </div>
+                    {/* ЧТО СКРЫТИЕ ДЕЛАЕТ, А НЕ ЧЕГО НЕ ДЕЛАЕТ (тикет 196,
+                        contract round46 → ownerString). Стоит только там, где
+                        обещание можно понять неверно: хозяйка прячет цену и
+                        вправе думать, что спрятала и дорогу к вещи. Дорога
+                        остаётся — цену на ней покажет сам магазин (тикет 195,
+                        инвариант №8). */}
+                    {!guestSeesPrice(priceVisibility) && (
+                      <p className={s.hint}>{tField("priceHiddenPathHint")}</p>
+                    )}
                   </div>
 
                   <div className="grid grid-cols-2 gap-2">
@@ -803,12 +989,25 @@ export function ItemCard({
                 onClick={() => setEditing(true)}
                 className={`pressable ${s.mainAction}`}
               >
-                <span>{item.inHall ? tHall("noteAdd") : t("itemEdit")}</span>
+                <span>{mainActionLabel}</span>
                 <span className={s.mainActionGo} aria-hidden>
                   →
                 </span>
               </button>
             )
+          )}
+
+          {/* «Стоит в комнате с 3 августа» — 11 при .48, последней строкой
+              (contract → owner.order). У подарка это год, когда он дошёл. */}
+          {!editing && (
+            <p className={s.since}>
+              {tField("cardAddedOn", {
+                date: format.dateTime(new Date(love?.receivedAt ?? item.createdAt), {
+                  day: "numeric",
+                  month: "long",
+                }),
+              })}
+            </p>
           )}
         </div>
       </div>

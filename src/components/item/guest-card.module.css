@@ -1,0 +1,220 @@
+/* Карточка вещи глазами ГОСТЯ — ЭКРАН ЧТЕНИЯ (тикет 196, доска 51b; числа
+ * контракта `design/package/handoff/round45/item-card.json` → guest).
+ *
+ * ВОПРОС ЗДЕСЬ ДРУГОЙ, ЧЕМ У ХОЗЯЙКИ. Она спрашивает «та ли это вещь и там ли
+ * она стоит» — ей крупно фотография и название. Гость спрашивает «дарить ли
+ * это» — ему крупно ЦЕНА (29 против 16) и МАГАЗИНЫ (раскрыты, а не строкой).
+ * Название при этом МЕЛЬЧЕ на 3 (21 против 24): гость знает, за чем пришёл.
+ *
+ * ПРАВИЛО ПЕРЕНОСА ЧИСЕЛ (пакет 45) — то же, что у хозяйки: высоты привязаны к
+ * кадру 430 и переносятся на 375 умножением на 0.872, поэтому фотография стоит
+ * `aspect-ratio: 430 / 312` (на 375 выходит 272, ровно как в контракте).
+ * Не переносятся, они абсолютные: цели нажатия 44 и бирка 218×66.
+ *
+ * ПОЛОСЫ СВЕТА ЗДЕСЬ НЕТ НИ ОДНОЙ (contract → guest.tag.rule): «иначе главных
+ * действий два». Главное действие ровно одно — бирка на нити, и она же
+ * единственное место бирки во всём продукте (22a, направление 04, CLAUDE.md).
+ *
+ * ЧЕГО НЕТ ВОВСЕ (contract → guest.notShown): полки и «Полка целиком» — гостю
+ * всё равно, где вещь стоит; даты добавления; строки «кто видит цену». */
+
+.screen {
+  min-height: 100vh;
+  padding-bottom: 64px;
+  background: var(--color-surface-app-ground, #0b0806);
+}
+
+.column {
+  display: flex;
+  width: 100%;
+  max-width: 560px;
+  flex-direction: column;
+  gap: 14px;
+  margin: 0 auto;
+  padding: 0 20px 32px;
+}
+
+.head {
+  display: flex;
+  min-height: var(--hit-target-min, 44px);
+  align-items: center;
+  padding-top: 12px;
+}
+
+/* --- Фотография 430×312 (contract → guest.photo) -------------------------- */
+
+.photo {
+  position: relative;
+  aspect-ratio: 430 / 312;
+  overflow: hidden;
+  background-color: var(--color-surface-fill, rgba(255, 255, 255, 0.05));
+  background-position: center;
+  background-size: cover;
+}
+
+/* Без фотографии — то же место, что у хозяйки: заливка .05, знак пула 38 при
+   .3 и подпись полки. Высота 236 против 312 (contract → cases.noPhoto):
+   пустое не занимает столько же, сколько полное. */
+.photoEmpty {
+  aspect-ratio: 430 / 236;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  background-color: rgba(255, 255, 255, 0.05);
+  color: rgba(255, 249, 242, 0.3);
+}
+
+.photoEmptyLabel {
+  font: 400 11px/1.2 var(--font-ui);
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: rgba(255, 249, 242, 0.42);
+}
+
+/* ЗАНЯТАЯ ВЕЩЬ — фотография .55 (contract → guest.taken.photo). Приглушение то
+   же, что на плитке: карточка не должна сообщать больше, чем сетка. */
+.photoTaken {
+  opacity: 0.55;
+}
+
+/* --- Тело: название → цена и огоньки → заметка → магазины → бирка ---------- */
+
+.name {
+  margin: 0;
+  font: 700 21px/1.28 var(--font-ui);
+  color: var(--color-text-primary, #fff9f2);
+}
+
+.crumb {
+  margin: 0;
+  font: 400 11px/1.2 var(--font-ui);
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: rgba(255, 249, 242, 0.55);
+}
+
+/* Цена 700 29 — самая крупная величина экрана: гость решает по ней. Огоньки
+   стоят рядом, потому что обе величины про одно решение. */
+.priceRow {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 14px;
+}
+
+.price {
+  font: 700 29px/1.1 var(--font-ui);
+  font-variant-numeric: tabular-nums;
+  color: var(--card-accent);
+}
+
+/* Заметка сразу под ценой — 12.5/1.5 при .62 (contract → guest.order). */
+.note {
+  margin: 0;
+  font: 400 12.5px/1.5 var(--font-ui);
+  color: rgba(255, 249, 242, 0.62);
+  white-space: pre-line;
+}
+
+/* Заметка ТЕЛОМ карточки, когда цены и магазина нет (cases.noPriceNoStore):
+   14.5 вместо 12.5 и .78 вместо .62 — она заняла их место, потому что здесь
+   именно она отвечает на вопрос гостя. Строк «цена не указана» и «магазины не
+   добавлены» НЕТ: отсутствие цены — не пробел, а способ сказать «любая». */
+.noteBody {
+  font-size: 14.5px;
+  color: rgba(255, 249, 242, 0.78);
+}
+
+/* Название +3 px в том же случае (contract → cases.noPriceNoStore). */
+.nameBig {
+  font-size: 24px;
+}
+
+/* --- Блок магазинов при СКРЫТОЙ ЦЕНЕ (contract round46 → storeBlock) -------
+ *
+ * Якорем экрана становится ПУТЬ, а не заметка: гость всё равно узнает цену —
+ * в магазине, а не в комнате. Заметка и название при этом НЕ РАСТУТ (12.5 и
+ * 21, как в 51b): «иначе на одном экране два якоря».
+ *
+ * Заголовок «Где купить» вырастает из надстрочной 9/.2em в строку 500 13
+ * обычным цветом — «заголовок якоря не может быть тише самого якоря». Сама
+ * дверь (рамка, 700 17, «Открыть») живёт в `shop-link.module.css → .door`:
+ * ссылка наружу в продукте одна, и второй её копии карточка не заводит. */
+
+.storeBlock {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.storeHeading {
+  margin: 0;
+  font: 500 13px/1.2 var(--font-ui);
+  color: var(--color-text-primary, #fff9f2);
+}
+
+/* «Цену покажет магазин» — 11.5 при .5, под главной строкой. Это не заглушка
+   «цена скрыта»: отсутствие цены не пробел, и отвечаем мы не извинением, а
+   адресом. */
+.storeHint {
+  margin: 0;
+  font: 400 11.5px/1.35 var(--font-ui);
+  color: rgba(255, 249, 242, 0.5);
+}
+
+/* --- Бирка и тихая строка справа от неё ----------------------------------- */
+
+.tagRow {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px 16px;
+  margin-top: 10px;
+}
+
+/* «никто не узнает до праздника» — в двух строках, тихо, СПРАВА ОТ БИРКИ
+   (contract → guest.privacy): приватность говорится там, где человек рискует. */
+.quiet {
+  max-width: 150px;
+  margin: 0;
+  font: 400 11.5px/1.35 var(--font-ui);
+  color: rgba(255, 249, 242, 0.55);
+}
+
+/* Складчина строкой, пока участников нет (contract → guest.pool.collapsed).
+   Блока прогресса здесь нет: складчина — Phase 2 (`POOL_NOT_SUPPORTED`), и
+   обещать несобранный экран строкой-кнопкой было бы враньём. Хозяйке эта
+   строка не видна ни при каком числе участников (инвариант №1, ADR-0008) —
+   держит сам файл: он гостевой и в карточку хозяйки не импортируется. */
+.pool {
+  margin: 0;
+  font: 400 12px/1.4 var(--font-ui);
+  color: rgba(255, 249, 242, 0.5);
+}
+
+/* Занятая вещь: «уже дарят» и дорога к свободным. Бирки нет вовсе. */
+.takenTitle {
+  margin: 0;
+  font: 600 15px/1.2 var(--font-ui);
+  color: var(--color-text-primary, #fff9f2);
+}
+
+.takenHint {
+  display: inline-flex;
+  min-height: var(--hit-target-min, 44px);
+  align-items: center;
+  font: 400 13px/1.2 var(--font-ui);
+  color: rgba(255, 249, 242, 0.62);
+  text-decoration: none;
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* Подпись витринной вещи — «Подарок 2019 года». БЕЗ ИМЕНИ ДАРИТЕЛЯ: оно
+   раскрывается ровно один раз и ровно хозяйке (инвариант №2). */
+.caption {
+  margin: 0;
+  font: 400 13px/1.4 var(--font-ui);
+  color: rgba(255, 249, 242, 0.55);
+}

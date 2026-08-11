@@ -122,7 +122,9 @@
     "openFull": "Показать все",
     "addItem": "Добавить вещь",
     "zoneCounts": "{total, plural, one {# вещь} few {# вещи} many {# вещей} other {# вещи}}{want, plural, =0 {} other { · # в подарок}}",
-    "backToRoom": "В комнату"
+    "backToRoom": "В комнату",
+    "guestTakenTitle": "уже дарят",
+    "guestTakenHint": "в комнате есть свободные"
   },
   "Experience": {
     "when": "Когда",
@@ -205,7 +207,21 @@
     "urlShops": "Золотое яблоко · Wildberries · Ozon · Lamoda · DNS · Яндекс Маркет — и любой другой сайт",
     "roomLabel": "В комнату",
     "roomHint": "Чего хочется. Место готово",
-    "desireGuestHint": "Гостю это главная подсказка при выборе"
+    "desireGuestHint": "Гостю это главная подсказка при выборе",
+    "cardPriceVisALL": "цену видят все",
+    "cardPriceVisFRIENDS": "цену видят друзья",
+    "cardPriceVisME": "цену видишь только ты",
+    "cardShelfLine": "Стоит {where}",
+    "cardAddedOn": "Стоит в комнате с {date}",
+    "cardStores": "Где купить · {count, plural, one {# магазин} few {# магазина} many {# магазинов} other {# магазина}}",
+    "cardStoresFrom": "от {price}",
+    "cardNoteOverline": "Заметка",
+    "cardAddPhoto": "Добавить фотографию",
+    "cardPoolNote": "Дорого одному — скинуться с другими",
+    "cardQuietHint": "никто не узнает до праздника",
+    "cardStoreOpen": "Открыть",
+    "cardStorePriceByStore": "Цену покажет магазин",
+    "priceHiddenPathHint": "Ссылку на магазин гость увидит всё равно — цену там покажет сам магазин"
   },
   "Booking": {
     "tagFor": "для {name}",

@@ -12,6 +12,7 @@ import {
   ItemMutationError,
   deleteItem,
   setItemHidden,
+  setItemPhoto,
   setItemsHidden,
   toggleHall,
   updateItem,
@@ -94,6 +95,29 @@ export async function updateItemAction(itemId: string, input: unknown): Promise<
 
   try {
     await updateItem(userId, String(itemId), input);
+  } catch (error) {
+    if (error instanceof ItemMutationError) return { error: error.code };
+    if (error instanceof ZodError) return { error: "VALIDATION" };
+    throw error;
+  }
+  return undefined;
+}
+
+/**
+ * Поставить вещи фотографию (тикет 196). Отдельным экшеном, а не полем правки:
+ * разбор — у `setItemPhoto`. Ключ приезжает от `presignItemPhotoAction`, файл
+ * браузер кладёт в S3 сам — сюда доходит только имя.
+ */
+export async function setItemPhotoAction(
+  itemId: string,
+  photoKey: string,
+): Promise<ItemActionResult> {
+  const session = await auth();
+  const userId = await getSessionUserId(session?.user);
+  if (!userId) return { error: "AUTH" };
+
+  try {
+    await setItemPhoto(userId, String(itemId), String(photoKey));
   } catch (error) {
     if (error instanceof ItemMutationError) return { error: error.code };
     if (error instanceof ZodError) return { error: "VALIDATION" };

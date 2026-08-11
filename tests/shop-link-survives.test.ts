@@ -150,7 +150,12 @@ describe("скрытая цена не уносит ссылку (тикет 195
 
       expect(markup).toContain(`href="${SHOP_URL}"`);
       expect(markup).toContain("goldapple.ru");
-      expect(markup).toContain(GO);
+      // СЛОВО ДЕЙСТВИЯ ЗДЕСЬ ДРУГОЕ (тикет 196, пакет 46). При скрытой цене
+      // магазин становится ЯКОРЕМ экрана — «главной дверью» в рамке, и зовут
+      // её «Открыть», а не «Перейти →». Проверка тикета 195 от этого не
+      // ослабла: она про то, что ССЫЛКА НА МЕСТЕ, а не про подпись у неё.
+      expect(markup).toContain("Открыть");
+      expect(markup).toContain("Где купить");
       // Число не показано ни отформатированным, ни сырым, ни знаком валюты.
       expect(markup).not.toContain(SUM);
       expect(markup).not.toContain("14900");

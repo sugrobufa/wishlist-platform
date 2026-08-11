@@ -80,6 +80,42 @@
   font-weight: 600;
 }
 
+/* --- ГЛАВНАЯ ДВЕРЬ: строка магазина при СКРЫТОЙ ЦЕНЕ (тикет 196, контракт
+ * `round46/item-card-hidden-price.json` → storeBlock.primaryRow).
+ *
+ * ЗАЧЕМ ОТДЕЛЬНЫЙ ВИД. Когда цены нет, якорем экрана становится не заметка, а
+ * ПУТЬ: гость всё равно узнает цену — в магазине, а не в комнате, значит
+ * крупным должна быть дорога туда. Отсюда рамка, заливка, имя магазина 700 17
+ * и слово «Открыть» акцентом.
+ *
+ * ЧИСЛА ДЕНЕГ ЗДЕСЬ НЕТ И БЫТЬ НЕ МОЖЕТ (contract → leak.rule): при скрытой
+ * цене продукт не печатает ни одного числа денег — ни своего, ни разобранного,
+ * ни «от», ни «примерно». Строка наличия у нас пуста по другой причине: мы её
+ * не знаем ни у одного магазина (у вещи только адрес).
+ *
+ * Цвета рамки и заливки приезжают переменными: у контракта они сняты с
+ * кремового акцента (rgba(231,201,169,.34) и .05), а акцент у каждой комнаты
+ * свой — считает его тот, кто нас показывает. */
+
+.door {
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 15px 16px;
+  border: 1px solid var(--sl-door-border, var(--color-surface-hairline));
+  background: var(--sl-door-bg, var(--color-surface-fill));
+  font: 700 17px/1.2 var(--font-ui);
+}
+
+.door .domain {
+  color: var(--color-text-primary, #fff9f2);
+}
+
+.door .go {
+  flex: none;
+  font: 600 12.5px/1 var(--font-ui);
+}
+
 /* Наведение — за воротами (hover:hover) and (pointer:fine), CLAUDE.md. */
 @media (hover: hover) and (pointer: fine) {
   .sheet:hover {
@@ -92,5 +128,9 @@
 
   .card:hover .domain {
     color: var(--color-text-primary);
+  }
+
+  .door:hover {
+    border-color: var(--sl-accent);
   }
 }

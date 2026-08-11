@@ -6,6 +6,7 @@ import { getOwnItem } from "@/server/services/items";
 import { itemForOwner } from "@/server/dto/items";
 import { hallItemForOwner, hallSettingsOf } from "@/server/dto/hall";
 import { rooms, zoneInfo } from "@/config/design";
+import { roomImageUrl } from "@/app/rooms/room-image";
 import { visibleZones } from "@/components/scene/zones";
 import { ItemCard, type ZoneOption } from "./item-card";
 
@@ -92,9 +93,14 @@ export default async function OwnerItemPage({ params }: Params) {
       }
       zones={zones}
       zoneLabel={zone.label}
-      // Знак полки — значок ПУЛА зоны (тикет 82): у вещи категории нет, у зоны
-      // есть всегда. Он же встаёт на месте отсутствующего фото.
+      // Знак ПУЛА зоны (тикет 82): у вещи категории нет, у зоны есть всегда.
+      // Встаёт на месте отсутствующей фотографии.
       zonePool={zoneInfo(item.zone)?.pool ?? null}
+      // Полка миниатюрой КАДРА 76×48 (тикет 196, contract round45 →
+      // owner.order). Прямоугольник — только из `rooms.json`, в системе кадра
+      // 630×351 (ADR-0006): своей карты координат у карточки нет.
+      zoneRect={preset.zones.find((candidate) => candidate.key === item.zone)?.rect ?? null}
+      frameUrl={roomImageUrl(preset.base)}
       accent={preset.accent}
       ink={preset.ink}
     />
