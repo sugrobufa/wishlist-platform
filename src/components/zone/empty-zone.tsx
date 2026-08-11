@@ -4,9 +4,26 @@
 // emptyStates.emptyZone`). Доска объясняет, зачем это отдельный экран:
 // «пустая полка не должна выглядеть как невыполненное задание».
 //
-// Поэтому здесь ТРИ места, а не сетка из двадцати: три читаются как «сюда
-// поставят», двадцать — как «двадцать раз не сделано». Ближнее место ярче
-// остальных и подчёркнуто полосой — с него начинают.
+// МЕСТ БЫЛО ТРИ, СТАЛО ОДНО (тикет 193, приёмка владельца 11.08.2026):
+// «отрисовываются 3 пустых иконки, причём рисуются все 3 по-разному… смысл
+// пустых плиток не очевиден».
+//
+// Замысел доски был верен — три места читаются как «сюда поставят», а сетка
+// из двадцати как «двадцать раз не сделано», — но до телефона он не доехал по
+// двум причинам сразу, и обе проверяемые:
+//
+//  1. места различались ТОЛЬКО прозрачностью (.45 / .28 / .16 затуханием в
+//     глубину), а над тёмной базой в руке эти ступени не различаются. Тот же
+//     вид расхождения, что был у света: числа сходились, глаза нет;
+//  2. места были НЕМЫМИ — `aria-hidden`, ни ссылки, ни обработчика, — и при
+//     этом в двух сантиметрах над ними стояла живая кнопка «+ Добавить вещь».
+//     «Сюда поставят» говорили три прямоугольника, которые нельзя нажать, а
+//     поставить умел соседний элемент.
+//
+// Поэтому место теперь ОДНО, и в панели сцены оно само стало кнопкой: плюс
+// посередине, ссылка в форму добавления. Дубля «+ Добавить вещь» рядом больше
+// нет (`room/page.tsx`). На полном экране зоны место осталось немым — там
+// главное действие полосой света, и спорить с ним нечем.
 //
 // Язык тот же, что у пустой комнаты (тикет 104): пустота показывается
 // темнотой и ожиданием, а не чужими вещами-примерами.
@@ -14,7 +31,7 @@ import { useState, useTransition } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
-import { IconEyeOff } from "@/components/icons";
+import { IconEyeOff, IconPlus } from "@/components/icons";
 import { setZoneOffAction } from "@/app/room/zone/[zone]/actions";
 
 type EmptyZoneProps = {
@@ -32,8 +49,12 @@ type EmptyZoneProps = {
   compact?: boolean;
 };
 
-/** Прозрачность трёх мест по глубине — `emptyZone.slots.alpha`, в hex. */
-const SLOT_ALPHA = ["73", "47", "29"] as const;
+/**
+ * Прозрачность места — верхняя ступень прежней тройки (`emptyZone.slots.alpha`).
+ * Две другие ушли вместе с местами: они кодировали глубину, а глубина не
+ * читалась (см. шапку файла).
+ */
+const SLOT_ALPHA = "73";
 
 export function EmptyZone({
   zoneKey,
@@ -71,30 +92,47 @@ export function EmptyZone({
         </p>
       )}
 
-      {/* Три места. Ближнее — ярче и с полосой света понизу: она обещает то
-          же, что метка зоны в комнате, — здесь загорится, когда встанет вещь. */}
-      <ul
-        className={`flex gap-2.5 ${compact ? "mt-1" : "mt-4"}`}
-        aria-hidden
-      >
-        {SLOT_ALPHA.map((alpha, index) => (
-          <li
-            key={alpha}
-            className={`relative flex-1 ${compact ? "h-16" : "h-26 max-w-31"}`}
+      {/* ОДНО МЕСТО. Полоса света понизу обещает то же, что метка зоны в
+          комнате: здесь загорится, когда встанет вещь.
+
+          В ПАНЕЛИ СЦЕНЫ ОНО И ЕСТЬ ДЕЙСТВИЕ. Ссылкой, а не обработчиком: чтобы
+          работали долгое нажатие и «открыть в новой вкладке», как у плитки
+          вещи (тикет 186). `aria-hidden` снят — у места появилось имя, потому
+          что появился смысл.
+
+          НА ПОЛНОМ ЭКРАНЕ ЗОНЫ ОНО НЕМОЕ. Там ниже стоит полоса света
+          «Добавить вещь →», и два действия одного смысла в одном экране — это
+          ровно то замечание приёмки, из-за которого тикет и заведён. */}
+      <div className={compact ? "mt-1" : "mt-4"}>
+        {compact ? (
+          <Link
+            href={`/room/add?zone=${zoneKey}`}
+            aria-label={t("cta")}
+            className="pressable flex h-16 max-w-31 items-center justify-center"
             style={{
-              border: `1px dashed ${accent}${alpha}`,
+              border: `1px dashed ${accent}${SLOT_ALPHA}`,
+              background: `linear-gradient(180deg,${accent}17,transparent)`,
+              borderBottom: `2px solid ${accent}${SLOT_ALPHA}`,
+            }}
+          >
+            <IconPlus size={22} style={{ color: accent }} />
+          </Link>
+        ) : (
+          <div
+            aria-hidden
+            className="relative h-26 max-w-31"
+            style={{
+              border: `1px dashed ${accent}${SLOT_ALPHA}`,
               background: `linear-gradient(180deg,${accent}17,transparent)`,
             }}
           >
-            {index === 0 && (
-              <span
-                className="absolute inset-x-0 bottom-0 h-0.5"
-                style={{ background: `${accent}73` }}
-              />
-            )}
-          </li>
-        ))}
-      </ul>
+            <span
+              className="absolute inset-x-0 bottom-0 h-0.5"
+              style={{ background: `${accent}${SLOT_ALPHA}` }}
+            />
+          </div>
+        )}
+      </div>
 
       {compact ? (
         <p className="mt-3 text-[11px] leading-snug text-text-muted">{t("compactBody")}</p>

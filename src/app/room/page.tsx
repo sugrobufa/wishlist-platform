@@ -532,14 +532,22 @@ async function buildZoneContent(
               {beyondSheet > 0 ? tScene("summaryMore", { count: beyondSheet }) : tZone("openFull")}
             </Link>
             {/* Добавить вещь сразу в открытую зону (полировка 16): ?zone=…
-                предвыбирает её в карточке добавления (контракт тикета 04). */}
-            <Link
-              href={`/room/add?zone=${zone.key}`}
-              className="pressable btn-quiet"
-              style={{ "--pill-accent": preset.accent } as React.CSSProperties}
-            >
-              + {tZone("addItem")}
-            </Link>
+                предвыбирает её в карточке добавления (контракт тикета 04).
+
+                В ПУСТОЙ ЗОНЕ ЭТОЙ ПИЛЮЛИ НЕТ (тикет 193). Там ниже стоит место
+                с плюсом, и оно ведёт туда же — два одинаковых действия в двух
+                сантиметрах друг от друга это следующее замечание приёмки, а не
+                удобство. «Показать все» остаётся: она про другое, про зону
+                списком. */}
+            {items.length > 0 && (
+              <Link
+                href={`/room/add?zone=${zone.key}`}
+                className="pressable btn-quiet"
+                style={{ "--pill-accent": preset.accent } as React.CSSProperties}
+              >
+                + {tZone("addItem")}
+              </Link>
+            )}
           </div>
           {/* zoneKey отдаётся ТОЛЬКО здесь, в комнате хозяйки: по нему пустая
               зона показывает три места вместо строки (тикет 99). Гостевая
