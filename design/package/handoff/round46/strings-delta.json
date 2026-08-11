@@ -1,0 +1,14 @@
+{
+ "answersTo": "письмо 49 — пять новых ключей",
+ "sourceSnapshot": "messages-ru.json на 11.08.2026, после round44",
+ "added": {
+  "AddItem.priceHiddenPathHint": "Ссылку на магазин гость увидит всё равно — цену там покажет сам магазин",
+  "AddItem.cardStorePriceByStore": "Цену покажет магазин",
+  "AddItem.cardStoreOpen": "Открыть",
+  "ZoneGrid.emptyPlaceLabel": "Положить сюда вещь",
+  "ZoneGrid.emptyPlaceCaption": "Здесь пока ничего не стоит. Первая вещь зажжёт полку"
+ },
+ "keyNames": "имена — в существующих разделах AddItem и ZoneGrid, по вашему же доводу про Light.*: новый раздел ради раздела стоит как новый ключ и даёт ноль",
+ "openQuestion": "ZoneGrid.emptyWant из вашего письма 48 у нас числится СНЯТЫМ (письмо 25, ZoneGrid._v2); живой — ZoneGrid.empty. Скажите, какое имя в сборке",
+ "toneCheck": "все пять прогнаны: род · падеж токена · технические слова · точка в конце короткой строки"
+}
