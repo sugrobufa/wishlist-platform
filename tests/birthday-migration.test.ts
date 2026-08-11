@@ -12,6 +12,12 @@
 // тест». Вся работа живёт в одной интерактивной транзакции, которая в конце
 // СОЗНАТЕЛЬНО откатывается: даже если временная таблица однажды не создастся,
 // до строк настоящей комнаты изменения не доедут.
+//
+// И ЭТО ПРОВЕРЯЕТСЯ, А НЕ ПОДРАЗУМЕВАЕТСЯ. Сразу после `CREATE TEMP TABLE`, ДО
+// первой записи, фикстура спрашивает у самой базы, куда разрешилось имя
+// `"Room"` (`::regclass`). Не во временную схему сеанса — не пишем вовсе:
+// сначала не писать, потом откатывать. Ответ базы уходит наверх, и на нём
+// стоит проверка «настоящая таблица комнат этим прогоном не тронута».
 import "dotenv/config";
 import { readFileSync } from "node:fs";
 import { afterAll, describe, expect, it } from "vitest";
@@ -52,14 +58,27 @@ type Row = {
   same: boolean | null;
 };
 
+/**
+ * Куда разрешилось имя `"Room"` в этом прогоне — ответ САМОЙ БАЗЫ, а не наша
+ * вера в `CREATE TEMP TABLE`. Оператор миграции написан без схемы, и решает,
+ * в какую таблицу он попадёт, ровно это разрешение имени.
+ */
+type Target = { schema: string; isTemp: boolean };
+
+/** Что прогон фикстуры принёс наверх: строки временной таблицы и её адрес. */
+type Run = { rows: Row[]; target: Target };
+
 /** Сигнал «работа сделана, транзакцию откатить» — не отказ теста. */
 class Rollback extends Error {
-  constructor(readonly rows: Row[]) {
+  constructor(readonly run: Run) {
     super("rollback");
   }
 }
 
-async function runMigrationOnFixture(): Promise<Row[]> {
+/** Имя не разрешилось вовсе — такого не бывает, но врать в отчёте нельзя. */
+const NO_TARGET: Target = { schema: "(имя не разрешилось)", isTemp: false };
+
+async function runMigrationOnFixture(): Promise<Run> {
   try {
     await prisma.$transaction(async (tx) => {
       // Временная таблица той же формы, что настоящая до миграции.
@@ -72,6 +91,20 @@ async function runMigrationOnFixture(): Promise<Row[]> {
           "birthdayYear" integer
         ) ON COMMIT DROP
       `);
+
+      // КУДА СМОТРИТ ИМЯ `"Room"` — СПРАШИВАЕМ ДО ПЕРВОЙ ЗАПИСИ. Разрешение
+      // имени и есть вся защита этого теста: и вставки фикстуры, и оператор
+      // миграции идут в таблицу дословно, без схемы.
+      const [target = NO_TARGET] = await tx.$queryRawUnsafe<Target[]>(`
+        SELECT n.nspname AS "schema",
+               (n.oid = pg_my_temp_schema()) AS "isTemp"
+        FROM pg_class c
+        JOIN pg_namespace n ON n.oid = c.relnamespace
+        WHERE c.oid = '"Room"'::regclass
+      `);
+      // Тень не встала — НЕ ПИШЕМ НИЧЕГО ВООБЩЕ и выходим с пустым набором:
+      // откат тоже сработает, но полагаться на него одного тут нечестно.
+      if (!target.isTemp) throw new Rollback({ rows: [], target });
 
       // Даты стенда, комната без даты — и ГОД ПОДРЯД: каждая дата 2026-08-11 …
       // 2028-08-10 обязана пережить перенос, включая 29 февраля 2028-го.
@@ -102,10 +135,10 @@ async function runMigrationOnFixture(): Promise<Row[]> {
         FROM "Room"
         ORDER BY id
       `);
-      throw new Rollback(rows);
+      throw new Rollback({ rows, target });
     });
   } catch (error) {
-    if (error instanceof Rollback) return error.rows;
+    if (error instanceof Rollback) return error.run;
     throw error;
   }
   throw new Error("транзакция не откатилась — так быть не должно");
@@ -117,7 +150,7 @@ afterAll(async () => {
 
 describe("миграция room_birthday — ни одной потерянной даты", () => {
   it("каждая дата раскладывается в тот же самый день (стенд + два года подряд)", async () => {
-    const rows = await runMigrationOnFixture();
+    const { rows } = await runMigrationOnFixture();
     const dated = rows.filter((row) => row.same !== null);
 
     // 5 дат стенда + 731 день подряд: если оператор ошибётся на сутки хоть на
@@ -127,7 +160,7 @@ describe("миграция room_birthday — ни одной потерянно�
   });
 
   it("комната без даты остаётся без даты — перенос не выдумывает праздник", async () => {
-    const rows = await runMigrationOnFixture();
+    const { rows } = await runMigrationOnFixture();
     const empty = rows.find((row) => row.id === "no-date");
     expect(empty).toMatchObject({ day: null, month: null, year: null, same: null });
   });
@@ -135,7 +168,7 @@ describe("миграция room_birthday — ни одной потерянно�
   it("год переносится вместе с датой, а не теряется по дороге", async () => {
     // Год продукту не нужен ни для чего и нигде не показывается, но выбросить
     // то, что человек ввёл, миграция не вправе.
-    const rows = await runMigrationOnFixture();
+    const { rows } = await runMigrationOnFixture();
     expect(rows.find((row) => row.id === "stand-3")).toMatchObject({
       day: 8,
       month: 3,
@@ -151,8 +184,40 @@ describe("миграция room_birthday — ни одной потерянно�
   it("настоящая таблица комнат этим прогоном не тронута", async () => {
     // Транзакция откатывается сознательно — но проверить это стоит: тест
     // работает под именем настоящей таблицы.
-    const before = await prisma.room.count();
-    await runMigrationOnFixture();
-    expect(await prisma.room.count()).toBe(before);
+    //
+    // ЗДЕСЬ НЕ СЧИТАЮТСЯ СТРОКИ, И ЭТО ГЛАВНОЕ В ЭТОЙ ПРОВЕРКЕ. Утверждение
+    // было «сколько комнат было, столько и осталось», то есть про ОБЩЕЕ число
+    // строк в общей dev-базе. Соседние файлы полного прогона заводят свои
+    // комнаты параллельно — и в одиночку проверка сходилась всегда, а в общем
+    // прогоне падала («expected 415 to be 413»). Тест был гоночным по
+    // построению, а не флейком базы: чужая комната, заведённая между двумя
+    // `count`, не имеет к миграции никакого отношения.
+    //
+    // То же самое доказывается двумя утверждениями, которым чужие строки
+    // безразличны: КУДА шли команды и ЧЕГО после них нет.
+    const { target } = await runMigrationOnFixture();
+
+    // 1. Имя `"Room"`, в которое дословно идёт оператор миграции, разрешилось
+    //    во временную таблицу ЭТОГО сеанса. Настоящей таблицы команды прогона
+    //    не видели вовсе — трогать её им было нечем.
+    expect(
+      target.isTemp,
+      `имя "Room" разрешилось в схему ${target.schema}, а не во временную таблицу сеанса`,
+    ).toBe(true);
+
+    // 2. …и ни одна строка фикстуры в настоящей таблице не осела. Ищем по
+    //    нашим и только нашим идентификаторам — сколько комнат завели соседи,
+    //    к делу не относится.
+    const leaked = await prisma.room.findMany({
+      where: {
+        OR: [
+          { id: "no-date" },
+          { id: { startsWith: "stand-" } },
+          { id: { startsWith: "sweep-" } },
+        ],
+      },
+      select: { id: true },
+    });
+    expect(leaked, "строки фикстуры оказались в настоящей таблице комнат").toEqual([]);
   });
 });
