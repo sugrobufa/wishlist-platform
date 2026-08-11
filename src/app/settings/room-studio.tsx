@@ -21,7 +21,9 @@
 import {
   createContext,
   useContext,
+  useEffect,
   useMemo,
+  useRef,
   useState,
   type CSSProperties,
   type Dispatch,
@@ -32,7 +34,11 @@ import { useTranslations } from "next-intl";
 import {
   gradingFilter,
   gradingLayers,
+  LIGHT_COLORS,
+  TIMES_OF_DAY,
+  type GradeLayer,
   type LightColor,
+  type NativeTimeOfDay,
   type TimeOfDay,
 } from "@/components/scene/grading";
 import { previewOf, type PresetCard } from "./room-preview";
@@ -119,9 +125,7 @@ export function RoomStudio({
   return (
     <RoomStudioContext.Provider value={value}>
       <div className={s.studio}>
-        {shown && (
-          <RoomFrame card={shown} pending={pending} timeOfDay={tod} lightColor={color} />
-        )}
+        {shown && <RoomFrame card={shown} timeOfDay={tod} lightColor={color} />}
         {children}
       </div>
     </RoomStudioContext.Provider>
@@ -129,62 +133,165 @@ export function RoomStudio({
 }
 
 /**
- * Сам кадр: фотография, грейдинг и подпись. Состояния не держит — всё, что он
- * показывает, приезжает пропсами.
+ * Все слои, какие эта база может показать при любом положении обеих ручек:
+ * три времени × три цвета, дубликаты схлопнуты.
+ *
+ * НУЖНО ЭТО РАДИ КРОССФЕЙДА, А НЕ РАДИ КРАСОТЫ. Пока слои рисовались одним
+ * `map`'ом по текущему сочетанию, смена света РАЗМОНТИРОВАЛА старые узлы и
+ * смонтировала новые — то есть слои менялись встык, мгновенно, и плавно ехал
+ * только фильтр. Это и был остаток «мигания», на которое жаловался владелец:
+ * на плитке 110×56 стык не читался, на кадре в 375 читается.
+ *
+ * Теперь узлы стоят ВСЕ и всегда, а меняется только непрозрачность — приём
+ * из `motion.json` (460 мс, «кадры лежат стопкой, активный к 1, остальные 0»),
+ * которым в комнате раскрывается мебель зоны.
+ */
+function layerStack(native: NativeTimeOfDay): ReadonlyArray<readonly [string, GradeLayer]> {
+  const all = new Map<string, GradeLayer>();
+  for (const tod of TIMES_OF_DAY) {
+    for (const color of LIGHT_COLORS) {
+      for (const layer of gradingLayers(tod, color, native)) {
+        all.set(`${layer.overlay}|${layer.blend}`, layer);
+      }
+    }
+  }
+  return [...all];
+}
+
+/** Ключи слоёв, горящих при этом сочетании ручек. */
+function litLayers(tod: TimeOfDay, color: LightColor, native: NativeTimeOfDay): ReadonlySet<string> {
+  return new Set(gradingLayers(tod, color, native).map((l) => `${l.overlay}|${l.blend}`));
+}
+
+/**
+ * Сам кадр: фотография, грейдинг и строка состояния под ними. Своего почти не
+ * держит — всё, что он показывает, приезжает пропсами; собственное состояние
+ * ровно одно и служебное: уходящая база на время кроссфейда.
  *
  * ОТДЕЛЁН ОТ СОСТОЯНИЯ НАМЕРЕННО, той же причины ради, что и `room-preview.ts`:
- * обе редакции подписи — «так и выглядит» и «ещё не применён» — обязаны
- * проверяться ВЫЗОВОМ, а не прокликиванием. Внутри `RoomStudio` расхождение
- * появляется только после тапа, и в юните такое состояние недостижимо.
+ * строка состояния при любом сочетании обеих ручек обязана проверяться
+ * ВЫЗОВОМ, а не прокликиванием — сочетаний девять на каждую из десяти баз, и
+ * внутри `RoomStudio` до половины из них добираешься только тапами.
+ *
+ * ПРО ПРИМЕРКУ ЗДЕСЬ НЕТ НИ СЛОВА, И ЭТО НАРОЧНО. Состояние «показано, но не
+ * применено» называет плашка в `PresetSection` — там же, где живёт «Переехать».
+ * Серверных действий в этом файле нет и быть не может (см. шапку), а плашка
+ * без своего действия — половина, которая соврёт при первой же правке.
  */
 export function RoomFrame({
   card,
-  pending,
   timeOfDay,
   lightColor,
 }: {
   card: PresetCard;
-  /** Показанный интерьер выбран, но в комнате ещё не стоит. */
-  pending: boolean;
   timeOfDay: TimeOfDay;
   lightColor: LightColor;
 }) {
   const t = useTranslations("Settings");
+  const leaving = useLeavingCard(card);
 
   return (
     <div className={s.dock} style={{ "--preview-accent": card.accent } as CSSProperties}>
-      {/* Грейдинг считается от РОДНОГО времени суток показанной базы, а не
-          текущей комнаты (тикет 107): четыре базы из десяти сняты ночью, и
-          превью чужого интерьера обязано считать от его же фотографии — иначе
-          выбор «по картинке» показывает одно, а комната становится другой. */}
-      <div
-        aria-hidden
-        className={s.frame}
-        style={{ "--grade-filter": gradingFilter(timeOfDay, lightColor, card.tod) } as CSSProperties}
-      >
-        {/* Тот же файл, что у плитки ленты (`card.imageUrl`) — второго запроса
-            за картинкой нет ни одного (условие тикета). */}
-        <div className={s.photo} style={{ backgroundImage: `url(${card.imageUrl})` }} />
-        {gradingLayers(timeOfDay, lightColor, card.tod).map((grade) => (
-          <div
-            key={grade.overlay}
-            className={s.grade}
-            style={{ background: grade.overlay, mixBlendMode: grade.blend }}
+      <div aria-hidden className={s.frame}>
+        <GradedBase card={card} timeOfDay={timeOfDay} lightColor={lightColor} />
+        {/* УХОДЯЩАЯ БАЗА ЛЕЖИТ ПОВЕРХ И ГАСНЕТ (пакет 43, `motion.roomChange`).
+            Порядок в разметке и есть порядок слоёв: она идёт второй, значит
+            выше. Грейдинг у каждой базы свой — он считается от РОДНОГО времени
+            её съёмки, — поэтому крестом идут целые узлы «фото со своими
+            слоями», а не одна фотография под общими. */}
+        {leaving && (
+          <GradedBase
+            key={leaving.id}
+            card={leaving}
+            timeOfDay={timeOfDay}
+            lightColor={lightColor}
+            leaving
           />
-        ))}
+        )}
       </div>
-      {/* СОВРАТЬ ЗДЕСЬ ЛЕГКО И ДОРОГО. Пока выбранный интерьер не применён,
-          кадр показывает ВЫБРАННЫЙ, и подпись обязана сказать это словами:
-          смена интерьера двигает вещи между полками, и человек, решивший, что
-          она уже случилась, не поймёт потом, куда они делись. */}
-      {pending ? (
-        <p className={s.captionPending}>
-          <span aria-hidden className={s.captionDot} />
-          {t("studioPending", { name: card.name })}
-        </p>
-      ) : (
-        <p className={s.caption}>{t("studioApplied")}</p>
-      )}
+      {/* ВЫБРАННОЕ НАЗВАНО СЛОВАМИ, А НЕ ТОЛЬКО ЗАЛИВКОЙ (тикет 185, пакет 43).
+          «Кремовая · вечер · тёплый свет» — второй сигнал, и он абсолютный:
+          чтобы понять, что выбрано, не надо сравнивать плитку с соседями.
+          `aria-live` затем же: смена положения обязана быть слышна, а не
+          только видна — кадр читалке не говорит ничего. */}
+      <p className={s.state} aria-live="polite">
+        {t("roomState", {
+          room: card.name,
+          tod: t(`state_${timeOfDay}`),
+          light: t(`state_${lightColor}`),
+        })}
+      </p>
+    </div>
+  );
+}
+
+/**
+ * Уходящая база — та, что стояла в кадре до последней смены интерьера.
+ * Живёт ровно время кроссфейда и исчезает сама.
+ */
+function useLeavingCard(card: PresetCard): PresetCard | null {
+  const [leaving, setLeaving] = useState<PresetCard | null>(null);
+  const shownRef = useRef(card);
+
+  useEffect(() => {
+    if (shownRef.current.id === card.id) return;
+    const gone = shownRef.current;
+    shownRef.current = card;
+    setLeaving(gone);
+    const timer = setTimeout(() => setLeaving(null), ROOM_CHANGE_MS);
+    return () => clearTimeout(timer);
+  }, [card]);
+
+  return leaving;
+}
+
+/** Длительность кроссфейда баз — та же, что у слоёв (`motion.json`). */
+const ROOM_CHANGE_MS = 460;
+
+/**
+ * Одна база со своими слоями света.
+ *
+ * Грейдинг считается от РОДНОГО времени суток показанной базы, а не текущей
+ * комнаты (тикет 107): ПЯТЬ баз из десяти сняты ночью (emerald, bold, gamer,
+ * study, loft — счёт по `rooms.json`, находка пакета 43; прежде здесь стояло
+ * «четыре», и это было неверно), и превью чужого интерьера обязано считать от
+ * его же фотографии — иначе выбор «по картинке» показывает одно, а комната
+ * становится другой.
+ */
+function GradedBase({
+  card,
+  timeOfDay,
+  lightColor,
+  leaving = false,
+}: {
+  card: PresetCard;
+  timeOfDay: TimeOfDay;
+  lightColor: LightColor;
+  /** База уходит: лежит поверх и гаснет. */
+  leaving?: boolean;
+}) {
+  const stack = useMemo(() => layerStack(card.tod), [card.tod]);
+  const lit = litLayers(timeOfDay, lightColor, card.tod);
+
+  return (
+    <div
+      className={leaving ? `${s.base} ${s.baseLeaving}` : s.base}
+      style={{ "--grade-filter": gradingFilter(timeOfDay, lightColor, card.tod) } as CSSProperties}
+    >
+      {/* Тот же файл, что у плитки ленты (`card.imageUrl`) — второго запроса
+          за картинкой нет ни одного (условие тикета 181). */}
+      <div className={s.photo} style={{ backgroundImage: `url(${card.imageUrl})` }} />
+      {stack.map(([id, layer]) => (
+        <div
+          key={id}
+          className={s.grade}
+          style={{
+            background: layer.overlay,
+            mixBlendMode: layer.blend,
+            opacity: lit.has(id) ? 1 : 0,
+          }}
+        />
+      ))}
     </div>
   );
 }

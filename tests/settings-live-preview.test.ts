@@ -105,16 +105,13 @@ function renderStudio(
   );
 }
 
-/** Кадр в отрыве от состояния — единственный способ увидеть обе подписи. */
+/** Кадр в отрыве от состояния: девять сочетаний ручек достижимы вызовом. */
 function renderFrame(
   card: PresetCard,
-  pending: boolean,
   timeOfDay: TimeOfDay = "day",
   lightColor: LightColor = "warm",
 ): string {
-  return renderToStaticMarkup(
-    createElement(RoomFrame, { card, pending, timeOfDay, lightColor }),
-  );
+  return renderToStaticMarkup(createElement(RoomFrame, { card, timeOfDay, lightColor }));
 }
 
 /** Все адреса картинок разметки: `url(...)` без повторов. */
@@ -160,23 +157,52 @@ describe("previewOf — «что в комнате» и «что человек 
 });
 
 describe("кадр в разметке", () => {
-  it("стартует с того, что стоит в комнате, и подписан спокойно", () => {
+  it("стартует с того, что стоит в комнате", () => {
     const markup = renderStudio(HOME.id);
     expect(imageAddresses(markup)).toEqual([HOME.imageUrl]);
-    expect(markup).toContain(ru.Settings.studioApplied);
-    expect(markup).not.toContain("ещё не в комнате");
   });
 
-  it("расхождение подписано словами и названо по имени — соврать здесь дорого", () => {
-    // Кадр показывает гостевой интерьер, комната — свой. Человек, решивший,
-    // что переезд уже случился, не поймёт потом, куда делись вещи с полок.
-    const markup = renderFrame(GUEST, true);
+  // СТРОКА СОСТОЯНИЯ — ВТОРОЙ АБСОЛЮТНЫЙ СИГНАЛ (тикет 185, пакет 43). До неё
+  // выбранное положение света было названо только заливкой плитки: сигнал
+  // хороший, но один. Теперь выбранное сказано словами, и сравнивать плитку
+  // с соседями не нужно.
+  it("под кадром сказано словами, что именно выбрано — комната, время и свет", () => {
+    const markup = renderFrame(GUEST, "dusk", "candle");
     expect(markup).toContain(GUEST.name);
-    expect(markup).toContain("ещё не в комнате");
-    expect(markup).toContain(ru.Settings.presetApply); // зовёт к соседней кнопке
-    expect(markup).not.toContain(ru.Settings.studioApplied);
-    // Акцент показанной комнаты — и у подписи, и у точки перед ней.
+    expect(markup).toContain(ru.Settings.state_dusk);
+    expect(markup).toContain(ru.Settings.state_candle);
+    // Не только видно, но и слышно: кадр читалке не говорит ничего.
+    expect(markup).toContain('aria-live="polite"');
     expect(markup).toContain(`--preview-accent:${GUEST.accent}`);
+  });
+
+  it("строка состояния меняется вместе с ручками, а не показывает одно и то же", () => {
+    const dusk = renderFrame(HOME, "dusk", "candle");
+    const morning = renderFrame(HOME, "morning", "white");
+    expect(dusk).toContain(ru.Settings.state_dusk);
+    expect(dusk).not.toContain(ru.Settings.state_white);
+    expect(morning).toContain(ru.Settings.state_morning);
+    expect(morning).not.toContain(ru.Settings.state_candle);
+  });
+
+  // НАСТОЯЩИЙ КРОССФЕЙД, А НЕ ПОДМЕНА ГРАДИЕНТА (пакет 43). Пока слои
+  // рисовались по текущему сочетанию ручек, смена света размонтировала одни
+  // узлы и монтировала другие — то есть шла ВСТЫК. Проверять это глазами
+  // нечем (панель браузера кадры не композитит), поэтому проверяем СОСТАВ:
+  // набор слоёв обязан быть один и тот же при любом положении ручек, меняться
+  // может только непрозрачность.
+  it("слои лежат стопкой при любом положении ручек — меняется только непрозрачность", () => {
+    const layers = (markup: string) => [...markup.matchAll(/mix-blend-mode:/gu)].length;
+    const lit = (markup: string) => [...markup.matchAll(/opacity:1/gu)].length;
+
+    const dusk = renderFrame(HOME, "dusk", "candle");
+    const morning = renderFrame(HOME, "morning", "white");
+
+    expect(layers(dusk)).toBeGreaterThan(0);
+    expect(layers(morning)).toBe(layers(dusk));
+    // Горит при этом не всё подряд — иначе «стопка» была бы просто кашей.
+    expect(lit(dusk)).toBeLessThan(layers(dusk));
+    expect(lit(dusk)).toBeGreaterThan(0);
   });
 
   it("грейдинг считается от родного времени суток ПОКАЗАННОЙ базы, а не комнаты", () => {
@@ -254,6 +280,54 @@ describe("числа крупного кадра", () => {
   it("на широком экране рост кадра ограничен — липкий блок не съедает окно", () => {
     expect(css).toMatch(/@media \(min-width: 1024px\)\s*\{\s*\.frame\s*\{\s*max-width:\s*520px/u);
   });
+
+  // КАДР ВО ВСЮ ШИРИНУ ТЕЛЕФОНА (тикет 185, пакет 43): «кадр целиком — он и
+  // есть комната». Было 335.2×186.8 на 375 (столбец с полями 20), стало
+  // 375×208.9 — та же пропорция, просто без полей.
+  it("на телефоне кадр идёт во всю ширину, а на широком экране полей уже нет", () => {
+    expect(css).toMatch(/\.dock\s*\{[^}]*margin-inline:\s*-20px/u);
+    expect(css).toMatch(/@media \(min-width: 1024px\)[\s\S]*?\.dock\s*\{\s*margin-inline:\s*0/u);
+    // Текст под кадром при этом остаётся по столбцу страницы.
+    expect(css).toMatch(/\.state\s*\{[^}]*padding-inline:\s*20px/u);
+  });
+
+  // ЧИСЛО ДВИЖЕНИЯ ОДНО НА ВСЕ ТРИ СЛОЯ (motion.json: 460, easing out). Пока
+  // фильтр ехал 400, а слои не ехали вовсе, движений было два — и второе было
+  // мгновенным. Это и есть остаток «мигания».
+  it("фильтр, слои и крест баз идут одним числом — 460 из motion.json", () => {
+    expect(css).toMatch(/\.photo\s*\{[^}]*transition:\s*filter 460ms/u);
+    expect(css).toMatch(/\.grade\s*\{[^}]*transition:\s*opacity 460ms/u);
+    expect(css).toMatch(/\.baseLeaving\s*\{\s*animation:\s*baseOut 460ms/u);
+  });
+
+  it("prefers-reduced-motion укорачивает движение, а не убивает его", () => {
+    const reduced = css.match(/@media \(prefers-reduced-motion: reduce\)\s*\{[\s\S]*?\n\}/u)?.[0] ?? "";
+    expect(reduced).toMatch(/\.photo,\s*\n?\s*\.grade\s*\{[^}]*transition-duration:\s*120ms/u);
+    expect(reduced).toMatch(/\.baseLeaving\s*\{[^}]*animation-duration:\s*120ms/u);
+  });
+});
+
+// ---------- Примерка ----------
+
+describe("примерка — состояние с именем и второй дверью", () => {
+  it("цена переезда сказана ВНУТРИ примерки, а не подписью после неё", () => {
+    // Честное имя состояния и есть цена: смена интерьера двигает вещи между
+    // полками, и сказать об этом надо там, где решают, а не там, где уже всё.
+    expect(sections).toMatch(/studio\.tryOn[\s\S]{0,900}presetHint/u);
+  });
+
+  it("выход из примерки чистый: возвращает показанное к тому, что в комнате", () => {
+    // Ни одного серверного действия «отменить» здесь нет и не нужно —
+    // примерка кончается равенством, а равенство ставится на клиенте.
+    expect(sections).toMatch(/onClick=\{\(\) => select\(currentPreset\)\}/u);
+    // И оно правда гасит расхождение — это уже уровень чистой функции.
+    expect(previewOf(CARDS, HOME.id, HOME.id).pending).toBe(false);
+  });
+
+  it("«Переехать» остаётся главной кнопкой, отмена — тихой", () => {
+    expect(sections).toMatch(/<LightButton[\s\S]{0,200}presetApply/u);
+    expect(css).toMatch(/\.tryOnCancel\s*\{[^}]*background:\s*none/u);
+  });
 });
 
 // ---------- Числа положений света ----------
@@ -296,15 +370,48 @@ describe("положения света", () => {
 // ---------- Строки ----------
 
 describe("строки кадра", () => {
-  for (const key of ["studioApplied", "studioPending"] as const) {
+  const KEYS = [
+    "roomState",
+    "state_morning",
+    "state_day",
+    "state_dusk",
+    "state_warm",
+    "state_white",
+    "state_candle",
+    "tryOn",
+    "tryOnLine",
+    "tryOnCancel",
+  ] as const;
+
+  for (const key of KEYS) {
     it(`${key} — есть и в русском словаре, и в английском каркасе`, () => {
       expect(typeof ru.Settings[key]).toBe("string");
       expect(typeof en.Settings[key]).toBe("string");
     });
   }
 
-  it("подпись расхождения называет интерьер и зовёт к той кнопке, что рядом", () => {
-    expect(ru.Settings.studioPending).toContain(ru.Settings.presetApply);
-    expect(en.Settings.studioPending).toContain(en.Settings.presetApply);
+  it("строка состояния собирается из трёх мест, а не из одного", () => {
+    // Иначе она называла бы комнату и молчала про свет — то есть повторяла бы
+    // ленту вместо того, чтобы отвечать за вторую ручку.
+    for (const token of ["{room}", "{tod}", "{light}"]) {
+      expect(ru.Settings.roomState).toContain(token);
+      expect(en.Settings.roomState).toContain(token);
+    }
+  });
+
+  it("примерка называет интерьер по имени", () => {
+    expect(ru.Settings.tryOnLine).toContain("{name}");
+    expect(en.Settings.tryOnLine).toContain("{name}");
+  });
+
+  // СЛОВО «КАДР» В ИНТЕРФЕЙСЕ НЕ СУЩЕСТВУЕТ — правило памятки тона самого
+  // дизайна (`handoff/tone.md`: «Слова из технического контракта… наши, не
+  // пользовательские»). Пакет 43 прислал `tryOnLine` со словами «пока только
+  // на этом кадре» — то есть нарушил собственное правило, и общий сторож тона
+  // это поймал. Держим проверку и здесь, рядом со строкой: она про эту строку.
+  it("строки примерки не говорят техническими словами", () => {
+    for (const value of [ru.Settings.tryOn, ru.Settings.tryOnLine, ru.Settings.tryOnCancel]) {
+      expect(value).not.toMatch(/кадр[а-я]*/iu);
+    }
   });
 });

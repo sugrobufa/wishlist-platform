@@ -9,7 +9,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { IconCheck } from "@/components/icons";
-import { LIGHT_COLORS, TIMES_OF_DAY } from "@/components/scene/grading";
+import { gradingFilter, LIGHT_COLORS, TIMES_OF_DAY } from "@/components/scene/grading";
 import { useRoomStudio } from "./room-studio";
 import studio from "./room-studio.module.css";
 import {
@@ -340,7 +340,7 @@ export function PresetSection({
   const t = useTranslations("Settings");
   const router = useRouter();
   const { busy, error, run } = useSettingsAction();
-  const { cards, currentPreset, shown, pending, select } = useRoomStudio();
+  const { cards, currentPreset, shown, pending, select, timeOfDay, lightColor } = useRoomStudio();
   const [moved, setMoved] = useState<number | null>(null);
   const [zoneSetBusy, setZoneSetBusy] = useState(false);
   const [, startTransition] = useTransition();
@@ -416,6 +416,12 @@ export function PresetSection({
               className="pressable relative aspect-[186/112] overflow-hidden text-left"
               style={active ? { boxShadow: `0 0 0 2px ${preset.accent}` } : undefined}
             >
+              {/* ПЛИТКА ПОКАЗАНА В ТВОЁМ СВЕТЕ (пакет 43, `litByYourLight`).
+                  В комнате свет один, и лента не должна врать, что он разный:
+                  до этого плитки стояли «как сняты», а кадр над ними — в
+                  выбранном свете, и одна и та же комната выглядела в двух
+                  местах по-разному. Только фильтр, без слоёв: плитка мелкая, а
+                  девять узлов на каждую из десяти дороже пользы. */}
               <span
                 aria-hidden
                 className="absolute inset-0"
@@ -423,6 +429,7 @@ export function PresetSection({
                   backgroundImage: `url(${preset.imageUrl})`,
                   backgroundSize: "cover",
                   backgroundPosition: "42% 42%",
+                  filter: gradingFilter(timeOfDay, lightColor, preset.tod),
                 }}
               />
               <span
@@ -455,12 +462,42 @@ export function PresetSection({
         })}
       </div>
 
-      <p className="text-xs text-text-faint">{t("presetHint")}</p>
-
-      {dirty && selectedCard && (
-        <LightButton accent={selectedCard.accent} busy={busy} onClick={apply}>
-          {busy ? t("presetApplying") : `${t("presetApply")}: ${selectedCard.name} →`}
-        </LightButton>
+      {/* ПРИМЕРКА — СОСТОЯНИЕ, НАЗВАННОЕ СЛОВОМ КОМНАТЫ (тикет 185, пакет 43).
+          Оно у нас было и раньше, но звалось подписью под кадром и выхода не
+          имело: прекратить примерку можно было только найдя в ленте прежний
+          интерьер и нажав его.
+          СОВРАТЬ ЗДЕСЬ ЛЕГКО И ДОРОГО — смена интерьера двигает вещи между
+          полками, и человек, решивший, что она уже случилась, не поймёт потом,
+          куда они делись. Поэтому цена переезда стоит ВНУТРИ примерки, до
+          нажатия, а не подписью после неё. */}
+      {dirty && selectedCard ? (
+        <div className={studio.tryOn} style={{ "--preview-accent": selectedCard.accent } as CSSProperties}>
+          <p className={studio.tryOnTitle}>
+            <span aria-hidden className={studio.tryOnDot} />
+            {t("tryOn")}
+          </p>
+          <p className={studio.tryOnLine}>
+            {t("tryOnLine", { name: selectedCard.name })} {t("presetHint")}
+          </p>
+          <div className={studio.tryOnActions}>
+            <LightButton accent={selectedCard.accent} busy={busy} onClick={apply}>
+              {busy ? t("presetApplying") : `${t("presetApply")} →`}
+            </LightButton>
+            {/* Выход без переезда: примерка кончается равенством, и вернуть
+                это равенство можно чисто на клиенте — ни одного серверного
+                действия «отменить» тут нет и не нужно. */}
+            <button
+              type="button"
+              disabled={busy}
+              onClick={() => select(currentPreset)}
+              className={`pressable ${studio.tryOnCancel}`}
+            >
+              {t("tryOnCancel")}
+            </button>
+          </div>
+        </div>
+      ) : (
+        <p className="text-xs text-text-faint">{t("presetHint")}</p>
       )}
       {moved !== null && (
         <p className="text-sm text-text-muted">
