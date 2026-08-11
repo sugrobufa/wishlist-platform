@@ -80,7 +80,7 @@
   line-height: 1.2;
   letter-spacing: 0.06em;
   text-transform: uppercase;
-  color: rgba(255, 249, 242, 0.72);
+  color: var(--color-text-body);
 }
 
 .sub {

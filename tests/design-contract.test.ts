@@ -316,6 +316,47 @@ describe("design handoff contract", () => {
     );
     expect(css, "лестница писем приехала в интерфейс").not.toContain("--color-mail");
   });
+
+  it("`.72` белого нигде не пишется ЧИСЛОМ — только токеном (тикет 174)", () => {
+    // Слияние ступеней .68 и .72 в одну (`text.body`) доехало до tokens.css
+    // тикетом 164, но двенадцать мест в восьми файлах продолжали писать то же
+    // значение числом. Тикет 174 схлопнул их в `var(--color-text-body)`; этот
+    // сторож держит заход закрытым — иначе следующая правка вернёт число
+    // молча, и лестница разъедется второй раз, как уже было.
+    //
+    // Ищем ОБА написания (с пробелами и без) и ОБЕ формы альфы (`.72` и
+    // `0.72`). Комментарии из проверки вычтены — справка законна: в шапке
+    // zone-row.module.css это значение стоит ПРОЗОЙ, описанием контракта.
+    // Тело комментария затирается пробелами, а переводы строк остаются, чтобы
+    // номер строки в падении был настоящим.
+    const WHITE72 = /rgba\(\s*255\s*,\s*249\s*,\s*242\s*,\s*0?\.72\s*\)/iu;
+    const DECLARATION = /--color-text-body:\s*rgba\(\s*255\s*,\s*249\s*,\s*242\s*,\s*0?\.72\s*\)/iu;
+    const SRC = resolve(__dirname, "../src");
+    const cssFiles = (dir: string): string[] =>
+      readdirSync(dir, { withFileTypes: true }).flatMap((entry) => {
+        const full = resolve(dir, entry.name);
+        if (entry.isDirectory()) return cssFiles(full);
+        return entry.name.endsWith(".css") ? [full] : [];
+      });
+
+    const files = cssFiles(SRC);
+    expect(files.length, "обход src не нашёл .css — сторож прошёл бы впустую").toBeGreaterThan(10);
+    const offenders = files.flatMap((path) =>
+      readFileSync(path, "utf8")
+        .replace(/\/\*[\s\S]*?\*\//gu, (block) => block.replace(/[^\n]/gu, " "))
+        .split("\n")
+        .flatMap((line, i) =>
+          WHITE72.test(line) && !DECLARATION.test(line)
+            ? [`${path.slice(SRC.length + 1).replace(/\\/gu, "/")}:${i + 1}:${line.trim()}`]
+            : [],
+        ),
+    );
+    expect(offenders, "белому .72 место в токене: color: var(--color-text-body)").toEqual([]);
+
+    // С другой стороны сторож тоже не должен проходить впустую: объявление
+    // токена обязано быть на месте, иначе заменять числа было бы не на что.
+    expect(readFileSync(resolve(SRC, "styles/tokens.css"), "utf8")).toMatch(DECLARATION);
+  });
 });
 
 // ---------------------------------------------------------------------------

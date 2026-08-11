@@ -290,14 +290,16 @@ describe("числа контракта round39 — из контракта, а 
     expect(contract.body.price).toContain("tabular-nums");
     expect(css).toContain("font: 500 15px/1.2 var(--font-ui)");
     expect(css).toContain("font-variant-numeric: tabular-nums");
-    expect(css).toMatch(/\.price \{[\s\S]*?color: rgba\(255, 249, 242, 0\.72\);/u);
+    // Ступень .72 с тикета 174 пишется ИМЕНЕМ: значение её стоит в одном месте
+    // (объявление токена), и равенство «пакет = токен» держит design-contract.
+    expect(css).toMatch(/\.price \{[\s\S]*?color: var\(--color-text-body\);/u);
   });
 
   it("полка — строка-ссылка: знак 16 при .55, подпись 13 при .72", () => {
     expect(card).toContain(`const ZONE_SIGN = ${firstNumber(contract.body.zone)}`);
     expect(css).toMatch(/\.zoneSign \{[\s\S]*?color: rgba\(255, 249, 242, 0\.55\);/u);
     expect(css).toMatch(/\.zoneLabel \{[\s\S]*?font: 400 13px\/1\.2 var\(--font-ui\);/u);
-    expect(css).toMatch(/\.zoneLabel \{[\s\S]*?color: rgba\(255, 249, 242, 0\.72\);/u);
+    expect(css).toMatch(/\.zoneLabel \{[\s\S]*?color: var\(--color-text-body\);/u);
     // «тап ведёт в зону» — и цель добирается до 44, как у любой строки.
     expect(contract.body.zone).toContain("тап ведёт в зону");
     expect(css).toMatch(/\.zoneRow \{[\s\S]*?min-height: var\(--hit-target-min, 44px\);/u);
@@ -312,7 +314,7 @@ describe("числа контракта round39 — из контракта, а 
   it("«где купить» — домен 13 при .72 со стрелкой 14, ведёт наружу", () => {
     expect(contract.body.link).toContain("13");
     expect(shopCss).toMatch(/\.card \{[\s\S]*?font: 500 13px\/1\.2 var\(--font-ui\);/u);
-    expect(shopCss).toMatch(/\.card \{[\s\S]*?color: rgba\(255, 249, 242, 0\.72\);/u);
+    expect(shopCss).toMatch(/\.card \{[\s\S]*?color: var\(--color-text-body\);/u);
     expect(shopCss).toMatch(/\.card \.go \{[\s\S]*?font-size: 14px;/u);
     expect(card).toContain('place="card"');
     // Якорь один на весь продукт — своего карточка не заводит (тикет 37).

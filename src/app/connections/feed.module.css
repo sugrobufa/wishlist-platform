@@ -53,7 +53,7 @@
 .sub {
   font-size: 12px;
   line-height: 1.35;
-  color: rgba(255, 249, 242, 0.72);
+  color: var(--color-text-body);
 }
 
 /* Чип срока — тёмное стекло, как в спецификации. */

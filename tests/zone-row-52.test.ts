@@ -75,7 +75,7 @@ const contract = contractJson as unknown as {
 const form = contract.form;
 
 /** Лестница цветов — чтобы «ступень text.primary» проверялась, а не верилась. */
-const tokens = tokensJson as unknown as { text: { primary: string } };
+const tokens = tokensJson as unknown as { text: { primary: string; body: string } };
 
 /** Все числа строки промежутков: «миниатюра → 12 → [огонёк 5 → 8] → …». */
 const gaps = (form.gaps[0] ?? "").match(/\d+/gu)?.map(Number) ?? [];
@@ -262,7 +262,11 @@ describe("имя и цена — шрифтами пакета", () => {
     const price = rule(css, "price");
     expect(price).toContain(cssFont(form.price.font));
     expect(form.price.color).toContain("text.body");
-    expect(norm(price)).toContain(norm(`color: ${colorOf(form.price.color)};`));
+    // Цепочка «пакет → токен → модуль» проверяется двумя звеньями, потому что
+    // с тикета 174 модуль пишет ИМЯ ступени, а не её значение: значение стоит
+    // ровно в одном месте — объявлении токена.
+    expect(norm(tokens.text.body)).toBe(norm(colorOf(form.price.color)));
+    expect(price).toContain("color: var(--color-text-body);");
     expect(form.price.nowrap).toBe(true);
     expect(price).toContain("white-space: nowrap;");
     expect(form.price.tabularNums).toBe(true);

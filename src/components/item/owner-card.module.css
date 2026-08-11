@@ -151,7 +151,7 @@
 .price {
   font: 500 15px/1.2 var(--font-ui);
   font-variant-numeric: tabular-nums;
-  color: rgba(255, 249, 242, 0.72);
+  color: var(--color-text-body);
 }
 
 /* Полка — строка-ссылка: знак зоны 16 при .55, подпись 13 при .72. Цель
@@ -174,7 +174,7 @@
 .zoneLabel {
   overflow: hidden;
   font: 400 13px/1.2 var(--font-ui);
-  color: rgba(255, 249, 242, 0.72);
+  color: var(--color-text-body);
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -192,7 +192,7 @@
   -webkit-box-orient: vertical;
   -webkit-line-clamp: 4;
   font: 400 13.5px/1.55 var(--font-ui);
-  color: rgba(255, 249, 242, 0.72);
+  color: var(--color-text-body);
   white-space: pre-line;
 }
 
@@ -261,7 +261,7 @@
   margin-top: auto;
   padding-top: 14px;
   font: 400 13.5px/1.4 var(--font-ui);
-  color: rgba(255, 249, 242, 0.72);
+  color: var(--color-text-body);
 }
 
 .confirmTitle {

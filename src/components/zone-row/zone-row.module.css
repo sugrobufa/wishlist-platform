@@ -164,7 +164,7 @@
 .hiddenMark {
   display: flex;
   flex: none;
-  color: rgba(255, 249, 242, 0.72);
+  color: var(--color-text-body);
 }
 
 /* Цена — СОДЕРЖИМОЕ: ширины у неё нет ни здесь, ни в контракте (там её сняли
@@ -173,7 +173,7 @@
 .price {
   flex: none;
   font: 500 12.5px/1 var(--font-ui);
-  color: rgba(255, 249, 242, 0.72);
+  color: var(--color-text-body);
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
 }
