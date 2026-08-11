@@ -99,7 +99,7 @@ export default async function SettingsPage() {
 
   return (
     // Нижний отступ освобождает место постоянному таб-бару (86 px, фикс).
-    <main className="min-h-screen pb-[calc(var(--imm-tab-bar)+30px)]">
+    <main className="min-h-[100dvh] pb-[calc(var(--imm-tab-bar)+30px)]">
       <div className="mx-auto flex w-full max-w-3xl flex-col gap-4 px-5 lg:px-0">
         <header className="pb-2 pt-6 lg:pt-10">
           <Link href="/room" className="pressable text-xs font-semibold text-text-strong">
