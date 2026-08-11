@@ -1,9 +1,12 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { getTranslations } from "next-intl/server";
+import { getLocale, getTranslations } from "next-intl/server";
 import { redirect } from "next/navigation";
 import { auth } from "@/server/auth";
-import { birthdayOf } from "@/server/birthday";
+import { birthdayOf, nextOccasion } from "@/server/birthday";
+import { isHolidayKey } from "@/server/holidays";
+import { listRoomOccasions } from "@/server/services/room-occasions";
+import { HOLIDAY_LABEL } from "@/components/occasion/occasion-offer";
 import {
   getOwnerProfile,
   getRoomForUser,
@@ -31,6 +34,7 @@ import {
   ProfileSection,
   ZonesSection,
   type HallSettingsView,
+  type OccasionRow,
 } from "./settings-sections";
 
 export const dynamic = "force-dynamic";
@@ -89,6 +93,25 @@ export default async function SettingsPage() {
   // День рождения так, как он лежит в комнате: день и месяц (тикет 187).
   // Год экран не показывает — продукт им не пользуется.
   const birthday = birthdayOf(room);
+  // ОСТАЛЬНЫЕ ПРАЗДНИКИ — ЗДЕСЬ И БОЛЬШЕ НИГДЕ (тикет 198): принятые общие
+  // даты («Показать») и свои поводы. В комнате виден только ближайший, поэтому
+  // перечень живёт на этом экране; отказанные («Не в этом году») в него не
+  // входят — отказ был про плашку, а не про праздник.
+  const tOccasion = await getTranslations("Occasion");
+  const locale = await getLocale();
+  const dayMonth = new Intl.DateTimeFormat(locale, {
+    day: "numeric",
+    month: "long",
+    timeZone: "UTC",
+  });
+  const occasionRows = await listRoomOccasions(userId);
+  const occasions: OccasionRow[] = occasionRows.rows
+    .filter((row) => row.accepted)
+    .map((row) => ({
+      id: row.id,
+      label: isHolidayKey(row.key) ? tOccasion(HOLIDAY_LABEL[row.key]) : (row.title ?? ""),
+      date: dayMonth.format(nextOccasion({ day: row.day, month: row.month, year: null }, new Date())),
+    }));
   // Настройки сокровищницы: показ цены и прочее — из DTO зала (тикет 35), а
   // «кто видит витрину» приезжает прямо из строки комнаты (тикет 116).
   // В DTO цены оно НЕ переехало сознательно: настройки про разное, и общий
@@ -149,7 +172,7 @@ export default async function SettingsPage() {
         />
         <NickSection nick={room.nick} shareSlug={room.shareSlug} accent={accent} />
         <ZonesSection zones={zones} zonesOff={room.zonesOff} accent={accent} />
-        <BirthdaySection birthday={birthday} accent={accent} />
+        <BirthdaySection birthday={birthday} occasions={occasions} accent={accent} />
         <HallSection settings={hallSettings} accent={accent} />
         {/* Секции «Примеры» здесь больше нет (тикет 104): демо-призраки
             сняты целиком, и тумблеру «Убрать примеры» стало нечего убирать.

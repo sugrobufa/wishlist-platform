@@ -11,6 +11,8 @@ import { useTranslations } from "next-intl";
 import { BirthdayPicker } from "@/components/birthday-picker";
 import { IconCheck } from "@/components/icons";
 import { gradingFilter, LIGHT_COLORS, TIMES_OF_DAY } from "@/components/scene/grading";
+import { OWN_TITLE_MAX } from "@/server/holidays";
+import { addOwnOccasionAction, removeOccasionAction } from "@/app/room/occasion-actions";
 import { useRoomStudio } from "./room-studio";
 import studio from "./room-studio.module.css";
 import {
@@ -666,13 +668,20 @@ export function ZonesSection({
  */
 export function BirthdaySection({
   birthday,
+  occasions,
   accent,
 }: {
   /** День и месяц из комнаты; null — «Пока не знаю» (законный ответ). */
   birthday: { day: number; month: number } | null;
+  /**
+   * Остальные праздники комнаты (тикет 198): принятые общие даты и свои поводы.
+   * В комнате виден только ближайший — список живёт здесь и больше нигде.
+   */
+  occasions: OccasionRow[];
   accent: string;
 }) {
   const t = useTranslations("Settings");
+  const tOccasion = useTranslations("Occasion");
   const { busy, error, saved, run } = useSettingsAction();
   const [value, setValue] = useState<{ day: number | null; month: number | null }>(
     birthday ?? { day: null, month: null },
@@ -684,6 +693,10 @@ export function BirthdaySection({
         <span className="text-sm text-text-muted">{t("occasionLabel")}</span>
         <BirthdayPicker day={value.day} month={value.month} onChange={setValue} />
       </div>
+      {/* «ПОВТОРЯЕТСЯ КАЖДЫЙ ГОД» — ФАКТ, А НЕ ГАЛОЧКА (тикет 198,
+          `occasions.json → onboarding`): галочка предлагала бы выбор, которого
+          нет — день рождения повторяется независимо от продукта. */}
+      <p className="text-xs text-text-faint">{tOccasion("birthdayRepeat")}</p>
       <p className="text-xs text-text-faint">{t("occasionHint")}</p>
       <div className="flex items-center gap-4">
         <LightButton
@@ -713,7 +726,113 @@ export function BirthdaySection({
         )}
       </div>
       {error && <p className="text-sm text-text-muted">{t(errorKey(error))}</p>}
+
+      <OccasionList occasions={occasions} accent={accent} />
     </Section>
+  );
+}
+
+// ---------- Праздники: принятые общие даты и свои поводы (тикет 198) ----------
+
+/** Строка праздника в списке настроек. */
+export type OccasionRow = {
+  id: string;
+  /** Готовое имя: общей дате его дал словарь, своему поводу — сама хозяйка. */
+  label: string;
+  /** «14 сентября» — календарь платформы, а не наши слова. */
+  date: string;
+};
+
+/**
+ * СПИСОК ПРАЗДНИКОВ И «ДОБАВИТЬ СВОЙ ПОВОД» (тикет 198, пакет 44).
+ *
+ * ЗДЕСЬ ЖИВУТ ВСЕ, В КОМНАТЕ ВИДЕН ОДИН. «Список из пяти праздников в комнате —
+ * та же анкета, только показанная вместо спрошенной» (`occasions.json →
+ * inRoom.why`), поэтому комната показывает ближайший, а перечень — этот экран.
+ *
+ * СВОЙ ПОВОД ЗАВОДИТСЯ СТРОКОЙ, А НЕ ПРЕДЛАГАЕТСЯ. Продукт не предлагает своих
+ * поводов НИКОГДА — ни плашкой, ни списком примеров в самом поле: про годовщину
+ * знает только хозяйка. Подсказка с примерами стоит РЯДОМ со строкой, объясняя,
+ * что это за дверь, и в поле не залезает (граница тикета).
+ */
+function OccasionList({ occasions, accent }: { occasions: OccasionRow[]; accent: string }) {
+  const t = useTranslations("Occasion");
+  const tSettings = useTranslations("Settings");
+  const { busy, error, run } = useSettingsAction();
+  const [open, setOpen] = useState(false);
+  const [title, setTitle] = useState("");
+  const [date, setDate] = useState<{ day: number | null; month: number | null }>({
+    day: null,
+    month: null,
+  });
+
+  return (
+    <div className="flex flex-col gap-3 border-t border-surface-hairline pt-4">
+      <p className="overline text-text-muted">{t("listOverline")}</p>
+
+      {occasions.map((occasion) => (
+        <div key={occasion.id} className="flex items-center justify-between gap-4">
+          <span className="text-sm text-text-primary">
+            {t("nearestLine", { holiday: occasion.label, date: occasion.date })}
+          </span>
+          <button
+            type="button"
+            disabled={busy}
+            onClick={() => run(() => removeOccasionAction(occasion.id))}
+            className="pressable text-sm font-semibold text-text-muted hover:text-text-strong disabled:opacity-60"
+          >
+            {t("removeOwn")}
+          </button>
+        </div>
+      ))}
+
+      {open ? (
+        <div className="flex flex-col gap-3">
+          <label className="flex flex-col gap-1.5">
+            <span className="text-sm text-text-muted">{t("ownTitleLabel")}</span>
+            <input
+              value={title}
+              maxLength={OWN_TITLE_MAX}
+              onChange={(event) => setTitle(event.target.value)}
+              className="border border-surface-hairline-strong bg-surface-app-ground px-3 py-2.5 text-sm text-text-primary outline-none focus:border-text-faint"
+            />
+          </label>
+          <BirthdayPicker day={date.day} month={date.month} onChange={setDate} />
+          <LightButton
+            accent={accent}
+            busy={busy}
+            onClick={() => {
+              const { day, month } = date;
+              const name = title.trim();
+              // Половина повода — не повод: ни имени без даты, ни даты без
+              // имени. То же правило, что у дня рождения соседней кнопкой.
+              if (name === "" || day === null || month === null) return;
+              run(
+                () => addOwnOccasionAction({ title: name, day, month }),
+                () => {
+                  setTitle("");
+                  setDate({ day: null, month: null });
+                  setOpen(false);
+                },
+              );
+            }}
+          >
+            {busy ? tSettings("saving") : tSettings("save")}
+          </LightButton>
+        </div>
+      ) : (
+        <button
+          type="button"
+          onClick={() => setOpen(true)}
+          className="pressable self-start text-sm font-semibold"
+          style={{ color: accent }}
+        >
+          {t("addOwn")} →
+        </button>
+      )}
+      <p className="text-xs text-text-faint">{t("ownHint")}</p>
+      {error && <p className="text-sm text-text-muted">{tSettings(errorKey(error))}</p>}
+    </div>
   );
 }
 

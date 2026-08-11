@@ -110,12 +110,43 @@ model Room {
   zoneSet      String   @default("ALL") // 'F' | 'M' | 'ALL' — «набор зон»
   zonesOff     String[]               // выключенные зоны (исчезают с мебелью)
   shareSlug    String   @unique       // комната доступна по ссылке
-  occasionDate DateTime?              // ближайший праздник (день рождения — P1)
+  // День рождения хозяйки (тикет 187): не отметка, а ПОВТОРЯЮЩИЙСЯ день.
+  // Ближайший праздник не хранится — считается от «сегодня» (server/birthday.ts).
+  // Год необязателен и не показывается никогда: возраст продукту не нужен.
+  birthdayDay   Int?
+  birthdayMonth Int?
+  birthdayYear  Int?
   hallVisibility HallVisibility @default(ALL) // кто входит в сокровищницу (ADR-0011)
   createdAt    DateTime @default(now())
   user         User     @relation(fields: [userId], references: [id])
   items        Item[]
+  occasions    RoomOccasion[]
 }
+
+// Праздники, которых не один (тикет 198, пакет 44 → occasions.json).
+// «Праздник не заводят — его принимают или нет»: общие даты (Новый год,
+// 8 марта, 23 февраля) приходят плашкой за три недели, свой повод заводится
+// строкой «Добавить свой повод». День рождения сюда НЕ переезжает — он один
+// на комнату и живёт колонками выше.
+// СТРОКА ПОЯВЛЯЕТСЯ ТОЛЬКО ПОСЛЕ ОТВЕТА: «предложить» — свойство календаря,
+// а не состояние комнаты, и считается на чтении (server/holidays.ts).
+model RoomOccasion {
+  id          String       @id @default(cuid())
+  roomId      String
+  kind        OccasionKind                    // COMMON — общая дата | OWN — свой повод
+  key         String?                         // 'newYear' | 'feb23' | 'march8'; null у своего повода
+  title       String?                         // имя своего повода; у общей даты его знает словарь
+  day         Int
+  month       Int
+  accepted    Boolean      @default(true)     // «Показать»; false — «Не в этом году»
+  skippedYear Int?                            // год ПРАЗДНИКА, на который отказались
+  createdAt   DateTime     @default(now())
+  room        Room         @relation(fields: [roomId], references: [id], onDelete: Cascade)
+
+  @@unique([roomId, key])                     // один ответ на одну общую дату
+}
+
+enum OccasionKind { COMMON OWN }
 
 enum HallVisibility { ALL MUTUAL NONE }  // «всем по ссылке» | «взаимным» | «никому»
 

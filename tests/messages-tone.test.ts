@@ -1406,6 +1406,61 @@ describe("словарь и дизайн-пакет", () => {
       // двух голых кнопок. Наши пять удалены из словаря: мёртвая строка стоит
       // килобайта в разметке КАЖДОЙ страницы (правило выше).
       "Hall.zoneBridge",
+      // ПРАЗДНИКИ, КОТОРЫХ НЕ ОДИН (тикет 198, пакет 44 → `occasions.json` и
+      // `strings-delta.json`). Шестнадцать ключей, и они трёх разных пород —
+      // разбор по породам, потому что спрос с них разный.
+      //
+      // 1. ДЕВЯТЬ ОТ ДИЗАЙНА, ДЕЛЬТОЙ: `birthdayLabel`, `birthdayRepeat`,
+      //    `nearestLine`, `offerTitle`, `offerLine`, `offerShow`, `offerSkip`,
+      //    `addOwn`, `ownHint`. Значения его, слово в слово. Сироты они по
+      //    той же технической причине, что одиннадцать строк карточки вещи
+      //    выше: дельта приехала отдельным файлом, а не перевыпуском
+      //    `messages-ru.json`, — сверять «перенесено дословно» не с чем.
+      //    `birthdayLabel` и `birthdayRepeat` пересекались с тикетом 187, и
+      //    заводятся они ЗДЕСЬ ВПЕРВЫЕ: 187 своих ключей не заводил вовсе, он
+      //    переписал `Settings.occasion*` (запись — в `OWNER_REWRITE_187`).
+      //
+      // 2. ТРИ ИМЕНИ ПРАЗДНИКОВ ИЗ КОНТРАКТА: `holidayNewYear`, `holidayFeb23`,
+      //    `holidayMarch8`. В `strings-delta.json` их нет, а `{holiday}` в двух
+      //    его же строках подставлять нечем. Значения взяты из самого пакета
+      //    дословно — `occasions.json → threeKinds.common.list`: «Новый год»,
+      //    «8 марта», «23 февраля». Именами календаря их не заменить: «8 марта»
+      //    и «23 февраля» `Intl` правда печатает так, а «1 января» — не
+      //    «Новый год». ЗАПРОС ДИЗАЙНУ: прислать три имени ключами.
+      //
+      // 3. ЧЕТЫРЕ НАШИХ, НАПИСАННЫХ ПО ПАМЯТКЕ:
+      //    - `offerLeft` — «{days} день/дня/дней» для `{left}` в `offerTitle`.
+      //      Плашка живёт три недели и говорит настоящее число, а не «через три
+      //      недели» весь срок; в дельте токен есть, а множественного числа к
+      //      нему нет. Тот же случай, что `cardStores` в тикете 196:
+      //      подставляем настоящее число, а не нарисованное;
+      //    - `ownTitleLabel` — подпись поля имени своего повода. Поле без
+      //      подписи читалка не назовёт; примеров в самом поле нет и не будет
+      //      (граница тикета: своих поводов продукт не предлагает никогда), они
+      //      стоят рядом строкой `ownHint`;
+      //    - `listOverline` — заголовок перечня праздников в настройках. Раздел
+      //      зовётся «День рождения» (`Settings.occasionOverline`), и общие даты
+      //      со своими поводами под его именем стояли бы неправдой;
+      //    - `removeOwn` — «Убрать» у строки списка. Слово есть у соседей
+      //      (`AddItem.photoRemove`, `Settings.avatarRemove`), но каждое живёт
+      //      в своём разделе: делить ключ между экранами — способ однажды
+      //      переименовать чужую кнопку.
+      "Occasion.addOwn",
+      "Occasion.birthdayLabel",
+      "Occasion.birthdayRepeat",
+      "Occasion.holidayFeb23",
+      "Occasion.holidayMarch8",
+      "Occasion.holidayNewYear",
+      "Occasion.listOverline",
+      "Occasion.nearestLine",
+      "Occasion.offerLeft",
+      "Occasion.offerLine",
+      "Occasion.offerShow",
+      "Occasion.offerSkip",
+      "Occasion.offerTitle",
+      "Occasion.ownHint",
+      "Occasion.ownTitleLabel",
+      "Occasion.removeOwn",
       "Onboarding.emailNote",
       "Onboarding.nameFromBooking",
       "Onboarding.nameLabel",

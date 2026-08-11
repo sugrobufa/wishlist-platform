@@ -35,7 +35,19 @@
 // ради стабильности, съедает бюджет ночного прогона (так уже было — шаг висел
 // 79 секунд). Анимации ждём не таймером, а `getAnimations()` того самого узла,
 // который меряем.
+//
+// ОДНО ИСКЛЮЧЕНИЕ ИЗ «НИЧЕГО НЕ ПИШЕТ» — И ОНО НЕ ПРО СТЕНД (тикет 196, пакет
+// 46). «При скрытой цене продукт не печатает ни одного числа денег» — это
+// утверждение о вещи, у которой цена СКРЫТА, а магазин есть. На стенде такой
+// вещи нет ни одной: посев кладёт всё с `priceVisibility=ALL` и без ссылок, и
+// достать её чтением неоткуда. Поэтому у этой проверки СВОЯ комната, заведённая
+// и снесённая ею же (`describe` «денежная тишина» в конце файла): своя почта с
+// ярлыком прогона, свой `shareSlug`, две вещи. Ни строки стенда, ни строки
+// `full-cycle` она не трогает — драки за фикстуру, ради которой правило и
+// написано, здесь нет. Всё остальное в файле по-прежнему только читает.
+import { randomUUID } from "node:crypto";
 import { expect, test, type BrowserContext, type Locator, type Page } from "@playwright/test";
+import { prisma } from "../src/server/db";
 import { E2E_BASE_URL } from "./env";
 
 // Тесты идут по очереди в одном воркере, но НЕ каскадом: `serial` погасил бы
@@ -359,6 +371,101 @@ test("комната хозяйки: под кадром одна поверхн
   }
 
   await expectNoSideScroll(page, "комната хозяйки");
+});
+
+/**
+ * ПЛАШКА ПРЕДЛОЖЕНИЯ ПРАЗДНИКА — ЖИВОЙ ЗАМЕР (тикет 198, пакет 44).
+ *
+ * Тикет требует ровно этого: «прямоугольники зон до и после появления плашки
+ * совпадают — замер», и «плашка не режется и не накрывает знак сокровищницы».
+ * Арифметику держит юнит (tests/occasion-offer-layout.test.ts); здесь числа
+ * даёт браузер.
+ *
+ * ПОЧЕМУ ПЛАШКА ВСТАВЛЯЕТСЯ, А НЕ ЖДЁТСЯ. Она приходит за три недели до общей
+ * даты — календарём, а не настройкой; на стенде её нет ни одного дня из
+ * одиннадцати месяцев в году. Подделать «сегодня» в браузере значило бы мерить
+ * не тот продукт: время считает сервер (полночь UTC), и `Date` страницы на него
+ * не влияет. Поэтому в разметку встаёт НАСТОЯЩАЯ плашка — тот же класс, те же
+ * правила CSS, то же место (ребёнок `main.imm`, сосед вуали). Проверяется ровно
+ * то, ради чего замер и просят: отдаёт ли этот слой сцене хоть пиксель.
+ */
+test("плашка праздника: стоит в кадре и не двигает ни одной зоны (тикет 198)", async ({ page }) => {
+  await openRoom(page);
+
+  /** Цели нажатия всех видимых зон — с именами, чтобы падение было читаемым. */
+  const hotspots = async () =>
+    page.locator('main.imm [class*="__hotspot"]').evaluateAll((nodes) =>
+      nodes.map((node) => {
+        const r = node.getBoundingClientRect();
+        return `${node.getAttribute("aria-label") ?? "?"}:${r.left}:${r.top}:${r.width}:${r.height}`;
+      }),
+    );
+
+  // Знак ИМЕННО из угла сцены (`.imm-corner`): служебные входы шапки нарисованы
+  // той же плашкой `.imm-corner-mark`, но на телефоне их нет (`imm-desktop-only`),
+  // и первым в DOM попадается как раз невидимый.
+  const corner = await rectOf(
+    page.locator("main.imm .imm-corner .imm-corner-mark").first(),
+    "знак сокровищницы",
+  );
+  const frameBefore = await rectOf(sceneFrame(page), "кадр комнаты");
+  const before = await hotspots();
+  expect(before.length, "зон на экране не нашлось — мерить нечего").toBeGreaterThan(5);
+
+  await page.evaluate(() => {
+    const plaque = document.createElement("section");
+    plaque.className = "imm-offer";
+    plaque.innerHTML =
+      '<p class="imm-offer-title">Через 21 день Новый год</p>' +
+      '<p class="imm-offer-line">Показать гостям, что комната ждёт подарков и к нему</p>' +
+      '<div class="imm-offer-actions">' +
+      '<button type="button" class="imm-offer-show"><span>Показать</span><span>→</span></button>' +
+      '<button type="button" class="imm-offer-skip">Не в этом году</button>' +
+      "</div>";
+    document.querySelector("main.imm")?.append(plaque);
+  });
+
+  const plaqueRect = await rectOf(page.locator("main.imm .imm-offer"), "плашка праздника");
+  const frameAfter = await rectOf(sceneFrame(page), "кадр комнаты");
+  const after = await hotspots();
+  const viewport = page.viewportSize() ?? { width: 0, height: 0 };
+
+  report("плашка праздника", {
+    "знак сокровищницы": `${corner.top.toFixed(1)}…${corner.bottom.toFixed(1)}`,
+    плашка: `${plaqueRect.top.toFixed(1)}…${plaqueRect.bottom.toFixed(1)}`,
+    "поля плашки": `${plaqueRect.left.toFixed(1)} / ${(viewport.width - plaqueRect.right).toFixed(1)}`,
+    "высота плашки": Number(plaqueRect.height.toFixed(1)),
+    зон: before.length,
+    "кадр до": `${frameBefore.top.toFixed(1)}…${frameBefore.bottom.toFixed(1)}`,
+    "кадр после": `${frameAfter.top.toFixed(1)}…${frameAfter.bottom.toFixed(1)}`,
+  });
+
+  // ГЛАВНОЕ ОБЕЩАНИЕ: ни одна зона не сдвинулась ни на пиксель, и кадр тоже.
+  expect(after, "плашка сдвинула зоны — она попала в поток вместо слоя").toEqual(before);
+  expectSame(frameAfter.top, frameBefore.top, "верх кадра до и после плашки");
+  expectSame(frameAfter.height, frameBefore.height, "высота кадра до и после плашки");
+
+  // ЧИСЛА ПАКЕТА, снятые браузером: поля 14 с обеих сторон, высота от 132.
+  expectSame(plaqueRect.left, 14, "левое поле плашки");
+  expectSame(viewport.width - plaqueRect.right, 14, "правое поле плашки");
+  expect(
+    plaqueRect.height,
+    `высота плашки ${plaqueRect.height.toFixed(1)} — меньше 132 из пакета`,
+  ).toBeGreaterThanOrEqual(132 - PX);
+
+  // ЗАМЕР ЧИСЛА `top`. Пакет зовёт 56 «высотой зоны шапки в кадре»; у нас эта
+  // зона — ряд знаков в углу (12 сверху плюс плашка 44). Сходятся они или нет,
+  // видно здесь: верх плашки обязан лечь ровно на нижнюю кромку знака.
+  expectSame(plaqueRect.top, corner.bottom, "верх плашки против низа знака сокровищницы");
+  expectSame(plaqueRect.top, 56, "верх плашки против числа пакета");
+
+  // «НЕ РЕЖЕТСЯ»: плашка целиком в окне и целиком в затемнении шапки.
+  expect(plaqueRect.bottom, "плашка вылезла за низ экрана").toBeLessThanOrEqual(viewport.height);
+  expect(plaqueRect.top, "плашка накрыла знак сокровищницы").toBeGreaterThanOrEqual(
+    corner.bottom - PX,
+  );
+
+  await expectNoSideScroll(page, "комната с плашкой праздника");
 });
 
 // ---------- Правила 1, 4, 7: открытая зона ----------
@@ -987,4 +1094,437 @@ test("настройки: кадр во всю ширину и держится,
   );
 
   await expectNoSideScroll(page, "настройки");
+});
+
+// ---------- Тикет 196: карточка вещи — экран чтения, и их два ----------
+
+/**
+ * КАРТОЧКА ВЕЩИ ЖИВЬЁМ. Тикет 196 закрыт юнитами, и они держат много: текст
+ * модуля, размеры из контракта, отсутствие ключей в DTO. Чего юнит сказать не
+ * может — три вещи, и все три здесь:
+ *
+ *   • ПОЛОСА СВЕТА — не строка в CSS, а ВЫЧИСЛЕННЫЙ стиль. Юнит читает файл
+ *     `guest-card.module.css` и видит, что рецепта в нём нет; но полоса может
+ *     приехать на экран откуда угодно — из `globals.css`, из чужого модуля, из
+ *     `className` соседнего компонента. Здесь она ищется на живом экране: у
+ *     хозяйки обязана найтись ровно одна, у гостя — ни одной;
+ *   • ЦЕЛЬ НАЖАТИЯ — прямоугольник в браузере, а не число в контракте;
+ *   • ДЕНЕЖНАЯ ТИШИНА — то, что НАПЕЧАТАНО, а не то, что лежит в данных
+ *     (см. describe в конце файла).
+ */
+
+/** Рецепт «полосы света» (tokens.json → button.primary): 2 px акцентом + ореол. */
+type LightBar = {
+  tag: string;
+  cls: string;
+  text: string;
+  border: number;
+  color: string;
+  shadow: string;
+  height: number;
+};
+
+/**
+ * Все полосы света на экране — по ВЫЧИСЛЕННОМУ стилю, а не по имени класса.
+ * Имя переименуют, а рецепт останется: нижняя граница от 2 px и ореол под ней.
+ */
+async function lightBars(page: Page): Promise<LightBar[]> {
+  return page.evaluate(() => {
+    const out: LightBar[] = [];
+    for (const el of Array.from(document.querySelectorAll("main, main *"))) {
+      const cs = getComputedStyle(el);
+      if (parseFloat(cs.borderBottomWidth) < 1.5) continue;
+      if (cs.boxShadow === "none") continue;
+      if (cs.borderBottomStyle !== "solid") continue;
+      const box = el.getBoundingClientRect();
+      out.push({
+        tag: el.tagName.toLowerCase(),
+        cls: el.getAttribute("class") ?? "",
+        text: (el.textContent ?? "").trim().slice(0, 40),
+        border: parseFloat(cs.borderBottomWidth),
+        color: cs.borderBottomColor,
+        shadow: cs.boxShadow,
+        height: box.height,
+      });
+    }
+    return out;
+  });
+}
+
+/** Акцент комнаты (`--card-accent`) в том виде, в каком его вернёт браузер. */
+async function accentRgb(page: Page): Promise<string> {
+  return page.evaluate(() => {
+    const root = document.querySelector("main");
+    const hex = (root ? getComputedStyle(root).getPropertyValue("--card-accent") : "").trim();
+    const m = /^#?([\da-f]{2})([\da-f]{2})([\da-f]{2})$/i.exec(hex);
+    if (!m) return hex;
+    return `rgb(${parseInt(m[1] as string, 16)}, ${parseInt(m[2] as string, 16)}, ${parseInt(m[3] as string, 16)})`;
+  });
+}
+
+type HitTarget = { text: string; cls: string; width: number; height: number };
+
+/**
+ * ЦЕЛИ НАЖАТИЯ ТЕЛА КАРТОЧКИ. Считается прямоугольник САМОГО узла — пальцу
+ * достаётся он, а не строка вокруг него.
+ *
+ * ШАПКА ЭКРАНА СЮДА НЕ ВХОДИТ, и это не поблажка: `header` — общая для экранов
+ * полоса возврата (`.head` с `min-height: 44`), а не действие карточки; тихая
+ * ссылка «К комнате» внутри неё живёт по правилам `btn-quiet` и к контракту
+ * карточки (`round45 → scaling`: «цели нажатия 44 — абсолютные») отношения не
+ * имеет. Меряем то, ради чего человек на эту карточку пришёл.
+ */
+async function cardTargets(page: Page): Promise<HitTarget[]> {
+  return page.evaluate(() => {
+    const out: HitTarget[] = [];
+    const selector = "a, button, [role=button], input, select, summary";
+    for (const el of Array.from(document.querySelectorAll(`main ${selector}`))) {
+      if (el.closest("header")) continue;
+      const box = el.getBoundingClientRect();
+      if (box.width === 0 && box.height === 0) continue;
+      out.push({
+        text: (el.textContent ?? "").trim().slice(0, 40),
+        cls: el.getAttribute("class") ?? "",
+        width: box.width,
+        height: box.height,
+      });
+    }
+    return out;
+  });
+}
+
+/** Открыть первую зону с вещами и вернуть адрес карточки первой её вещи. */
+async function firstItemHref(sheet: Locator): Promise<string> {
+  const tile = sheet.locator('a[href*="/i/"]').first();
+  await expect(tile, "в листе зоны нет ни одной дороги в карточку вещи").toBeVisible();
+  const href = await tile.getAttribute("href");
+  expect(href, "у плитки нет адреса карточки").toBeTruthy();
+  return href as string;
+}
+
+test("карточка вещи у ХОЗЯЙКИ: ровно одна полоса света, цели нажатия от 44", async ({ page }) => {
+  await openRoom(page);
+  const sheet = await openSeededZone(page);
+  const href = await firstItemHref(sheet);
+
+  await page.goto(href);
+  await expect(page.getByRole("heading", { level: 1 })).toBeVisible();
+
+  // ПОЛОСА СВЕТА У ХОЗЯЙКИ ЕСТЬ, И ОНА ОДНА (турн 22, contract → owner.order).
+  // Эта половина проверки — ещё и контроль для гостевой: детектор ищет живой
+  // рецепт, и если он перестанет находить полосу вообще, красной станет ЭТА
+  // проверка, а не молча зелёной гостевая.
+  const bars = await lightBars(page);
+  const accent = await accentRgb(page);
+  const targets = await cardTargets(page);
+  const smallest = targets.reduce((a, b) => (a.height < b.height ? a : b));
+
+  report("карточка хозяйки", {
+    адрес: href,
+    "полос света": bars.length,
+    полоса: bars[0]?.text ?? "",
+    акцент: accent,
+    целей: targets.length,
+    "самая низкая цель": `${smallest.text || smallest.cls.slice(0, 24)} ${smallest.height.toFixed(1)}`,
+  });
+
+  expect(
+    bars.map((bar) => `${bar.tag}.${bar.cls} «${bar.text}»`),
+    "полоса света у хозяйки должна быть ровно одна — главное действие",
+  ).toHaveLength(1);
+  const bar = bars[0] as LightBar;
+  expect(bar.tag, "полосой света обязана быть кнопка, а не оформление").toBe("button");
+  expect(bar.border, `граница полосы ${bar.border} вместо 2 px`).toBeGreaterThanOrEqual(2 - PX);
+  expect(bar.color, `полоса горит не акцентом комнаты (${accent})`).toBe(accent);
+  expect(bar.height, `цель полосы света ${bar.height.toFixed(1)} меньше 44`).toBeGreaterThanOrEqual(
+    44 - PX,
+  );
+
+  // ЦЕЛИ НАЖАТИЯ — контракт (`round45 → scaling`: 44 не переносится, оно
+  // абсолютное), и держать их обязана каждая: знаки в шапке карточки, огоньки
+  // «насколько хочется», строка полки, главное действие.
+  expect(targets.length, "у карточки хозяйки не нашлось ни одного действия").toBeGreaterThan(0);
+  for (const target of targets) {
+    expect(
+      target.height,
+      `цель «${target.text || target.cls}» ${target.height.toFixed(1)}×${target.width.toFixed(1)} ниже 44`,
+    ).toBeGreaterThanOrEqual(44 - PX);
+  }
+
+  await expectNoSideScroll(page, "карточка вещи у хозяйки");
+});
+
+test("карточка вещи у ГОСТЯ: ни одной полосы света, главное действие одно — бирка", async ({
+  page,
+}) => {
+  await signIn(page);
+  await page.goto("/settings");
+  const sharePath = (
+    await page
+      .getByText(/^\/r\//)
+      .first()
+      .textContent()
+  )?.trim();
+  expect(sharePath, "в настройках не нашёлся адрес комнаты").toBeTruthy();
+
+  // Гость приходит БЕЗ сессии — иначе это была бы хозяйка на своей же ссылке.
+  await page.context().clearCookies();
+  await page.goto(sharePath as string);
+  await expect(page.getByRole("heading", { level: 1 })).toBeVisible();
+
+  const sheet = zoneSheet(page);
+  const rows = page.locator(`${ZONE_INDEX} button`);
+  await expect(rows.first(), "указателя зон у гостя нет — комната стенда пуста?").toBeVisible();
+  const total = await rows.count();
+  let opened = false;
+  for (let i = 0; i < total; i += 1) {
+    const row = rows.nth(i);
+    if ((await row.innerText()).includes(EMPTY_ZONE_SUB)) continue;
+    await openZoneRow(row, sheet);
+    opened = true;
+    break;
+  }
+  expect(opened, "в комнате гостя нет ни одной зоны с вещами").toBe(true);
+
+  // Плитку берём ту, у которой бирка на месте: занятая вещь — отдельный случай
+  // контракта (`guest.taken`), и бирки у неё нет ПО ПРАВИЛУ.
+  const free = sheet.locator('li:has(button[class*="gift-tag"])').first();
+  await expect(
+    free,
+    "в зоне нет ни одной свободной вещи — все забронированы? проверь стенд",
+  ).toBeVisible();
+  const href = await free.locator('a[href*="/i/"]').first().getAttribute("href");
+  expect(href, "у свободной плитки нет адреса карточки").toBeTruthy();
+
+  await page.goto(href as string);
+  await expect(page.getByRole("heading", { level: 1 })).toBeVisible();
+
+  const bars = await lightBars(page);
+  const targets = await cardTargets(page);
+
+  report("карточка гостя", {
+    адрес: href ?? "",
+    "полос света": bars.length,
+    полосы: bars.map((bar) => `${bar.tag} «${bar.text}»`).join(" · "),
+    целей: targets.length,
+    цели: targets.map((t) => `${t.text || t.cls.slice(0, 18)}:${t.height.toFixed(0)}`).join(" · "),
+  });
+
+  // ГЛАВНОЕ ПРАВИЛО ЭКРАНА (contract → guest.tag.rule): «иначе главных
+  // действий два». Полосы света нет ни одной — ни своей, ни приехавшей из
+  // чужого модуля. Утверждение стоит ПЕРВЫМ: оно и есть смысл шага, и падать
+  // должно оно, а не замер бирки следом за ним.
+  expect(
+    bars.map((bar) => `${bar.tag}.${bar.cls} «${bar.text}»`),
+    "на гостевой карточке зажглась полоса света — главных действий стало два",
+  ).toEqual([]);
+
+  // …и действие ровно одно: бирка. Кнопка на этом экране должна быть ОДНА —
+  // не «бирка есть», а «кроме неё нажимать нечего». Появись рядом вторая
+  // (полоса света из чужого модуля, «Изменить» из хозяйкиной карточки) —
+  // красным станет именно это число.
+  const tag = page.locator('button[class*="gift-tag"]');
+  const buttons = page.locator("main button");
+  await expect(
+    buttons,
+    "в гостевой карточке должна быть ровно одна кнопка — бирка на нити",
+  ).toHaveCount(1);
+  await expect(buttons.first(), "единственная кнопка карточки — не бирка").toHaveClass(/gift-tag/u);
+  expect(
+    targets.filter((target) => target.cls.includes("gift-tag")),
+    "бирка не попала в цели нажатия",
+  ).toHaveLength(1);
+
+  /**
+   * РАЗМЕР БИРКИ МЕРЯЕТСЯ ДО ПОВОРОТА. `getBoundingClientRect()` возвращает
+   * описанный прямоугольник, а бирка в покое наклонена на −3°: 218×66 после
+   * поворота дают 221.2×77.3, и сверка с контрактом краснела бы на живой,
+   * правильно собранной бирке. Раскладка — `offsetWidth/Height`, наклон —
+   * отдельным утверждением по описанному прямоугольнику.
+   */
+  const tagBody = tag.locator('span[class*="__body"]').first();
+  await expect(tagBody, "тела бирки нет на экране").toBeVisible();
+  const tagShape = await tagBody.evaluate((el) => {
+    const node = el as HTMLElement;
+    const box = node.getBoundingClientRect();
+    return {
+      w: node.offsetWidth,
+      h: node.offsetHeight,
+      boxW: box.width,
+      boxH: box.height,
+      transform: getComputedStyle(node).transform,
+    };
+  });
+
+  report("бирка на нити", {
+    бирка: `${tagShape.w}×${tagShape.h}`,
+    "в наклоне": `${tagShape.boxW.toFixed(1)}×${tagShape.boxH.toFixed(1)}`,
+    поворот: tagShape.transform,
+  });
+
+  // Бирка — 218×66 абсолютными (contract → guest.tag), переносу на 375 не
+  // подлежит. Тело, а не корень: над телом висит нить, и она не цель.
+  expectSame(tagShape.w, 218, "ширина бирки");
+  expectSame(tagShape.h, 66, "высота бирки");
+  expect(tagShape.h, `цель бирки ${tagShape.h} меньше 44`).toBeGreaterThanOrEqual(44 - PX);
+  // Наклон покоя −3° (contract → guest.tag.tilt) — живой, а не строкой в CSS:
+  // повёрнутая бирка описана прямоугольником шире и выше себя самой.
+  expect(tagShape.transform, "бирка не повёрнута — наклона покоя нет").not.toBe("none");
+  expect(
+    tagShape.boxW,
+    `бирка стоит ровно: описанный прямоугольник ${tagShape.boxW.toFixed(1)} против ширины ${tagShape.w}`,
+  ).toBeGreaterThan(tagShape.w);
+
+  await expectNoSideScroll(page, "карточка вещи у гостя");
+});
+
+// ---------- Пакет 46: денежная тишина при скрытой цене ----------
+
+/**
+ * «ПРИ СКРЫТОЙ ЦЕНЕ ПРОДУКТ НЕ ПЕЧАТАЕТ НИ ОДНОГО ЧИСЛА ДЕНЕГ» (round46 →
+ * leak.rule). Дыру нашёл дизайн в нашей же починке 195: путь к вещи мы гостю
+ * вернули, а путь нёс число с собой — цены в строках магазинов.
+ *
+ * ЗАЧЕМ ЖИВЬЁМ, РАЗ ЕСТЬ ЮНИТ. Юнит смотрит в ДАННЫЕ (в гостевом DTO при
+ * скрытой цене нет ключей `price`/`currency`) — и это правильная половина. Но
+ * правило пакета сказано про ПЕЧАТЬ, а печатает экран: число может приехать из
+ * разобранной ссылки, из подписи «от», из чужого компонента, которому DTO не
+ * указ. Здесь проверяется напечатанное — текст экрана и разметка страницы.
+ *
+ * ПОЧЕМУ У ПРОВЕРКИ СВОЯ КОМНАТА. См. шапку файла: на стенде вещи со скрытой
+ * ценой нет ни одной, а чтением её не сделать. Комната здесь СВОЯ — своя почта
+ * с ярлыком прогона, свой `shareSlug`, две вещи-близнеца, отличающиеся ровно
+ * одним полем (`priceVisibility`). Ни строки стенда она не трогает и снимается
+ * целиком в `afterAll`.
+ *
+ * ДВЕ ВЕЩИ, А НЕ ОДНА, — чтобы проверка кусалась. Открытая цена показывает,
+ * что искатель денег их НАХОДИТ: не будь её, «денег не нашлось» значило бы
+ * «искать не умеем».
+ */
+test.describe("денежная тишина при скрытой цене (пакет 46)", () => {
+  /** Цена обеих вещей — одна и та же, различие ровно в её видимости. */
+  const PRICE = "14900";
+  /** Как её печатает продукт: `Intl` ставит узкий неразрывный пробел. */
+  const PRICE_DIGITS = /14[\s  ]*900/u;
+  /** Любой денежный знак: своё число, разобранное, «от», «примерно» — любое. */
+  const MONEY_MARK = /[₽$€]|\bRUB\b|руб/iu;
+  const SHOP_DOMAIN = "goldapple.ru";
+
+  const RUN = randomUUID().slice(0, 8);
+  const SLUG = `mc${RUN}`;
+  let userId = "";
+  let openHref = "";
+  let hiddenHref = "";
+
+  test.beforeAll(async () => {
+    const user = await prisma.user.create({
+      data: {
+        email: `card@run-${RUN}.mobile-layout.test`,
+        displayName: "Мила",
+        room: { create: { preset: "cream", zoneSet: "F", shareSlug: SLUG } },
+      },
+      include: { room: true },
+    });
+    userId = user.id;
+    const roomId = user.room?.id as string;
+    const common = {
+      roomId,
+      zone: "jewelry",
+      price: PRICE,
+      currency: "RUB",
+      note: "Ждала их два года",
+      desire: 3,
+    };
+    const open = await prisma.item.create({
+      data: {
+        ...common,
+        title: "Серьги-капли",
+        priceVisibility: "ALL",
+        url: `https://www.${SHOP_DOMAIN}/19000175823`,
+        canonicalUrl: `https://www.${SHOP_DOMAIN}/19000175823`,
+        domain: SHOP_DOMAIN,
+      },
+    });
+    const hidden = await prisma.item.create({
+      data: {
+        ...common,
+        title: "Кольцо тонкое",
+        // ЕДИНСТВЕННОЕ РАЗЛИЧИЕ ДВУХ ВЕЩЕЙ. Цена та же, ссылка та же, заметка
+        // та же — иначе разница на экране ничего бы не доказывала.
+        priceVisibility: "NONE",
+        url: `https://www.${SHOP_DOMAIN}/19000175824`,
+        canonicalUrl: `https://www.${SHOP_DOMAIN}/19000175824`,
+        domain: SHOP_DOMAIN,
+      },
+    });
+    openHref = `/r/${SLUG}/i/${open.id}`;
+    hiddenHref = `/r/${SLUG}/i/${hidden.id}`;
+  });
+
+  test.afterAll(async () => {
+    // Пользователь тянет за собой комнату и вещи каскадом схемы.
+    if (userId) await prisma.user.deleteMany({ where: { id: userId } });
+  });
+
+  /** Что НАПЕЧАТАНО: текст экрана и разметка страницы вместе с данными RSC. */
+  async function printed(page: Page): Promise<{ text: string; html: string }> {
+    const text = await page.locator("main").innerText();
+    return { text, html: await page.content() };
+  }
+
+  test("цена открыта — число на экране; цена скрыта — ни одного числа денег", async ({ page }) => {
+    // ---- Контроль: искатель денег их находит ----
+    await page.goto(openHref);
+    await expect(page.getByRole("heading", { level: 1 })).toBeVisible();
+    const shown = await printed(page);
+
+    report("цена открыта", {
+      адрес: openHref,
+      "денежный знак": String(MONEY_MARK.test(shown.text)),
+      "число цены": String(PRICE_DIGITS.test(shown.text)),
+      магазин: String(shown.text.includes(SHOP_DOMAIN)),
+    });
+
+    expect(shown.text, "у вещи с открытой ценой число обязано быть напечатано").toMatch(
+      PRICE_DIGITS,
+    );
+    expect(shown.text, "…и со знаком валюты").toMatch(MONEY_MARK);
+    expect(shown.text, "ссылка на магазин у открытой цены на месте").toContain(SHOP_DOMAIN);
+
+    // ---- Правило: та же вещь со скрытой ценой ----
+    await page.goto(hiddenHref);
+    await expect(page.getByRole("heading", { level: 1 })).toBeVisible();
+    const quiet = await printed(page);
+
+    report("цена скрыта", {
+      адрес: hiddenHref,
+      "денежный знак": String(MONEY_MARK.test(quiet.text)),
+      "число цены в тексте": String(PRICE_DIGITS.test(quiet.text)),
+      "число цены в разметке": String(PRICE_DIGITS.test(quiet.html)),
+      магазин: String(quiet.text.includes(SHOP_DOMAIN)),
+    });
+
+    expect(
+      quiet.text,
+      `при скрытой цене на экране напечатан денежный знак:\n${quiet.text}`,
+    ).not.toMatch(MONEY_MARK);
+    expect(quiet.text, "при скрытой цене на экране напечатано число цены").not.toMatch(
+      PRICE_DIGITS,
+    );
+    // «Ни в разметке, ни в данных» (round46 → leak.howToTest): у страницы RSC
+    // приезжает тем же документом, и число там значило бы, что оно доехало до
+    // браузера — печатать его осталось делом одной строки вёрстки.
+    expect(quiet.html, "число цены доехало до браузера в данных страницы").not.toMatch(
+      PRICE_DIGITS,
+    );
+
+    // …и ПУТЬ при этом остался (тикет 195 + round46 → anchor): скрытая цена
+    // прячет число, а не дорогу к вещи. Без этой половины «тишина» достигалась
+    // бы удалением блока магазинов целиком.
+    expect(quiet.text, "при скрытой цене пропала и дорога в магазин — починка 195 сломана").toContain(
+      SHOP_DOMAIN,
+    );
+
+    await expectNoSideScroll(page, "гостевая карточка со скрытой ценой");
+  });
 });

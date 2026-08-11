@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import type { CSSProperties, ReactNode } from "react";
 import Link from "next/link";
-import { getTranslations } from "next-intl/server";
+import { getLocale, getTranslations } from "next-intl/server";
 import { redirect } from "next/navigation";
 import { auth } from "@/server/auth";
 import { getOwnerProfile, getRoomForUser, getSessionUserId } from "@/server/services/rooms";
@@ -9,6 +9,8 @@ import { hallCountsByZone, listZoneItems } from "@/server/services/items";
 import { getHardenState, shouldAskToHarden } from "@/server/services/harden";
 import { ownerTakenTotal } from "@/server/services/goal";
 import { occasionBannerVisible } from "@/server/services/occasions";
+import { nearestRoomOccasion, occasionOffer } from "@/server/services/room-occasions";
+import { HOLIDAY_LABEL, OccasionOffer } from "@/components/occasion/occasion-offer";
 import { itemForOwner } from "@/server/dto/items";
 import {
   ownerSummaryItem,
@@ -72,6 +74,8 @@ export default async function RoomPage() {
   const tHall = await getTranslations("Hall");
   // Подписи времени суток — те же, что у ручки в настройках (тикет 96).
   const tSettings = await getTranslations("Settings");
+  // Праздники (тикет 198): имя ближайшего и слова плашки предложения.
+  const tOccasion = await getTranslations("Occasion");
   const preset = rooms.find((candidate) => candidate.id === room.preset);
   // Красивый адрес с ником, когда он занят (тикет 13); короткий код
   // продолжает работать редиректом.
@@ -104,6 +108,38 @@ export default async function RoomPage() {
   // в «что подарили» остались неотмеченные подарки. Голый boolean — о бронях
   // он говорит не больше счётчика.
   const showOccasionBanner = await occasionBannerVisible(userId);
+
+  // ПРАЗДНИКИ, КОТОРЫХ НЕ ОДИН (тикет 198). Два разных вопроса и две разные
+  // строки на экране:
+  //
+  // - `offer` — общая дата, до которой осталось меньше трёх недель и про
+  //   которую хозяйка ещё не ответила. Показывается плашкой В КАДРЕ; ни набора
+  //   зон, ни пола сервис для этого не читает и прочитать не может
+  //   (src/server/holidays.ts, правило «оба и всем»);
+  // - `nearest` — ЕДИНСТВЕННЫЙ праздник, который комната показывает: ближайший.
+  //   Список из пяти праздников в комнате — та же анкета, только показанная
+  //   вместо спрошенной; остальные живут списком в настройках.
+  const offer = await occasionOffer(userId);
+  const nearest = await nearestRoomOccasion(userId);
+  // Дата ближайшего — календарём платформы, а не словарём: «14 сентября» это
+  // календарь, а не наши слова (тот же довод, что у названий месяцев в выборе
+  // дня рождения). Пояс UTC — тот же, которым праздник живёт везде.
+  const locale = await getLocale();
+  const nearestLine = nearest
+    ? tOccasion("nearestLine", {
+        holiday:
+          nearest.kind === "own"
+            ? (nearest.title ?? "")
+            : nearest.kind === "birthday"
+              ? tOccasion("birthdayLabel")
+              : tOccasion(HOLIDAY_LABEL[nearest.key ?? "newYear"]),
+        date: new Intl.DateTimeFormat(locale, {
+          day: "numeric",
+          month: "long",
+          timeZone: "UTC",
+        }).format(nearest.date),
+      })
+    : null;
 
   // Сетки вещей для панелей зон и сводки для указателя зон (тикет 34) —
   // одним проходом по зонам: вещи из БД читаются один раз.
@@ -172,6 +208,21 @@ export default async function RoomPage() {
       <div className="imm-veil imm-veil-top" aria-hidden />
       <div className="imm-veil imm-veil-bottom" aria-hidden />
 
+      {/* ПЛАШКА ПРЕДЛОЖЕНИЯ ПРАЗДНИКА (тикет 198) — СЛОЙ, А НЕ БЛОК В ПОТОКЕ.
+          Стоит здесь, рядом с вуалью и полосами, ровно затем, чтобы её нельзя
+          было случайно поставить внутрь сцены или полосы: она лежит НА кадре
+          (globals.css → .imm-offer, absolute), в формулу коробки сцены не
+          входит и вещи с полками не двигает ни на пиксель. Место в кадре
+          выбрано пакетом: нижняя полоса — то самое место, которое кончается и
+          режется баром (тикет 188), а сверху затемнение уже лежит. */}
+      {offer && (
+        <OccasionOffer
+          holidayKey={offer.holiday.key}
+          daysLeft={offer.daysLeft}
+          accent={accent}
+        />
+      )}
+
       {/* Провайдер связывает сцену и указатель зон в нижней полосе (тикет 34):
           они лежат в соседних слоях раскладки, а состояние у них общее —
           какая зона подсвечена и какая открыта. */}
@@ -222,6 +273,12 @@ export default async function RoomPage() {
               {takenCount > 0 && (
                 <p className="overline text-text-muted">{t("takenCount", { count: takenCount })}</p>
               )}
+              {/* ОДИН ПРАЗДНИК, И ЭТО БЛИЖАЙШИЙ (тикет 198): «День рождения ·
+                  14 сентября». Стоит тем же тоном, что счётчик рядом, — это
+                  факт комнаты, а не объявление. Пять строк подряд были бы той
+                  же анкетой, только показанной вместо спрошенной; остальные
+                  праздники живут списком в настройках. */}
+              {nearestLine && <p className="overline text-text-muted">{nearestLine}</p>}
               {/* Праздник прошёл — тихая строка-ссылка на «что подарили»
                   (тикет 10): без баннерной яркости, тем же тоном, что счётчик. */}
               {showOccasionBanner && (
