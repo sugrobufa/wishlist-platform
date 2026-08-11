@@ -1,0 +1,35 @@
+{
+ "answersTo": "письмо 46 — строки верхнего блока настроек",
+ "format": "дельта: только новые и изменённые ключи",
+ "added": {
+  "Settings.tryOn": "Примерка",
+  "Settings.tryOnLine": "«{name}» пока только на этом кадре",
+  "Settings.tryOnCancel": "Оставить как есть",
+  "Light.overline": "Свет",
+  "Light.todMorning": "Утро",
+  "Light.todDay": "День",
+  "Light.todDusk": "Вечер",
+  "Light.colorWarm": "Тёплый",
+  "Light.colorWhite": "Белый",
+  "Light.colorCandle": "Свечной",
+  "Light.hint": "Свет меняется сразу — он ничего не двигает. Гость увидит комнату в нём же",
+  "Light.roomState": "{room} · {tod} · {light}",
+  "Light.stateMorning": "утро",
+  "Light.stateDay": "день",
+  "Light.stateDusk": "вечер",
+  "Light.stateWarm": "тёплый свет",
+  "Light.stateWhite": "белый свет",
+  "Light.stateCandle": "свечной свет"
+ },
+ "unchanged": [
+  "Settings.presetOverline — «Интерьер»",
+  "Settings.presetHint — цена переезда, слово в слово",
+  "Settings.presetApply — «Переехать»"
+ ],
+ "replaced": {
+  "was": "Гость видит комнату в свете, который выбрала хозяйка (жила только на доске, ключа не было)",
+  "now": "Light.hint",
+  "why": "новая строка говорит то же и вдобавок называет асимметрию: у света кнопки применения нет, у интерьера есть"
+ },
+ "genderCheck": "Все новые строки прогнаны правилом рода и падежной ловушкой: назывные, токен {name} стоит в кавычках и в именительном, падежных требований к нему нет."
+}
