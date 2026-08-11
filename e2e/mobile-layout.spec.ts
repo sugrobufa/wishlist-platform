@@ -587,3 +587,60 @@ test("карточка добавления: ничего не выезжает 
 
   await expectNoSideScroll(page, "карточка добавления");
 });
+
+test("настройки: кадр во всю ширину и держится, пока крутят обе ручки", async ({ page }) => {
+  // ЗАЧЕМ ЗДЕСЬ. Тикет 181 завёл крупный кадр вместо шести плиток 110×56,
+  // тикет 185 забрал из пакета 43 ширину во весь экран. Оба числа — про
+  // телефон и только про него: на десктопе кадр ограничен 520 и в столбце с
+  // полями. Проверять их в юните нечем — там нет вёрстки.
+  await signIn(page);
+  await page.goto("/settings");
+  await expect(page.getByRole("heading", { level: 1 })).toBeVisible();
+
+  const window = await page.evaluate(() => document.documentElement.clientWidth);
+  const frame = await rectOf(page.locator("main img, main [class*='frame']").first(), "кадр комнаты");
+
+  // ПРАВИЛО: кадр идёт во всю ширину окна. Поля столбца страницы (20 с каждой
+  // стороны) забраны отрицательным отступом — «кадр целиком, он и есть
+  // комната». До тикета 185 было 335.2 на 375.
+  expectSame(frame.width, window, "ширина кадра");
+  expectSame(frame.left, 0, "левая кромка кадра");
+
+  // Пропорция — система кадра 630×351 (ADR-0006), а не 16:9 макета. На 375
+  // это 208.9; шестнадцать девятых дали бы 210.9, и расхождение в 2 px есть
+  // ровно расхождение пропорций.
+  expectSame(frame.height, (window * 351) / 630, "высота кадра по пропорции 630/351");
+
+  // ПРАВИЛО: кадр остаётся на виду, пока человек внутри блока «Интерьер +
+  // Свет». Прокручиваем к НИЖНЕЙ ручке — цвету света — и требуем кадр на
+  // экране: ради этого случая липкость и заведена.
+  const colorRow = page.getByRole("button", { name: "Свечной" });
+  await colorRow.scrollIntoViewIfNeeded();
+  const knob = await rectOf(colorRow, "положение «Свечной»");
+  const stuck = await rectOf(page.locator("main img, main [class*='frame']").first(), "кадр после прокрутки");
+  const viewport = await page.evaluate(() => document.documentElement.clientHeight);
+
+  report("настройки", {
+    окно: `${window}×${viewport}`,
+    кадр: `${frame.width.toFixed(1)}×${frame.height.toFixed(1)}`,
+    "кадр после прокрутки": `${stuck.top.toFixed(1)}…${stuck.bottom.toFixed(1)}`,
+    "нижняя ручка": `${knob.top.toFixed(1)}…${knob.bottom.toFixed(1)}`,
+    "цель нажатия": knob.height.toFixed(1),
+  });
+
+  expect(
+    stuck.bottom,
+    `кадр уехал за верх окна: низ ${stuck.bottom.toFixed(1)}`,
+  ).toBeGreaterThan(0);
+  expect(
+    stuck.top,
+    `кадр уехал за низ окна: верх ${stuck.top.toFixed(1)} при высоте ${viewport}`,
+  ).toBeLessThan(viewport);
+
+  // Цель нажатия — контракт (`rooms.json → hitTargetMin`), а не вкус.
+  expect(knob.height, `цель нажатия ${knob.height.toFixed(1)} меньше 44`).toBeGreaterThanOrEqual(
+    44 - PX,
+  );
+
+  await expectNoSideScroll(page, "настройки");
+});
