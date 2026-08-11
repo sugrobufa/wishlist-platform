@@ -4,19 +4,14 @@
 // состоянием: зовёт server action, показывает отказ строкой ns Settings и
 // после успеха дотягивает свежие данные router.refresh() (страница
 // force-dynamic — сервер отдаёт правду, клиент ничего не выдумывает).
-import { useRef, useState, useTransition, type ReactNode } from "react";
+import { useRef, useState, useTransition, type CSSProperties, type ReactNode } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { IconCheck } from "@/components/icons";
-import {
-  gradingFilter,
-  LIGHT_COLORS,
-  TIMES_OF_DAY,
-  type LightColor,
-  type NativeTimeOfDay,
-  type TimeOfDay,
-} from "@/components/scene/grading";
+import { LIGHT_COLORS, TIMES_OF_DAY } from "@/components/scene/grading";
+import { useRoomStudio } from "./room-studio";
+import studio from "./room-studio.module.css";
 import {
   changePresetAction,
   presignAvatarAction,
@@ -32,17 +27,6 @@ import {
   type SettingsResult,
 } from "./actions";
 import { deleteAccountAction, type DeleteAccountError } from "./account-actions";
-
-// Форма карточки пресета — как в онбординге (тикет 01); сам компонент
-// онбординга не переиспользуем: там полноэкранный флоу со своим сабмитом.
-export type PresetCard = {
-  id: string;
-  name: string;
-  sex: "F" | "M";
-  accent: string;
-  ink: string;
-  imageUrl: string;
-};
 
 type ZoneSet = "F" | "M" | "ALL";
 const ZONE_SETS: ZoneSet[] = ["F", "M", "ALL"];
@@ -338,28 +322,37 @@ export function NickSection({
 
 // ---------- Интерьер: набор зон + лента пресетов ----------
 
+/**
+ * ЛЕНТА ВЫБИРАЕТ КАДР, А КОМНАТУ МЕНЯЕТ ТОЛЬКО «ПЕРЕЕХАТЬ» (тикет 181).
+ *
+ * Тап по плитке зовёт `select` — это состояние кадра и ничего больше. Смена
+ * интерьера двигает вещи между полками («где полки совпадут — останутся,
+ * остальные переедут в „Что угодно"»), и делать это по тапу нельзя: комнату
+ * пишет ровно один вызов `changePresetAction` в `apply()` ниже.
+ */
 export function PresetSection({
-  presets,
-  currentPreset,
   zoneSet,
   accent,
 }: {
-  presets: PresetCard[];
-  currentPreset: string;
   zoneSet: ZoneSet;
   accent: string;
 }) {
   const t = useTranslations("Settings");
   const router = useRouter();
   const { busy, error, run } = useSettingsAction();
-  const [selected, setSelected] = useState(currentPreset);
+  const { cards, currentPreset, shown, pending, select } = useRoomStudio();
   const [moved, setMoved] = useState<number | null>(null);
   const [zoneSetBusy, setZoneSetBusy] = useState(false);
   const [, startTransition] = useTransition();
 
-  const feed = zoneSet === "ALL" ? presets : presets.filter((preset) => preset.sex === zoneSet);
-  const selectedCard = feed.find((preset) => preset.id === selected);
-  const dirty = selected !== currentPreset && selectedCard != null;
+  const feed = zoneSet === "ALL" ? cards : cards.filter((preset) => preset.sex === zoneSet);
+  // «ПЕРЕЕХАТЬ» ПРЕДЛАГАЕТСЯ ПО КАДРУ, А НЕ ПО ЛЕНТЕ. Раньше кнопка искала
+  // выбранное в ОТФИЛЬТРОВАННОЙ ленте и пропадала, стоило переключить
+  // заготовку полок: выбранный интерьер уходил из ленты, кадр продолжал его
+  // показывать, а применить его становилось нечем. Оба числа берутся теперь из
+  // одного места — из кадра.
+  const selectedCard = shown;
+  const dirty = pending;
 
   function pickZoneSet(set: ZoneSet) {
     if (set === zoneSet || zoneSetBusy) return;
@@ -408,17 +401,18 @@ export function PresetSection({
         })}
       </div>
 
-      {/* Лента пресетов — плитки как в онбординге (кадр, градиент, галка). */}
+      {/* Лента пресетов — плитки как в онбординге (кадр, градиент, галка).
+          Стоит ПОД крупным кадром: тап меняет его, а не комнату. */}
       <div className="grid grid-cols-2 gap-2.5 md:grid-cols-3">
         {feed.map((preset) => {
-          const active = preset.id === selected;
+          const active = preset.id === shown?.id;
           const isCurrent = preset.id === currentPreset;
           return (
             <button
               key={preset.id}
               type="button"
               aria-pressed={active}
-              onClick={() => setSelected(preset.id)}
+              onClick={() => select(preset.id)}
               className="pressable relative aspect-[186/112] overflow-hidden text-left"
               style={active ? { boxShadow: `0 0 0 2px ${preset.accent}` } : undefined}
             >
@@ -915,45 +909,67 @@ export function HallSection({
 // ---------- Свет и время суток (тикет 96, доска Б6 · турн 11e) ----------
 
 /**
+ * Именованное положение ручки света (тикет 181).
+ *
+ * ВЫБРАННОЕ ВИДНО БЕЗ СРАВНЕНИЯ С СОСЕДЯМИ — половина жалобы «непонятно».
+ * До тикета единственным отличием был ЦВЕТ СЛОВА: чтобы понять, что выбрано,
+ * приходилось прочесть все три подписи и сравнить их между собой. Признака
+ * теперь два, и каждого хватает поодиночке: заливка акцентом комнаты и
+ * галочка внутри. Цель нажатия — `--hit-target-min` из контракта.
+ */
+function LightKnob({
+  on,
+  accent,
+  ink,
+  busy,
+  onClick,
+  children,
+}: {
+  on: boolean;
+  accent: string;
+  ink: string;
+  busy: boolean;
+  onClick: () => void;
+  children: ReactNode;
+}) {
+  return (
+    <button
+      type="button"
+      disabled={busy}
+      aria-pressed={on}
+      onClick={onClick}
+      className={on ? `pressable ${studio.knob} ${studio.knobOn}` : `pressable ${studio.knob}`}
+      style={on ? ({ "--knob-accent": accent, "--knob-ink": ink } as CSSProperties) : undefined}
+    >
+      {/* Галочка «Дошло» из набора; на малом кегле контур утолщён до 3 —
+          оптическая компенсация (см. components/icons.tsx). */}
+      {on && <IconCheck size={13} strokeWidth={3} />}
+      {children}
+    </button>
+  );
+}
+
+/**
  * Две последние ручки персонализации: «если у всех одинаковая комната,
- * метафора умирает». Плитка каждого положения показывает СВОЮ комнату с
- * применённым рецептом — выбирают не по названию, а по картинке.
+ * метафора умирает».
+ *
+ * ПРЕВЬЮ ЗДЕСЬ БОЛЬШЕ НЕ ЖИВЁТ (тикет 181, приёмка владельца 11.08.2026:
+ * «выбор света роняет непонятно, просто мигает экран»). Раньше каждое
+ * положение было плиткой 110×56 со своей копией комнаты под своим рецептом:
+ * плитка была честной — она и есть превью, только размером с ноготь, — и
+ * разница между днём и вечером на такой площади читалась не как ВЫБОР, а как
+ * мигание. Теперь превью одно и крупное, стоит выше по блоку (`RoomStudio`),
+ * и слушается обеих ручек сразу; здесь остались имена положений.
  *
  * Кнопки «Сохранить» здесь нет: ручка меняет комнату на глазах, и
  * подтверждать нечего. Сохраняется по нажатию, гость увидит выбор хозяйки.
  */
-export function LightSection({
-  roomImage,
-  timeOfDay,
-  lightColor,
-  accent,
-  nativeTod,
-}: {
-  roomImage: string;
-  timeOfDay: TimeOfDay;
-  lightColor: LightColor;
-  accent: string;
-  /**
-   * Родное время суток базы (тикет 107). Превью обязано считать от него же,
-   * что и сама комната: иначе выбор «по картинке» показывает одно, а комната
-   * становится другой — и у ночных баз это расхождение вдвое.
-   *
-   * ТИП ШИРЕ, ЧЕМ У РУЧКИ (тикет 133): выбрать «ночь» больше нельзя, а базы,
-   * снятые ночью, никуда не делись — их четыре из десяти.
-   */
-  nativeTod: NativeTimeOfDay;
-}) {
+export function LightSection({ accent, ink }: { accent: string; ink: string }) {
   const t = useTranslations("Settings");
   const { busy, error, run } = useSettingsAction();
-  // Оптимистично: картинка обязана меняться в момент нажатия, иначе выбор
-  // «по картинке» превращается в выбор вслепую с задержкой сервера.
-  const [tod, setTod] = useState(timeOfDay);
-  const [color, setColor] = useState(lightColor);
-
-  const tile = (previewTod: TimeOfDay, previewColor: LightColor) => ({
-    backgroundImage: `url(${roomImage})`,
-    filter: gradingFilter(previewTod, previewColor, nativeTod),
-  });
+  // Оптимистичность цела: обе ручки живут в состоянии кадра и меняют его в
+  // момент нажатия, а не после ответа сервера.
+  const { timeOfDay, setTimeOfDay, lightColor, setLightColor } = useRoomStudio();
 
   return (
     <Section overline={t("lightOverline")}>
@@ -962,65 +978,44 @@ export function LightSection({
       <p className="overline text-text-muted">{t("todLabel")}</p>
       {/* ТРИ ПОЛОЖЕНИЯ, А НЕ ЧЕТЫРЕ (тикет 133): «ночь» упразднена — она давала
           тот же кадр, что вечер, а два одинаковых положения с разными именами
-          это ложь интерфейсу. Число колонок берётся не из головы: оно обязано
-          совпадать с длиной TIMES_OF_DAY, иначе в ряду появится пустая клетка. */}
-      <div className="grid grid-cols-3 gap-2">
+          это ложь интерфейсу. Ряд берёт их из TIMES_OF_DAY, а не из головы. */}
+      <div className={studio.knobRow}>
         {TIMES_OF_DAY.map((option) => (
-          <button
+          <LightKnob
             key={option}
-            type="button"
-            disabled={busy}
-            aria-pressed={tod === option}
+            on={timeOfDay === option}
+            accent={accent}
+            ink={ink}
+            busy={busy}
             onClick={() => {
               // Времянки «ночь = свеча» здесь больше нет (тикет 112): тёплый
               // свет ламп теперь ВНУТРИ ночного рецепта, и цвет света снова
               // независимая ручка — выбор хозяйки уважается во всех временах.
-              setTod(option);
+              setTimeOfDay(option);
               run(() => setLightSettingsAction({ timeOfDay: option }));
             }}
-            className="pressable flex flex-col gap-1.5 disabled:opacity-60"
           >
-            <span
-              className="block h-14 w-full bg-cover bg-center"
-              style={tile(option, color)}
-              aria-hidden
-            />
-            <span
-              className="text-[10px] font-semibold"
-              style={{ color: tod === option ? accent : undefined }}
-            >
-              {t(`tod_${option}`)}
-            </span>
-          </button>
+            {t(`tod_${option}`)}
+          </LightKnob>
         ))}
       </div>
 
       <p className="overline mt-1 text-text-muted">{t("lightColorLabel")}</p>
-      <div className="grid grid-cols-3 gap-2">
+      <div className={studio.knobRow}>
         {LIGHT_COLORS.map((option) => (
-          <button
+          <LightKnob
             key={option}
-            type="button"
-            disabled={busy}
-            aria-pressed={color === option}
+            on={lightColor === option}
+            accent={accent}
+            ink={ink}
+            busy={busy}
             onClick={() => {
-              setColor(option);
+              setLightColor(option);
               run(() => setLightSettingsAction({ lightColor: option }));
             }}
-            className="pressable flex flex-col gap-1.5 disabled:opacity-60"
           >
-            <span
-              className="block h-14 w-full bg-cover bg-center"
-              style={tile(tod, option)}
-              aria-hidden
-            />
-            <span
-              className="text-[10px] font-semibold"
-              style={{ color: color === option ? accent : undefined }}
-            >
-              {t(`light_${option}`)}
-            </span>
-          </button>
+            {t(`light_${option}`)}
+          </LightKnob>
         ))}
       </div>
 

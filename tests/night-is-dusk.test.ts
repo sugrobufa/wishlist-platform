@@ -31,6 +31,11 @@ const read = (relative: string) =>
   readFileSync(fileURLToPath(new URL(relative, import.meta.url)), "utf8");
 
 const settings = read("../src/app/settings/settings-sections.tsx");
+// Кадр настроек уехал из файла секций в свои два (тикет 181): ряд положений
+// набран классом общего CSS-модуля, а родное время суток базы живёт в чистом
+// `room-preview.ts`. Проверки те же — читают теперь оттуда.
+const studioCss = read("../src/app/settings/room-studio.module.css");
+const preview = read("../src/app/settings/room-preview.ts");
 const roomsService = read("../src/server/services/rooms.ts");
 const schema = read("../prisma/schema.prisma");
 const grading = read("../src/components/scene/grading.ts");
@@ -48,14 +53,19 @@ const task34 = JSON.parse(
 };
 
 describe("ручка в настройках: три положения, не четыре", () => {
-  it("плиток ровно столько, сколько положений", () => {
-    // Число колонок в сетке — не украшение: с `grid-cols-4` в ряду осталась бы
-    // пустая клетка на месте снятой ночи.
+  it("положений ровно столько, сколько в словаре ручки", () => {
+    // Число колонок в ряду — не украшение: с четырьмя в нём осталась бы пустая
+    // клетка на месте снятой ночи.
+    //
+    // РЯД ПЕРЕЕХАЛ ИЗ УТИЛИТ В МОДУЛЬ (тикет 181): плитки в 56 px заменены
+    // именованными положениями, и сетка задаётся классом `.knobRow`. Проверка
+    // та же и в той же силе — три колонки и ни одной четвёртой.
     expect(TIMES_OF_DAY).toHaveLength(3);
-    expect(settings).toContain('<div className="grid grid-cols-3 gap-2">');
-    expect(settings).not.toContain('<div className="grid grid-cols-4 gap-2">');
-    // Плитки рисуются перебором словаря, а не списком руками — иначе четвёртая
-    // однажды вернулась бы отдельной строкой.
+    expect(studioCss).toMatch(/\.knobRow\s*\{[^}]*grid-template-columns:\s*repeat\(3,/u);
+    expect(studioCss).not.toMatch(/grid-template-columns:\s*repeat\(4,/u);
+    expect(settings).toContain("<div className={studio.knobRow}>");
+    // Положения рисуются перебором словаря, а не списком руками — иначе
+    // четвёртое однажды вернулось бы отдельной строкой.
     expect(settings).toContain("{TIMES_OF_DAY.map((option) => (");
   });
 
@@ -63,8 +73,12 @@ describe("ручка в настройках: три положения, не ч
     // Четыре базы из десяти сняты ночью. Превью обязано считать от родного
     // времени базы, иначе выбор «по картинке» покажет одно, а комната станет
     // другой — у ночных баз это расхождение вдвое (тикет 107).
-    expect(settings).toContain("nativeTod: NativeTimeOfDay;");
-    expect(settings).toContain("type NativeTimeOfDay,");
+    //
+    // Значение переехало из пропа секции в карточку кадра (тикет 181): крупный
+    // кадр показывает ВЫБРАННЫЙ интерьер, и считать грейдинг он обязан от его
+    // фотографии, а не от той, что стоит в комнате.
+    expect(preview).toContain("tod: NativeTimeOfDay;");
+    expect(preview).toContain('import type { NativeTimeOfDay } from "@/components/scene/grading"');
   });
 });
 

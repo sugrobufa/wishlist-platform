@@ -17,6 +17,8 @@ import { hallSettingsOf } from "@/server/dto/hall";
 import { countItemsByZone } from "@/server/services/items";
 import { getHardenState } from "@/server/services/harden";
 import { asLightColor, asTimeOfDay } from "@/components/scene/grading";
+import { RoomStudio } from "./room-studio";
+import type { PresetCard } from "./room-preview";
 import {
   AccessSection,
   DataSection,
@@ -28,7 +30,6 @@ import {
   ProfileSection,
   ZonesSection,
   type HallSettingsView,
-  type PresetCard,
 } from "./settings-sections";
 
 export const dynamic = "force-dynamic";
@@ -66,6 +67,10 @@ export default async function SettingsPage() {
     accent: candidate.accent,
     ink: candidate.ink,
     imageUrl: roomImageUrl(candidate.base),
+    // Родное время суток базы (тикет 107): от него крупный кадр считает
+    // грейдинг — так же, как сама комната. Без него превью чужого интерьера
+    // показывало бы одно, а комната после переезда стала бы другой.
+    tod: candidate.tod,
   }));
 
   // Чекбокс-плитки — зоны ТЕКУЩЕГО пресета (подписи из zones.json) со
@@ -114,24 +119,26 @@ export default async function SettingsPage() {
             владелец про них не говорил. Порядок держит тест
             `tests/settings-order.test.ts` — он обязан упасть при следующем
             нечаянном переезде. */}
-        <PresetSection
-          presets={presetCards}
+        {/* КРУПНЫЙ КАДР НА ДВЕ РУЧКИ (тикет 181, та же постановка 11.08.2026).
+            Обёртка не трогает порядок разделов: «Интерьер» и «Свет» стоят в ней
+            ровно так же, как стояли, — она добавляет им общий липкий кадр
+            сверху и общее состояние («что человек смотрит»), потому что
+            обработчики не пересекают RSC-границу. Кадр показывает ВЫБРАННОЕ,
+            комнату по-прежнему меняет только «Переехать». */}
+        <RoomStudio
+          cards={presetCards}
           currentPreset={room.preset}
-          zoneSet={zoneSet}
-          accent={accent}
-        />
-        {/* Свет и время суток (тикет 96) — сразу за интерьером: это
-            продолжение выбора комнаты. Раздел условный и обязан таким
-            остаться: без знакомого пресета считать грейдинг не от чего. */}
-        {preset && (
-          <LightSection
-            roomImage={roomImageUrl(preset.base)}
-            timeOfDay={asTimeOfDay(room.timeOfDay)}
-            lightColor={asLightColor(room.lightColor)}
-            accent={accent}
-            nativeTod={preset.tod}
-          />
-        )}
+          timeOfDay={asTimeOfDay(room.timeOfDay)}
+          lightColor={asLightColor(room.lightColor)}
+        >
+          <PresetSection zoneSet={zoneSet} accent={accent} />
+          {/* Свет и время суток (тикет 96) — сразу за интерьером: это
+              продолжение выбора комнаты. Раздел условный и обязан таким
+              остаться: без знакомого пресета считать грейдинг не от чего. */}
+          {preset && (
+            <LightSection accent={accent} ink={preset.ink} />
+          )}
+        </RoomStudio>
         <ProfileSection
           displayName={profile.displayName}
           avatarUrl={profile.avatarUrl}
