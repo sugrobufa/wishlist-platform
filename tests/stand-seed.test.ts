@@ -13,6 +13,11 @@
 //   • СОСТАВ: оба места в каждой зоне; зона с шестью и более вещами (правило
 //     тикета 59 иначе негде увидеть); «уже своё» с дарителем и годом — в зале
 //     славы;
+//   • В ОДНОЙ ЗОНЕ НЕ ХОТЯТ ТОГО, ЧТО ТАМ УЖЕ СВОЁ (тикет 183): ни одно
+//     название не стоит одновременно в комнате и в сокровищнице одной зоны —
+//     по всем десяти пресетам, а не только на cream. До правки таких пар было
+//     сто (одиннадцать на cream), и это была не косметика: «хочу букет пионов»
+//     при живом букете пионов на витрине — неправда про хозяйку;
 //   • ФОТО лежат в НАШЕМ S3 ключом items/{roomId}/… — пути дизайн-пакета
 //     («refs/p-*.jpg») в БД не попадают ни одной строкой (инвариант №6);
 //     кадр, которого нет файлом в пакете, отбрасывается вместе с картинкой,
@@ -27,21 +32,29 @@ import { randomUUID } from "node:crypto";
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { attemptQuickLogin, type QuickLoginEnv } from "@/server/quick-login";
-import { seedStandRoom, type StandSeedResult, type StandSeedStorage } from "@/server/services/stand-seed";
+import {
+  seedStandRoom,
+  spilloverPoolFor,
+  standZoneSeeds,
+  type StandSeedResult,
+  type StandSeedStorage,
+} from "@/server/services/stand-seed";
 import { listHallItems } from "@/server/services/items";
 import {
   livePoolSeeds,
   packagePhotoFor,
   packSeedsPhotosMissing,
-  standPoolSeeds,
+  withoutOwnedWishes,
+  type PackSeed,
 } from "@/server/services/pack-seeds";
 import { demoPools } from "@/config/demo-pools";
 import { rooms as roomPresets } from "@/config/design";
 import DevLoginPage from "../src/app/dev-login/page";
 import { prisma } from "../src/server/db";
 
-// ПОЧЕМУ У ФАЙЛА СВОЙ ТАЙМАУТ. С тикета 175 посев кладёт в комнату 91 вещь
-// вместо 55 (комната — контрактом, сокровищница — демо-пулами), и каждая идёт
+// ПОЧЕМУ У ФАЙЛА СВОЙ ТАЙМАУТ. С тикета 175 посев кладёт в комнату 80 вещей
+// вместо 55 (комната — контрактом, сокровищница — демо-пулами; тикет 183 снял
+// из этих 91 одиннадцать «хочу то, что уже своё»), и каждая идёт
 // продуктовой дверью `createItem`: своя запись, своё событие ленты, своя
 // инвалидация кэша. В одиночку файл укладывается в три с половиной секунды,
 // но под полным прогоном (четыре форка на одной dev-БД) самый тяжёлый тест
@@ -156,9 +169,14 @@ function presetZones(preset: string = PRESET) {
   return room.zones;
 }
 
-/** Сколько вещей даёт пул посеву — обе половины вместе (тикет 175). */
-function poolSize(poolKey: string): number {
-  return standPoolSeeds(poolKey).length;
+/**
+ * Сколько вещей посев положит в зону: обе половины пула (тикет 175) минус
+ * желания, которые в этой же зоне уже стоят на витрине (тикет 183).
+ */
+function zoneSize(zoneKey: string, spilloverPool: string | null = null): number {
+  const zone = presetZones().find((candidate) => candidate.key === zoneKey);
+  if (!zone) throw new Error(`зоны ${zoneKey} нет в пресете ${PRESET}`);
+  return standZoneSeeds(zone, spilloverPool).seeds.length;
 }
 
 /** Названия желаний пула — контракт дизайна, как у живого человека. */
@@ -170,6 +188,39 @@ function contractTitles(poolKey: string): string[] {
 function hallTitles(poolKey: string): string[] {
   const pool = Object.hasOwn(demoPools, poolKey) ? demoPools[poolKey]! : [];
   return pool.filter((seed) => seed.mine).map((seed) => seed.title);
+}
+
+/** Вещь в том виде, в каком её сравнивает правило тикета 183. */
+type PlacedItem = { zone: string; title: string; inHall: boolean };
+
+/**
+ * Название для сравнения: регистр и лишние пробелы, больше ничего (тикет 183).
+ * Нормализатор у теста СВОЙ, а не взятый из посева: возьми он посевный —
+ * сломайся тот, и тест смотрел бы на комнату теми же сломанными глазами.
+ * Умнее не надо: «Парфюм Nº7» и «Парфюм № 7» здесь разные вещи.
+ */
+function sameThing(title: string): string {
+  return title.replace(/\s+/g, " ").trim().toLowerCase();
+}
+
+/**
+ * Пары «одно и то же название в комнате и в сокровищнице ОДНОЙ зоны» —
+ * то самое «хочу то, что у меня уже есть», которое приёмка видит в два тапа
+ * (комната и витрина открываются друг от друга). Зона — единица сравнения:
+ * букет пионов на витрине спальни ничего не говорит про букет в прихожей.
+ */
+function wantedButOwned(items: readonly PlacedItem[]): string[] {
+  const owned = new Map<string, Set<string>>();
+  for (const item of items) {
+    if (!item.inHall) continue;
+    const titles = owned.get(item.zone) ?? new Set<string>();
+    titles.add(sameThing(item.title));
+    owned.set(item.zone, titles);
+  }
+  return items
+    .filter((item) => !item.inHall && owned.get(item.zone)?.has(sameThing(item.title)))
+    .map((item) => `${item.zone}: ${item.title}`)
+    .sort();
 }
 
 afterEach(() => {
@@ -310,8 +361,8 @@ describe("состав посева", () => {
 
     for (const zone of presetZones()) {
       const created = await prisma.item.count({ where: { roomId, zone: zone.key } });
-      const expected = poolSize(zone.pool) + (zone.key === "anything" ? poolSize(result.spilloverPool ?? "") : 0);
-      expect(created, `зона ${zone.key}`).toBe(expected);
+      // Пул целиком, КРОМЕ желаний, которые в этой же зоне уже свои (тикет 183).
+      expect(created, `зона ${zone.key}`).toBe(zoneSize(zone.key, result.spilloverPool));
     }
   });
 
@@ -386,10 +437,13 @@ describe("состав посева", () => {
         where: { roomId, zone: zone.key, inHall: false },
         select: { title: true, price: true },
       });
+      // Контракт целиком, кроме желаний, которые в этой зоне уже свои: их
+      // посев не заводит (тикет 183), и это единственное расхождение с пакетом.
+      const owned = new Set(standZoneSeeds(zone, result.spilloverPool).ownedWishes);
       const seeds = [
         ...livePoolSeeds(zone.pool),
         ...(zone.key === "anything" ? livePoolSeeds(result.spilloverPool ?? "") : []),
-      ];
+      ].filter((seed) => !owned.has(seed.title));
 
       expect(wants.map((item) => item.title).sort(), `зона ${zone.key}`).toEqual(
         seeds.map((seed) => seed.title).sort(),
@@ -422,10 +476,7 @@ describe("состав посева", () => {
     // по кнопке «начни с готового» получал вещи из пакета — две разные комнаты.
     const seeded = new Set(
       presetZones()
-        .flatMap((zone) => [
-          ...standPoolSeeds(zone.pool),
-          ...(zone.key === "anything" ? standPoolSeeds(result.spilloverPool ?? "") : []),
-        ])
+        .flatMap((zone) => standZoneSeeds(zone, result.spilloverPool).seeds)
         .map((seed) => seed.title),
     );
     const demoOnlyWishes = new Set<string>();
@@ -444,6 +495,39 @@ describe("состав посева", () => {
       select: { title: true, zone: true },
     });
     expect(found).toEqual([]);
+  });
+
+  // ------------------------- «в одной зоне не хотят того, что там уже своё»
+
+  it("ни одно название не стоит одновременно в комнате и в сокровищнице зоны", async () => {
+    // Тикет 183. Половины посева приезжают из разных источников и называют
+    // вещи одинаково: контракт хочет «Букет пионов», демо-пул кладёт его же на
+    // витрину. В базе это не дубль — экраны разные, — но человеку комната
+    // говорит неправду: «хочу букет пионов» при живом букете на витрине.
+    const items = await prisma.item.findMany({
+      where: { roomId },
+      select: { zone: true, title: true, inHall: true },
+    });
+    const pairs = wantedButOwned(items);
+
+    expect(pairs, `пар «хочу то, что уже своё» на ${PRESET}: ${pairs.length}`).toEqual([]);
+  });
+
+  it("потеря названа числом: на cream комната 54 вместо 65, всего 80 вместо 91", async () => {
+    // Числа держатся руками намеренно: посев считается двумя источниками, и
+    // молчаливая смена любого из них должна быть видна тестом, а не глазами на
+    // приёмке. До тикета 183 было 65 / 26 / 91 и одиннадцать неправд; стало
+    // 54 / 26 / 80. Приедет следующий контракт — числа изменит он, и правка
+    // здесь будет осознанной.
+    const room = await prisma.item.count({ where: { roomId, inHall: false } });
+    const hall = await prisma.item.count({ where: { roomId, inHall: true } });
+
+    expect({ room, hall, all: room + hall }).toEqual({ room: 54, hall: 26, all: 80 });
+    expect(result.itemsCreated).toBe(80);
+    expect(result.ownedWishes, "желаний не заведено, потому что вещь уже своя").toBe(11);
+    // И отчёт зоны не молчит: одиннадцать пар распределены по зонам, а не
+    // свалены в общий счётчик.
+    expect(result.zones.reduce((sum, zone) => sum + zone.ownedWishes, 0)).toBe(11);
   });
 
   it("«люблю» с дарителем и годом уехали в зал славы — витрина не пустая", async () => {
@@ -527,6 +611,83 @@ describe("состав посева", () => {
   });
 });
 
+// ------------------------------ в одной зоне не хотят того, что там уже своё
+
+/**
+ * ТИКЕТ 183, ВСЕ ДЕСЯТЬ ПРЕСЕТОВ. На стенде видна одна комната, а комнат в
+ * продукте десять, и совпадения в них разные: где-то одиннадцать пар, где-то
+ * восемь. Проверять одну — значит починить cream и не заметить остальные.
+ *
+ * Здесь проверяется ПЛАН посева — что зона получит, — а не строки в базе:
+ * настоящий посев десяти комнат стоит около минуты (замер 11.08: 53 с даже без
+ * S3), и такому месту в наборе юнитов не место. План с базой связан соседним
+ * файлом-тестом: describe «состав посева» сеет cream по-настоящему и проверяет
+ * ровно то же самое по строкам БД. План собирается ПРОДУКТОВЫМИ функциями
+ * (`spilloverPoolFor`, `standZoneSeeds`) — своей копии правил у теста нет.
+ */
+describe("в одной зоне не хотят того, что там уже своё", () => {
+  /** Что посев положит в комнату пресета — в том же виде, что ляжет в БД. */
+  function planFor(presetId: string): PlacedItem[] {
+    const preset = roomPresets.find((candidate) => candidate.id === presetId);
+    if (!preset) throw new Error(`пресета ${presetId} нет в rooms.json`);
+    const spillover = spilloverPoolFor(preset.zones);
+    return preset.zones.flatMap((zone) =>
+      standZoneSeeds(zone, spillover).seeds.map((seed) => ({
+        zone: zone.key,
+        title: seed.title,
+        inHall: seed.mine,
+      })),
+    );
+  }
+
+  /** Числа комнаты: «комната / сокровищница / всего». */
+  function countsFor(presetId: string) {
+    const items = planFor(presetId);
+    const hall = items.filter((item) => item.inHall).length;
+    return { room: items.length - hall, hall, all: items.length };
+  }
+
+  it("ни одного одинакового названия — во всех десяти комнатах, а не только на cream", () => {
+    expect(roomPresets, "пресетов должно быть десять").toHaveLength(10);
+
+    const pairs = roomPresets.flatMap((preset) =>
+      wantedButOwned(planFor(preset.id)).map((pair) => `${preset.id}/${pair}`),
+    );
+
+    expect(pairs, `пар «хочу то, что уже своё» по всем пресетам: ${pairs.length}`).toEqual([]);
+  });
+
+  it("числа стенда: cream 54/26/80 (13 зон), warm 49/24/73 (12 зон)", () => {
+    // До тикета 183: cream 65/26/91, warm 60/24/84 — по одиннадцать пар в
+    // каждой. Сокровищница не изменилась ни на вещь: правило снимает ЖЕЛАНИЕ,
+    // а не «уже своё» (комната — чего хочется, витрина — что уже моё).
+    expect(presetZones("warm"), "warm — тот самый 12-зонный пресет").toHaveLength(12);
+
+    expect(countsFor("cream")).toEqual({ room: 54, hall: 26, all: 80 });
+    expect(countsFor("warm")).toEqual({ room: 49, hall: 24, all: 73 });
+  });
+
+  it("сравнение по нормализованному виду: регистр и лишние пробелы", () => {
+    // Правило снимает желание и тогда, когда витрина написала то же название
+    // другим регистром или с лишним пробелом. «Умнее» правило быть не должно:
+    // «Парфюм Nº7» и «Парфюм № 7» — разные строки, и разными остаются.
+    const seeds: PackSeed[] = [
+      { mine: false, title: "  Ночной   КРЕМ ", priceRub: 4300 },
+      { mine: false, title: "Парфюм № 7", priceRub: 12000 },
+      { mine: true, title: "Ночной крем" },
+      { mine: true, title: "Парфюм Nº7" },
+    ];
+
+    expect(withoutOwnedWishes(seeds).map((seed) => seed.title)).toEqual([
+      "Парфюм № 7",
+      "Ночной крем",
+      "Парфюм Nº7",
+    ]);
+    // Порядок половин не переставлен: сначала комната, потом сокровищница.
+    expect(withoutOwnedWishes(seeds).map((seed) => seed.mine)).toEqual([false, true, true]);
+  });
+});
+
 // ------------------------------------------------- идемпотентность и «не удалять»
 
 describe("посев только добавляет", () => {
@@ -569,7 +730,7 @@ describe("посев только добавляет", () => {
     expect(result.zones.find((zone) => zone.zone === "books")?.skipped).toBe("has-items");
     // Соседняя зона наполнена как обычно.
     expect(await prisma.item.count({ where: { roomId: owner.room.id, zone: "home" } })).toBe(
-      poolSize("home"),
+      zoneSize("home"),
     );
   });
 

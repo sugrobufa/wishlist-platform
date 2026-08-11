@@ -30,6 +30,18 @@
 // поедет, а кадр, которого нет файлом в `design/package/refs/`, отбрасывается
 // вместе с картинкой, но не с вещью (число — в `contractPhotosMissing`).
 //
+// В ОДНОЙ ЗОНЕ НЕ ХОТЯТ ТОГО, ЧТО ТАМ УЖЕ СВОЁ (тикет 183). Источника два, и
+// вещи они называют одинаково: контракт хочет «Букет пионов», демо-пул кладёт
+// его же на витрину. На стенде так вышло сто пар. В базе это не дубль — экраны
+// разные, — но человеку комната говорит неправду: комната — чего хочется,
+// сокровищница — что уже моё, и «хочу букет пионов» при живом букете пионов на
+// витрине не значит ничего. Поэтому зерно контракта не заводится, если вещь с
+// тем же названием (регистр и лишние пробелы не в счёт) уже стоит в
+// сокровищнице ЭТОЙ зоны: см. `standZoneSeeds` ниже. Потеря законна и названа
+// числом — `ownedWishes` в отчёте; на `cream` комната стала 54 вместо 65.
+// Чинится посев, а не демо-пулы: переименование вылечило бы сегодняшние сто
+// пар и молча пустило завтрашние — контракт приезжает пулами по пять.
+//
 // ЧЕМ НЕ СЕЮТ. Прямой записи в prisma.item здесь нет ни одной: вещи создаёт
 // `createItem` — тот же сервис, что стоит за формой «Добавить вещь», с той же
 // Zod-схемой, теми же проверками зоны и photoKey и той же инвалидацией кэша.
@@ -58,6 +70,8 @@ import {
   standPoolKeys,
   standPoolSeeds,
   storePackagePhoto,
+  withoutOwnedWishes,
+  type PackSeed,
   type PackStorage,
 } from "@/server/services/pack-seeds";
 
@@ -111,6 +125,12 @@ export type StandSeedZoneReport = {
   room: number;
   /** Сколько вещей зоны получили настоящее фото в нашем S3. */
   photos: number;
+  /**
+   * Сколько желаний контракта зона НЕ получила, потому что вещь с тем же
+   * названием уже стоит в её сокровищнице (тикет 183). У пропущенной зоны — 0:
+   * там не сеяли вовсе.
+   */
+  ownedWishes: number;
 };
 
 export type StandSeedResult = {
@@ -132,6 +152,14 @@ export type StandSeedResult = {
   contractPhotosMissing: number;
   /** Сколько вещей «уже своё» легло в витрину сокровищницы. */
   hallItems: number;
+  /**
+   * Сколько желаний контракта посев не завёл, потому что вещь с тем же
+   * названием уже стоит в сокровищнице ТОЙ ЖЕ зоны (тикет 183). Это не потеря
+   * и не ошибка: «хочу букет пионов» при живом букете пионов на витрине —
+   * неправда про хозяйку. Число в отчёте, чтобы разница «65 против 54» на
+   * стенде объяснялась сама, а не выглядела недосевом.
+   */
+  ownedWishes: number;
   /** Зона-витрина, если её сеяли в этот раз (иначе null). */
   showcaseZone: string | null;
   /** Пул, доехавший в витрину сверх её собственного (иначе null). */
@@ -148,6 +176,7 @@ function emptyResult(overrides: Partial<StandSeedResult> = {}): StandSeedResult 
     photosFailed: 0,
     contractPhotosMissing: packSeedsPhotosMissing.length,
     hallItems: 0,
+    ownedWishes: 0,
     showcaseZone: null,
     spilloverPool: null,
     zones: [],
@@ -155,11 +184,51 @@ function emptyResult(overrides: Partial<StandSeedResult> = {}): StandSeedResult 
   };
 }
 
-/** Пул для добора витрины — первый, у которого нет своей полки в комнате. */
-function spilloverPoolFor(zones: readonly RoomZone[]): string | null {
+/**
+ * Пул для добора витрины — первый, у которого нет своей полки в комнате.
+ *
+ * Экспортирован ради теста «во всех десяти пресетах»: он собирает то же, что
+ * соберёт посев, и брать для этого свою копию правила нельзя — копия разойдётся.
+ */
+export function spilloverPoolFor(zones: readonly RoomZone[]): string | null {
   const taken = new Set(zones.map((zone) => zone.pool));
   const candidates = [...SPILLOVER_PREFERENCE, ...standPoolKeys];
   return candidates.find((key) => !taken.has(key) && standPoolSeeds(key).length > 0) ?? null;
+}
+
+/** Что зона получит от посева — обе половины и то, что по дороге отброшено. */
+export type ZoneSeeds = {
+  /** Порядок прежний: сначала желания контракта, потом «уже своё». */
+  seeds: readonly PackSeed[];
+  /** Названия желаний, отброшенных как «оно тут уже своё» (тикет 183). */
+  ownedWishes: readonly string[];
+};
+
+/**
+ * ЗЁРНА ОДНОЙ ЗОНЫ — единственное место, где складываются обе половины посева.
+ *
+ * Здесь же стоит правило «в одной зоне не хотят того, что там уже своё»
+ * (тикет 183), и стоит оно именно ЗДЕСЬ по двум причинам:
+ *
+ *   • ПРАВИЛО ПРО ЗОНУ, А НЕ ПРО ПУЛ. Витрина (`anything`) получает ДВА пула,
+ *     и желание одного не должно стоять рядом с одноимённой своей вещью
+ *     другого. Проверка внутри `standPoolSeeds` этого случая не увидела бы;
+ *
+ *   • ДО ЗАПИСИ И БЕЗ ЗАПРОСОВ. Обе половины зоны известны заранее, а сеется
+ *     зона только пустой (см. идемпотентность ниже) — значит «что уже стоит в
+ *     сокровищнице этой зоны» и есть половина `mine` этого самого списка.
+ *     Спрашивать про это базу нечего, и отменять созданное не приходится.
+ */
+export function standZoneSeeds(zone: RoomZone, spilloverPool: string | null): ZoneSeeds {
+  const all = [
+    ...standPoolSeeds(zone.pool),
+    ...(zone.key === SHOWCASE_ZONE_KEY && spilloverPool ? standPoolSeeds(spilloverPool) : []),
+  ];
+  const seeds = withoutOwnedWishes(all);
+  // Отброшенное берём разностью ПО ССЫЛКАМ: фильтр возвращает те же объекты,
+  // и второй раз сравнивать названия (вторым, своим, нормализатором) незачем.
+  const kept = new Set(seeds);
+  return { seeds, ownedWishes: all.filter((seed) => !kept.has(seed)).map((seed) => seed.title) };
 }
 
 /**
@@ -191,13 +260,12 @@ export async function seedStandRoom(
 
   const spilloverPool = spilloverPoolFor(zones);
   const result = emptyResult({ userFound: true, roomFound: true, spilloverPool });
+  /** Что именно не заведено правилом 183 — для лога, поимённо и с зоной. */
+  const ownedWishNames: string[] = [];
 
   for (const zone of zones) {
     const isShowcase = zone.key === SHOWCASE_ZONE_KEY;
-    const seeds = [
-      ...standPoolSeeds(zone.pool),
-      ...(isShowcase && spilloverPool ? standPoolSeeds(spilloverPool) : []),
-    ];
+    const { seeds, ownedWishes } = standZoneSeeds(zone, spilloverPool);
     const report: StandSeedZoneReport = {
       zone: zone.key,
       pool: zone.pool,
@@ -206,6 +274,7 @@ export async function seedStandRoom(
       hall: 0,
       room: 0,
       photos: 0,
+      ownedWishes: 0,
     };
     result.zones.push(report);
 
@@ -220,6 +289,11 @@ export async function seedStandRoom(
       continue;
     }
     if (isShowcase) result.showcaseZone = zone.key;
+    // Считаем отброшенное только у зоны, которую действительно сеем: у
+    // пропущенной «уже с вещами» никаких зёрен не заводилось вовсе.
+    report.ownedWishes = ownedWishes.length;
+    result.ownedWishes += ownedWishes.length;
+    ownedWishNames.push(...ownedWishes.map((title) => `${zone.key}: «${title}»`));
 
     for (const seed of seeds) {
       let photoKey: string | null = null;
@@ -263,6 +337,10 @@ export async function seedStandRoom(
       `в ${filled} зонах, фото в S3 ${result.photosStored}` +
       (result.photosFailed > 0 ? ` (не доехало ${result.photosFailed})` : "") +
       `, в зале славы ${result.hallItems}` +
+      (result.ownedWishes > 0
+        ? `. Желаний не заведено ${result.ownedWishes} — такая вещь уже стоит ` +
+          `в сокровищнице той же зоны (${ownedWishNames.join(", ")})`
+        : "") +
       (result.contractPhotosMissing > 0
         ? `. Кадров контракта нет в пакете: ${result.contractPhotosMissing} ` +
           `(${packSeedsPhotosMissing.join(", ")}) — эти вещи без фото`
