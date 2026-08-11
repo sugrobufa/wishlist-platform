@@ -61,6 +61,12 @@ type OwnerZoneGridProps = {
   ink?: string;
   /** Ключ зоны — из него собирается адрес карточки вещи (тикет 39). */
   zoneKey: string;
+  /**
+   * Подпись зоны — её называет подсказка «Вернуть в комнату»: «встанет в свою
+   * зону — в „{zone}"» (тикет 184). Приходит пропом, а не считается здесь:
+   * ярлык зоны живёт в `zones.json` и его уже посчитала страница.
+   */
+  zoneLabel: string;
   /** Пул зоны — значок вместо буквы у вещи без фото (тикет 82). */
   pool?: string | null;
 };
@@ -92,8 +98,12 @@ type Sort = "date" | "price" | "hidden";
 // «уже моё» больше нет, состояний не осталось. Действие доступно у любой вещи
 // и отвечает одинаково независимо от того, занята она или нет.
 
-export function OwnerZoneGrid({ items, accent, zoneKey, pool }: OwnerZoneGridProps) {
+export function OwnerZoneGrid({ items, accent, zoneKey, zoneLabel, pool }: OwnerZoneGridProps) {
   const t = useTranslations("Settings");
+  // Слова СОКРОВИЩНИЦЫ — из её раздела (тикет 184): «Вернуть в комнату» и её
+  // подсказка принадлежат витрине, и говорить о ней в трёх местах разными
+  // словами нельзя.
+  const tHall = useTranslations("Hall");
   const tl = useTranslations("ZoneList");
   const tg = useTranslations("ZoneGrid");
   const locale = useLocale();
@@ -193,10 +203,22 @@ export function OwnerZoneGrid({ items, accent, zoneKey, pool }: OwnerZoneGridPro
 
     const treasury: ItemActionRow = inHall
       ? {
+          // ОДНО ДЕЙСТВИЕ — ОДНО СЛОВО (тикет 184). Здесь стояло «Убрать из
+          // сокровищницы» — формулировка ОТ РЕШЕНИЯ ДО 09.08.2026, когда у
+          // вещи были состояния. Тогда владелец их отменил, и место стало
+          // обратимым: «Вернуть в комнату» — язык нового решения, он записан в
+          // CLAUDE.md и в инварианте №2. Прежнее слово описывало то же
+          // движение с другой стороны и читалось как удаление из коллекции, а
+          // не как возвращение домой.
+          //
+          // Строки — те же, что на витрине (`hall-showcase`) и в карточке вещи
+          // (`item-card`): `Hall.remove` и её подсказка. Одно действие не может
+          // зваться на трёх экранах по-разному — тот же довод, которым тикет
+          // 179 свёл «Удалить насовсем».
           key: "treasury",
           icon: <IconActionReturn size={SIGN_SIZE} />,
-          title: t("itemHallRemove"),
-          hint: t("itemHallRemoveHint"),
+          title: tHall("remove"),
+          hint: tHall("removeHint", { zone: zoneLabel }),
           onSelect: () => run(item.id, () => toggleHallAction(item.id, false)),
         }
       : {

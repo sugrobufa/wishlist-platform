@@ -135,6 +135,9 @@ export default async function ZoneListPage({ params }: Params) {
                 accent={preset.accent}
                 ink={preset.ink}
                 zoneKey={zone.key}
+                // Подсказка «Вернуть в комнату» называет полку по имени
+                // (тикет 184): «встанет в свою зону — в „Украшения"».
+                zoneLabel={info?.label ?? zone.label}
                 pool={zone.pool}
               />
             )}

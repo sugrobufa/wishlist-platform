@@ -389,8 +389,6 @@
     "itemMore": "More",
     "itemHallAdd": "To the treasure room",
     "itemHallAddHint": "already yours — show it without a price",
-    "itemHallRemove": "Remove from the treasure room",
-    "itemHallRemoveHint": "goes back to its own zone",
     "itemMove": "Move to a shelf",
     "itemMoveHint": "pick another shelf",
     "itemEdit": "Edit",

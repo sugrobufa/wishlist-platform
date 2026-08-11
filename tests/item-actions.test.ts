@@ -204,7 +204,15 @@ describe("лист «⋯» комнаты: В сокровищницу · Спр
 
   it("слова строк — из словаря, а не написанные в разметке", () => {
     expect(zoneRows).toContain('title: t("itemHallAdd")');
-    expect(zoneRows).toContain('title: t("itemHallRemove")');
+    // ОБРАТНОЕ ДЕЙСТВИЕ ЗОВЁТСЯ СЛОВОМ СОКРОВИЩНИЦЫ (тикет 184): `Hall.remove`
+    // = «Вернуть в комнату», как на витрине и в карточке вещи. Здесь стояло
+    // «Убрать из сокровищницы» — формулировка от решения ДО 09.08.2026, когда
+    // у вещи были состояния; ключа `Settings.itemHallRemove` больше нет вовсе.
+    // Тот же счёт, которым тикет 179 свёл «Удалить насовсем»: одно действие не
+    // может зваться на трёх экранах по-разному.
+    expect(zoneRows).toContain('title: tHall("remove")');
+    expect(zoneRows).toContain('hint: tHall("removeHint", { zone: zoneLabel })');
+    expect(zoneRows).not.toContain("itemHallRemove");
     expect(zoneRows).toContain('title: item.hidden ? t("itemShow") : t("itemHide")');
     expect(zoneRows).toContain('title: t("itemDelete")');
     expect(zoneRows).toContain('hint: t("itemHallAddHint")');
