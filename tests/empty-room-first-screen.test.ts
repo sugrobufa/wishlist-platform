@@ -25,18 +25,27 @@ import {
   sceneLayers,
 } from "../src/components/scene/grading";
 
-vi.mock("next-intl", async () => {
+// Подменяются РОВНО ДВА хука — остальное берётся у настоящего пакета
+// (`importOriginal`). Нужен `createTranslator`: надстрочная «комната
+// обставляется · N мест» склоняется ICU-плюралом, и проверять её надо
+// настоящим форматтером, а не глазами по строке словаря (тикет 199).
+vi.mock("next-intl", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("next-intl")>();
   const dict = (await import("../messages/ru.json")).default as unknown as Record<
     string,
     Record<string, string>
   >;
   return {
+    ...actual,
     useTranslations: (ns: string) => (key: string) => dict[ns]?.[key] ?? key,
     useLocale: () => "ru",
   };
 });
 
+const { createTranslator } = await import("next-intl");
 const { ZoneRail } = await import("../src/components/scene/zone-rail");
+const { visibleZones } = await import("../src/components/scene/zones");
+const { rooms } = await import("../src/config/design");
 
 const read = (relative: string) =>
   readFileSync(fileURLToPath(new URL(relative, import.meta.url)), "utf8");
@@ -71,6 +80,20 @@ const drawRail = (empty: boolean) =>
     ),
   );
 
+/**
+ * Ветка слота `below` для ПУСТОЙ комнаты — блок первого шага целиком, как он
+ * написан в комнате. Резать исходник приходится потому, что страница —
+ * серверный компонент с базой за спиной: отрисовать её в юните нечем, а
+ * порядок строк блока (тикет 199) обязан стеречь кто-то, кроме глаз.
+ */
+const firstStepBlock = () => {
+  const from = ownerPage.indexOf("emptyRoom ? (");
+  const to = ownerPage.indexOf(") : itemCount < SHARE_READY_ITEMS");
+  expect(from, "ветки пустой комнаты в слоте `below` нет — проверь разметку").toBeGreaterThan(0);
+  expect(to, "ветка пустой комнаты не кончается плашкой про пять вещей").toBeGreaterThan(from);
+  return ownerPage.slice(from, to);
+};
+
 describe("что на пустой комнате ВИДНО (41a, сверху вниз)", () => {
   it("сцена гаснет тем же .42 и подписью-обещанием", () => {
     // Первый блок макета: тёмная сцена с пунктирными местами и строкой «свет
@@ -80,6 +103,57 @@ describe("что на пустой комнате ВИДНО (41a, сверху 
     expect(EMPTY_ROOM_FILTER).toBe("brightness(.42) saturate(.72)");
     expect(ownerPage).toMatch(/<SceneStage[\s\S]*?empty=\{emptyRoom\}/u);
     expect(ru.Scene?.emptyRoom).toBe("свет включится, когда появятся вещи");
+  });
+
+  it("надстрочная «комната обставляется · N мест» стоит ПЕРВОЙ строкой блока", () => {
+    // ТИКЕТ 199, `round44/empty-room.json` → order: кадр → надстрочная →
+    // заголовок → строка → полоса света. Порядок ловим индексами в исходнике:
+    // строка, уехавшая под заголовок, — это уже другой экран.
+    const slot = firstStepBlock();
+    const at = (needle: string) => {
+      const index = slot.indexOf(needle);
+      expect(index, `${needle} — в блоке пустой комнаты не найдено`).toBeGreaterThan(-1);
+      return index;
+    };
+    expect(at('t("emptyPlaces"')).toBeLessThan(at('t("emptyTitle")'));
+    expect(at('t("emptyTitle")')).toBeLessThan(at('t("emptyBody")'));
+    expect(at('t("emptyBody")')).toBeLessThan(at('t("emptyAdd")'));
+  });
+
+  it("число мест ЖИВОЕ — из зон комнаты, а не 13 константой", () => {
+    // Пакет нарисовал «13 мест» по своему снимку rooms.json. Выключенная полка
+    // исчезает вместе с мебелью (инвариант №5), и у комнаты с выключенными
+    // зонами мест меньше — 13 в разметке соврало бы ей в лицо.
+    expect(ownerPage).toContain(
+      "const emptyPlaces = preset ? visibleZones(preset.zones, room.zonesOff).length : 0;",
+    );
+    expect(firstStepBlock()).toContain('t("emptyPlaces", { count: emptyPlaces })');
+    // Ни в разметке рядом с надстрочной, ни в самой строке словаря числа нет.
+    expect(ru.Room?.emptyPlaces).toBeTruthy();
+    expect(ru.Room?.emptyPlaces).not.toMatch(/\d/u);
+    expect(ru.Room?.emptyPlaces).toContain("{count, plural,");
+  });
+
+  it("на комнате с ДРУГИМ набором зон число другое — считает visibleZones", () => {
+    // Тот же счёт, что у указателя зон и у «полка 02 из 13»: второго правила
+    // видимости в продукте нет и заводить его нельзя.
+    expect(rooms.length, "в справочнике нет ни одной комнаты").toBeGreaterThan(0);
+    const preset = rooms[0]!;
+    expect(visibleZones(preset.zones, [])).toHaveLength(13);
+    const off = [preset.zones[0]!.key, preset.zones[1]!.key];
+    expect(visibleZones(preset.zones, off)).toHaveLength(11);
+  });
+
+  it("склонение живого числа — настоящим форматтером, а не на глаз", () => {
+    const t = createTranslator({
+      locale: "ru",
+      messages: ru,
+      namespace: "Room",
+    });
+    expect(t("emptyPlaces", { count: 13 })).toBe("Комната обставляется · 13 мест");
+    expect(t("emptyPlaces", { count: 11 })).toBe("Комната обставляется · 11 мест");
+    expect(t("emptyPlaces", { count: 4 })).toBe("Комната обставляется · 4 места");
+    expect(t("emptyPlaces", { count: 1 })).toBe("Комната обставляется · 1 место");
   });
 
   it("заголовок и подпись — слова макета, дословно", () => {
@@ -215,6 +289,93 @@ describe("полоса остаётся местом действий, а не �
     // и линия обрезалась бы по длине слова.
     expect(globalsCss).toMatch(/\.imm-rail \.imm-empty-cta \{[\s\S]*?display: flex;/u);
     expect(globalsCss).toMatch(/\.imm-rail \.imm-empty-cta \{[\s\S]*?border-bottom: 2px solid;/u);
+  });
+});
+
+// ---------- Тикет 199: приглашение делает СЦЕНА, а не кнопка ----------
+//
+// Пакет 44 (`empty-room.json`, турн 51d) отвечал на наш вопрос «одна кнопка
+// посреди пустой полосы читается заглушкой». Ответ: лечится не второй кнопкой,
+// а переносом веса наверх — кадру отдаётся всё, а кнопке остаётся быть концом
+// фразы. Отсюда два правила, которые здесь и стерегутся: НАДСТРОЧНАЯ открывает
+// блок, и ПОСЛЕ КНОПКИ НЕ СТОИТ НИЧЕГО.
+describe("после полосы света не стоит ничего", () => {
+  it("полоса света — последний узел блока", () => {
+    // Довод пакета дословно: «заглушкой кнопка читается, когда под ней остаётся
+    // пустое место. Здесь она последняя — пустого „после" не существует».
+    // Ловим не отсутствие конкретного блока, а отсутствие ЛЮБОГО следующего:
+    // именно так сюда и приезжает лишнее — новым узлом «пусть будет видно».
+    const slot = firstStepBlock();
+    const closed = slot.lastIndexOf("</Link>");
+    expect(closed, "полосы света в блоке нет вовсе").toBeGreaterThan(0);
+    const after = slot.slice(closed + "</Link>".length);
+    expect(after, `после полосы света в блоке появился узел: ${after.trim()}`).not.toMatch(
+      /<[A-Za-z]/u,
+    );
+  });
+
+  it("действие в блоке ровно одно, и оно ведёт в форму добавления", () => {
+    const slot = firstStepBlock();
+    expect([...slot.matchAll(/href="([^"]+)"/gu)].map((match) => match[1])).toEqual(["/room/add"]);
+  });
+});
+
+describe("блок помещается: числа замера, а не эскиза", () => {
+  // ЗАПАС ОКАЗАЛСЯ НЕ ТАМ, ГДЕ ЕГО СЧИТАЛ ПАКЕТ. Он мерил блок от кромки кадра
+  // с отступом 22, у нас над блоком стоят 72: отступ стопки 10 + строка
+  // действий 44 + шаг 4 + отступ слота 14. Замер на 390×664 (телефон приёмки)
+  // с новой надстрочной: слоту оставалось 190.8 px при 197.4 нужных — срезались
+  // ровно те 2 px, которыми полоса света и светит.
+  //
+  // ЧИНИТЬ БЛОК БЫЛО НЕЛЬЗЯ (граница тикета 188 — «не уменьшением шрифта или
+  // отступов»), да и незачем: место нашлось там, где пусто.
+  it("надстрочная ростом 9, как в контракте, а не 13.5 от высоты строки страницы", () => {
+    // `.overline` задаёт кегль 9, а высоту строки берёт у страницы (1.5).
+    // `fit.breakdown` пакета считает надстрочную девяткой — приводим к ней.
+    const body = /\.imm-empty-places \{([^}]*)\}/u.exec(globalsCss)?.[1] ?? "";
+    expect(body, "правила .imm-empty-places нет").not.toBe("");
+    expect(body).toMatch(/line-height:\s*1;/u);
+    // Кегль по-прежнему приезжает из общего `.overline`, а не набит здесь:
+    // 9 живёт в одном месте (tokens.json → type.overline).
+    expect(body).not.toMatch(/font-size/u);
+  });
+
+  it("пустая строка действий не резервирует цель нажатия, которой в ней нет", () => {
+    // В пустой комнате в строке нет ни одного нажимаемого узла: «Добавить вещь»
+    // только на десктопе, «поделиться» живёт после вещей, знака «Списком» нет.
+    // Высота там нужна ровно под пилюлю-обещание, а не под палец.
+    expect(rail).toContain('empty ? "imm-row imm-row-bare" : "imm-row"');
+    const bare = /\.imm-rail-bottom \.imm-row-bare \{([^}]*)\}/u.exec(globalsCss)?.[1] ?? "";
+    expect(bare, "правила .imm-row-bare нет").not.toBe("");
+    expect(bare).toMatch(/min-height:\s*25px;/u);
+    // ТОЛЬКО ТЕЛЕФОН: правило обязано лежать внутри той же ветки, что и
+    // `min-height: 44px`, — на десктопе строка и так схлопнута в ноль, а
+    // резерв под палец там честный (в комнате с вещами в строке стоят кнопки).
+    const phoneBranch = globalsCss.slice(
+      globalsCss.indexOf("@media not all and (min-width: 1024px)"),
+      // Ровно `.imm-row {` с начала строки: без якоря `indexOf` находит хвост
+      // селектора `.imm-rail-bottom .imm-row {` внутри самой же ветки.
+      globalsCss.indexOf("\n.imm-row {"),
+    );
+    expect(phoneBranch).toContain(".imm-rail-bottom .imm-row-bare");
+    expect(phoneBranch).toContain("min-height: 44px");
+  });
+
+  it("комната С ВЕЩАМИ метки не получает — указатель зон стоит там же", () => {
+    // Условие тикетов 188 и 199 слово в слово: «полоса не выросла, указатель
+    // зон на месте». Строка действий там полна, и её 44 px — настоящая цель
+    // нажатия, а не воздух.
+    expect(drawRail(true)).toContain("imm-row-bare");
+    expect(drawRail(false)).not.toContain("imm-row-bare");
+  });
+
+  it("блок не починен уменьшением своих чисел", () => {
+    // Тот же замок, что в tests/rail-overflow.test.ts, но с той стороны, с
+    // которой в блок пришла новая строка: числа макета 41a не двигаются.
+    expect(globalsCss).toMatch(/\.imm-empty-title \{[\s\S]*?font-size: 22px;/u);
+    expect(globalsCss).toMatch(/\.imm-empty-body \{[\s\S]*?font-size: 12\.5px;/u);
+    expect(globalsCss).toMatch(/\.imm-empty-start \{[\s\S]*?gap: 10px;/u);
+    expect(globalsCss).toMatch(/\.imm-rail \.imm-empty-cta \{[\s\S]*?padding: 0 2px 12px;/u);
   });
 });
 

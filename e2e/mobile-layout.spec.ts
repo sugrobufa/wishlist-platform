@@ -1039,6 +1039,143 @@ test("пустая комната: единственное действие в�
   await expectNoSideScroll(page, "пустая комната");
 });
 
+// ---------- Тикет 199: приглашение делает СЦЕНА, а не кнопка ----------
+
+/**
+ * БЛОК ПЕРВОГО ШАГА ПОМЕЩАЕТСЯ ЦЕЛИКОМ — и это про пиксели, а не про разметку.
+ *
+ * Пакет 44 (`empty-room.json`) положил в блок надстрочную «комната обставляется
+ * · N мест» и посчитал, что запаса останется 78 px. Считал он от кромки кадра с
+ * отступом 22; у нас над блоком стоят 72 — отступ стопки 10 + строка действий 44
+ * + шаг 4 + отступ слота 14. Первый же замер на 390×664 (телефон приёмки)
+ * показал цену расхождения: слоту оставалось 190.8 px при 197.4 нужных, и
+ * срезались ровно те 2 px, которыми полоса света и светит. Юнит этого не видит —
+ * там нет ни кадра, ни бара, ни высоты строки.
+ *
+ * ЧТО ИМЕННО МЕРЯЕТСЯ. Не «блок выше бара» (этого мало: слот со своей
+ * прокруткой уводит хвост под собственную кромку молча), а три вещи разом:
+ * последний узел выше бара, слот НЕ переполнен (последняя строка видна без
+ * прокрутки), и блок не наехал на пилюлю-обещание сверху.
+ */
+async function emptyBlockFits(page: Page, width: number, height: number): Promise<void> {
+  await page.setViewportSize({ width, height });
+  await signInEmpty(page);
+  await page.goto("/room");
+  await expect(page.getByRole("heading", { level: 1 })).toBeVisible();
+
+  const block = page.locator("main.imm .imm-empty-start");
+  await expect(
+    block,
+    "блока первого шага нет — комната второго пользователя стенда перестала быть пустой",
+  ).toBeVisible();
+
+  const frame = await rectOf(sceneFrame(page), "кадр комнаты");
+  const bar = await rectOf(page.locator(TAB_BAR), "таб-бар");
+  const blockBox = await rectOf(block, "блок первого шага");
+  const cta = await rectOf(block.getByRole("link"), "полоса света");
+  const overline = block.locator(".imm-empty-places");
+  await expect(overline, "надстрочной «комната обставляется · N мест» нет").toBeVisible();
+  const pill = await rectOf(page.locator('[class*="hintPill"]'), "подпись-обещание");
+
+  // ЖИВОЕ ЧИСЛО МЕСТ, а не 13 константой: надстрочная называет ровно столько,
+  // сколько мест нарисовано в кадре ЭТОЙ комнаты. Юнит стережёт, что число
+  // считается `visibleZones`; здесь оно сверяется с тем, что видно глазами.
+  const overlineText = (await overline.innerText()).trim();
+  const number = Number(/(\d+)/u.exec(overlineText)?.[1] ?? "0");
+  const places = await page.locator('main.imm [class*="__zoneLabel"]').count();
+  expect(
+    number,
+    `надстрочная говорит «${overlineText}», а мест в кадре ${places} — число перестало быть живым`,
+  ).toBe(places);
+
+  // ПОСЛЕ КНОПКИ НЕ СТОИТ НИЧЕГО (правило пакета): полоса света — последний
+  // узел блока, и действие в нём ровно одно.
+  await expect(block.getByRole("link"), "в блоке первого шага не одно действие").toHaveCount(1);
+  const lastIsCta = await block.evaluate(
+    (el) => el.lastElementChild?.classList.contains("imm-empty-cta") ?? false,
+  );
+  expect(lastIsCta, "после полосы света в блоке появился ещё один узел").toBe(true);
+
+  // СЛОТ НЕ ПЕРЕПОЛНЕН: последняя строка видна без прокрутки. Прокрутка здесь
+  // законна (тикет 188) и потому опасна — она прячет хвост молча, без полосы.
+  const slot = await page.evaluate(() => {
+    const el = document.querySelector("main.imm .imm-rail-bottom > div > :last-child");
+    if (!el) return null;
+    return { scrollHeight: el.scrollHeight, clientHeight: el.clientHeight };
+  });
+  expect(slot, "слота полосы нет").not.toBeNull();
+
+  report(`пустая комната ${width}×${height}`, {
+    кадр: `0…${frame.bottom.toFixed(1)}`,
+    "подпись-обещание": `${pill.top.toFixed(1)}…${pill.bottom.toFixed(1)}`,
+    блок: `${blockBox.top.toFixed(1)}…${blockBox.bottom.toFixed(1)}`,
+    "полоса света": `${cta.top.toFixed(1)}…${cta.bottom.toFixed(1)}`,
+    бар: `${bar.top.toFixed(1)}…${bar.bottom.toFixed(1)}`,
+    слот: `${slot?.scrollHeight}/${slot?.clientHeight}`,
+    "запас до бара": (bar.top - blockBox.bottom).toFixed(1),
+    "зазор до обещания": (blockBox.top - pill.bottom).toFixed(1),
+    мест: String(places),
+  });
+
+  expect(
+    (slot?.scrollHeight ?? 0) - (slot?.clientHeight ?? 0),
+    `слот полосы переполнен на ${(slot?.scrollHeight ?? 0) - (slot?.clientHeight ?? 0)} px — хвост блока достаётся только прокруткой`,
+  ).toBeLessThanOrEqual(PX);
+  expect(
+    cta.bottom,
+    `полоса света заходит под таб-бар: низ ${cta.bottom.toFixed(1)}, верх бара ${bar.top.toFixed(1)}`,
+  ).toBeLessThanOrEqual(bar.top + PX);
+  expect(
+    blockBox.top,
+    `блок наехал на подпись-обещание: верх ${blockBox.top.toFixed(1)} при её низе ${pill.bottom.toFixed(1)}`,
+  ).toBeGreaterThanOrEqual(pill.bottom - PX);
+  expect(
+    blockBox.top,
+    `блок заехал на кадр: верх ${blockBox.top.toFixed(1)} при нижней кромке кадра ${frame.bottom.toFixed(1)}`,
+  ).toBeGreaterThanOrEqual(frame.bottom - PX);
+
+  await expectNoSideScroll(page, `пустая комната ${width}×${height}`);
+}
+
+test("пустая комната 375×667: блок первого шага виден целиком", async ({ page }) => {
+  await emptyBlockFits(page, 375, 667);
+});
+
+test("пустая комната 390×664: блок первого шага виден целиком", async ({ page }) => {
+  await emptyBlockFits(page, 390, 664);
+});
+
+test("комната С ВЕЩАМИ: полоса не выросла и указатель зон стоит там же", async ({ page }) => {
+  // Условие тикетов 188 и 199 слово в слово. Уборка 19 px в СТРОКЕ ДЕЙСТВИЙ
+  // (тикет 199) сделана меткой `imm-row-bare`, и метка эта — только для пустой
+  // комнаты: там в строке нет ни одной цели нажатия. В комнате с вещами строка
+  // полна, её 44 px — настоящий палец, а указатель обязан стоять пиксель в
+  // пиксель там же, где стоял.
+  await page.setViewportSize({ width: 390, height: 664 });
+  await openRoom(page);
+
+  const rail = await rectOf(bottomSurface(page), "полоса под кадром");
+  const frame = await rectOf(sceneFrame(page), "кадр комнаты");
+  const row = await rectOf(page.locator("main.imm .imm-rail-bottom .imm-row"), "строка действий");
+  const index = page.locator(ZONE_INDEX);
+  const firstRow = await rectOf(index.locator("button").first(), "первая строка указателя зон");
+
+  report("комната с вещами 390×664", {
+    кадр: `0…${frame.bottom.toFixed(1)}`,
+    полоса: `${rail.top.toFixed(1)}…${rail.bottom.toFixed(1)}`,
+    "строка действий": `${row.top.toFixed(1)}…${row.bottom.toFixed(1)} (h ${row.height.toFixed(1)})`,
+    "первая строка указателя": `${firstRow.top.toFixed(1)}…${firstRow.bottom.toFixed(1)}`,
+  });
+
+  expect(
+    await page.locator("main.imm .imm-row-bare").count(),
+    "метка пустой комнаты приехала в комнату с вещами — строка действий потеряла цель нажатия",
+  ).toBe(0);
+  expectSame(row.height, 44, "высота строки действий в комнате с вещами");
+  expectSame(rail.top, frame.bottom, "верх полосы против нижней кромки кадра");
+  expectSame(firstRow.top, rail.top + 58, "верх первой строки указателя зон");
+});
+
 test("настройки: кадр во всю ширину и держится, пока крутят обе ручки", async ({ page }) => {
   // ЗАЧЕМ ЗДЕСЬ. Тикет 181 завёл крупный кадр вместо шести плиток 110×56,
   // тикет 185 забрал из пакета 43 ширину во весь экран. Оба числа — про

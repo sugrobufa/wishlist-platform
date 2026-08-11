@@ -76,6 +76,7 @@
     "settingsLink": "Settings",
     "takenCount": "{count, plural, one {# item already taken} other {# items already taken}}",
     "sharePlaque": "Better to hand out the link once there are at least five items",
+    "emptyPlaces": "The room is being furnished · {count, plural, one {# place} other {# places}}",
     "emptyTitle": "The room is yours. Still dark inside",
     "emptyBody": "Every item lights up its own shelf. The first one shows the most",
     "emptyAdd": "Add your first thing",
