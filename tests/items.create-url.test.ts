@@ -16,6 +16,7 @@ vi.mock("@/server/queues", () => ({
 import { prisma } from "../src/server/db";
 import { enqueueImageIngest } from "../src/server/queues";
 import { createItem, findDuplicateByUrl } from "../src/server/services/items";
+import { shopOf } from "../src/server/dto/items";
 
 const enqueueMock = vi.mocked(enqueueImageIngest);
 
@@ -78,7 +79,14 @@ describe("createItem — source=URL", () => {
     expect(item.domain).toBe("ozon.ru");
   });
 
-  it("контракт тикета 04 не тронут: без source — MANUAL, canonicalUrl/domain пусты", async () => {
+  it("без source — MANUAL, но ССЫЛКА ЖИВЁТ: canonicalUrl считается и из неё", async () => {
+    // ТИКЕТ 195, ВТОРАЯ ПОЛОВИНА ЦЕПОЧКИ. Раньше здесь ждали пустых
+    // canonicalUrl/domain, и это была тихая потеря: человек вставил ссылку,
+    // разбор страницы не удался (403, капча, не-HTML), он дозаполнил поля
+    // руками — вещь уходила с source=MANUAL, и ссылка, которую он своими
+    // руками принёс, до карточки не доезжала НИ ЕМУ, НИ ГОСТЮ. Ни один тест
+    // об этом не говорил: «Где купить» просто не появлялся.
+    // `source` по-прежнему отвечает на вопрос «как родилась карточка».
     const { user } = await createTestRoom();
     const item = await createItem(user.id, {
       inHall: false,
@@ -90,8 +98,53 @@ describe("createItem — source=URL", () => {
     });
 
     expect(item.source).toBe("MANUAL");
+    expect(item.url).toBe("https://shop.example/bracelet?utm_source=x");
+    // Нормализация та же, что у source=URL: трекинг-мусор выброшен.
+    expect(item.canonicalUrl).toBe("https://shop.example/bracelet");
+    expect(item.domain).toBe("shop.example");
+  });
+
+  it("без ссылки вовсе — canonicalUrl/domain пусты (контракт тикета 04)", async () => {
+    // Вещь, заведённая руками и без адреса: «Где купить» у неё нет и не
+    // должно быть — пустой кнопке взяться неоткуда.
+    const { user } = await createTestRoom();
+    const item = await createItem(user.id, {
+      inHall: false,
+      zone: "jewelry",
+      title: "Браслет ручной работы",
+      price: "9900",
+      currency: "RUB",
+    });
+
+    expect(item.source).toBe("MANUAL");
+    expect(item.url).toBeNull();
     expect(item.canonicalUrl).toBeNull();
     expect(item.domain).toBeNull();
+  });
+
+  it("разбор страницы не удался, поля дозаполнены руками — адрес всё равно доехал", async () => {
+    // Сам сценарий тикета 195 целиком, как его описал владелец: человек
+    // вставил ссылку, парсер её не осилил (магазин отдал 403/капчу), человек
+    // набрал название и цену сам. Форма шлёт source=MANUAL — и до тикета
+    // ссылка на этом и заканчивалась. Проверяем не флаг, а результат: по
+    // canonicalUrl потом и строится «Где купить» (dto/items → shopOf).
+    const { user } = await createTestRoom();
+    const item = await createItem(user.id, {
+      inHall: false,
+      zone: "jewelry",
+      title: "Набрано руками",
+      price: "4300",
+      currency: "RUB",
+      source: "MANUAL",
+      url: "https://WWW.Ozon.ru/product/sergi-123/?utm_source=share&size=17",
+    });
+
+    expect(item.source).toBe("MANUAL");
+    expect(item.canonicalUrl).toBe("https://www.ozon.ru/product/sergi-123/?size=17");
+    expect(shopOf(item.canonicalUrl)).toEqual({
+      url: "https://www.ozon.ru/product/sergi-123/?size=17",
+      domain: "ozon.ru",
+    });
   });
 
   it("source=URL без url — ZodError («родилась из ссылки» без ссылки не бывает)", async () => {
@@ -187,9 +240,12 @@ describe("findDuplicateByUrl — дедуп по canonicalUrl", () => {
     expect(await findDuplicateByUrl(b.user.id, urlInput().url)).toBeNull();
   });
 
-  it("MANUAL-вещь с url, но без canonicalUrl, дубликатом не считается", async () => {
+  it("MANUAL-вещь со ссылкой ТОЖЕ находится: адрес у неё теперь есть", async () => {
+    // Побочная выгода тикета 195, и она в ту же сторону: вещь, у которой
+    // разбор не удался, раньше выпадала и из дедупа — человек добавлял её
+    // второй раз, и никто ему об этом не говорил.
     const { user } = await createTestRoom();
-    await createItem(user.id, {
+    const item = await createItem(user.id, {
       inHall: false,
       zone: "jewelry",
       title: "Ручная с url",
@@ -197,7 +253,23 @@ describe("findDuplicateByUrl — дедуп по canonicalUrl", () => {
       currency: "RUB",
       url: "https://shop.example/manual-thing",
     });
-    expect(await findDuplicateByUrl(user.id, "https://shop.example/manual-thing")).toBeNull();
+    expect(await findDuplicateByUrl(user.id, "https://shop.example/manual-thing")).toEqual({
+      id: item.id,
+      title: "Ручная с url",
+      zone: "jewelry",
+    });
+  });
+
+  it("вещь без ссылки вовсе дубликатом не считается — сравнивать нечего", async () => {
+    const { user } = await createTestRoom();
+    await createItem(user.id, {
+      inHall: false,
+      zone: "jewelry",
+      title: "Ручная без url",
+      price: "100",
+      currency: "RUB",
+    });
+    expect(await findDuplicateByUrl(user.id, "https://shop.example/nothing")).toBeNull();
   });
 
   it("мусорный URL и пользователь без комнаты — честный null, не исключение", async () => {

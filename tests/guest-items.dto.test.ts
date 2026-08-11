@@ -4,6 +4,8 @@
 // №8 — цена вещи СОКРОВИЩНИЦЫ не сериализуется гостю никогда; цена вещи
 //      КОМНАТЫ — по priceVisibility, причём скрытая цена = ключей
 //      price/currency нет вовсе (тикет 124: различают МЕСТА, не состояния);
+//      а вот ССЫЛКА скрытой ценой не уносится (тикет 195): «скрытая цена
+//      скрывает число, а не путь к вещи»;
 // №6 — ссылка на магазин (тикет 37) отдаётся только канонической, а домен —
 //      из неё же, а не из пользовательского ввода и не из колонки domain.
 // Ключи объекта перечислены СТРОГО: новое поле в guest-DTO — осознанное
@@ -94,6 +96,11 @@ const ROOM_KEYS_PRICE_HIDDEN = [
 ];
 /** Та же вещь комнаты с видимой ценой, но пришедшая по ссылке из магазина. */
 const ROOM_KEYS_PRICED_SHOP = [...ROOM_KEYS_PRICED, "shop"].sort();
+/**
+ * Вещь по ссылке со СКРЫТОЙ ценой (тикет 195): цены нет, ссылка есть. Форма
+ * существует ровно затем, чтобы это было видно списком ключей, а не словами.
+ */
+const ROOM_KEYS_PRICE_HIDDEN_SHOP = [...ROOM_KEYS_PRICE_HIDDEN, "shop"].sort();
 /**
  * Форма вещи СОКРОВИЩНИЦЫ у гостя. ПЕРЕПИСАНА тикетом 124: из неё ушли
  * `giverName` (даритель открывается ровно один раз и ровно хозяйке —
@@ -316,19 +323,32 @@ describe("itemForGuest — где купить (тикет 37)", () => {
   });
 
   it.each(["ME", "NONE"] as const)(
-    "«хочу» со скрытой ценой (%s): ссылки НЕТ — она открыла бы цену страницей магазина",
+    "вещь комнаты со скрытой ценой (%s): ССЫЛКА ЕСТЬ, ЦЕНЫ НЕТ — одним утверждением",
     (visibility) => {
+      // ПЕРЕВЁРНУТО ТИКЕТОМ 195. До него ключ `shop` стоял внутри того же
+      // `if`, что цена: считалось, что страница магазина покажет цену и тем
+      // обойдёт настройку хозяйки. Довод решал не ту задачу — гость приходил
+      // дарить, вещь видел, а куда за ней идти, не узнавал вовсе. Решение
+      // владельца 11.08.2026: «сколько стоит» и «где взять» — разные вопросы.
       const dto = itemForGuest(dbItem(fromShop({ priceVisibility: visibility })));
 
-      expect(Object.keys(dto).sort()).toEqual(ROOM_KEYS_PRICE_HIDDEN);
-      expect("shop" in dto).toBe(false);
-      expect(JSON.stringify(dto)).not.toContain("goldapple");
+      // Оба ключа в одном утверждении — иначе правило разъедется по половинам.
+      expect(Object.keys(dto).sort()).toEqual(ROOM_KEYS_PRICE_HIDDEN_SHOP);
+      if (dto.inHall) throw new Error("unreachable");
+      expect(dto.shop).toEqual({
+        url: "https://www.goldapple.ru/19000175823",
+        domain: "goldapple.ru",
+      });
+      expect("price" in dto).toBe(false);
+      expect("currency" in dto).toBe(false);
+      expectNoOwnerOrBookingKeys(dto);
     },
   );
 
-  it("«люблю»: ссылки нет никогда — даже с ценой ALL и живым canonicalUrl", () => {
-    // ADR-0004: дверь для «люблю» открывает настройка зала (тикет 35), а не
-    // отдельное правило про ссылки. Пока настройки нет — нет и ссылки.
+  it("вещь СОКРОВИЩНИЦЫ: ни ссылки, ни цены — даже с ALL и живым canonicalUrl", () => {
+    // Тикет 195 ослабил правило показа ссылки только у вещи КОМНАТЫ. Витринная
+    // вещь уже своя: её не дарят и не покупают, ключей shop и price у неё нет
+    // в принципе — и это не следствие настройки цены, а сама форма.
     const dto = itemForGuest(dbItem(fromShop({ inHall: true, priceVisibility: "ALL" })));
 
     expect(Object.keys(dto).sort()).toEqual(HALL_KEYS);
@@ -336,15 +356,16 @@ describe("itemForGuest — где купить (тикет 37)", () => {
     expect(JSON.stringify(dto)).not.toContain("goldapple");
   });
 
-  it("спрятанная вещь: наружу не уходит ничего — ни флага, ни ссылки", () => {
+  it("спрятанная вещь: флага hidden наружу не уходит ни при какой видимости цены", () => {
     // Сама спрятанная вещь до гостя не доезжает (фильтр в guest-room.ts);
     // здесь — вторая линия: форма не несёт ни hidden, ни следа настроек.
+    // Ссылка при этом на месте (тикет 195) — прячет вещь СЕРВИС, а не DTO, и
+    // подменять один заслон другим не надо.
     const dto = itemForGuest(dbItem(fromShop({ hidden: true, priceVisibility: "NONE" })));
 
-    expect(Object.keys(dto).sort()).toEqual(ROOM_KEYS_PRICE_HIDDEN);
+    expect(Object.keys(dto).sort()).toEqual(ROOM_KEYS_PRICE_HIDDEN_SHOP);
     expect("hidden" in dto).toBe(false);
-    expect("shop" in dto).toBe(false);
-    expect(JSON.stringify(dto)).not.toContain("goldapple");
+    expect("price" in dto).toBe(false);
   });
 });
 

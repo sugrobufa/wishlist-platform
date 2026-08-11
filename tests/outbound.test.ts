@@ -1,9 +1,10 @@
 // Учёт переходов в магазин (тикет 37) — сервис и роут с реальной тест-БД.
 // Проверяется одно правило и его следствия: переход записывается ровно тогда,
 // когда ссылку МОЖНО БЫЛО отдать гостю (dto/guest-items → ключ shop).
-// Спрятанная вещь (инвариант №5), «люблю» и «хочу» со скрытой ценой
-// (инвариант №8) перехода не порождают — и роут отвечает на них так же, как
-// на удачный, чтобы по коду ответа нельзя было узнать, что вещь существует.
+// Спрятанная вещь (инвариант №5) и вещь сокровищницы перехода не порождают —
+// и роут отвечает на них так же, как на удачный, чтобы по коду ответа нельзя
+// было узнать, что вещь существует. СКРЫТАЯ ЦЕНА ПЕРЕХОДУ БОЛЬШЕ НЕ МЕШАЕТ
+// (тикет 195): ссылку такой вещи гость видит, значит и нажатие настоящее.
 import "dotenv/config";
 import { randomUUID } from "node:crypto";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
@@ -112,17 +113,20 @@ describe("recordOutboundClick", () => {
   });
 
   it.each(["ME", "NONE"] as const)(
-    "«хочу» со скрытой ценой (%s): ссылки не давали — перехода нет",
+    "вещь комнаты со скрытой ценой (%s): ссылку давали — переход настоящий",
     async (priceVisibility) => {
+      // ПЕРЕВЁРНУТО ТИКЕТОМ 195. Правило записи здесь одно и заимствованное:
+      // «есть ключ shop — ссылку отдавали». Ключ переехал из-под `if` цены, и
+      // переход поехал следом сам — правил в сервисе не правили ни одного.
       const room = await createTestRoom();
       const item = await createShopItem(room.id, { priceVisibility });
 
-      expect(await recordOutboundClick({ itemId: item.id, context: "ZONE" })).toBe(false);
-      expect(await clicksFor(item.id)).toBe(0);
+      expect(await recordOutboundClick({ itemId: item.id, context: "ZONE" })).toBe(true);
+      expect(await clicksFor(item.id)).toBe(1);
     },
   );
 
-  it("«люблю»: перехода нет — у этой вещи магазина не бывает", async () => {
+  it("вещь сокровищницы: перехода нет — у неё магазина не бывает", async () => {
     const room = await createTestRoom();
     const item = await createShopItem(room.id, { inHall: true, price: null, currency: null });
 

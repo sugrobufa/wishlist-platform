@@ -135,7 +135,8 @@ export function ItemTile({ item, staggerIndex, action, pool, href }: ItemTilePro
         body
       )}
       {/* «Где купить» (тикет 37): ключ shop приезжает только из гостевого DTO
-          и только у вещи комнаты с видимой ценой — плитка ничего не решает сама. */}
+          и только у вещи комнаты — плитка ничего не решает сама. Скрытая цена
+          ссылку больше не уносит (тикет 195). */}
       {item.shop && (
         <ShopLink itemId={item.id} url={item.shop.url} domain={item.shop.domain} place="tile" />
       )}

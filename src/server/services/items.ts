@@ -299,15 +299,24 @@ function visibleZoneKeys(preset: string, zonesOff: readonly string[]): Set<strin
 }
 
 /**
- * canonicalUrl/domain для source=URL — считаются ТОЛЬКО на сервере из url
- * (клиенту это поле не доверяем: canonicalUrl — ключ дедупа). Нормализация
- * не удалась (экзотический, но валидный http-URL) — честно пишем null.
+ * canonicalUrl/domain из url — считаются ТОЛЬКО на сервере (клиенту это поле
+ * не доверяем: canonicalUrl — ключ дедупа). Нормализация не удалась
+ * (экзотический, но валидный http-URL) — честно пишем null.
+ *
+ * УСЛОВИЕ ОДНО: ССЫЛКА ЕСТЬ (тикет 195). Раньше здесь стояло ещё и
+ * `source === "URL"`, и это тихо теряло адрес в самом обидном случае: человек
+ * вставил ссылку, разбор страницы не удался (магазин отдал 403, капчу,
+ * не-HTML), он дозаполнил поля руками — вещь уходила с `source = MANUAL`, и
+ * ссылка, которую он своими руками принёс, до карточки не доезжала ни ему, ни
+ * гостю. `source` отвечает на вопрос «как родилась карточка» и остаётся
+ * прежним; `canonicalUrl` отвечает на вопрос «куда идти за вещью», и ответ на
+ * него не зависит от того, справился ли парсер.
  */
-function urlMetaFor(data: { source: "MANUAL" | "URL"; url?: string }): {
+function urlMetaFor(data: { url?: string }): {
   canonicalUrl: string | null;
   domain: string | null;
 } {
-  if (data.source !== "URL" || !data.url) return { canonicalUrl: null, domain: null };
+  if (!data.url) return { canonicalUrl: null, domain: null };
   try {
     const canonicalUrl = normalizeUrl(data.url);
     return { canonicalUrl, domain: domainOf(canonicalUrl) };
@@ -321,9 +330,10 @@ function urlMetaFor(data: { source: "MANUAL" | "URL"; url?: string }): {
  * Ownership: вещь встаёт ТОЛЬКО в комнату самого пользователя — roomId
  * в инпуте не существует, подменить некуда. Зона обязана входить в видимые
  * зоны комнаты; photoKey — принадлежать ей же.
- * source=URL: пишутся url/canonicalUrl/domain, а при imageUrl без своего
- * фото ставится джоба image.ingest (фото магазина скачается в наше S3 —
- * сохранение вещи не ждёт и не ломается, если очередь недоступна).
+ * Ссылка: url пишется как дан, canonicalUrl/domain считает сервер из него —
+ * при ЛЮБОМ source, лишь бы ссылка была (тикет 195). При source=URL и imageUrl
+ * без своего фото ставится джоба image.ingest (фото магазина скачается в наше
+ * S3 — сохранение вещи не ждёт и не ломается, если очередь недоступна).
  * После записи инвалидируется кэш комнаты (roomCacheTag).
  */
 export async function createItem(userId: string, input: unknown): Promise<Item> {
