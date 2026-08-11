@@ -588,6 +588,260 @@ test("карточка добавления: ничего не выезжает 
   await expectNoSideScroll(page, "карточка добавления");
 });
 
+// ---------- Правила 1, 7 и тикет 188: полоса под кадром не режет содержимое ----------
+
+/**
+ * Сколько абзацев кладём в полосу. Заведомо больше, чем влезает на 375×812:
+ * там под полосу остаётся около 500 px, а строк тут на добрую тысячу.
+ */
+const LONG_LINES = 14;
+
+/**
+ * Класс слота `below` — ИЗ ТАБЛИЦ СТИЛЕЙ САМОЙ СТРАНИЦЫ, а не выдуманный.
+ *
+ * Turbopack хэширует местные имена CSS-модулей (`zone-index-module__HASH__below`),
+ * и хэш меняется от любой правки файла. Ищем по окончанию имени — так же, как
+ * кадр сцены ищется по `__viewport`. Хвост `(?![\w-])` обязателен: рядом живёт
+ * `belowBare`, и без него нашлись бы оба.
+ *
+ * Найтись обязано РОВНО ОДНО имя: переименуют слот — тест упадёт громко, а не
+ * подложит содержимое в узел без стилей и объявит, что всё сошлось.
+ */
+async function railSlotClass(page: Page): Promise<string> {
+  const names = await page.evaluate(() => {
+    const found = new Set<string>();
+    const walk = (rules: CSSRuleList) => {
+      for (const rule of Array.from(rules)) {
+        const nested = (rule as CSSGroupingRule).cssRules as CSSRuleList | undefined;
+        if (nested) walk(nested);
+        const selector = (rule as CSSStyleRule).selectorText;
+        if (!selector) continue;
+        for (const hit of selector.matchAll(/\.([\w-]+__below)(?![\w-])/gu)) {
+          if (hit[1]) found.add(hit[1]);
+        }
+      }
+    };
+    for (const sheet of Array.from(document.styleSheets)) {
+      try {
+        walk(sheet.cssRules);
+      } catch {
+        // Лист с чужого источника читать нельзя — наших модулей там нет.
+      }
+    }
+    return [...found];
+  });
+  expect(names, "класс слота полосы не нашёлся в таблицах стилей страницы").toHaveLength(1);
+  return names[0] as string;
+}
+
+/**
+ * Положить в полосу «СЛЕДУЮЩИЙ ДЛИННЫЙ ТЕКСТ» — тот самый, ради которого высота
+ * полосы стала потолком.
+ *
+ * ПОЧЕМУ ТЕКСТ ПРИНОСИМ СВОЙ. Мерить надо ПЕРЕПОЛНЕННУЮ полосу, а комната
+ * стенда полна: слот `below` в ней пуст (плашка «ссылку лучше отдавать от пяти
+ * вещей» живёт только до пятой вещи, а блок первого шага — только в пустой).
+ * Пустой комнаты у этого спека нет и быть не может: к ней ведёт единственная
+ * дорога `/dev-login?fresh=1`, а она СНОСИТ комнату стенда — запись, и
+ * разрушительная (см. шапку файла: спек ничего не пишет).
+ *
+ * Узел кладётся в тот же слот и ТЕМ ЖЕ КЛАССОМ ПРОДУКТА, то есть в те же
+ * стили: `zone-rail.tsx` рисует здесь ровно `<div className={s.below}>`.
+ * Слот уже есть — дополняем его, нет — заводим на его законном месте,
+ * последним ребёнком стопки. В БД не пишется ничего: узел живёт во вкладке
+ * до конца теста.
+ */
+async function growRailSlot(page: Page, className: string): Promise<Locator> {
+  await page.evaluate(
+    ({ className, lines }) => {
+      const stack = document.querySelector("main.imm .imm-rail-bottom > div");
+      if (!stack) throw new Error("стопки нижней полосы нет — класть некуда");
+      const own = stack.querySelector<HTMLElement>(`.${CSS.escape(className)}`);
+      const slot = own ?? document.createElement("div");
+      if (!own) {
+        slot.className = className;
+        stack.append(slot);
+      }
+      slot.setAttribute("data-e2e-long", "1");
+      for (let i = 0; i < lines; i += 1) {
+        const line = document.createElement("p");
+        line.setAttribute("data-e2e-line", String(i));
+        line.style.margin = "0 0 8px";
+        line.textContent =
+          `${i + 1}. Следующий длинный текст в полосе под кадром: он обязан ` +
+          "прокручиваться внутри полосы, а не срезаться нижним баром.";
+        slot.append(line);
+      }
+    },
+    { className, lines: LONG_LINES },
+  );
+  return page.locator('[data-e2e-long="1"]');
+}
+
+/**
+ * ПОЛОСА ПОД КАДРОМ ДЕРЖИТ СВОЁ СОДЕРЖИМОЕ (тикет 188) — на живом экране.
+ *
+ * Баг приёмки владельца 11.08 со снимками: «нельзя прокрутить вниз (баг) на
+ * мобильном представлении» — в пустой комнате ряд чипов срезан нижним баром,
+ * второго ряда не видно вовсе, прокрутить нечего. Причина была не в баре:
+ * экран `.imm` ровно в высоту окна и с `overflow: hidden` (сцена, а не
+ * страница), а полоса под кадром была ФИКСИРОВАННОЙ ВЫСОТЫ — лишнее срезалось
+ * молча. Починка: потолок вместо высоты, своя прокрутка внутри слота, низ
+ * полосы считается ОТ БАРА.
+ *
+ * ПРАВИЛА CSS СТЕРЕЖЁТ ЮНИТ (`tests/rail-overflow.test.ts`) — здесь
+ * прямоугольники: правило легко остаётся в файле и перестаёт действовать.
+ *
+ * Меряется по очереди на двух размерах, названных в тикете, — 375×667 и
+ * 375×812: на низком экране полосе остаётся меньше места, и обрезка вылезала
+ * там первой.
+ */
+async function railKeepsItsContent(page: Page, width: number, height: number): Promise<void> {
+  await page.setViewportSize({ width, height });
+  await openRoom(page);
+
+  const bar = await rectOf(page.locator(TAB_BAR), "таб-бар");
+  const frameBefore = await rectOf(sceneFrame(page), "кадр комнаты");
+
+  // ---- Настоящее содержимое стенда: ничего не подложено ----
+  // Указатель зон длиннее полосы (тринадцать строк по 52 против ~500 px), и
+  // последняя строка обязана доставаться целиком, а не «доскроллиться и
+  // упереться в бар».
+  const rows = page.locator(`${ZONE_INDEX} button`);
+  const total = await rows.count();
+  expect(total, "в указателе зон нет строк — комната стенда пуста?").toBeGreaterThan(0);
+  const lastRow = rows.nth(total - 1);
+  await lastRow.scrollIntoViewIfNeeded();
+  const lastRowRect = await rectOf(lastRow, "последняя строка указателя зон");
+  expect(
+    lastRowRect.bottom,
+    `последняя строка указателя ушла под таб-бар: низ ${lastRowRect.bottom.toFixed(1)}, верх бара ${bar.top.toFixed(1)}`,
+  ).toBeLessThanOrEqual(bar.top + PX);
+  expect(
+    lastRowRect.top,
+    `последняя строка указателя заехала на кадр: верх ${lastRowRect.top.toFixed(1)} при нижней кромке кадра ${frameBefore.bottom.toFixed(1)}`,
+  ).toBeGreaterThanOrEqual(frameBefore.bottom - PX);
+
+  // ---- Тот самый «следующий длинный текст» ----
+  const slot = await growRailSlot(page, await railSlotClass(page));
+  await expect(slot, "слот полосы не появился").toBeVisible();
+
+  const rail = await rectOf(bottomSurface(page), "полоса под кадром");
+  const frameAfter = await rectOf(sceneFrame(page), "кадр после наполнения полосы");
+
+  // ПУНКТ 4 ТИКЕТА: полоса не наехала на комнату — кадр стоит там же, где стоял.
+  expectSame(frameAfter.bottom, frameBefore.bottom, "нижняя кромка кадра до и после");
+  // ПРАВИЛО 1: щели под кадром нет и с выросшей полосой.
+  expectSame(rail.top, frameAfter.bottom, "верх полосы против нижней кромки кадра");
+  // ПУНКТ 3: низ полосы считается ОТ БАРА, а не от края экрана.
+  expectSame(rail.bottom, bar.top, "низ полосы против верха таб-бара");
+
+  // ПУНКТ 1: у слота ПОТОЛОК, а не рост. До тикета он рос как хотел, и всё,
+  // что не влезло в полосу, срезал `overflow: hidden` экрана — ровно тот баг.
+  const slotBox = await rectOf(slot, "слот полосы");
+  expect(
+    slotBox.bottom,
+    `слот полосы вырос ниже её низа: ${slotBox.bottom.toFixed(1)} при низе полосы ${rail.bottom.toFixed(1)} и верхе бара ${bar.top.toFixed(1)}`,
+  ).toBeLessThanOrEqual(rail.bottom + PX);
+
+  // ПУНКТ 2: длинное содержимое прокручивается ВНУТРИ слота. Прокрутка
+  // нулевой длины значила бы, что не влезшее срезано молча — ровно тот баг.
+  const scroll = await slot.evaluate((el) => {
+    el.scrollTop = el.scrollHeight;
+    return {
+      scrollHeight: el.scrollHeight,
+      clientHeight: el.clientHeight,
+      scrollTop: el.scrollTop,
+    };
+  });
+  expect(
+    scroll.scrollHeight,
+    `слот полосы не переполнился — длинного текста не хватило: ${scroll.scrollHeight} при окне ${scroll.clientHeight}`,
+  ).toBeGreaterThan(scroll.clientHeight);
+  expect(
+    scroll.scrollTop,
+    "слот полосы не прокручивается: всё, что не влезло, срезано молча",
+  ).toBeGreaterThan(0);
+
+  // ГЛАВНОЕ ОБЕЩАНИЕ ТИКЕТА: последний узел доступен ЦЕЛИКОМ — не под баром и
+  // не за кромками полосы.
+  const slotRect = await rectOf(slot, "слот полосы после прокрутки");
+  const tailRect = await rectOf(page.locator(`[data-e2e-line="${LONG_LINES - 1}"]`), "последний узел полосы");
+
+  report(`полоса под кадром ${width}×${height}`, {
+    кадр: `0…${frameAfter.bottom.toFixed(1)}`,
+    полоса: `${rail.top.toFixed(1)}…${rail.bottom.toFixed(1)}`,
+    бар: `${bar.top.toFixed(1)}…${bar.bottom.toFixed(1)}`,
+    слот: `${slotRect.top.toFixed(1)}…${slotRect.bottom.toFixed(1)}`,
+    "прокрутка слота": `${scroll.scrollTop}/${scroll.scrollHeight - scroll.clientHeight}`,
+    "последний узел": `${tailRect.top.toFixed(1)}…${tailRect.bottom.toFixed(1)}`,
+    "последняя строка указателя": `${lastRowRect.top.toFixed(1)}…${lastRowRect.bottom.toFixed(1)}`,
+  });
+
+  expect(tailRect.height, "последний узел полосы нулевой высоты").toBeGreaterThan(0);
+  expect(
+    tailRect.bottom,
+    `последний узел полосы заходит под таб-бар: низ ${tailRect.bottom.toFixed(1)}, верх бара ${bar.top.toFixed(1)}`,
+  ).toBeLessThanOrEqual(bar.top + PX);
+  expect(
+    tailRect.bottom,
+    `последний узел срезан нижней кромкой полосы: низ ${tailRect.bottom.toFixed(1)} при низе слота ${slotRect.bottom.toFixed(1)}`,
+  ).toBeLessThanOrEqual(slotRect.bottom + PX);
+  expect(
+    tailRect.top,
+    `последний узел срезан верхней кромкой полосы: верх ${tailRect.top.toFixed(1)} при верхе слота ${slotRect.top.toFixed(1)}`,
+  ).toBeGreaterThanOrEqual(slotRect.top - PX);
+
+  // …и прокрутка полосы не утащила за собой сцену: комната остаётся на месте,
+  // страница не листается вовсе (`.imm` — сцена, а не страница).
+  expect(
+    await page.evaluate(() => document.documentElement.scrollTop),
+    "страница поехала за прокруткой полосы",
+  ).toBe(0);
+  const frameScrolled = await rectOf(sceneFrame(page), "кадр после прокрутки полосы");
+  expectSame(frameScrolled.bottom, frameBefore.bottom, "нижняя кромка кадра после прокрутки полосы");
+
+  await expectNoSideScroll(page, `полоса под кадром ${width}×${height}`);
+}
+
+test("полоса под кадром 375×667: длинный текст прокручивается, а не срезается баром", async ({
+  page,
+}) => {
+  await railKeepsItsContent(page, 375, 667);
+});
+
+test("полоса под кадром 375×812: длинный текст прокручивается, а не срезается баром", async ({
+  page,
+}) => {
+  await railKeepsItsContent(page, 375, 812);
+});
+
+/**
+ * ТИКЕТА 190 ЗДЕСЬ НЕТ, И ЭТО НЕ ЗАБЫВЧИВОСТЬ.
+ *
+ * «Главное действие пустой комнаты ведёт в `/room/add`» — утверждение о ПУСТОЙ
+ * комнате, а пустой комнаты у этого спека нет и быть не может. Комната стенда
+ * полна (девять десятков вещей), и блок первого шага в ней не рисуется вовсе:
+ * он живёт под условием `itemCount === 0` (src/app/room/page.tsx). Опустошить
+ * её нечем, кроме `/dev-login?fresh=1`, а это СНОС комнаты стенда — запись, и
+ * разрушительная; спек затевался читающим (шапка файла).
+ *
+ * Подрисовать кнопку самим здесь было бы не проверкой, а её имитацией: тест
+ * мерил бы собственную разметку и сказал бы «сошлось» при любом продукте.
+ * Длинный узел выше — другое дело: он не изображает поведение, а даёт полосе
+ * то, чего у стенда нет, — длину; отвечает на неё сам продукт, своими стилями.
+ *
+ * Половину «слово и адрес» стерегут юниты — `tests/empty-room-first-screen.test.ts`
+ * (в слоте пустой комнаты ровно один адрес, и это `/room/add`) и
+ * `tests/no-bulk-fill.test.ts`. Половину «дорога ведёт в нашу же форму» —
+ * шаг «карточка добавления» выше, он ходит по `/room/add` живьём.
+ *
+ * ЧТО НУЖНО, ЧТОБЫ ПРОВЕРИТЬ ЭТО ГЛАЗАМИ МАШИНЫ: у стенда должен появиться
+ * ВТОРОЙ пользователь с заведомо пустой комнатой (посев, `prisma/seed.ts`), и
+ * `/dev-login` должен уметь входить им. Тогда пустая комната достаётся чтением,
+ * и правило файла остаётся целым.
+ */
+
 test("настройки: кадр во всю ширину и держится, пока крутят обе ручки", async ({ page }) => {
   // ЗАЧЕМ ЗДЕСЬ. Тикет 181 завёл крупный кадр вместо шести плиток 110×56,
   // тикет 185 забрал из пакета 43 ширину во весь экран. Оба числа — про
