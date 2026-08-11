@@ -112,7 +112,8 @@
     "summaryFreeNone": "all {m} being gifted"
   },
   "ZoneGrid": {
-    "emptyWant": "Nothing here yet — add your first wish",
+    "empty": "Nothing here yet — add your first wish",
+    "emptyPlaceLabel": "Put something here",
     "loveCaption": "love it",
     "givenYearGiver": "Gifted in {year} · {giver}",
     "givenYear": "Gifted in {year}",

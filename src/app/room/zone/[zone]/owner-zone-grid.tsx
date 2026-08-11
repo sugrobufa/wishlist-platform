@@ -412,7 +412,7 @@ export function OwnerZoneGrid({ items, accent, zoneKey, zoneLabel, pool }: Owner
           с состояниями (тикет 124). */}
       {shown.length === 0 && (
         <p className="text-sm text-text-muted">
-          {sort === "hidden" ? tl("emptyHidden") : tg("emptyWant")}
+          {sort === "hidden" ? tl("emptyHidden") : tg("empty")}
         </p>
       )}
 

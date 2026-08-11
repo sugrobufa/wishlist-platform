@@ -166,7 +166,7 @@ export function ZoneGrid({
           // Зона пуста — три места (тикет 99).
           <EmptyZone zoneKey={zoneKey} accent={accent} compact />
         ) : shown.length === 0 ? (
-          <p className={s.empty}>{t("emptyWant")}</p>
+          <p className={s.empty}>{t("empty")}</p>
         ) : zoneKey === EXPERIENCE_ZONE ? (
           // Форму выбирает ЗОНА (тикет 115, доска 34d): «Впечатления» —
           // всегда строками, и у гостя, и у хозяйки. Смешанной сетки нет.

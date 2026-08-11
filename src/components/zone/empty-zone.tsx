@@ -65,6 +65,9 @@ export function EmptyZone({
   compact = false,
 }: EmptyZoneProps) {
   const t = useTranslations("EmptyZone");
+  // Имя нажимаемого места живёт в разделе сетки зоны, а не пустой зоны: оно
+  // про действие «положить вещь», и пакет 46 положил его туда же (`ZoneGrid`).
+  const tZone = useTranslations("ZoneGrid");
   const router = useRouter();
   const [busy, setBusy] = useState(false);
   const [failed, setFailed] = useState(false);
@@ -116,7 +119,12 @@ export function EmptyZone({
           // ПОСТРОЕНИЮ, а не «плохо видны на телефоне».
           <Link
             href={`/room/add?zone=${zoneKey}`}
-            aria-label={t("cta")}
+            // Имя места — СВОЙ ключ пакета 46 (`ZoneGrid.emptyPlaceLabel`), а
+            // не переиспользованный `cta` полосы света: «место это действие, и
+            // у него должно быть имя, а не форма». Один ключ на два разных
+            // элемента связал бы их правкой — переписать кнопку нельзя было бы,
+            // не переписав заодно имя места для читалки.
+            aria-label={tZone("emptyPlaceLabel")}
             className={`pressable ${s.slot}`}
             style={{ "--slot-accent": accent } as CSSProperties}
           >

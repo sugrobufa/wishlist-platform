@@ -112,7 +112,8 @@
     "summaryFreeNone": "все {m} уже дарят"
   },
   "ZoneGrid": {
-    "emptyWant": "Добавь первое желание",
+    "empty": "Добавь первое желание",
+    "emptyPlaceLabel": "Положить сюда вещь",
     "loveCaption": "люблю",
     "givenYearGiver": "Подарок {year} года · от {giver}",
     "givenYear": "Подарок {year} года",
