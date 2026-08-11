@@ -1,0 +1,45 @@
+{
+ "answersTo": "письмо 47 — строки трёх экранов, редакция tryOnLine и снятая пара",
+ "format": "дельта: только новые и изменённые ключи",
+ "sourceSnapshot": "messages-ru.json на 11.08.2026, после пакета round43",
+ "added": {
+  "AddItem.cardPriceVisALL": "цену видят все",
+  "AddItem.cardPriceVisFRIENDS": "цену видят друзья",
+  "AddItem.cardPriceVisME": "цену видишь только ты",
+  "AddItem.cardShelfLine": "Стоит {where}",
+  "AddItem.cardAddedOn": "Стоит в комнате с {date}",
+  "AddItem.cardStores": "Где купить · {count, plural, one {# магазин} few {# магазина} many {# магазинов} other {# магазина}}",
+  "AddItem.cardStoresFrom": "от {price}",
+  "AddItem.cardNoteOverline": "Заметка",
+  "AddItem.cardAddPhoto": "Добавить фотографию",
+  "AddItem.cardPoolNote": "Дорого одному — скинуться с другими",
+  "AddItem.cardQuietHint": "никто не узнает до праздника",
+  "ZoneGrid.guestTakenTitle": "уже дарят",
+  "ZoneGrid.guestTakenHint": "в комнате есть свободные",
+  "Occasion.birthdayLabel": "День рождения",
+  "Occasion.birthdayRepeat": "Повторяется каждый год",
+  "Occasion.nearestLine": "{holiday} · {date}",
+  "Occasion.offerTitle": "Через {left} {holiday}",
+  "Occasion.offerLine": "Показать гостям, что комната ждёт подарков и к нему",
+  "Occasion.offerShow": "Показать",
+  "Occasion.offerSkip": "Не в этом году",
+  "Occasion.addOwn": "Добавить свой повод",
+  "Occasion.ownHint": "годовщина, новоселье, выпускной — что угодно со своей датой",
+  "Settings.tryOnLineAlt": "В комнате всё как было — «{name}» пока только здесь"
+ },
+ "note": "Ключи карточки заведены в существующем разделе AddItem, а не в новом Item — по вашему же доводу из письма 47 про Light.*: новый раздел ради раздела стоит как новый ключ и даёт ноль. Если у вас карточка читает свой раздел, скажите имя — переименуем на вашей стороне шва.",
+ "tryOnLine": {
+  "yours": "«{name}» пока только в примерке. В комнате всё как было",
+  "ours": "В комнате всё как было — «{name}» пока только здесь",
+  "difference": "порядок: сначала успокаивающий факт, потом ограничение; «здесь» показывает на плашку, в которой строка стоит, и не повторяет её заголовок «Примерка»",
+  "verdict": "обе проходят toneCheck. Берите любую; если разница кажется вкусовой — вашу, она уже в сборке"
+ },
+ "removedPair": {
+  "keys": [
+   "Occasion.hint — не меняется",
+   "ничего не удалено этим пакетом"
+  ],
+  "note": "пара quietGiver/quietGiverF снята пакетом round42, повторно не трогаем"
+ },
+ "toneCheck": "Все строки пакета прогнаны новым toneCheck из четырёх правил: род · падеж токена · технические слова · точка в конце короткой строки. Третье правило добавлено в прогон по вашему замечанию."
+}
