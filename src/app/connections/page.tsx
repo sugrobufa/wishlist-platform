@@ -76,8 +76,11 @@ export default async function ConnectionsPage() {
   };
 
   return (
-    // Нижний отступ освобождает место постоянному таб-бару (86 px, фикс).
-    <main className="min-h-screen pb-[calc(var(--imm-tab-bar)+30px)]">
+    // Нижний отступ освобождает место постоянному таб-бару: в переменной с
+    // тикета 182 лежит полоса знаков 86 плюс нижний инсет, так что прибавлять
+    // его здесь не нужно. Низ страницы — 100dvh, а не 100vh: во встроенном
+    // браузере Телеграма 100vh не знает про его обвязку и уезжает под неё.
+    <main className="min-h-[100dvh] pb-[calc(var(--imm-tab-bar)+30px)]">
       <div className="mx-auto w-full max-w-xl px-5 lg:px-0">
         <header className="pb-5 pt-6 lg:pt-10">
           <Link href="/room" className="pressable text-xs font-semibold text-text-strong">

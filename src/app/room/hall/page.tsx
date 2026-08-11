@@ -72,8 +72,11 @@ export default async function HallPage() {
           .join(" · ");
 
   return (
-    // Нижний отступ освобождает место постоянному таб-бару (86 px, фикс).
-    <main className="min-h-screen bg-surface-hall-ground pb-[calc(var(--imm-tab-bar)+30px)]">
+    // Нижний отступ освобождает место постоянному таб-бару: в переменной с
+    // тикета 182 лежит полоса знаков 86 плюс нижний инсет, так что прибавлять
+    // его здесь не нужно. Низ страницы — 100dvh, а не 100vh: во встроенном
+    // браузере Телеграма 100vh не знает про его обвязку и уезжает под неё.
+    <main className="min-h-[100dvh] bg-surface-hall-ground pb-[calc(var(--imm-tab-bar)+30px)]">
       {/* Витрина зала из пакета (refs/c-hall.jpg) — фон шапки с виньеткой. */}
       <div className={s.hero}>
         <div
