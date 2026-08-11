@@ -538,6 +538,11 @@ async function buildZoneContent(
               pool={zone.pool}
               zoneKey={zone.key}
               ownerEmpty
+              // Плитка ведёт в карточку вещи (тикет 186): экран у хозяйки
+              // собран, а дороги к нему из комнаты не было — `<li>` не
+              // нажималась вовсе. Адрес отдаётся строкой: функции границу RSC
+              // не переходят (tests/rsc-boundary.test.ts).
+              itemHrefBase={`/room/zone/${zone.key}/i/`}
               footer={
                 inTreasury > 0 ? (
                   <Link href="/room/hall" className="pressable imm-zone-bridge">

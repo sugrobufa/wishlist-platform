@@ -103,6 +103,17 @@ export type ZoneGridProps = {
    */
   ownerEmpty?: boolean;
   /**
+   * Базовый адрес карточки вещи — к нему плитка добавляет `item.id` (тикет
+   * 186). Комната хозяйки передаёт `/room/zone/{зона}/i/`; гостевая сетка не
+   * передаёт ничего — у неё вход в карточку стоит отдельной ссылкой в слоте
+   * действия, и трогать её тикет не велит.
+   *
+   * СТРОКА, А НЕ ФУНКЦИЯ: комната хозяйки — серверный компонент, а функции
+   * границу RSC не переходят (`tests/rsc-boundary.test.ts`, тот же довод, что
+   * у `zoneHrefBase` в RoomListView).
+   */
+  itemHrefBase?: string;
+  /**
    * Подвал зоны — тихая строка-мост «Ещё {n} — в сокровищнице» (раунд 29,
    * task31.json → treasuryBridge). Узел приходит снаружи, потому что решает
    * его вызывающая сторона: мост есть ТОЛЬКО у хозяйки и только когда в
@@ -122,6 +133,7 @@ export function ZoneGrid({
   pool,
   zoneKey,
   ownerEmpty = false,
+  itemHrefBase,
   footer,
 }: ZoneGridProps) {
   const t = useTranslations("ZoneGrid");
@@ -166,6 +178,7 @@ export function ZoneGrid({
                 staggerIndex={Math.min(index, STAGGER_CAP)}
                 action={renderItemAction?.(item)}
                 pool={pool}
+                href={itemHrefBase ? `${itemHrefBase}${item.id}` : undefined}
               />
             ))}
           </ul>

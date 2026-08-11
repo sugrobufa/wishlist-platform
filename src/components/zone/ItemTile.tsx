@@ -4,7 +4,14 @@
 // вместе с самими состояниями — инвариант №3 отменён целиком.
 // Серая заливка = «нет фото» и только это (классификатор tile-appearance.ts под
 // тестом). Демо-призрак — полупрозрачность и бейдж «пример».
+//
+// ПЛИТКА — ДОРОГА В КАРТОЧКУ ВЕЩИ (тикет 186). До него `<li>` не нажималась
+// вовсе: карточка была собрана, покрыта тестами и недостижима оттуда, где
+// человек на вещь смотрит, — кликабельной внутри плитки была одна маленькая
+// ссылка «Где купить». Адрес приходит пропом готовой строкой: собирать его
+// плитка не вправе — у хозяйки и гостя он разный.
 import type { CSSProperties, ReactNode } from "react";
+import Link from "next/link";
 import { useLocale, useTranslations } from "next-intl";
 import { PoolIcon } from "@/components/pool-icons";
 import { ShopLink } from "./shop-link";
@@ -20,6 +27,12 @@ type ItemTileProps = {
   action?: ReactNode;
   /** Пул ЗОНЫ — значок вместо буквы у вещи без фото (тикет 82). */
   pool?: string | null;
+  /**
+   * Готовый адрес карточки вещи (тикет 186). Без него плитка не ведёт никуда —
+   * ровно так живёт гостевая сетка: у неё вход в карточку стоит отдельной
+   * ссылкой в слоте действия, и второго ей не нужно.
+   */
+  href?: string;
 };
 
 /** Цена «хочу» для подписи: "14 900 ₽". Деньги в DTO — строка Decimal. */
@@ -40,7 +53,7 @@ function formatPrice(item: ZoneGridItem, locale: string): string | null {
   }
 }
 
-export function ItemTile({ item, staggerIndex, action, pool }: ItemTileProps) {
+export function ItemTile({ item, staggerIndex, action, pool, href }: ItemTileProps) {
   const t = useTranslations("ZoneGrid");
   const locale = useLocale();
   const look = tileAppearance(item, pool);
@@ -66,11 +79,16 @@ export function ItemTile({ item, staggerIndex, action, pool }: ItemTileProps) {
 
   const mediaClass = look.greyFill ? `${s.media} ${s.mediaGrey}` : s.media;
 
-  return (
-    <li
-      className={look.ghost ? `${s.tile} ${s.ghost}` : s.tile}
-      style={{ "--zg-i": staggerIndex } as CSSProperties}
-    >
+  // Демо-призрак не ведёт НИКУДА (тикет 186): за ним нет вещи, его id ничего
+  // не значит вне рендера. Решается здесь, а не у вызывающей стороны, — там
+  // про призрака знают не все, а `look.ghost` уже посчитан.
+  const openHref = look.ghost ? undefined : href;
+
+  // Тело плитки — образ и подписи. ОНО и есть цель нажатия: «Где купить»
+  // внутри плитки остаётся своей отдельной ссылкой, а вложенных <a> не бывает
+  // (требование разметки, а не вкус) — поэтому оборачивается тело, а не <li>.
+  const body = (
+    <>
       <div className={mediaClass}>
         {item.photoUrl && (
           <div
@@ -98,6 +116,24 @@ export function ItemTile({ item, staggerIndex, action, pool }: ItemTileProps) {
       </div>
       <p className={s.title}>{item.title}</p>
       {meta && <p className={item.inHall === true ? `${s.meta} ${s.metaLove}` : s.meta}>{meta}</p>}
+    </>
+  );
+
+  return (
+    <li
+      className={look.ghost ? `${s.tile} ${s.ghost}` : s.tile}
+      style={{ "--zg-i": staggerIndex } as CSSProperties}
+    >
+      {/* ССЫЛКОЙ, А НЕ onClick (тикет 186, образец — гостевая сетка): долгое
+          нажатие, «открыть в новой вкладке» и средняя кнопка обязаны работать,
+          и у гостя они уже работают. */}
+      {openHref ? (
+        <Link href={openHref} className={`pressable ${s.open}`}>
+          {body}
+        </Link>
+      ) : (
+        body
+      )}
       {/* «Где купить» (тикет 37): ключ shop приезжает только из гостевого DTO
           и только у вещи комнаты с видимой ценой — плитка ничего не решает сама. */}
       {item.shop && (
