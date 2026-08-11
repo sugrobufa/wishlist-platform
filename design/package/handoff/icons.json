@@ -16,7 +16,6 @@
    "tab-treasury.svg"
   ],
   "угол": [
-   "tab-room.svg",
    "tab-friends.svg",
    "tab-settings.svg",
    "tab-treasury.svg"
@@ -281,8 +280,7 @@
   "tab-room.svg": {
    "means": "Комната",
    "rows": [
-    "бар",
-    "угол"
+    "бар"
    ],
    "silhouette": {
     "shell": "арка",

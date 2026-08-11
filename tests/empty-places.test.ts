@@ -774,4 +774,91 @@ describe("142 — места живут ровно столько же, скол
     const place = /\.place \{[\s\S]*?\n\}/u.exec(sceneCss)?.[0] ?? "";
     expect(place).not.toMatch(/transform/u);
   });
+
+  it("ПСЕВДОНИМ ОТДАЁТ ТО ЖЕ, ЧТО СТАРЫЙ АДРЕС — два поля доложены (round42)", () => {
+    // ЧТО ПРИЕХАЛО. Дельта раунда 42 (`design/round42/places-delta.json`,
+    // тикет 178) доложила четыре числа: `states.hover.stroke` и
+    // `states.zoneHover.stroke` = 1.5, `states.press.opacity` и
+    // `states.zonePress.opacity` = 1. Правило дизайна дословно: «псевдоним
+    // обязан отдавать то же, что старый адрес», и обратное тоже — канонический
+    // ключ не может быть беднее своего псевдонима.
+    //
+    // ЧИСЛА НЕ НОВЫЕ, и это здесь главное. 1.5 — базовый `visual.corners.
+    // strokePx`: контур на наведении НЕ меняется, поэтому в новых ключах его и
+    // не было вовсе. 1 — непрозрачность, которая при нажатии остаётся прежней.
+    // Проверяем не «стоит 1.5», а «стоит ТО ЖЕ, ЧТО В КАНОНЕ»: перепиши дизайн
+    // базовый контур — упадёт здесь, а не через раунд.
+    //
+    // ФАЙЛ ЧИТАЕТСЯ НАПРЯМУЮ, а не через `placesContract`: проверяется перенос
+    // В ФАЙЛ, и типизированный взгляд на него тут только мешал бы — он описывает
+    // то, что мы ЧИТАЕМ, а эти четыре поля мы как раз не читаем (см. ниже).
+    const raw = JSON.parse(
+      read("../design/package/handoff/places.json"),
+    ) as {
+      visual: { corners: { strokePx: number } };
+      states: Record<string, Record<string, unknown>>;
+      keyMoves: { fromV31ToV33: { from: string; to: string; alias: string }[] };
+    };
+    const canonStroke = raw.visual.corners.strokePx;
+    expect(canonStroke).toBe(PLACE_STROKE_PX);
+    // ДОЕХАЛИ ВСЕ ЧЕТЫРЕ — и попарно, псевдоним против своего адреса.
+    for (const [alias, canonical, field] of [
+      ["hover", "zoneHover", "stroke"],
+      ["press", "zonePress", "opacity"],
+    ] as const) {
+      const atAlias = raw.states[alias]?.[field];
+      const atCanonical = raw.states[canonical]?.[field];
+      expect(atAlias, `states.${alias}.${field} не доехал`).toBeDefined();
+      expect(atCanonical, `states.${canonical}.${field} не доехал`).toBeDefined();
+      expect(atAlias, `${alias}: псевдоним и адрес разошлись по ${field}`).toBe(atCanonical);
+    }
+    // ЧИСЛА НЕ НОВЫЕ: контур на наведении — базовый, непрозрачность при нажатии
+    // не меняется. Ждём не литерал, а канон и прозу того же ключа.
+    expect(raw.states.hover?.stroke, "контур наведения перестал быть базовым").toBe(canonStroke);
+    expect(raw.states.press?.opacity).toBe(1);
+    expect(raw.states.zoneHover?.place).toContain("непрозрачность 1");
+    // А ВОТ КОНТУР ПРИ НАЖАТИИ МЕНЯЕТСЯ, и 1.8 против базовых 1.5 — не
+    // расхождение: так написано и прозой канонического ключа.
+    expect(raw.states.press?.stroke).toBe(1.8);
+    expect(raw.states.zonePress?.place).toContain("контур 1.8");
+
+    // РЕНДЕР ОТ ЭТОГО НЕ МЕНЯЕТСЯ — потому что читаем мы не отсюда. Контур
+    // места берётся из `visual.corners.strokePx`, нажатие и наведение
+    // рисуются CSS от состояния кнопки зоны. Начни кто-нибудь читать числа из
+    // псевдонима — заведётся вторая правда об одном контуре, и упадёт здесь.
+    const rules = read("../src/components/scene/empty-places.ts")
+      .replace(/\/\*[\s\S]*?\*\//gu, "")
+      .replace(/^\s*\/\/.*$/gmu, "");
+    // Проверка «нет строки» зелена и когда стёрли всё. Контроль: адрес, который
+    // модуль ЧИТАЕТ, после снятия комментариев на месте.
+    expect(rules, "снятие комментариев съело код — проверка ниже стала пустой").toContain(
+      "states.zoneFocus.",
+    );
+    for (const address of ["states.hover", "states.press", "states.zoneHover", "states.zonePress"]) {
+      expect(rules, `модуль начал читать ${address} — вторая правда об одном числе`).not.toContain(
+        `${address}.`,
+      );
+    }
+
+    // ИСПРАВЛЕННАЯ ЗАПИСЬ `keyMoves`. Была ложной: «значение изменилось» —
+    // а мы сверили побайтно, и все шесть ключей `behavior.a11y` те же, что в
+    // v3.2. Дизайн запись переписал, и переписанную мы переносим: ложная
+    // запись в `keyMoves` дороже самого переезда, потому что после неё
+    // сверяют руками.
+    const a11yMove = raw.keyMoves.fromV31ToV33.find((m) => m.from === "behavior.a11y");
+    expect(a11yMove, "запись про behavior.a11y пропала из keyMoves").toBeDefined();
+    expect(a11yMove?.to).toContain("значение НЕ менялось");
+    expect(a11yMove?.to).toContain("добавлен псевдоним");
+    expect(a11yMove?.to, "ложная запись вернулась").not.toContain("значение изменилось");
+    // Шесть ключей `behavior.a11y` при этом НЕ ВЕРНУЛИСЬ — их отсутствие держит
+    // проверка «место — не кнопка» выше, здесь только состав ключа.
+    expect(Object.keys(placesContract.behavior.a11y).sort()).toEqual([
+      "confirmed",
+      "dropped",
+      "focus",
+      "place",
+      "verdict",
+      "zone",
+    ]);
+  });
 });
