@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Archivo, Onest, Instrument_Sans } from "next/font/google";
 import { NextIntlClientProvider } from "next-intl";
 import { getLocale, getMessages, getTranslations } from "next-intl/server";
@@ -44,6 +44,31 @@ export async function generateMetadata(): Promise<Metadata> {
     openGraph: { siteName: name, title: name, description: DESCRIPTION, type: "website" },
   };
 }
+
+/**
+ * `viewport-fit=cover` — решение владельца 11.08.2026, тикет 200.
+ *
+ * БЕЗ ЭТОЙ СТРОКИ WebKit ВОЗВРАЩАЕТ `env(safe-area-inset-*) = 0`, и оба наших
+ * инсета — мёртвые переменные. Следствий было ровно два, и оба тихие:
+ *
+ * 1. `--imm-safe-bottom` в сумме высоты таб-бара не делал ничего, поэтому
+ *    тикет 182 закрывал щель под баром только в эмуляции. На айфоне заливка
+ *    оставалась 86 px, и владелец видел под баром комнату;
+ * 2. `--imm-safe-top` мёртв с тикета 57: проект считал, что обрабатывает
+ *    чёлку, и не обработал её ни разу.
+ *
+ * ЧТО МЕНЯЕТСЯ ВИДИМО: комната идёт до самого верха экрана — ровно то, чего
+ * хочет код («она фотография, ей вырез не мешает»), — а текст шапки и её вуаль
+ * съезжают вниз на высоту выреза. Это замысел тикета 57, доехавший до
+ * устройства через двенадцать дней.
+ *
+ * ПРОВЕРЯТЬ ЭТО В ХРОМЕ БЕССМЫСЛЕННО: там инсеты равны нулю и до, и после.
+ * Годятся два доказательства — тест на УСТРОЙСТВО (читает CSS и требует инсет
+ * в формуле) и замер с подставленным вручную числом.
+ */
+export const viewport: Viewport = {
+  viewportFit: "cover",
+};
 
 export default async function RootLayout({ children }: { children: React.ReactNode }) {
   const locale = await getLocale();
