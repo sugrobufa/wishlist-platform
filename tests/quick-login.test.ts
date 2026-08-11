@@ -16,6 +16,22 @@
 // обработчик Auth.js (handlers.GET) — сессию проверяем ту, что выдал пакет, а
 // не свою выдумку. Моков нет вовсе: экрана у страницы больше не осталось,
 // поэтому ни next/headers, ни next-intl ей не нужны.
+//
+// ПОЧЕМУ У ПРОГОНА СВОИ ПОЧТЫ. dev-БД одна, а прогонов рядом бывает два (второй
+// агент, ночной поток поверх ручного, просто два окна). Почты фикстуры были
+// ФИКСИРОВАННЫМИ (`owner@quick-login.test`), а `cleanup` сносил всё по домену —
+// то есть и чужие строки тоже. Соседний прогон заводил того же владельца первым
+// («Unique constraint failed on the fields: (`email`)») или сносил нашего между
+// шагами: комнаты под вещью уже нет (`Item_roomId_fkey`, `RoomEvent_roomId_fkey`),
+// пользователя под связью тоже (`Connection_aUserId_fkey`), а сброс стенда падал
+// на «No record was found for a delete». Тест был гоночным по построению — ровно
+// того же рода, что `tests/stand-seed.test.ts` и `tests/birthday-migration.test.ts`
+// до починки.
+//
+// Лечится не ожиданием и не повтором, а ИМЕНАМИ: у каждого прогона свой ярлык в
+// домене почты (`@run-1a2b3c4d.quick-login.test`). Завести нашего владельца
+// второй раз некому, и `cleanup` по этому домену чужого не видит вовсе. Что
+// правило соблюдается, стережёт первый describe файла, а не только комментарий.
 import "dotenv/config";
 import { randomBytes, randomUUID } from "node:crypto";
 import { afterAll, afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -41,7 +57,21 @@ import ruMessages from "../messages/ru.json";
 import enMessages from "../messages/en.json";
 
 const ORIGIN = "http://localhost:3000";
-const TEST_EMAIL_DOMAIN = "@quick-login.test";
+
+/**
+ * Общий хвост почт ВСЕХ прогонов этого файла. Ни выбирать, ни удалять по нему
+ * ничего нельзя — только подметать давно брошенное (см. sweepAbandoned).
+ */
+const BASE_EMAIL_DOMAIN = "quick-login.test";
+
+/**
+ * ЯРЛЫК ЭТОГО ПРОГОНА — то, чем строки фикстуры отличаются от строк соседнего
+ * прогона по той же dev-БД. Живёт ровно столько, сколько форк vitest.
+ */
+const RUN = randomUUID().slice(0, 8);
+
+/** Домен почт ТОЛЬКО этого прогона: и заводим, и убираем строго по нему. */
+const TEST_EMAIL_DOMAIN = `@run-${RUN}.${BASE_EMAIL_DOMAIN}`;
 const OWNER_EMAIL = `owner${TEST_EMAIL_DOMAIN}`;
 /** Второй пользователь стенда — тот, у кого комната пустая (тикет 190). */
 const EMPTY_EMAIL = `empty${TEST_EMAIL_DOMAIN}`;
@@ -203,21 +233,57 @@ async function fillRoom(userId: string, roomId: string) {
   return { item, booking, snapshot, summary, parseJob, recognitionJob, photoKey };
 }
 
+/** Снести НАЗВАННЫХ пользователей со всем, что за ними не тянется каскадом. */
+async function removeUsers(users: readonly { id: string; roomId: string | null }[]): Promise<void> {
+  if (users.length === 0) return;
+  const userIds = users.map((entry) => entry.id);
+  const roomIds = users.flatMap((entry) => (entry.roomId ? [entry.roomId] : []));
+  // Модели без FK-связи с User каскад не заденет — чистим руками (как сервис).
+  await prisma.occasionSummary.deleteMany({ where: { roomId: { in: roomIds } } });
+  await prisma.parseJob.deleteMany({ where: { userId: { in: userIds } } });
+  await prisma.recognitionJob.deleteMany({ where: { userId: { in: userIds } } });
+  await prisma.user.deleteMany({ where: { id: { in: userIds } } });
+}
+
+/**
+ * Убрать за СОБОЙ. Домен здесь — свой, с ярлыком прогона: чужие строки этот
+ * запрос не находит, а значит и снести их не может.
+ */
 async function cleanup(): Promise<void> {
   const users = await prisma.user.findMany({
     where: { email: { endsWith: TEST_EMAIL_DOMAIN } },
     select: { id: true, room: { select: { id: true } } },
   });
-  const userIds = users.map((entry) => entry.id);
-  const roomIds = users.flatMap((entry) => (entry.room ? [entry.room.id] : []));
-  // Модели без FK-связи с User каскад не заденет — чистим руками (как сервис).
-  await prisma.occasionSummary.deleteMany({ where: { roomId: { in: roomIds } } });
-  await prisma.parseJob.deleteMany({ where: { userId: { in: userIds } } });
-  await prisma.recognitionJob.deleteMany({ where: { userId: { in: userIds } } });
   await prisma.verificationToken.deleteMany({
     where: { identifier: { endsWith: TEST_EMAIL_DOMAIN } },
   });
-  await prisma.user.deleteMany({ where: { id: { in: userIds } } });
+  await removeUsers(users.map((entry) => ({ id: entry.id, roomId: entry.room?.id ?? null })));
+}
+
+/**
+ * Час — граница «прогон точно не жив». Файл идёт секунд десять, самый долгий
+ * тест ограничен пятнадцатью: строке в час от роду принадлежать живому прогону
+ * нечем.
+ */
+const ABANDONED_AFTER_MS = 60 * 60 * 1000;
+
+/**
+ * Подмести за прогонами, которые до своего afterAll не дожили (Ctrl-C, упавший
+ * форк). Пока домен был общим, это делал следующий прогон — заодно снося строки
+ * соседнего живого; теперь чужое трогается ТОЛЬКО по возрасту, и час выбран
+ * так, чтобы живого прогона под ножом не оказалось никогда.
+ */
+async function sweepAbandoned(): Promise<void> {
+  const cutoff = new Date(Date.now() - ABANDONED_AFTER_MS);
+  const stale = await prisma.user.findMany({
+    where: { email: { endsWith: BASE_EMAIL_DOMAIN }, createdAt: { lt: cutoff } },
+    select: { id: true, room: { select: { id: true } } },
+  });
+  // Токены живут минуту (QUICK_LOGIN_TOKEN_TTL_MS) — брошенные давно протухли.
+  await prisma.verificationToken.deleteMany({
+    where: { identifier: { endsWith: BASE_EMAIL_DOMAIN }, expires: { lt: cutoff } },
+  });
+  await removeUsers(stale.map((entry) => ({ id: entry.id, roomId: entry.room?.id ?? null })));
 }
 
 beforeEach(async () => {
@@ -232,7 +298,80 @@ afterEach(() => {
 
 afterAll(async () => {
   await cleanup();
+  await sweepAbandoned();
   await prisma.$disconnect();
+});
+
+// -------------------------------------------- прогон не мешает соседнему прогону
+
+describe("строки этого прогона — только его", () => {
+  it("уборка сносит своё и не трогает строки соседнего прогона", async () => {
+    // ПОЧЕМУ ЭТА ПРОВЕРКА ЕСТЬ. Отсюда и рос гоночный красный: `cleanup` ходил
+    // по общему домену и сносил владельца соседнего прогона между его шагами.
+    // Держать это одним комментарием мало — правило живёт в одной строке
+    // запроса, и вернуть общий домен ничего не стоит.
+    //
+    // Проверка НЕ СЧИТАЕТ СТРОКИ и ничего не знает про соседей настоящих:
+    // «сосед» здесь свой, заведённый этим же прогоном, и его почта уникальна
+    // не меньше нашей — живому соседнему прогону она принадлежать не может.
+    const neighbour = `owner@run-${RUN}-сосед.${BASE_EMAIL_DOMAIN}`;
+    const mine = await prisma.user.create({ data: { email: `sweep${TEST_EMAIL_DOMAIN}` } });
+    const theirs = await prisma.user.create({ data: { email: neighbour } });
+    // …и токен соседа тоже должен пережить нашу уборку: она ходит по
+    // `verificationToken.identifier` тем же доменом, что и по почтам.
+    const theirToken = await prisma.verificationToken.create({
+      data: {
+        identifier: neighbour,
+        token: `neighbour-${randomUUID()}`,
+        expires: new Date(Date.now() + QUICK_LOGIN_TOKEN_TTL_MS),
+      },
+    });
+
+    try {
+      await cleanup();
+
+      expect(
+        await prisma.user.findUnique({ where: { id: mine.id } }),
+        "уборка не снесла собственную строку прогона",
+      ).toBeNull();
+      expect(
+        await prisma.user.findUnique({ where: { id: theirs.id } }),
+        "уборка снесла строку соседнего прогона — почта фикстуры снова общая",
+      ).not.toBeNull();
+      expect(
+        await prisma.verificationToken.count({ where: { identifier: neighbour } }),
+        "уборка снесла токен соседнего прогона",
+      ).toBe(1);
+    } finally {
+      await prisma.verificationToken.deleteMany({ where: { token: theirToken.token } });
+      await prisma.user.deleteMany({ where: { id: theirs.id } });
+    }
+  });
+
+  it("подметание брошенного — только по возрасту, свежие строки целы", async () => {
+    // Обратная сторона своего домена: за упавшим прогоном никто не уберёт.
+    // Подметаем сами — но строго по возрасту, иначе вернулась бы та же гонка.
+    const fresh = await prisma.user.create({ data: { email: `fresh${TEST_EMAIL_DOMAIN}` } });
+    const abandoned = await prisma.user.create({
+      data: {
+        email: `abandoned@run-${RUN}-брошенный.${BASE_EMAIL_DOMAIN}`,
+        createdAt: new Date(Date.now() - ABANDONED_AFTER_MS - 60_000),
+      },
+    });
+
+    await sweepAbandoned();
+
+    expect(
+      await prisma.user.findUnique({ where: { id: abandoned.id } }),
+      "брошенная час назад строка осталась в базе",
+    ).toBeNull();
+    expect(
+      await prisma.user.findUnique({ where: { id: fresh.id } }),
+      "подметание забрало свежую строку — под нож попал бы живой соседний прогон",
+    ).not.toBeNull();
+
+    await prisma.user.deleteMany({ where: { id: fresh.id } });
+  });
 });
 
 // ------------------------------------------------------- конфиг и флаг
