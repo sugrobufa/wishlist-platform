@@ -49,9 +49,31 @@ describe("пустая зона", () => {
     expect(emptyZone).toMatch(/aria-hidden\s*\n?\s*className="relative h-26/u);
   });
 
-  it("цель нажатия не меньше 44 (контракт rooms.json → hitTargetMin)", () => {
-    // h-16 = 64 px по шкале Tailwind: с запасом выше пола.
-    expect(emptyZone).toMatch(/className="pressable flex h-16 max-w-31/u);
+  it("место 96×96 — цель нажатия заведомо выше пола 44", () => {
+    // Числа переехали в CSS вместе с приездом пакета 46: 96×96 — это не
+    // «побольше на всякий случай», а размер, при котором место читается как
+    // площадка для вещи, а не как кнопка со знаком.
+    const css = readFileSync(
+      join(process.cwd(), "src/components/zone/empty-zone.module.css"),
+      "utf8",
+    );
+    expect(css).toMatch(/\.slot\s*\{[^}]*width:\s*96px/u);
+    expect(css).toMatch(/\.slot\s*\{[^}]*height:\s*96px/u);
+    // Прежних ступеней прозрачности в ПРАВИЛАХ нет ни одной: дизайн померил
+    // их контрастом к базе комнаты — 2.3 : 1 и 1.5 : 1 при нашем же поле .48,
+    // то есть две из трёх были ниже пола (пакет 46). Комментарии из проверки
+    // вырезаны нарочно: они эти же числа объясняют, и запрещать их там
+    // значило бы запрещать причину рядом с решением.
+    const rules = css.replace(/\/\*[\s\S]*?\*\//gu, "");
+    expect(rules).not.toMatch(/0?\.28|0?\.16/u);
+  });
+
+  it("hover за воротами, как велит конвенция", () => {
+    const css = readFileSync(
+      join(process.cwd(), "src/components/zone/empty-zone.module.css"),
+      "utf8",
+    );
+    expect(css).toMatch(/@media \(hover: hover\) and \(pointer: fine\)/u);
   });
 
   it("в пустой зоне пилюля «+ Добавить вещь» не рисуется", () => {

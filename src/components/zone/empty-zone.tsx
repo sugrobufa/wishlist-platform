@@ -27,12 +27,13 @@
 //
 // Язык тот же, что у пустой комнаты (тикет 104): пустота показывается
 // темнотой и ожиданием, а не чужими вещами-примерами.
-import { useState, useTransition } from "react";
+import { useState, useTransition, type CSSProperties } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { IconEyeOff, IconPlus } from "@/components/icons";
 import { setZoneOffAction } from "@/app/room/zone/[zone]/actions";
+import s from "./empty-zone.module.css";
 
 type EmptyZoneProps = {
   zoneKey: string;
@@ -105,17 +106,21 @@ export function EmptyZone({
           ровно то замечание приёмки, из-за которого тикет и заведён. */}
       <div className={compact ? "mt-1" : "mt-4"}>
         {compact ? (
+          // ЧИСЛА — ПАКЕТ 46 (`empty-zone.json → place`, турн 52c). Дизайн
+          // согласился с решением владельца целиком и прислал инструмент,
+          // которого нам не хватало: прежние ступени прозрачности померены
+          // КОНТРАСТОМ к базе комнаты — 4.3 : 1, 2.3 : 1 и 1.5 : 1 при нашем
+          // же поле .48. Две из трёх были незаконны с самого начала, и это не
+          // вкус, а нарушенный инвариант. Друг от друга соседи отличались на
+          // 1.9 : 1 и 1.6 : 1 при минимуме 3 : 1 — то есть не различались ПО
+          // ПОСТРОЕНИЮ, а не «плохо видны на телефоне».
           <Link
             href={`/room/add?zone=${zoneKey}`}
             aria-label={t("cta")}
-            className="pressable flex h-16 max-w-31 items-center justify-center"
-            style={{
-              border: `1px dashed ${accent}${SLOT_ALPHA}`,
-              background: `linear-gradient(180deg,${accent}17,transparent)`,
-              borderBottom: `2px solid ${accent}${SLOT_ALPHA}`,
-            }}
+            className={`pressable ${s.slot}`}
+            style={{ "--slot-accent": accent } as CSSProperties}
           >
-            <IconPlus size={22} style={{ color: accent }} />
+            <IconPlus size={26} strokeWidth={1.7} style={{ color: accent }} />
           </Link>
         ) : (
           <div
