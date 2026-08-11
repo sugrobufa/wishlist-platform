@@ -1,30 +1,31 @@
-// «Что чаще всего хочется» (тикет 113, доска 34b).
+// ПОЛЕ `Room.wants` — МЁРТВОЕ, НО ЦЕЛОЕ (тикеты 189 и 191).
 //
-// ВОПРОС ПЕРЕЕХАЛ (тикет 134, письмо 33 · турн 40b): он больше не шаг
-// онбординга, а чипы при первом открытии «начни с готового». Сменилось место —
-// не смысл: состав вопроса, предел «3–4» и главное правило те же, и потому
-// проверки здесь те же. Первый describe — путь создания комнаты (посев стенда
-// и тесты), второй — новый путь, `setRoomWants` из чипов набора.
+// Вопрос «что чаще всего хочется» (тикет 113, доска 34b) переезжал дважды и на
+// втором переезде кончился. Сперва он был четвёртым шагом онбординга, потом
+// чипами при первом открытии «начни с готового» (тикет 134, письмо 33 · турн
+// 40b), а 11.08.2026 владелец снял его целиком: «ничего не происходит и
+// непонятно, на что это влияет». Он был прав по механизму — ответ красил ровно
+// две вещи, и обе невидимы в момент ответа: порядок наполнения стартовым
+// набором (набор выпилен тикетом 191) и порядок зон в форме добавления (теперь
+// считается ПО ДЕЛАМ, тикет 189).
 //
-// Главное, что здесь защищается, — чего ответ НЕ делает. Доска особо
-// оговаривает: полки не переставляются и не выключаются. Набор зон решает
-// шаг 2, а прямоугольники зон — инвариант контракта; если ответ про желания
-// однажды начнёт трогать комнату, сломается и то и другое разом.
+// ЧТО ЗДЕСЬ ОСТАЛОСЬ И ЗАЧЕМ. Поле в базе живо: миграция удаления необратима, а
+// польза от неё нулевая — данные живых комнат остаются данными их хозяек
+// (решение тикета 189, пункт 3). Живы и оба пути записи, `createRoomForUser` и
+// `setRoomWants`; вопроса, который бы их звал, в продукте больше нет.
+// Проверяется здесь ровно то, чем поле было опасно: **ответ НЕ ТРОГАЕТ
+// КОМНАТУ** — полки не переставляются и не выключаются. Набор зон решает шаг 2
+// онбординга, а прямоугольники зон — инвариант контракта; если мёртвое поле
+// однажды оживёт и начнёт трогать комнату, сломается и то и другое разом.
+//
+// Чипов вопроса (`starterPackWants`) здесь больше нет: функция удалена вместе с
+// сервисом набора. Сторож её невозвращения — tests/no-bulk-fill.test.ts.
 import "dotenv/config";
 import { randomUUID } from "node:crypto";
-import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
-
-// Сервис набора тянет за собой создание вещей, а то — очереди (фото в S3).
-// Тесту очередей не нужно: он спрашивает только чипы вопроса.
-vi.mock("@/server/queues", () => ({
-  enqueueOccasionOwnerMail: vi.fn(async () => true),
-  enqueueItemGoneMail: vi.fn(async () => true),
-  enqueueImageIngest: vi.fn(async () => true),
-}));
+import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import { prisma } from "../src/server/db";
 import { createRoomForUser, setRoomWants } from "../src/server/services/rooms";
-import { starterPackWants } from "../src/server/services/starter-pack";
 import { rooms as roomPresets } from "../src/config/design";
 
 const TEST_EMAIL_DOMAIN = "@onboarding-wants.test";
@@ -86,7 +87,7 @@ describe("ответ «что хочется» (тикет 113)", () => {
   });
 });
 
-describe("ответ из «начни с готового» — новое место вопроса (тикет 134)", () => {
+describe("второй путь записи — `setRoomWants` (спрашивать его больше некому)", () => {
   async function ownerWithRoom(preset = "cream") {
     const user = await freshUser();
     const room = await createRoomForUser(user.id, { preset, zoneSet: "F" });
@@ -126,25 +127,15 @@ describe("ответ из «начни с готового» — новое ме
     expect((await setRoomWants(user.id, [])).wants).toEqual([]);
   });
 
-  it("чипы — зоны своей комнаты, без «Что угодно» и «Просто денег»", async () => {
-    const { user } = await ownerWithRoom();
-    const question = await starterPackWants(user.id);
-    expect(question).not.toBeNull();
-    const keys = (question?.chips ?? []).map((chip) => chip.key);
-    expect(keys.length).toBeGreaterThan(0);
-    // Обе зоны как ответ на «что хочется» не значат ничего.
-    expect(keys).not.toContain("anything");
-    expect(keys).not.toContain("money");
-    // Подписи — те же слова, что человек увидит в комнате.
-    expect((question?.chips ?? []).every((chip) => chip.label.trim() !== "")).toBe(true);
-    // Уже сохранённый ответ приезжает вместе с чипами — вопрос не спросит
-    // заново то, на что уже ответили.
-    await setRoomWants(user.id, ["jewelry"]);
-    expect((await starterPackWants(user.id))?.wants).toEqual(["jewelry"]);
-  });
-
-  it("комнаты нет — вопроса нет (и ничего не падает)", async () => {
-    const user = await freshUser();
-    expect(await starterPackWants(user.id)).toBeNull();
+  it("записанный ответ лежит в комнате и никем не читается", async () => {
+    // Данные не стираем (тикет 189, пункт 3): что человек однажды ответил, то в
+    // его комнате и осталось. Читателя у поля больше нет — порядок зон в форме
+    // добавления считается по делам (tests/zone-order-by-deeds.test.ts).
+    const { user, room } = await ownerWithRoom();
+    await setRoomWants(user.id, ["jewelry", "perfume"]);
+    const saved = await prisma.room.findUniqueOrThrow({ where: { id: room.id } });
+    expect(saved.wants).toEqual(["jewelry", "perfume"]);
+    expect(saved.zonesOff).toEqual([]);
+    expect(saved.preset).toBe("cream");
   });
 });

@@ -18,7 +18,6 @@ const read = (relative: string) =>
 
 const flow = read("../src/app/onboarding/onboarding-flow.tsx");
 const onboardingPage = read("../src/app/onboarding/page.tsx");
-const starterPack = read("../src/app/room/starter-pack.tsx");
 const logoRoute = read("../src/app/logo/[file]/route.ts");
 const fullCycle = read("../e2e/full-cycle.spec.ts");
 
@@ -50,41 +49,17 @@ describe("шагов три, а не четыре", () => {
     expect(read("../src/app/onboarding/actions.ts")).not.toMatch(/formData\.get\("wants"\)/u);
   });
 
-  it("подписи шага и кнопки пропуска в словаре нет, а сам вопрос жив дословно", () => {
-    // Уехало МЕСТО вопроса, а не слова (помета `_wantsMoved` у дизайна).
-    expect(onboarding.wantsStep).toBeUndefined();
-    expect(onboarding.wantsSkip).toBeUndefined();
-    expect(onboarding.wantsTitle).toBe("Что чаще всего хочется?");
-    expect(onboarding.wantsSubtitle).toContain("Выбери три-четыре");
-    expect(onboarding.wantsMax).toBeTruthy();
-  });
-});
-
-describe("вопрос «что хочется» — при первом открытии «начни с готового»", () => {
-  it("чипы стоят НАД набором и говорят словами словаря", () => {
-    for (const key of ["wantsTitle", "wantsSubtitle", "wantsMax"]) {
-      expect(starterPack, key).toContain(`tWants("${key}")`);
+  it("ни одной строки вопроса в словаре не осталось", () => {
+    // ТИКЕТ 134 УБРАЛ МЕСТО ВОПРОСА, ТИКЕТЫ 189 И 191 — САМ ВОПРОС. Раунд 31
+    // снял подпись шага и кнопку пропуска, а слова оставил: вопрос уехал чипами
+    // в первое открытие «начни с готового». Владелец 11.08.2026 снял и набор, и
+    // вопрос — «ничего не происходит и непонятно, на что это влияет», — и в
+    // словаре продукта не осталось ни одного `wants*`. У дизайна они живы, и в
+    // сверке с пакетом записаны как «пакет знает, у нас нет»
+    // (tests/messages-tone.test.ts → PACKAGE_ONLY).
+    for (const key of ["wantsStep", "wantsSkip", "wantsTitle", "wantsSubtitle", "wantsMax"]) {
+      expect(onboarding[key], `Onboarding.${key}`).toBeUndefined();
     }
-    // «Инлайн над плитками» (турн 40b): блок вопроса — до кнопки набора.
-    expect(starterPack.indexOf('tWants("wantsTitle")')).toBeLessThan(
-      starterPack.indexOf("imm-starter-btn"),
-    );
-  });
-
-  it("отдельной кнопки пропуска нет: пропуск — просто листать дальше", () => {
-    expect(starterPack).not.toMatch(/wantsSkip|Пропустить/u);
-  });
-
-  it("спрашиваем один раз — своим ключом хранилища, не общим с предложением комнаты", () => {
-    expect(starterPack).toContain("STARTER_WANTS_ASKED_KEY");
-    expect(read("../src/app/r/[slug]/booking/ask-once.ts")).toContain(
-      'export const STARTER_WANTS_ASKED_KEY = "wl.starter-wants.v1"',
-    );
-  });
-
-  it("ответ уезжает в комнату сразу, своим экшеном", () => {
-    expect(starterPack).toContain("saveWantsAction");
-    expect(read("../src/app/room/starter-pack-actions.ts")).toContain("setRoomWants");
   });
 });
 

@@ -9,7 +9,6 @@ import { hallCountsByZone, listZoneItems } from "@/server/services/items";
 import { getHardenState, shouldAskToHarden } from "@/server/services/harden";
 import { ownerTakenTotal } from "@/server/services/goal";
 import { occasionBannerVisible } from "@/server/services/occasions";
-import { starterPackSize } from "@/server/services/starter-pack";
 import { itemForOwner } from "@/server/dto/items";
 import {
   ownerSummaryItem,
@@ -35,7 +34,6 @@ import { SHEET_TILES, ZoneGrid } from "@/components/zone/ZoneGrid";
 import { zoneDisplayItems } from "@/components/zone/zone-display-items";
 import { RoomListView, type RoomListGroup } from "@/components/room-list/room-list-view";
 import { ShareButton } from "./share-button";
-import { StarterPack } from "./starter-pack";
 
 export const dynamic = "force-dynamic";
 
@@ -340,7 +338,16 @@ export default async function RoomPage() {
                       в пустой комнате снята — обе вели в /room/add, и две
                       главные кнопки подряд читаются как выбор, которого нет.
                       На телефоне рядом остаётся кружок «＋» постоянного бара:
-                      он часть бара, а не этого экрана (так и в макете). */}
+                      он часть бара, а не этого экрана (так и в макете).
+
+                      «ИЛИ НАЧНИ С ГОТОВОГО» ОТСЮДА УШЛО НАВСЕГДА (тикет 191,
+                      решение владельца 11.08.2026): «нужно выпилить функционал
+                      автоматического наполнения комнаты — для любой женщины это
+                      оскорбление, ведь она сама должна наполнить пространство».
+                      Комната — своё пространство, и наполнить его чужой рукой
+                      значит отнять единственное, ради чего человек сюда пришёл.
+                      Второй кнопки в этом блоке больше нет и быть не должно:
+                      сторож — tests/no-bulk-fill.test.ts. */}
                   <div className="imm-empty-start">
                     <h2 className="imm-empty-title">{t("emptyTitle")}</h2>
                     <p className="imm-empty-body">{t("emptyBody")}</p>
@@ -356,16 +363,6 @@ export default async function RoomPage() {
                       <span aria-hidden>→</span>
                     </Link>
                   </div>
-                  {/* «Или начни с готового · +N» (тикет 100, доска Б23) —
-                      только в ПУСТОЙ комнате: как только появилась первая
-                      вещь, человек уже умеет, и предлагать ему чужую подборку
-                      поверх своей нечего. */}
-                  {preset && (
-                    <StarterPack
-                      size={starterPackSize(preset.id, room.zonesOff)}
-                      accent={accent}
-                    />
-                  )}
                 </div>
               ) : itemCount < SHARE_READY_ITEMS ? (
                 <div className="imm-empty-slot">

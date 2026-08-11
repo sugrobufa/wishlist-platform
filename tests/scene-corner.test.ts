@@ -196,8 +196,13 @@ describe("блоки пустой комнаты стоят в потоке по
   // вещей (fixed, таб-бар + 18). Высоты у двух последних отмерены на глаз, и
   // слова шли прямо сквозь слова. В комнате С ВЕЩАМИ обоих блоков нет вовсе —
   // потому поломка и жила незамеченной.
+  //
+  // ТРЕТЬЕГО СЛОЯ БОЛЬШЕ НЕТ ВОВСЕ (тикет 191): «Или начни с готового» снято
+  // решением владельца 11.08.2026 вместе со всем автонаполнением. Правило,
+  // однако, не про набор, а про СЛОИ: любой блок пустой комнаты стоит в потоке
+  // полосы и своего позиционирования не имеет.
   it("ни у одного из блоков не осталось своего позиционирования", () => {
-    for (const selector of ["imm-starter", "imm-share-plaque"]) {
+    for (const selector of ["imm-empty-start", "imm-share-plaque"]) {
       const body = new RegExp(`\\.${selector} \\{([^}]*)\\}`, "u").exec(globalsCss)?.[1] ?? "";
       expect(body, `${selector}: правило не найдено`).not.toBe("");
       expect(body, `${selector}: position должен уйти вместе с отступами`).not.toMatch(
@@ -214,7 +219,7 @@ describe("блоки пустой комнаты стоят в потоке по
     // Контейнер стоит внутри ZoneRail, а не рядом с таб-баром.
     const rail = ownerPage.slice(ownerPage.indexOf("<ZoneRail"), ownerPage.indexOf("</ZoneRail>"));
     expect(rail).toContain("imm-empty-slot");
-    expect(rail).toContain("<StarterPack");
+    expect(rail).toContain("imm-empty-start");
     expect(rail).toContain("imm-share-plaque");
   });
 

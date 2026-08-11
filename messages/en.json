@@ -69,10 +69,7 @@
     "creating": "Furnishing the room…",
     "nameLabel": "Your name",
     "nameFromBooking": "taken from your booking — you can change it",
-    "emailNote": "You sign in with {email}. No password to invent",
-    "wantsTitle": "What do you want most often?",
-    "wantsSubtitle": "Pick three or four — we will build a selection from them. All the shelves stay.",
-    "wantsMax": "Four is enough — the rest follows on its own"
+    "emailNote": "You sign in with {email}. No password to invent"
   },
   "Room": {
     "overline": "Your room",
@@ -636,12 +633,6 @@
     "compactBody": "The shelf is here, there is nothing on it yet. The first thing lights it up",
     "removeTitle": "Take this shelf out of the room",
     "removeSub": "If this shelf is not for you. The things stay, and the shelf can come back from settings",
-    "errGeneric": "Something went wrong — try again"
-  },
-  "StarterPack": {
-    "label": "Or start with a ready set · +{count}",
-    "busy": "Setting things out…",
-    "caption": "A selection for the interior you picked. You can change and delete it later",
     "errGeneric": "Something went wrong — try again"
   }
 }
