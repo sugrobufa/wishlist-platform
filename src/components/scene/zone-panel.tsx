@@ -36,6 +36,15 @@ const EDGE_SLACK = 1;
  * вещей: в ней стоит копилка на мечту (тикет 44). Карточка добавляется К
  * сетке, а не вместо неё: цель вещью не является, но вещи в этой зоне никто не
  * запрещает — обе части живут рядом.
+ *
+ * КАРТОЧКА ИДЁТ ПОСЛЕ `children`, А НЕ ПЕРЕД (тикет 192). `children` начинается
+ * строкой действий ЗОНЫ («Показать все · + Добавить вещь»), и правило тикета
+ * 139 — «управляющие кнопки наверху» — обязано выполняться во ВСЕХ зонах
+ * одинаково, а не в девяти из десяти. Пока карточка стояла первой, наверху
+ * оказывалась она, а её собственная строка действий («Назвать цель») упиралась
+ * в пилюли зоны без единого пикселя между ними: две строки действий подряд, ни
+ * одна не знает про соседа. Свечение кнопки ложилось прямо на пилюли, и стык
+ * читался наслоением (приёмка владельца 11.08, замечание 6).
  */
 export function ZonePanel({ zone, closing, accent, ink, children }: ZonePanelProps) {
   const t = useTranslations("Scene");
@@ -90,9 +99,9 @@ export function ZonePanel({ zone, closing, accent, ink, children }: ZonePanelPro
       aria-label={zoneLabel(zone)}
     >
       <div key={zone.key} className={`${s.panelBody}${closing ? ` ${s.panelBodyOut}` : ""}`}>
-        {zone.key === MONEY_ZONE_KEY && <MoneyGoalCard accent={accent} ink={ink} />}
         {children ??
           (zone.key === MONEY_ZONE_KEY ? null : <p className={s.panelEmpty}>{t("itemsSoon")}</p>)}
+        {zone.key === MONEY_ZONE_KEY && <MoneyGoalCard accent={accent} ink={ink} />}
       </div>
       {/* Кромка живёт ВНУТРИ прокрутки (sticky снизу) и не занимает высоты:
           отрицательный внешний отступ возвращает её собственные 30 px. */}
