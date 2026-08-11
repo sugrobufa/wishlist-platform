@@ -381,10 +381,16 @@ export function ItemCard({
             ),
         },
         {
+          // СЛОВО ЗДЕСЬ ИЗ СЛОВАРЯ СОКРОВИЩНИЦЫ — `Hall.delete` = «Удалить
+          // насовсем», а не «Удалить» из ns Settings (тикет 179, контракт
+          // round42 → `treasuryVariantSheet`). Разница не косметическая: в
+          // витрине вещь уже своя, и «насовсем» здесь факт, а не запугивание —
+          // тем же словом эта строка подписана на экране витрины, а два экрана
+          // одного действия обязаны звать его одинаково.
           key: "delete",
           icon: <IconActionDelete size={SIGN_SIZE} />,
-          title: t("itemDelete"),
-          hint: t("itemDeleteHint"),
+          title: tHall("delete"),
+          hint: tHall("deleteHint"),
           danger: true,
           onSelect: () => setConfirming("delete"),
         },

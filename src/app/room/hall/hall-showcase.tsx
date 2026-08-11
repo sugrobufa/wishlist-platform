@@ -87,21 +87,20 @@ export function HallShowcase({ items, accent }: { items: HallItemView[]; accent:
   }
 
   /**
-   * Лист «⋯» витрины — ровно три строки (36b): Скрыть от гостей · Вернуть в
-   * комнату · Удалить. Подстроки и есть тот самый поясняющий абзац, разнесённый
-   * по своим действиям: «глазок прячет от гостей», «встанет в свою зону — в
-   * „{зона}“», «спросим ещё раз».
+   * Лист «⋯» витрины — ровно три строки (36b) в порядке контракта: Вернуть в
+   * комнату · Скрыть от гостей · Удалить насовсем. Подстроки и есть тот самый
+   * поясняющий абзац, разнесённый по своим действиям: «встанет в свою зону — в
+   * „{зона}“», «останется у тебя на витрине», «спросим ещё раз».
+   *
+   * ПОРЯДОК — ИЗ КОНТРАКТА, А НЕ ИЗ ВКУСА (тикет 179). Перечень строк выпал из
+   * round41 — там абзац про адресата цены поглотил список, — и вернулся
+   * round42 (`treasuryVariantSheet`) с «Вернуть в комнату» первой строкой. Тем
+   * же порядком лист собран у карточки вещи в сокровищнице: один лист, читаемый
+   * на двух экранах в разном порядке, — это два разных листа на вид.
    */
   const sheetRows = (item: HallItemView): ItemActionRow[] => {
     const hidden = item.hiddenFromObservers;
     return [
-      {
-        key: "hide",
-        icon: hidden ? <IconEye size={SIGN_SIZE} /> : <IconEyeOff size={SIGN_SIZE} />,
-        title: hidden ? t("show") : t("hide"),
-        hint: hidden ? t("showHint") : t("hideHint"),
-        onSelect: () => run(item.id, () => setHallHiddenAction(item.id, !hidden)),
-      },
       {
         // Дорога назад: вещь возвращается в СВОЮ зону, и подсказка называет её
         // по имени — «убрать» и «удалить» перестают быть похожими на слух.
@@ -110,6 +109,13 @@ export function HallShowcase({ items, accent }: { items: HallItemView[]; accent:
         title: t("remove"),
         hint: t("removeHint", { zone: zoneLabel(item.zone) }),
         onSelect: () => run(item.id, () => toggleHallAction(item.id, false)),
+      },
+      {
+        key: "hide",
+        icon: hidden ? <IconEye size={SIGN_SIZE} /> : <IconEyeOff size={SIGN_SIZE} />,
+        title: hidden ? t("show") : t("hide"),
+        hint: hidden ? t("showHint") : t("hideHint"),
+        onSelect: () => run(item.id, () => setHallHiddenAction(item.id, !hidden)),
       },
       {
         key: "delete",

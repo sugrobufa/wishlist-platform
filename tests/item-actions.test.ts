@@ -45,6 +45,42 @@ const css = read("../src/components/item/item-actions.module.css");
 const zoneRows = read("../src/app/room/zone/[zone]/owner-zone-grid.tsx");
 const showcase = read("../src/app/room/hall/hall-showcase.tsx");
 
+/** Только сборка строк листа витрины — без служебных `setConfirmingId(null)`. */
+const sheetSource = showcase.slice(
+  showcase.indexOf("const sheetRows ="),
+  showcase.indexOf("\n  return ("),
+);
+
+/**
+ * Перечень строк листа сокровищницы — ИЗ КОНТРАКТА (round42 вернул его в
+ * `round41/item-card-owner.json` → `treasuryVariantSheet`, тикет 179). Тот же
+ * лист собирают два экрана — витрина и карточка вещи, — и порядок строк у них
+ * обязан быть один; раньше он держался в двух местах руками и разошёлся.
+ */
+const treasurySheet = (
+  JSON.parse(read("../design/package/handoff/round41/item-card-owner.json")) as {
+    treasuryVariantSheet: {
+      rows: ReadonlyArray<{ label: string; icon: string; string: string; note?: string }>;
+      mainAction: string;
+    };
+  }
+).treasuryVariantSheet;
+
+/** Ключ словаря контракта → наш ключ строки листа. */
+const KEY_OF: Record<string, string> = {
+  "Hall.remove": "return",
+  "Hall.hideFromGuests": "hide",
+  "Hall.delete": "delete",
+};
+
+const SHEET_KEYS = treasurySheet.rows.map((row) => KEY_OF[row.string] ?? row.string);
+
+const contractRow = (key: string) => {
+  const row = treasurySheet.rows.find((candidate) => candidate.string === key);
+  if (!row) throw new Error(`строки ${key} в контракте нет`);
+  return row;
+};
+
 /**
  * Исходник без комментариев. В этих файлах разбор занимает больше места, чем
  * код, и про снятые вещи в нём написано поимённо — ловить объяснение вместо
@@ -193,21 +229,104 @@ describe("лист «⋯» комнаты: В сокровищницу · Спр
   });
 });
 
-describe("лист «⋯» витрины: Скрыть от гостей · Вернуть в комнату · Удалить", () => {
-  it("состав и порядок — ровно три строки", () => {
-    expect(sheetKeys(showcase)).toEqual(["hide", "return", "delete"]);
+describe("лист «⋯» витрины: Вернуть в комнату · Скрыть от гостей · Удалить насовсем", () => {
+  // ПОРЯДОК СЧИТАН ИЗ КОНТРАКТА, А НЕ НАБИТ СЮДА (тикет 179). Перечень строк
+  // выпал из round41 — абзац про адресата цены поглотил список, — и вернулся
+  // round42 (`treasuryVariantSheet`). Пока его не было, у нас держался свой
+  // порядок: «Скрыть» первой, «Вернуть» второй. Тот же лист у карточки вещи всё
+  // это время шёл контрактным порядком — то есть два экрана одного листа
+  // читались по-разному, и заметить это было нечем. Теперь список один и
+  // читается отсюда: уедет он в контракте — покраснеет здесь.
+  it("состав и порядок — ровно три строки контракта", () => {
+    expect(sheetKeys(showcase)).toEqual(SHEET_KEYS);
+    expect(SHEET_KEYS).toEqual(["return", "hide", "delete"]);
   });
 
-  it("слова строк — из словаря витрины", () => {
+  it("слова строк — из словаря витрины, теми ключами, что назвал контракт", () => {
     expect(showcase).toContain('title: hidden ? t("show") : t("hide")');
     expect(showcase).toContain('title: t("remove")');
     expect(showcase).toContain('title: t("delete")');
     expect(showcase).toContain('hint: t("deleteHint")');
+    // Контракт зовёт строки по ключам словаря — и они совпадают с нашими до
+    // одного переименования: `Hall.hideFromGuests` у нас зовётся `Hall.hide`
+    // (расхождение записано в tests/messages-tone.test.ts → PACKAGE_ONLY,
+    // причина 2 — «ключ у нас зовётся иначе, строка та же»). Сами СЛОВА обязаны
+    // совпадать дословно, и это проверяется здесь.
+    const label = (key: string) => contractRow(key).label;
+    expect(ru.Hall.remove).toBe(label("Hall.remove"));
+    expect(ru.Hall.hide).toBe(label("Hall.hideFromGuests"));
+    expect(ru.Hall.delete).toBe(label("Hall.delete"));
+    expect(ru.Hall.delete).toBe("Удалить насовсем");
+  });
+
+  it("знаки строк — те, что назвал контракт", () => {
+    const OURS: Record<string, string> = {
+      "action-return.svg": "IconActionReturn",
+      "action-hide.svg": "IconEyeOff",
+      "action-delete.svg": "IconActionDelete",
+    };
+    for (const row of treasurySheet.rows) {
+      const ours = OURS[row.icon];
+      expect(ours, `${row.label}: новый знак контракта (${row.icon})`).toBeDefined();
+      expect(showcase, row.label).toContain(`<${ours} size={SIGN_SIZE} />`);
+    }
+    // Перечёркнутый глаз — знак действия «скрыть»; открытый стоит обратной
+    // строкой у уже скрытой вещи, и это не лишний знак листа, а та же строка.
+    expect(showcase).toContain("hidden ? <IconEye size={SIGN_SIZE} /> : <IconEyeOff");
+  });
+
+  it("подстроки — те объяснения, что дал контракт", () => {
+    // Примечание контракта есть у двух строк из трёх, и наша подстрока обязана
+    // нести его смысл. Сверяется ПО ЧАСТЯМ ПРИМЕЧАНИЯ, а не своим текстом:
+    // уедет примечание в контракте — покраснеет здесь, а не разойдётся молча.
+    const returnNote = contractRow("Hall.remove").note;
+    expect(returnNote, "примечание строки «Вернуть в комнату» пропало из контракта").toBeTruthy();
+    for (const part of (returnNote ?? "").split(", ")) {
+      expect(ru.Hall.removeHint, part).toContain(part);
+    }
+    // Наша подстрока вдобавок называет зону по имени — «убрать» и «удалить»
+    // перестают быть похожими на слух.
+    expect(showcase).toContain('hint: t("removeHint", { zone: zoneLabel(item.zone) })');
+    // «Единственное действие с вопросом» — подстрока обещает именно вопрос, а
+    // не удаление; что вопрос и правда один, проверяет тест ниже.
+    expect(contractRow("Hall.delete").note).toContain("вопрос");
+    expect(ru.Hall.deleteHint).toBe("спросим ещё раз");
+    // У «Скрыть от гостей» примечания в контракте нет, а подстрока у нас есть,
+    // и это не самодеятельность: лист 36b собирается из «знак + титул +
+    // подстрока», и она говорит то, чего контракт не сказал, — вещь у хозяйки
+    // остаётся на месте, скрыта она только от гостей.
+    expect(contractRow("Hall.hideFromGuests").note).toBeUndefined();
+    expect(ru.Hall.hideHint).toBe("останется у тебя на витрине");
+    expect(showcase).toContain('hint: hidden ? t("showHint") : t("hideHint")');
+    // Пустых строк в листе нет — подстрока у всех трёх.
+    expect([...sheetSource.matchAll(/hint:/gu)]).toHaveLength(3);
+  });
+
+  it("вопрос — ровно у одной строки, и это «Удалить насовсем»", () => {
+    // Контракт: «единственное действие с вопросом». Две другие строки делают
+    // своё сразу — обе обратимы, и лишний вопрос стоил бы им дороги назад.
+    expect([...sheetSource.matchAll(/setConfirmingId\(/gu)]).toHaveLength(1);
+    expect([...sheetSource.matchAll(/danger: true/gu)]).toHaveLength(1);
+    const del = sheetSource.slice(sheetSource.indexOf('key: "delete"'));
+    expect(del).toContain("danger: true");
+    expect(del).toContain("setConfirmingId(item.id)");
+    // Обратимые две ходят сразу в сервис, без промежуточного вопроса.
+    const reversible = sheetSource.slice(0, sheetSource.indexOf('key: "delete"'));
+    expect(reversible).toContain("toggleHallAction(item.id, false)");
+    expect(reversible).toContain("setHallHiddenAction(item.id, !hidden)");
+    expect(reversible).not.toContain("setConfirmingId");
   });
 
   it("главный знак витрины — перо-заметка, оно же дорога в карточку вещи", () => {
     expect(showcase).toContain("<IconActionNote");
     expect(showcase).toContain('href: `/room/zone/${item.zone}/i/${item.id}`');
+    // И В ЛИСТЕ ОНО НЕ ПОВТОРЯЕТСЯ (контракт → `mainAction`): знак заметки
+    // стоит ровно один раз, у главного действия. Дизайн отдельно отказался
+    // возвращать `action-note.svg` в ряд листа — он дублировал бы главное
+    // действие в двух шагах от него.
+    expect([...showcase.matchAll(/<IconActionNote/gu)]).toHaveLength(1);
+    expect(treasurySheet.mainAction).toContain("не дублируется");
+    expect(treasurySheet.rows.map((row) => row.icon)).not.toContain("action-note.svg");
   });
 
   it("«Удалить» ходит через тот же сервис, что и в зоне", () => {

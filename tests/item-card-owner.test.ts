@@ -67,6 +67,11 @@ const contract = JSON.parse(
   };
   absent: Record<string, string>;
   treasuryVariant: string;
+  /** Перечень строк листа витрины — вернулся раундом 42 (тикет 179). */
+  treasuryVariantSheet: {
+    rows: ReadonlyArray<{ label: string; icon: string; string: string; note?: string }>;
+    mainAction: string;
+  };
   changedFrom: { baseline: string; changed: readonly string[] };
 };
 
@@ -371,11 +376,62 @@ describe("лист «⋯»: состав по контракту, знаки rou
     expect(sheetKeys(room)).toEqual(["treasury", "move", "hide", "delete"]);
   });
 
-  it("в сокровищнице — Вернуть в комнату · Скрыть от гостей · Удалить", () => {
+  it("в сокровищнице — Вернуть в комнату · Скрыть от гостей · Удалить насовсем", () => {
+    // ПОРЯДОК И СЛОВА — ИЗ КОНТРАКТА (тикет 179). Перечень строк листа витрины
+    // выпал из round41 (абзац про адресата цены поглотил список) и вернулся
+    // round42; до его возвращения этот порядок стоял здесь числом руками.
+    const KEY_OF: Record<string, string> = {
+      "Hall.remove": "return",
+      "Hall.hideFromGuests": "hide",
+      "Hall.delete": "delete",
+    };
     const hall = card.slice(card.indexOf('key: "return"'), card.indexOf('key: "treasury"'));
+    expect(sheetKeys(hall)).toEqual(
+      contract.treasuryVariantSheet.rows.map((row) => KEY_OF[row.string]),
+    );
     expect(sheetKeys(hall)).toEqual(["return", "hide", "delete"]);
     expect(hall).toContain('title: tHall("remove")');
     expect(hall).toContain("toggleHallAction(item.id, false)");
+    // «Удалить насовсем» — СЛОВО СОКРОВИЩНИЦЫ, а не «Удалить» из ns Settings
+    // (тикет 179). В комнате вещь ещё чужая мечта, в витрине она уже своя, и
+    // «насовсем» здесь факт; тем же словом эта строка подписана на экране
+    // витрины — одно действие не может зваться на двух экранах по-разному.
+    expect(hall).toContain('title: tHall("delete")');
+    expect(hall).toContain('hint: tHall("deleteHint")');
+    expect(ru.Hall.delete).toBe("Удалить насовсем");
+    expect(ru.Hall.delete).toBe(
+      contract.treasuryVariantSheet.rows.find((row) => row.string === "Hall.delete")?.label,
+    );
+    // ВОПРОС — РОВНО У ОДНОЙ СТРОКИ, и контракт называет её поимённо:
+    // «единственное действие с вопросом». Две другие обратимы, и лишний вопрос
+    // стоил бы им дороги назад. Тот же счёт держит экран витрины
+    // (tests/item-actions) — лист один, и вопрос в нём один на обоих.
+    expect(
+      contract.treasuryVariantSheet.rows.filter((row) => row.note?.includes("вопрос")),
+    ).toHaveLength(1);
+    expect([...hall.matchAll(/setConfirming\(/gu)]).toHaveLength(1);
+    expect([...hall.matchAll(/danger: true/gu)]).toHaveLength(1);
+    expect(hall).toContain('onSelect: () => setConfirming("delete")');
+    const reversible = hall.slice(0, hall.indexOf('key: "delete"'));
+    expect(reversible).toContain("toggleHallAction(item.id, false)");
+    expect(reversible).toContain("setHallHiddenAction(item.id, !hall?.hiddenFromObservers)");
+    expect(reversible).not.toContain("setConfirming");
+  });
+
+  it("главное действие витрины в лист НЕ дублируется", () => {
+    // Контракт → `treasuryVariantSheet.mainAction`: «Записать заметку» — полоса
+    // света, и знака заметки в листе нет. Дизайн отдельно отказался возвращать
+    // `action-note.svg` в ряд листа: он повторял бы главное действие в двух
+    // шагах от него.
+    expect(contract.treasuryVariantSheet.mainAction).toContain("Записать заметку");
+    expect(contract.treasuryVariantSheet.mainAction).toContain("полоса света");
+    expect(contract.treasuryVariantSheet.rows.map((row) => row.icon)).not.toContain(
+      "action-note.svg",
+    );
+    // У карточки перо не рисуется вовсе: главное действие здесь — строка
+    // «полосой света» со словом, а знак заметки живёт на плитке витрины.
+    expect(card).not.toContain("IconActionNote");
+    expect(card).toContain('item.inHall ? tHall("noteAdd") : t("itemEdit")');
   });
 
   it("знаки — те самые из набора round36, а не нарисованные заново", () => {
@@ -476,6 +532,19 @@ describe("чего мы из контракта НЕ взяли — ПЯТЬ П�
   it("дизайн назвал базу и список правок — считаем от того же места", () => {
     expect(contract.changedFrom.baseline).toContain("round39");
     expect(contract.changedFrom.changed.length).toBeGreaterThanOrEqual(6);
+  });
+
+  it("СЕДЬМАЯ ПРАВКА ОБЪЯВЛЕНА: `head.more` стоит в списке, а не только в файле", () => {
+    // Правку мы нашли сами сверкой файла с предыдущим (тикет 170): «⋯ 20»
+    // глифом стало `action-more.svg` 19, а в `changedFrom` её не было — список
+    // собирался пересказом письма. Раунд 42 объявил её задним числом и назвал
+    // правило себе: список собирается сверкой файлов. Перенесено сюда точечно.
+    // Молчаливая правка чужого файла — та же болезнь, что молчаливое
+    // расхождение нашего кода, и ловится она только полным списком.
+    const more = contract.changedFrom.changed.filter((line) => line.startsWith("head.more"));
+    expect(more).toHaveLength(1);
+    expect(more[0]).toContain("action-more.svg");
+    expect(more[0]).toContain("19");
   });
 
   it("1. «Кадры вещи» СНЯТЫ дизайном — галереи в продукте нет", () => {
