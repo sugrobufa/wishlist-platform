@@ -103,20 +103,26 @@ export default async function SettingsPage() {
           <h1 className="display mt-5 text-3xl lg:text-4xl">{t("title")}</h1>
         </header>
 
-        <ProfileSection
-          displayName={profile.displayName}
-          avatarUrl={profile.avatarUrl}
-          accent={accent}
-        />
-        <NickSection nick={room.nick} shareSlug={room.shareSlug} accent={accent} />
+        {/* ПОРЯДОК РАЗДЕЛОВ — РЕШЕНИЕ ВЛАДЕЛЬЦА (тикет 180, постановка
+            11.08.2026), а не сложившаяся случайность. Две ручки, к которым
+            человек возвращается чаще всего, стоят первыми: «Интерьер» и «Свет
+            и время суток». «Адрес комнаты» уехал ниже выбора комнаты — короткое
+            имя задают один раз и почти никогда не меняют, это настройка ссылки,
+            а не комнаты.
+
+            Остальные пять разделов относительно друг друга не двигались:
+            владелец про них не говорил. Порядок держит тест
+            `tests/settings-order.test.ts` — он обязан упасть при следующем
+            нечаянном переезде. */}
         <PresetSection
           presets={presetCards}
           currentPreset={room.preset}
           zoneSet={zoneSet}
           accent={accent}
         />
-        {/* Свет и время суток (тикет 96) — между интерьером и набором зон,
-            как просит доска: это продолжение выбора комнаты. */}
+        {/* Свет и время суток (тикет 96) — сразу за интерьером: это
+            продолжение выбора комнаты. Раздел условный и обязан таким
+            остаться: без знакомого пресета считать грейдинг не от чего. */}
         {preset && (
           <LightSection
             roomImage={roomImageUrl(preset.base)}
@@ -126,6 +132,12 @@ export default async function SettingsPage() {
             nativeTod={preset.tod}
           />
         )}
+        <ProfileSection
+          displayName={profile.displayName}
+          avatarUrl={profile.avatarUrl}
+          accent={accent}
+        />
+        <NickSection nick={room.nick} shareSlug={room.shareSlug} accent={accent} />
         <ZonesSection zones={zones} zonesOff={room.zonesOff} accent={accent} />
         <OccasionSection occasionDate={occasionDate} accent={accent} />
         <HallSection settings={hallSettings} accent={accent} />
