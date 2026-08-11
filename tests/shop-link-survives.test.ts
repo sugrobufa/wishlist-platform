@@ -45,10 +45,24 @@ vi.mock("next-intl", async () => {
   };
 });
 
+// Канал «занято» (тикет 08) к теме не относится и живёт своим тестом: здесь он
+// заменён пустым — ни одна вещь не занята, бирка на месте.
+vi.mock("../src/app/r/[slug]/booking/booking-context", () => ({
+  useGuestBooking: () => ({
+    taken: new Set<string>(),
+    mine: new Set<string>(),
+    myBookingsCount: 0,
+    signedIn: false,
+    hallOpen: false,
+    bookedNow: 0,
+    markBooked: () => {},
+    markTaken: () => {},
+  }),
+}));
+
 const { itemForGuest, ghostForGuest } = await import("../src/server/dto/guest-items");
 const { ItemTile } = await import("../src/components/zone/ItemTile");
 const { GuestItemView } = await import("../src/app/r/[slug]/i/[id]/guest-item-view");
-const { GuestBookingProvider } = await import("../src/app/r/[slug]/booking/booking-context");
 const { demoGhostsFor } = await import("../src/config/demo-pools");
 
 /** Полный Item, как из БД; поля перекрываются точечно. */
@@ -101,16 +115,13 @@ type GuestItem = ReturnType<typeof itemForGuest>;
 /** Гостевая карточка вещи так, как её увидит браузер. */
 const card = (item: GuestItem) =>
   renderToStaticMarkup(
-    createElement(GuestBookingProvider, {
-      slug: "mila",
-      children: createElement(GuestItemView, {
-        item,
-        zoneLabel: "Ароматы",
-        pool: "perfume",
-        ownerName: "Мила",
-        accent: "#E7C9A9",
-        roomHref: "/r/mila",
-      }),
+    createElement(GuestItemView, {
+      item,
+      zoneLabel: "Ароматы",
+      pool: "perfume",
+      ownerName: "Мила",
+      accent: "#E7C9A9",
+      roomHref: "/r/mila",
     }),
   );
 
