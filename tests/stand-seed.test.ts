@@ -6,10 +6,17 @@
 //     из окружения, чужую комнату этим адресом не наполнить;
 //   • ПОСЕВ ТОЛЬКО ДОБАВЛЯЕТ: зона, где уже есть вещь, не трогается вовсе;
 //   • ИДЕМПОТЕНТНОСТЬ: второй прогон не плодит дубли;
-//   • СОСТАВ: и «люблю», и «хочу»; зона с шестью и более вещами (правило
-//     тикета 59 иначе негде увидеть); «люблю» с дарителем и годом — в зале славы;
+//   • ИСТОЧНИК КАЖДОЙ ПОЛОВИНЫ (тикет 175): вещи КОМНАТЫ — из контракта
+//     дизайна, поимённо и по ценам, ровно те же, что достаются живому
+//     человеку; вещи СОКРОВИЩНИЦЫ — из демо-пулов и только зёрна «уже своё».
+//     Желания демо-пулов в комнату больше не попадают;
+//   • СОСТАВ: оба места в каждой зоне; зона с шестью и более вещами (правило
+//     тикета 59 иначе негде увидеть); «уже своё» с дарителем и годом — в зале
+//     славы;
 //   • ФОТО лежат в НАШЕМ S3 ключом items/{roomId}/… — пути дизайн-пакета
-//     («refs/p-*.jpg») в БД не попадают ни одной строкой (инвариант №6).
+//     («refs/p-*.jpg») в БД не попадают ни одной строкой (инвариант №6);
+//     кадр, которого нет файлом в пакете, отбрасывается вместе с картинкой,
+//     но не с вещью, и считается числом в отчёте.
 //
 // Стенд как в tests/quick-login.test.ts: настоящая dev-БД, страница
 // /dev-login вместо мока роутера. Хранилище — шов (StandSeedStorage): тесты
@@ -22,10 +29,26 @@ import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } 
 import { attemptQuickLogin, type QuickLoginEnv } from "@/server/quick-login";
 import { seedStandRoom, type StandSeedResult, type StandSeedStorage } from "@/server/services/stand-seed";
 import { listHallItems } from "@/server/services/items";
+import {
+  livePoolSeeds,
+  packagePhotoFor,
+  packSeedsPhotosMissing,
+  standPoolSeeds,
+} from "@/server/services/pack-seeds";
 import { demoPools } from "@/config/demo-pools";
 import { rooms as roomPresets } from "@/config/design";
 import DevLoginPage from "../src/app/dev-login/page";
 import { prisma } from "../src/server/db";
+
+// ПОЧЕМУ У ФАЙЛА СВОЙ ТАЙМАУТ. С тикета 175 посев кладёт в комнату 91 вещь
+// вместо 55 (комната — контрактом, сокровищница — демо-пулами), и каждая идёт
+// продуктовой дверью `createItem`: своя запись, своё событие ленты, своя
+// инвалидация кэша. В одиночку файл укладывается в три с половиной секунды,
+// но под полным прогоном (четыре форка на одной dev-БД) самый тяжёлый тест
+// упёрся в общие 15 с и упал таймаутом — при том что проверка отработала
+// верно. Это ровно тот случай, про который написан комментарий к testTimeout
+// в vitest.config.ts: узкое место — конкуренция за базу, а не сама проверка.
+vi.setConfig({ testTimeout: 40_000, hookTimeout: 40_000 });
 
 const TEST_EMAIL_DOMAIN = "@stand-seed.test";
 const OWNER_EMAIL = `owner${TEST_EMAIL_DOMAIN}`;
@@ -133,8 +156,20 @@ function presetZones(preset: string = PRESET) {
   return room.zones;
 }
 
+/** Сколько вещей даёт пул посеву — обе половины вместе (тикет 175). */
 function poolSize(poolKey: string): number {
-  return Object.hasOwn(demoPools, poolKey) ? demoPools[poolKey]!.length : 0;
+  return standPoolSeeds(poolKey).length;
+}
+
+/** Названия желаний пула — контракт дизайна, как у живого человека. */
+function contractTitles(poolKey: string): string[] {
+  return livePoolSeeds(poolKey).map((seed) => seed.title);
+}
+
+/** Названия «уже своё» пула — демо-пулы, вторая половина посева. */
+function hallTitles(poolKey: string): string[] {
+  const pool = Object.hasOwn(demoPools, poolKey) ? demoPools[poolKey]! : [];
+  return pool.filter((seed) => seed.mine).map((seed) => seed.title);
 }
 
 afterEach(() => {
@@ -288,7 +323,9 @@ describe("состав посева", () => {
 
   // ПЕРЕПИСАНО (тикет 124): «оба состояния в каждой зоне» проверять нечем.
   // Стенду по-прежнему нужны ОБА МЕСТА — иначе показывать нечего ни комнате,
-  // ни сокровищнице, — и пулы дают их той же парой семян.
+  // ни сокровищнице. С тикета 175 половины приезжают из РАЗНЫХ источников
+  // (комната — контракт, сокровищница — демо-пулы), и обе обязаны доехать в
+  // каждую засеянную зону: пустая половина здесь значит оборванный источник.
   it("на стенде есть и вещи комнаты, и вещи сокровищницы", async () => {
     expect(await prisma.item.count({ where: { roomId, inHall: true } })).toBeGreaterThan(0);
     expect(await prisma.item.count({ where: { roomId, inHall: false } })).toBeGreaterThan(0);
@@ -323,13 +360,90 @@ describe("состав посева", () => {
 
     const inShowcase = await prisma.item.count({ where: { roomId, zone: result.showcaseZone! } });
     expect(inShowcase).toBeGreaterThanOrEqual(6);
+
+    // ДОБОР ЖИВ и после тикета 175: витрина полнее КАЖДОЙ соседней зоны — а
+    // это возможно только если в неё приехал второй пул. Одного «больше пяти»
+    // для этого уже мало: столько даёт теперь любая зона.
+    for (const zone of result.zones.filter((entry) => entry.zone !== result.showcaseZone)) {
+      expect(zone.created, `витрина против ${zone.zone}`).toBeLessThan(inShowcase);
+    }
   });
 
   it("доборный пул — тот, которому в этой комнате не досталось полки", () => {
     expect(result.spilloverPool).not.toBeNull();
     const pools = new Set(presetZones().map((zone) => zone.pool));
     expect(pools.has(result.spilloverPool!)).toBe(false);
-    expect(Object.hasOwn(demoPools, result.spilloverPool!)).toBe(true);
+    // Пул живой в обеих половинах: и желания контракта, и «уже своё».
+    expect(contractTitles(result.spilloverPool!).length).toBeGreaterThan(0);
+    expect(hallTitles(result.spilloverPool!).length).toBeGreaterThan(0);
+  });
+
+  // ------------------------------------------- откуда взялась каждая половина
+
+  it("вещи КОМНАТЫ — из контракта дизайна, поимённо и по ценам (тикет 175)", async () => {
+    for (const zone of presetZones()) {
+      const wants = await prisma.item.findMany({
+        where: { roomId, zone: zone.key, inHall: false },
+        select: { title: true, price: true },
+      });
+      const seeds = [
+        ...livePoolSeeds(zone.pool),
+        ...(zone.key === "anything" ? livePoolSeeds(result.spilloverPool ?? "") : []),
+      ];
+
+      expect(wants.map((item) => item.title).sort(), `зона ${zone.key}`).toEqual(
+        seeds.map((seed) => seed.title).sort(),
+      );
+      // Цена — тоже контрактная: разбор «96 000 ₽» → 96000 живёт в сторожа.
+      for (const seed of seeds) {
+        if (seed.mine) continue;
+        const item = wants.find((entry) => entry.title === seed.title);
+        expect(Number(item?.price), `цена «${seed.title}»`).toBe(seed.priceRub);
+      }
+    }
+  });
+
+  it("вещи СОКРОВИЩНИЦЫ — из демо-пулов, и только зёрна «уже своё»", async () => {
+    for (const zone of presetZones()) {
+      const hall = await prisma.item.findMany({
+        where: { roomId, zone: zone.key, inHall: true },
+        select: { title: true },
+      });
+      const expected = [
+        ...hallTitles(zone.pool),
+        ...(zone.key === "anything" ? hallTitles(result.spilloverPool ?? "") : []),
+      ];
+      expect(hall.map((item) => item.title).sort(), `зона ${zone.key}`).toEqual(expected.sort());
+    }
+  });
+
+  it("желания демо-пулов в комнату больше не попадают", async () => {
+    // Именно они и были «нашим черновиком»: их придумали мы, а живой человек
+    // по кнопке «начни с готового» получал вещи из пакета — две разные комнаты.
+    const seeded = new Set(
+      presetZones()
+        .flatMap((zone) => [
+          ...standPoolSeeds(zone.pool),
+          ...(zone.key === "anything" ? standPoolSeeds(result.spilloverPool ?? "") : []),
+        ])
+        .map((seed) => seed.title),
+    );
+    const demoOnlyWishes = new Set<string>();
+    for (const zone of presetZones()) {
+      for (const seed of demoPools[zone.pool] ?? []) {
+        if (!seed.mine && !seeded.has(seed.title)) demoOnlyWishes.add(seed.title);
+      }
+    }
+    expect(
+      demoOnlyWishes.size,
+      "в демо-пулах не осталось своих желаний — тест перестал что-либо утверждать",
+    ).toBeGreaterThan(0);
+
+    const found = await prisma.item.findMany({
+      where: { roomId, title: { in: [...demoOnlyWishes] } },
+      select: { title: true, zone: true },
+    });
+    expect(found).toEqual([]);
   });
 
   it("«люблю» с дарителем и годом уехали в зал славы — витрина не пустая", async () => {
@@ -393,6 +507,23 @@ describe("состав посева", () => {
     const withoutPhoto = await prisma.item.count({ where: { roomId, photoKey: null } });
     expect(withoutPhoto).toBeGreaterThan(0);
     expect(withoutPhoto + result.photosStored).toBe(result.itemsCreated);
+  });
+
+  it("каждый кадр контракта лежит файлом в пакете — и это число в отчёте", () => {
+    // Контракт называет кадр ИМЕНЕМ ФАЙЛА, а лежит файл у нас: разъехаться
+    // этому ничего не мешает. Список пуст — сверка сошлась; отчёт
+    // /dev-login?report=1 показывает то же число, а не молчит.
+    expect(packSeedsPhotosMissing).toEqual([]);
+    expect(result.contractPhotosMissing).toBe(0);
+  });
+
+  it("кадра нет в пакете — зерно едет БЕЗ кадра, а не роняет посев", () => {
+    // Имя правильной формы, файла нет: кадр отбрасывается один, вещь остаётся.
+    expect(packagePhotoFor("p-no-such-frame.jpg")).toBeNull();
+    // Имя не той формы (обход каталога) — то же самое, и до диска не доходит.
+    expect(packagePhotoFor("../refs/p-watch.jpg")).toBeNull();
+    // А существующий кадр превращается в путь раздачи, понятный хранилищу.
+    expect(packagePhotoFor("p-watch.jpg")).toBe("refs/p-watch.jpg");
   });
 });
 

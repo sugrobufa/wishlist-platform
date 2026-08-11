@@ -9,17 +9,26 @@
 // и повторена дословно: работает только при QUICK_LOGIN_ENABLED=true и только
 // для почты из окружения. Ни один параметр запроса не выбирает, кого наполнять.
 //
-// ЧЕМ СЕЮТ. Курируемый набор уже существует — `src/config/demo-pools.ts`
-// (названия, цены, признак «уже своё», дарители, годы, предметные кадры
-// `refs/p-*.jpg`). Посев не выдумывает вещи: он берёт те же семена, что
-// показывались призраками, и превращает их в строки БД.
+// ЧЕМ СЕЮТ (тикет 175). Комната — КОНТРАКТОМ ДИЗАЙНА, сокровищница —
+// демо-пулами, и граница между половинами — признак зерна:
 //
-// ПОЧЕМУ НЕ КОНТРАКТ НАБОРА. Зёрна «начни с готового» с тикета 136 приезжают
-// из `handoff/seeds/seeds.json`, но там ТОЛЬКО ЖЕЛАНИЯ — так и задумано.
-// Стенду нужны оба места: без вещей «уже своё» с дарителем и годом витрине
-// сокровищницы нечего показывать, а такого зерна дизайн не пришлёт никогда
-// (инвариант №2). Поэтому посев остаётся на демо-пулах и зовёт `poolSeeds`,
-// а не `livePoolSeeds`.
+//   • ЖЕЛАНИЯ берутся `livePoolSeeds` из `handoff/seeds/seeds.json` — ровно
+//     те же 19 пулов по 5 зёрен, что достаются живому человеку по кнопке
+//     «начни с готового». Иначе владелец смотрит на стенде вещи, которые
+//     придумали МЫ, а человек получает вещи из пакета: две разные комнаты, и
+//     стенд показывает не продукт, а наш черновик;
+//
+//   • «УЖЕ СВОЁ» — из `src/config/demo-pools.ts`, и только зёрна с признаком
+//     `mine` (даритель, год, предметный кадр `refs/p-*.jpg`). Витрине
+//     сокровищницы без них нечего показывать, а в контракте такого зерна нет
+//     и быть не должно: живому человеку имя дарителя достаётся ровно одним
+//     путём — через «Дошло» (инвариант №2). Всё остальное из демо-пулов
+//     посев больше не берёт.
+//
+// Обе половины складывает `standPoolSeeds` (services/pack-seeds) — там же
+// живёт и сторож контракта: зерно без цены или с полем «уже моё» в комнату не
+// поедет, а кадр, которого нет файлом в `design/package/refs/`, отбрасывается
+// вместе с картинкой, но не с вещью (число — в `contractPhotosMissing`).
 //
 // ЧЕМ НЕ СЕЮТ. Прямой записи в prisma.item здесь нет ни одной: вещи создаёт
 // `createItem` — тот же сервис, что стоит за формой «Добавить вещь», с той же
@@ -41,12 +50,13 @@
 import { z } from "zod";
 import { prisma } from "@/server/db";
 import { rooms as roomPresets, type RoomZone } from "@/config/design";
-import { demoPools } from "@/config/demo-pools";
 import { createItem } from "@/server/services/items";
 import { putObjectViaPresign } from "@/server/s3";
 import {
   createInputFor,
-  poolSeeds,
+  packSeedsPhotosMissing,
+  standPoolKeys,
+  standPoolSeeds,
   storePackagePhoto,
   type PackStorage,
 } from "@/server/services/pack-seeds";
@@ -55,10 +65,15 @@ import {
 export type StandSeedStorage = PackStorage;
 
 /**
- * Зона-витрина. Правило тикета 59 («ещё N» в подписи ссылки и честная кромка
- * прокрутки) включается, когда своих вещей в зоне больше пяти, — а самый
- * большой пул даёт всего пять. Значит одной зоне нужен добор, иначе правило
- * негде увидеть.
+ * Зона-витрина: единственная зона, которую посев наполняет ДВУМЯ пулами.
+ *
+ * Заведена под правило тикета 59 («ещё N» в подписи ссылки и честная кромка
+ * прокрутки): оно включается, когда своих вещей в зоне больше пяти, а самый
+ * большой демо-пул давал ровно пять — и увидеть правило было негде. С тикета
+ * 175 больше пяти даёт КАЖДАЯ зона — семь: пять желаний контракта плюс два
+ * «уже своё» демо-пула, — так что добор перестал быть единственным способом.
+ * Он остался ради запаса: в витрине четырнадцать вещей против семи в соседних,
+ * и разница между полкой и полкой, которая не влезла, видна глазами.
  *
  * Витриной выбрана «Что угодно»: она есть в каждом из десяти пресетов
  * (это же проверяет rooms.changeRoomPreset) и по замыслу пакета «ловит всё,
@@ -69,12 +84,14 @@ export type StandSeedStorage = PackStorage;
 const SHOWCASE_ZONE_KEY = "anything";
 
 /**
- * Какой пул брать в добор. Первые два — единственные пулы с вещью «уже своё»,
- * у которой есть даритель и год («Теннисный браслет» от мамы, «Дайвер» от
- * папы). Женским пресетам не достаётся полка `watches`, мужским — `jewel`,
- * поэтому один из двух свободен всегда, и зал славы получает ДВЕ вещи вместо
- * одной. Если оба уже с полками — берём первый свободный пул в порядке
- * объявления (в нынешних десяти пресетах такого не бывает).
+ * Какой пул брать в добор. Первые два — единственные пулы, чьё зерно «уже
+ * своё» приходит с дарителем и годом («Теннисный браслет» от мамы, «Дайвер»
+ * от папы). Женским пресетам не достаётся полка `watches`, мужским — `jewel`,
+ * поэтому один из двух свободен всегда, и зал славы получает ДВЕ вещи с
+ * историей подарка вместо одной. Если оба уже с полками — берём первый
+ * свободный пул в порядке объявления (в нынешних десяти пресетах такого не
+ * бывает). Добор приезжает целиком, обеими половинами: желания пула — из
+ * контракта, «уже своё» — из демо-пула.
  */
 const SPILLOVER_PREFERENCE = ["watches", "jewel"] as const;
 
@@ -105,6 +122,14 @@ export type StandSeedResult = {
   photosStored: number;
   /** Фото, которое не доехало до S3: вещь всё равно создана, но без фото. */
   photosFailed: number;
+  /**
+   * Кадров контракта, которых нет файлом в `design/package/refs/` (тикет 175).
+   * Это свойство ПАКЕТА, а не прогона: такие зёрна приезжают без кадра, вещи
+   * из них создаются, просто с серой заливкой. Ноль — норма; больше нуля —
+   * контракт назвал файл, которого у нас нет, и это видно в отчёте, а не
+   * только в логе.
+   */
+  contractPhotosMissing: number;
   /** Сколько вещей «уже своё» легло в витрину сокровищницы. */
   hallItems: number;
   /** Зона-витрина, если её сеяли в этот раз (иначе null). */
@@ -121,6 +146,7 @@ function emptyResult(overrides: Partial<StandSeedResult> = {}): StandSeedResult 
     itemsCreated: 0,
     photosStored: 0,
     photosFailed: 0,
+    contractPhotosMissing: packSeedsPhotosMissing.length,
     hallItems: 0,
     showcaseZone: null,
     spilloverPool: null,
@@ -132,8 +158,8 @@ function emptyResult(overrides: Partial<StandSeedResult> = {}): StandSeedResult 
 /** Пул для добора витрины — первый, у которого нет своей полки в комнате. */
 function spilloverPoolFor(zones: readonly RoomZone[]): string | null {
   const taken = new Set(zones.map((zone) => zone.pool));
-  const candidates = [...SPILLOVER_PREFERENCE, ...Object.keys(demoPools)];
-  return candidates.find((key) => Object.hasOwn(demoPools, key) && !taken.has(key)) ?? null;
+  const candidates = [...SPILLOVER_PREFERENCE, ...standPoolKeys];
+  return candidates.find((key) => !taken.has(key) && standPoolSeeds(key).length > 0) ?? null;
 }
 
 /**
@@ -169,8 +195,8 @@ export async function seedStandRoom(
   for (const zone of zones) {
     const isShowcase = zone.key === SHOWCASE_ZONE_KEY;
     const seeds = [
-      ...poolSeeds(zone.pool),
-      ...(isShowcase && spilloverPool ? poolSeeds(spilloverPool) : []),
+      ...standPoolSeeds(zone.pool),
+      ...(isShowcase && spilloverPool ? standPoolSeeds(spilloverPool) : []),
     ];
     const report: StandSeedZoneReport = {
       zone: zone.key,
@@ -236,8 +262,12 @@ export async function seedStandRoom(
     `\n🌱 [посев стенда] комната владельца наполнена: вещей ${result.itemsCreated} ` +
       `в ${filled} зонах, фото в S3 ${result.photosStored}` +
       (result.photosFailed > 0 ? ` (не доехало ${result.photosFailed})` : "") +
-      `, в зале славы ${result.hallItems}. ` +
-      `Зоны с вещами пропущены — посев только добавляет.\n`,
+      `, в зале славы ${result.hallItems}` +
+      (result.contractPhotosMissing > 0
+        ? `. Кадров контракта нет в пакете: ${result.contractPhotosMissing} ` +
+          `(${packSeedsPhotosMissing.join(", ")}) — эти вещи без фото`
+        : "") +
+      `. Зоны с вещами пропущены — посев только добавляет.\n`,
   );
 
   return result;
