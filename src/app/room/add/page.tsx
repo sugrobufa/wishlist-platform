@@ -3,6 +3,7 @@ import { getTranslations } from "next-intl/server";
 import { redirect } from "next/navigation";
 import { auth } from "@/server/auth";
 import { getRoomForUser, getSessionUserId } from "@/server/services/rooms";
+import { zonesByDeeds } from "@/server/services/zone-order";
 import { rooms, zoneInfo } from "@/config/design";
 import { visibleZones } from "@/components/scene/zones";
 import { AddItemFlow, type ZoneOption } from "./add-item-flow";
@@ -44,16 +45,19 @@ export default async function AddItemPage({ searchParams }: SearchParams) {
   const preset = rooms.find((candidate) => candidate.id === room.preset);
   if (!preset) redirect("/room");
 
-  // Выбранные в онбординге категории — верхними (тикет 113, доска 34b):
-  // список зон не меняется, меняется его порядок. Пустой ответ — как было.
+  // ПОРЯДОК ЗОН — ПО ДЕЛАМ, А НЕ ПО АНКЕТЕ (тикет 189, решение владельца
+  // 11.08.2026). Прежде первыми шли категории, выбранные в вопросе «что чаще
+  // всего хочется»; вопрос снят — он был единственной анкетой продукта, и
+  // человек не видел от неё ничего. Теперь первыми идут зоны, куда он УЖЕ КЛАЛ
+  // ВЕЩИ, остальные — контрактным порядком пресета. Это только сортировка:
+  // список зон не меняется ни на одну (правило — services/zone-order).
+  //
+  // Поле `room.wants` здесь больше не читается и не читается нигде: данные
+  // живых комнат целы, поле мёртвое до отдельного решения.
   //
   // Прямоугольник зоны сюда больше не едет: он был нужен кропу комнаты на шаге
   // «что это для тебя», а шага не стало (тикет 124).
-  const wanted = new Set(room.wants);
-  const ordered = [
-    ...visibleZones(preset.zones, room.zonesOff).filter((zone) => wanted.has(zone.key)),
-    ...visibleZones(preset.zones, room.zonesOff).filter((zone) => !wanted.has(zone.key)),
-  ];
+  const ordered = await zonesByDeeds(room.id, visibleZones(preset.zones, room.zonesOff));
   const zones: ZoneOption[] = ordered.map((zone) => ({
     key: zone.key,
     label: zoneInfo(zone.key)?.label ?? zone.label,
