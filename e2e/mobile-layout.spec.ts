@@ -412,18 +412,44 @@ test("плашка праздника: стоит в кадре и не двиг
   const before = await hotspots();
   expect(before.length, "зон на экране не нашлось — мерить нечего").toBeGreaterThan(5);
 
-  await page.evaluate(() => {
-    const plaque = document.createElement("section");
-    plaque.className = "imm-offer";
-    plaque.innerHTML =
-      '<p class="imm-offer-title">Через 21 день Новый год</p>' +
-      '<p class="imm-offer-line">Показать гостям, что комната ждёт подарков и к нему</p>' +
-      '<div class="imm-offer-actions">' +
-      '<button type="button" class="imm-offer-show"><span>Показать</span><span>→</span></button>' +
-      '<button type="button" class="imm-offer-skip">Не в этом году</button>' +
-      "</div>";
-    document.querySelector("main.imm")?.append(plaque);
-  });
+  // ВПИСЫВАЕМ ИДЕМПОТЕНТНО И ЖДЁМ, а не «вписали и меряем».
+  //
+  // Первая редакция шага вписывала плашку один раз и сразу мерила её. В
+  // одиночку это проходило, а в полном прогоне падало таймаутом 45 с на
+  // ожидании узла — со снимком почти пустой страницы. Причина в том, что
+  // `main.imm` живёт под клиентской перерисовкой (комната обновляет себя сама),
+  // и вписанный чужой ребёнок при следующей отрисовке исчезает. Кто успел
+  // первым — зависело от того, прогрет ли маршрут, то есть от порядка тестов.
+  //
+  // Повторная вставка НЕ ослабляет проверку: шаг доказывает, что плашка не
+  // двигает зоны, а не то, что она переживает перерисовку. Зоны меряются после
+  // того, как узел действительно стоит.
+  const injectPlaque = () =>
+    page.evaluate(() => {
+      const host = document.querySelector("main.imm");
+      if (!host || host.querySelector(".imm-offer")) return;
+      const plaque = document.createElement("section");
+      plaque.className = "imm-offer";
+      plaque.innerHTML =
+        '<p class="imm-offer-title">Через 21 день Новый год</p>' +
+        '<p class="imm-offer-line">Показать гостям, что комната ждёт подарков и к нему</p>' +
+        '<div class="imm-offer-actions">' +
+        '<button type="button" class="imm-offer-show"><span>Показать</span><span>→</span></button>' +
+        '<button type="button" class="imm-offer-skip">Не в этом году</button>' +
+        "</div>";
+      host.append(plaque);
+    });
+
+  await injectPlaque();
+  await expect
+    .poll(
+      async () => {
+        await injectPlaque();
+        return page.locator("main.imm .imm-offer").count();
+      },
+      { message: "плашка не удержалась в разметке — перерисовка стирает её быстрее, чем мы меряем" },
+    )
+    .toBeGreaterThan(0);
 
   const plaqueRect = await rectOf(page.locator("main.imm .imm-offer"), "плашка праздника");
   const frameAfter = await rectOf(sceneFrame(page), "кадр комнаты");
