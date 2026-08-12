@@ -164,11 +164,20 @@ describe("скрытая цена не уносит ссылку (тикет 195
   );
 
   it.each(["ME", "NONE"] as const)(
-    "priceVisibility=%s: и на плитке сетки — тот же ответ",
+    "priceVisibility=%s: на плитке сетки ссылки больше нет — и цены тоже",
     (priceVisibility) => {
-      const markup = tile(itemForGuest(dbItem({ priceVisibility })));
+      // ТИКЕТ 207 СНЯЛ «ГДЕ КУПИТЬ» С ПЛИТКИ (пакет 47, турн 8b в этой части
+      // снят): вторая дверь была компромиссом времени, когда карточки вещи не
+      // существовало. Правило тикета 195 от этого не ослабло, оно переехало
+      // целиком в КАРТОЧКУ — проверка выше, — а плитка ведёт в неё сама.
+      const dto = itemForGuest(dbItem({ priceVisibility }));
+      const markup = tile(dto);
 
-      expect(markup).toContain(`href="${SHOP_URL}"`);
+      // Ссылка не потеряна: DTO её несёт, читает карточка.
+      if (dto.inHall) throw new Error("unreachable");
+      expect(dto.shop).toEqual({ url: SHOP_URL, domain: "goldapple.ru" });
+      expect(markup).not.toContain(SHOP_URL);
+      expect(markup).not.toContain("goldapple.ru");
       expect(markup).not.toContain("₽");
     },
   );

@@ -12,11 +12,16 @@
 // «вложенных `<a>` в плитке нет — проверить разметкой, не глазами». Вложенный
 // якорь это не стилистика: браузер такую разметку чинит сам, разрывая внешнюю
 // ссылку, и плитка перестаёт нажиматься ровно там, где у вещи есть магазин, —
-// то есть у самых интересных вещей. Увидеть это можно только в разметке, и
-// только собрав плитку целиком со ссылкой И с «Где купить».
+// то есть у самых интересных вещей. Увидеть это можно только в разметке.
+//
+// ТИКЕТ 207 СНЯЛ «ГДЕ КУПИТЬ» С ПЛИТКИ (пакет 47, турн 8b в этой части снят):
+// вторая дверь была компромиссом времени, когда карточки вещи не существовало.
+// Проверка на вложенность ОСТАЛАСЬ и осталась с зубами: теперь она собирает
+// плитку с адресом И с непустым слотом действия — единственной парой, которой
+// эту разметку ещё можно сломать.
 import { existsSync, readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
-import { createElement } from "react";
+import { createElement, type ReactNode } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it, vi } from "vitest";
 
@@ -53,9 +58,9 @@ const ITEM: TileItem = {
 };
 
 /** Плитка так, как её увидит браузер. */
-const draw = (item: Partial<TileItem>, href?: string) =>
+const draw = (item: Partial<TileItem>, href?: string, action?: ReactNode) =>
   renderToStaticMarkup(
-    createElement(ItemTile, { item: { ...ITEM, ...item }, staggerIndex: 0, href }),
+    createElement(ItemTile, { item: { ...ITEM, ...item }, staggerIndex: 0, href, action }),
   );
 
 /** Адрес карточки у хозяйки: /room/zone/{зона}/i/{id}. */
@@ -133,19 +138,50 @@ describe("ПЛИТКА-ПРИЗРАК НЕ ВЕДЁТ НИКУДА", () => {
   });
 });
 
-describe("ВЛОЖЕННЫХ <a> В ПЛИТКЕ НЕТ", () => {
-  it("вещь со ссылкой на магазин: два якоря, и они рядом, а не один в другом", () => {
+describe("ПЛИТКА — ОДНА ЦЕЛЬ ЦЕЛИКОМ (тикет 207)", () => {
+  it("у вещи с магазином якорь РОВНО ОДИН, и ведёт он в карточку, а не наружу", () => {
+    // Пакет 47: «плитка — одна цель целиком, вложенных ссылок в ней не остаётся
+    // ни одной». Дорога наружу живёт в карточке вещи — там, куда плитка и
+    // ведёт; вторая дверь уводила человека мимо неё.
     const markup = draw({ shop: SHOP }, HREF);
-    expect(anchors(markup)).toBe(2);
-    expect(nested(markup)).toBe(false);
-    // Оба на месте: дорога внутрь и дорога наружу.
+    expect(anchors(markup)).toBe(1);
     expect(markup).toContain(`href="${HREF}"`);
-    expect(markup).toContain(`href="${SHOP.url}"`);
+    expect(markup).not.toContain(SHOP.url);
+    expect(markup).not.toContain(SHOP.domain);
   });
 
-  it("«Где купить» стоит ПОСЛЕ ссылки плитки, а не внутри неё", () => {
-    const markup = draw({ shop: SHOP }, HREF);
-    expect(markup.indexOf("</a>")).toBeLessThan(markup.indexOf(SHOP.url));
+  it("ключ shop у вещи есть, а рисовать его плитке нечем", () => {
+    // Ссылка не потеряна (тикет 195): она в DTO и доезжает до карточки. Здесь
+    // проверяется ровно то, что ПЛИТКА её больше не читает, — иначе «убрали»
+    // означало бы «спрятали видимостью».
+    expect(tile).not.toContain("ShopLink");
+    expect(tile).not.toContain("item.shop");
+  });
+
+  it("название забрало освободившееся место: две строки вместо многоточия", () => {
+    // 28 px, ушедшие вместе со ссылкой, забирает название (пакет 47). Правилом,
+    // а не сегодняшней раскладкой: длинные имена вещей начинаются одинаково, и
+    // разница между ними стояла ровно там, где обрывалось многоточие.
+    const title = /\.title \{([^}]*)\}/u.exec(gridCss)?.[1] ?? "";
+    expect(title, "правила .title в сетке зоны нет").not.toBe("");
+    expect(title).toMatch(/-webkit-line-clamp: 2;/u);
+    expect(title, "название снова режется на первой строке").not.toMatch(/white-space: nowrap/u);
+  });
+});
+
+describe("ВЛОЖЕННЫХ <a> В ПЛИТКЕ НЕТ", () => {
+  it("адрес карточки И слот действия вместе: два якоря рядом, а не один в другом", () => {
+    // ЕДИНСТВЕННАЯ ПАРА, КОТОРОЙ ЭТУ РАЗМЕТКУ ЕЩЁ МОЖНО СЛОМАТЬ. «Где купить»
+    // с плитки снято (тикет 207), но слот действия остался: у гостя в нём
+    // бирка «Подарить» и ссылка «Подробнее». Сегодня ни один вызов не передаёт
+    // адрес и слот разом — плитку с адресом рисует комната хозяйки, слот
+    // заполняет гостевая сетка, — и сторож обязан ловить не сегодняшний вызов,
+    // а завтрашний: вложенный якорь браузер чинит сам, разрывая внешнюю ссылку.
+    const markup = draw({}, HREF, createElement("a", { href: "/r/mila/i/itm_1" }, "Подробнее"));
+    expect(anchors(markup)).toBe(2);
+    expect(nested(markup)).toBe(false);
+    expect(markup).toContain(`href="${HREF}"`);
+    expect(markup).toContain('href="/r/mila/i/itm_1"');
   });
 
   it("проверка вложенности умеет её находить — иначе она ничего не стоит", () => {
@@ -154,12 +190,12 @@ describe("ВЛОЖЕННЫХ <a> В ПЛИТКЕ НЕТ", () => {
     expect(nested('<a href="/a">x</a><a href="/b">y</a>')).toBe(false);
   });
 
-  it("оборачивается ТЕЛО плитки, а не вся <li>", () => {
-    // Обёртка вокруг `<li>` целиком проглотила бы «Где купить» и слот
-    // действия — с ними внутрь уехали бы и бирка гостя, и лист «⋯».
-    const markup = draw({ shop: SHOP }, HREF);
+  it("слот действия стоит ПОСЛЕ ссылки плитки, а не внутри неё", () => {
+    // Обёртка, проглотившая слот, увезла бы внутрь ссылки и бирку гостя, и
+    // «Подробнее» — то есть кнопку внутри якоря, ту же поломку разметки.
+    const markup = draw({}, HREF, createElement("button", { type: "button" }, "Подарить"));
     expect(markup.startsWith("<li")).toBe(true);
-    expect(markup.indexOf("<a")).toBeGreaterThan(markup.indexOf("<li"));
+    expect(markup.indexOf("</a>")).toBeLessThan(markup.indexOf("<button"));
   });
 });
 

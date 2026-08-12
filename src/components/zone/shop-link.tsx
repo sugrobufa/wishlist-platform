@@ -15,7 +15,15 @@ import { useTranslations } from "next-intl";
 import s from "./shop-link.module.css";
 
 /**
- * Где нажали: плитка в сетке зоны, лист брони или карточка вещи хозяйки.
+ * Где нажали: лист брони или карточка вещи хозяйки.
+ *
+ * ПЛИТКИ ЗДЕСЬ БОЛЬШЕ НЕТ (тикет 207, пакет 47: турн 8b в этой части снят).
+ * Вложенная ссылка в плитке была компромиссом времени, когда карточки вещи не
+ * существовало; теперь она есть, и плитка ведёт в неё целиком. Вид `tile` ушёл
+ * вместе с последним вызовом — мёртвая ветка однажды снова кем-нибудь
+ * позовётся. Контекст `ZONE` при этом остаётся на сервере
+ * (`services/outbound.ts`): в БД лежат прежние записи, и стирать историю
+ * переходов правка вида не вправе.
  *
  * `null` — место, которое НЕ СЧИТАЕТСЯ. Счётчик переходов меряет интерес
  * ГОСТЕЙ (тикет 37), а карточка хозяйки — её собственный экран: она ходит по
@@ -23,10 +31,9 @@ import s from "./shop-link.module.css";
  * не данные, а шум. Поэтому «считать или нет» решает не отдельный флаг, а само
  * место: у него либо есть колонка `context` в БД, либо его там нет.
  */
-export type ShopLinkPlace = "tile" | "sheet" | "card";
+export type ShopLinkPlace = "sheet" | "card";
 
-const CONTEXT: Record<ShopLinkPlace, "ZONE" | "RESERVE_PAGE" | null> = {
-  tile: "ZONE",
+const CONTEXT: Record<ShopLinkPlace, "RESERVE_PAGE" | null> = {
   sheet: "RESERVE_PAGE",
   card: null,
 };
@@ -58,10 +65,15 @@ type ShopLinkProps = {
   /** Хост без «www.» (guest-DTO → shop.domain). */
   domain: string;
   /**
-   * Плитка — компактно в столбик; лист брони — строкой, как в турне 8b;
-   * карточка — строка тела карточки вещи хозяйки (round39 → body.link).
+   * Лист брони — строкой, как в турне 8b; карточка — строка тела карточки вещи
+   * хозяйки (round39 → body.link).
+   *
+   * БЕЗ ДЕФОЛТА И ЭТО НАРОЧНО (тикет 207): дефолтом был снятый `tile`, и любой
+   * дефолт на его месте молча приписывал бы переход чужому месту. Мест два, оба
+   * вызова их называют, и `place` теперь обязателен — за этим смотрит typecheck,
+   * а не память.
    */
-  place?: ShopLinkPlace;
+  place: ShopLinkPlace;
   /**
    * ГЛАВНАЯ ДВЕРЬ (тикет 196, contract round46 → storeBlock.primaryRow):
    * та же ссылка, но крупно и в рамке. Включается там, где путь стал якорем
@@ -81,19 +93,11 @@ type ShopLinkProps = {
 
 /** Вид места: класс модуля. Разбор в одном месте — иначе он расползётся. */
 const LOOK: Record<ShopLinkPlace, string | undefined> = {
-  tile: s.tile,
   sheet: s.sheet,
   card: s.card,
 };
 
-export function ShopLink({
-  itemId,
-  url,
-  domain,
-  place = "tile",
-  door = false,
-  action,
-}: ShopLinkProps) {
+export function ShopLink({ itemId, url, domain, place, door = false, action }: ShopLinkProps) {
   const t = useTranslations("Shop");
 
   return (
