@@ -32,11 +32,16 @@
 import { Prisma, type Connection, type ConnectionKind, type HallVisibility } from "@prisma/client";
 import { z } from "zod";
 import { prisma } from "@/server/db";
-import { birthdayOf, nextOccasionDay } from "@/server/birthday";
+import { isoDay } from "@/server/birthday";
+import type { DatedOccasion, HolidayKey, OccasionKind } from "@/server/holidays";
 import { itemPhotoUrl } from "@/server/dto/items";
 import { hallItemShownToObservers } from "@/server/dto/hall";
 import { rooms as roomPresets } from "@/config/design";
 import { countFreeGiftsByRoom } from "@/server/services/guest-room";
+import {
+  nearestOccasionByRoom,
+  type OccasionRoomColumns,
+} from "@/server/services/room-occasions";
 
 const idSchema = z.string().min(1).max(64);
 
@@ -598,18 +603,47 @@ export type ConnectionRowDto = {
   room: ConnectionRoomDto | null;
 };
 
-/** Комната друга в ленте: кадр, отсчёт до праздника и «сколько свободно». */
+/**
+ * БЛИЖАЙШИЙ ПРАЗДНИК ДРУГА — ДАТА ВМЕСТЕ С ИМЕНЕМ (тикет 204).
+ *
+ * Имя едет рядом с датой, а не отдельно и не вместо: «через 5 дней» без имени
+ * было терпимо, пока праздник был один, а с тикета 198 их три вида — и «через
+ * 5 дней» может значить и день рождения, и 23 февраля. Для того, кто выбирает
+ * подарок, разница существенная.
+ *
+ * Имени СТРОКОЙ здесь нет у двух видов из трёх: у дня рождения и у общей даты
+ * его знает словарь (`Occasion.birthdayLabel`, `Occasion.holiday*`), а сервер
+ * языка интерфейса не знает. Своё имя есть только у своего повода — его писала
+ * сама хозяйка, и переводить его нечем.
+ *
+ * ИНВАРИАНТ №1 НЕ ЗАДЕТ: праздник — не бронь. О том, что и кем занято, лента
+ * по-прежнему не говорит ничего; рядом стоит только гостевое «сколько ЕЩЁ
+ * можно подарить».
+ */
+export type ConnectionOccasionDto = {
+  /** Календарный день `YYYY-MM-DD` ближайшего праздника — считан от «сегодня». */
+  date: string;
+  /** Откуда праздник: спросили при входе, приняли плашкой или завели рукой. */
+  kind: OccasionKind;
+  /** Ключ общей даты — имя ей даёт словарь; null у дня рождения и своего повода. */
+  key: HolidayKey | null;
+  /** Имя своего повода — текст хозяйки; null у дня рождения и общей даты. */
+  title: string | null;
+};
+
+/** Комната друга в ленте: кадр, ближайший праздник и «сколько свободно». */
 export type ConnectionRoomDto = {
   /** Канонический адрес: ник, если занят, иначе короткий код. */
   slug: string;
   /** id пресета — кадр и акцент страница берёт из конфига. */
   preset: string;
   /**
-   * БЛИЖАЙШИЙ день рождения календарным днём `YYYY-MM-DD`; null — его не
-   * задавали. Считается от «сегодня» (тикет 187): в комнате хранится день и
-   * месяц, а лента показывает ту же дату, что видит гость, открыв комнату.
+   * Ближайший праздник ЛЮБОГО вида; null — праздников нет вовсе (день
+   * рождения пропущен, общих не приняли, своих не завели — законное
+   * состояние). Считается от «сегодня» тем же счётом, что и в комнате
+   * хозяйки: в комнате хранятся день и месяц, а не отметка.
    */
-  occasionDate: string | null;
+  occasion: ConnectionOccasionDto | null;
   /**
    * «N можно подарить» — вещи «хочу» без брони среди видимых. Ровно то же
    * число, что гость видит, открыв комнату (services/guest-room): ни имён,
@@ -647,6 +681,12 @@ const personSelect = {
     },
   },
 } as const;
+
+/** Праздник комнаты в строку ленты; undefined (нет в карте) — праздников нет. */
+function occasionDtoOf(nearest: DatedOccasion | undefined): ConnectionOccasionDto | null {
+  if (!nearest) return null;
+  return { date: isoDay(nearest.date), kind: nearest.kind, key: nearest.key, title: nearest.title };
+}
 
 /** Последний ISO из имеющихся дат (createdAt — всегда есть). */
 function latestIso(createdAt: Date, ...candidates: (string | undefined)[]): string {
@@ -723,21 +763,32 @@ export async function listConnections(
   const itemById = new Map(giftItems.map((item) => [item.id, item]));
 
   // Комнаты, куда человек ХОДИЛ, — только у них будет карточка с кадром
-  // (тикет 95). Считаем «сколько свободно» одним запросом на весь список.
-  const visitedRooms = rows.flatMap((row) => {
+  // (тикет 95). И «сколько свободно», и ближайший праздник считаются по ним
+  // ОДНИМ запросом на весь список: строка ленты в БД не ходит.
+  const visitedRooms: { roomId: string; zoneKeys: string[] }[] = [];
+  const occasionRooms: OccasionRoomColumns[] = [];
+  for (const row of rows) {
     const meIsA = row.aUserId === id;
     const other = meIsA ? row.b : row.a;
     // Односторонняя строка карточки не получает — считать по её комнате
     // нечего (см. `room` в DTO).
-    if (connectionStatus(row) === "declined") return [];
-    if (!other.room || myVisitsToTheirRoom(readHistory(row.history), meIsA) === 0) return [];
-    return [{ roomId: other.room.id, zoneKeys: visibleRoomZoneKeys(other.room) }];
-  });
+    if (connectionStatus(row) === "declined") continue;
+    if (!other.room || myVisitsToTheirRoom(readHistory(row.history), meIsA) === 0) continue;
+    visitedRooms.push({ roomId: other.room.id, zoneKeys: visibleRoomZoneKeys(other.room) });
+    occasionRooms.push(other.room);
+  }
   const freeByRoom = await countFreeGiftsByRoom(visitedRooms);
 
-  // Ближайший день рождения считается от одного «сейчас» на весь список —
-  // иначе строки, собранные по разные стороны полуночи, разъехались бы на сутки.
+  // Ближайший праздник считается от одного «сейчас» на весь список — иначе
+  // строки, собранные по разные стороны полуночи, разъехались бы на сутки.
   const now = new Date();
+  // ТОТ ЖЕ ВОПРОС, ЧТО У КОМНАТЫ, И ТЕМ ЖЕ СЧЁТОМ (тикет 204). До него лента
+  // знала только день рождения: у комнаты с принятым Новым годом и без даты
+  // рождения в ленте не было НИЧЕГО — молчала ровно там, ради чего лента и
+  // существует. Теперь дату даёт `nearestOccasionByRoom` — та же функция, из
+  // которой сделан `nearestRoomOccasion` комнаты, поэтому два ответа на один
+  // вопрос разъехаться уже не могут.
+  const occasionByRoom = await nearestOccasionByRoom(occasionRooms, now);
 
   const result = rows.map((row) => {
     const meIsA = row.aUserId === id;
@@ -798,7 +849,7 @@ export async function listConnections(
           ? {
               slug: other.room.nick ?? other.room.shareSlug,
               preset: other.room.preset,
-              occasionDate: nextOccasionDay(birthdayOf(other.room), now),
+              occasion: occasionDtoOf(occasionByRoom.get(other.room.id)),
               freeGifts: freeByRoom.get(other.room.id) ?? 0,
             }
           : null,

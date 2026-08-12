@@ -30,14 +30,21 @@ function row(
     room:
       occasionDate === null
         ? null
-        : { slug: `s-${id}`, preset: "cream", occasionDate, freeGifts: 3 },
+        : {
+            slug: `s-${id}`,
+            preset: "cream",
+            // Вид праздника порядку безразличен — он сортирует по дате
+            // (тикет 204: до него дата бывала только у дня рождения).
+            occasion: { date: occasionDate, kind: "birthday", key: null, title: null },
+            freeGifts: 3,
+          },
   };
 }
 
-/** Комната есть, а даты праздника в ней нет — тоже «без даты». */
+/** Комната есть, а праздника в ней нет — тоже «без даты». */
 function roomWithoutDate(id: string, lastAt: string): ConnectionRowDto {
   const base = row(id, "2026-09-01", lastAt);
-  return { ...base, room: { ...base.room!, occasionDate: null } };
+  return { ...base, room: { ...base.room!, occasion: null } };
 }
 
 describe("orderFeed — ближайший праздник выше", () => {

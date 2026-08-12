@@ -17,8 +17,10 @@ export const URGENT_DAYS = 7;
 export type FeedRow = {
   row: ConnectionRowDto;
   /**
-   * Дней до ближайшего праздника друга. `null` — даты нет, она непонятна,
-   * праздник уже прошёл или комната друга нам недоступна (тогда и кадра нет).
+   * Дней до ближайшего праздника друга — ЛЮБОГО вида (тикет 204: до него
+   * лента считала только день рождения и сортировала по неполным данным).
+   * `null` — праздника нет, дата непонятна, он уже прошёл или комната друга
+   * нам недоступна (тогда и кадра нет).
    */
   daysLeft: number | null;
 };
@@ -39,7 +41,7 @@ export function orderFeed(
   const rest: FeedRow[] = [];
 
   for (const row of rows) {
-    const daysLeft = daysUntilOccasion(row.room?.occasionDate, now);
+    const daysLeft = daysUntilOccasion(row.room?.occasion?.date, now);
     (daysLeft === null ? rest : upcoming).push({ row, daysLeft });
   }
 

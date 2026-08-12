@@ -61,6 +61,10 @@
   position: absolute;
   top: 12px;
   left: 16px;
+  /* Кадр справа не занят ничем, но имя своего повода бывает в шестьдесят
+   * знаков (тикет 204): чип упирается в правое поле карточки и отдаёт остаток
+   * многоточию, а не уезжает под `overflow: hidden` кадра. */
+  max-width: calc(100% - 32px);
   display: inline-flex;
   align-items: center;
   gap: 7px;
@@ -72,8 +76,17 @@
   color: rgba(255, 249, 242, 0.92);
 }
 
+.chipText {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .dot {
   display: block;
+  /* Точка — метка срока, а не текст: сжиматься вместе со строкой ей нельзя. */
+  flex: none;
   width: 6px;
   height: 6px;
   border-radius: 50%;

@@ -486,7 +486,7 @@
     "badgeFOLLOW": "Я слежу",
     "badgeVIEWED": "Заходил",
     "nameFallback": "Гость без имени",
-    "feedToday": "праздник сегодня",
+    "feedToday": "сегодня",
     "feedInDays": "через {days, plural, one {# день} few {# дня} many {# дней} other {# дня}}",
     "feedFree": "{count, plural, =0 {всё уже разобрали} one {# вещь можно подарить} few {# вещи можно подарить} many {# вещей можно подарить} other {# вещи можно подарить}}",
     "feedNoDate": "Без даты праздника",

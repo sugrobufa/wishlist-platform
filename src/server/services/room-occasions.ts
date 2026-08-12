@@ -52,14 +52,19 @@ function revalidateRoom(roomId: string): void {
   }
 }
 
-type RoomColumns = {
+/**
+ * Комната глазами праздников: свой id и колонки дня рождения — больше отсюда
+ * ничего не читается. Тип экспортирован, потому что комнаты приезжают сюда и
+ * пачкой, из чужого сервиса (`nearestOccasionByRoom`, тикет 204).
+ */
+export type OccasionRoomColumns = {
   id: string;
   birthdayDay: number | null;
   birthdayMonth: number | null;
   birthdayYear: number | null;
 };
 
-async function requireRoom(userId: string): Promise<RoomColumns> {
+async function requireRoom(userId: string): Promise<OccasionRoomColumns> {
   const room = await prisma.room.findUnique({
     where: { userId: idSchema.parse(userId) },
     select: { id: true, birthdayDay: true, birthdayMonth: true, birthdayYear: true },
@@ -81,7 +86,10 @@ async function requireRoom(userId: string): Promise<RoomColumns> {
  * Отказанные общие даты («Не в этом году») сюда не входят: отказ — это ответ
  * про ПЛАШКУ, а не праздник комнаты.
  */
-export function occasionsOf(room: RoomColumns, rows: readonly RoomOccasionRow[]): RoomOccasion[] {
+export function occasionsOf(
+  room: OccasionRoomColumns,
+  rows: readonly RoomOccasionRow[],
+): RoomOccasion[] {
   const occasions: RoomOccasion[] = [];
   const birthday = birthdayOf(room);
   if (birthday) {
@@ -120,6 +128,51 @@ async function occasionRows(roomId: string): Promise<RoomOccasionRow[]> {
 }
 
 /**
+ * БЛИЖАЙШИЙ ПРАЗДНИК СРАЗУ ПО НЕСКОЛЬКИМ КОМНАТАМ — ОДНИМ ЗАПРОСОМ (тикет 204).
+ *
+ * Лента друзей задаёт тот же вопрос, что и комната, но не про одну комнату, а
+ * про десяток разом. Спрашивать по строке значит завести `N+1` — тихо и
+ * незаметно, ровно так же, как это было бы у «сколько свободно»
+ * (`countFreeGiftsByRoom`, тот же приём и та же причина).
+ *
+ * КОМНАТА И ЛЕНТА ОТВЕЧАЮТ ОДНО И ТО ЖЕ ПО УСТРОЙСТВУ, А НЕ ПО ДОГОВОРЁННОСТИ:
+ * `nearestRoomOccasion` — это ОНА ЖЕ на списке из одной комнаты. Двух правил
+ * «какой праздник ближе» в продукте нет, поэтому и разъехаться нечему; до
+ * тикета 204 их было два, и лента считала только день рождения.
+ *
+ * В карте лежат ТОЛЬКО комнаты, у которых праздник есть: пустое значение и
+ * отсутствие ключа — одно и то же, и `null` в карте был бы третьим способом
+ * сказать «праздников нет».
+ */
+export async function nearestOccasionByRoom(
+  rooms: readonly OccasionRoomColumns[],
+  now: Date = new Date(),
+): Promise<Map<string, DatedOccasion>> {
+  const nearest = new Map<string, DatedOccasion>();
+  if (rooms.length === 0) return nearest;
+
+  // Один запрос на весь список. Порядок тот же, что у `occasionRows`:
+  // «ближайший» при равных датах не должен прыгать между обновлениями
+  // страницы — ни в комнате, ни в ленте.
+  const rows = await prisma.roomOccasion.findMany({
+    where: { roomId: { in: rooms.map((room) => room.id) }, accepted: true },
+    orderBy: [{ createdAt: "asc" }, { id: "asc" }],
+  });
+  const rowsByRoom = new Map<string, RoomOccasionRow[]>();
+  for (const row of rows) {
+    const bucket = rowsByRoom.get(row.roomId);
+    if (bucket) bucket.push(row);
+    else rowsByRoom.set(row.roomId, [row]);
+  }
+
+  for (const room of rooms) {
+    const found = nearestOccasion(occasionsOf(room, rowsByRoom.get(room.id) ?? []), now);
+    if (found) nearest.set(room.id, found);
+  }
+  return nearest;
+}
+
+/**
  * В КОМНАТЕ ВИДЕН РОВНО ОДИН ПРАЗДНИК — ближайший (`occasions.json → inRoom`).
  * null — праздников нет вовсе: день рождения пропущен, общих не приняли, своих
  * не завели. Это законное состояние, а не ошибка.
@@ -133,7 +186,7 @@ export async function nearestRoomOccasion(
     select: { id: true, birthdayDay: true, birthdayMonth: true, birthdayYear: true },
   });
   if (!room) return null;
-  return nearestOccasion(occasionsOf(room, await occasionRows(room.id)), now);
+  return (await nearestOccasionByRoom([room], now)).get(room.id) ?? null;
 }
 
 /** Все праздники комнаты со строками — список настроек праздников. */

@@ -516,19 +516,18 @@ describe("listConnections — DTO без email, происхождение по 
     expect(hers?.preset).toBe("cream");
     // БЛИЖАЙШИЙ праздник, а не сохранённая дата (тикет 187): комната хранит
     // день и месяц, лента показывает ту же дату, что видит гость в комнате.
-    expect(hers?.occasionDate).toBe(
-      nextOccasionDay({ day: 1, month: 9, year: null }, new Date()),
-    );
+    // Имя праздника едет вместе с датой (тикет 204) — здесь это день рождения.
+    expect(hers?.occasion).toEqual({
+      date: nextOccasionDay({ day: 1, month: 9, year: null }, new Date()),
+      kind: "birthday",
+      key: null,
+      title: null,
+    });
     // Свободных подарков у неё нет — «всё разобрали», а не выдуманное число.
     expect(hers?.freeGifts).toBe(0);
 
     // И ни один ключ комнаты не уехал наружу помимо разрешённых.
-    expect(Object.keys(hers ?? {}).sort()).toEqual([
-      "freeGifts",
-      "occasionDate",
-      "preset",
-      "slug",
-    ]);
+    expect(Object.keys(hers ?? {}).sort()).toEqual(["freeGifts", "occasion", "preset", "slug"]);
   });
 
   it("«N можно подарить» считает только то, что гость и так видит", async () => {

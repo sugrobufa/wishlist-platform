@@ -9,6 +9,7 @@ import { useMemo, useState, type CSSProperties } from "react";
 import Link from "next/link";
 import { useFormatter, useTranslations } from "next-intl";
 import { IconPerson } from "@/components/icons";
+import { HOLIDAY_LABEL } from "@/components/occasion/occasion-offer";
 import { rooms } from "@/config/design";
 import { roomImageUrl } from "@/app/rooms/room-image";
 import type { ConnectionOriginDto, ConnectionRowDto } from "@/server/services/connections";
@@ -60,10 +61,43 @@ function Avatar({ url }: { url: string | null }) {
  */
 function FeedCard({ item, tall }: { item: FeedRow; tall: boolean }) {
   const t = useTranslations("Connections");
+  // Праздники называет их собственный раздел словаря (тикет 198): имена общих
+  // дат и «День рождения» заведены там, и второй пары имён у продукта нет.
+  const tOccasion = useTranslations("Occasion");
   const format = useFormatter();
   const { row, daysLeft } = item;
   const room = row.room;
   if (room === null) return null;
+
+  const occasion = room.occasion;
+  // ИМЯ ПРАЗДНИКА ЕДЕТ ВМЕСТЕ С ДАТОЙ (тикет 204). «Через 5 дней» было терпимо,
+  // пока праздник был один; теперь это может быть и день рождения, и 23
+  // февраля — для того, кто выбирает подарок, разница существенная. Строка
+  // собирается тем же `nearestLine`, которым комната подписывает свой
+  // ближайший праздник: два экрана про один праздник говорят одинаково.
+  const holiday =
+    occasion === null
+      ? null
+      : occasion.kind === "birthday"
+        ? tOccasion("birthdayLabel")
+        : occasion.key !== null
+          ? tOccasion(HOLIDAY_LABEL[occasion.key])
+          : occasion.title;
+
+  // Когда именно: отсчёт внутри окна, дата — раньше. Само окно живёт в
+  // feed-order.ts — «через сколько дней» это свойство сегодняшнего дня, а не
+  // связи.
+  const when =
+    occasion === null || daysLeft === null
+      ? null
+      : !countdownShown(daysLeft)
+        ? format.dateTime(new Date(`${occasion.date}T12:00:00.000Z`), {
+            day: "numeric",
+            month: "long",
+          })
+        : daysLeft === 0
+          ? t("feedToday")
+          : t("feedInDays", { days: daysLeft });
 
   const preset = rooms.find((candidate) => candidate.id === room.preset);
   const accent = preset?.accent ?? "#E7C9A9";
@@ -84,20 +118,17 @@ function FeedCard({ item, tall }: { item: FeedRow; tall: boolean }) {
 
       {/* Чип срока — единственное, что торопит. Точка пульсирует, только
           когда праздник совсем близко. */}
-      {daysLeft !== null && (
+      {daysLeft !== null && when !== null && (
         <span className={s.chip}>
           <span
             className={`${s.dot} ${urgent(daysLeft) ? s.dotUrgent : ""}`}
             aria-hidden
           />
-          {countdownShown(daysLeft)
-            ? daysLeft === 0
-              ? t("feedToday")
-              : t("feedInDays", { days: daysLeft })
-            : format.dateTime(new Date(`${room.occasionDate}T12:00:00.000Z`), {
-                day: "numeric",
-                month: "long",
-              })}
+          {/* Имя своего повода пишет хозяйка, и оно бывает длинным: строка
+              обрезается многоточием, а не уезжает за край кадра. */}
+          <span className={s.chipText}>
+            {holiday ? tOccasion("nearestLine", { holiday, date: when }) : when}
+          </span>
         </span>
       )}
 
