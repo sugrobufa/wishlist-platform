@@ -217,12 +217,43 @@ describe("getGuestRoom", () => {
     // его поясом машины значило бы получить 30 декабря в Москве — проверяем
     // именно край года, где ошибка на сутки видна.
     const room = await createTestRoom({ occasionDate: new Date("2026-12-31T00:00:00.000Z") });
-    expect((await getGuestRoom(room.shareSlug))?.occasionDate).toBe(
-      nextOccasionDay({ day: 31, month: 12, year: null }, new Date()),
-    );
+    const view = await getGuestRoom(room.shareSlug);
+    expect(view?.occasion?.date).toBe(nextOccasionDay({ day: 31, month: 12, year: null }, new Date()));
+    // Вид едет вместе с датой (тикет 206): без него «через 5 дней» на экране
+    // гостя не отличает день рождения от Нового года.
+    expect(view?.occasion?.kind).toBe("birthday");
 
     const noDate = await createTestRoom();
-    expect((await getGuestRoom(noDate.shareSlug))?.occasionDate).toBeNull();
+    expect((await getGuestRoom(noDate.shareSlug))?.occasion).toBeNull();
+  });
+
+  // ГЛАВНЫЙ СЛУЧАЙ ТИКЕТА 206, и до него гость не видел ничего.
+  //
+  // День рождения можно не заводить — «Пока не знаю» есть в онбординге и
+  // работает. Такой человек принимает общий праздник плашкой, комната его
+  // ждёт, а гостю, открывшему ссылку, приветствие молчало: считался ТОЛЬКО
+  // день рождения. Та же дыра была в ленте друзей (тикет 204) — это её третья
+  // поверхность и последняя.
+  it("праздник ЛЮБОГО вида, а не только день рождения", async () => {
+    const room = await createTestRoom(); // дня рождения нет вовсе
+    await prisma.roomOccasion.create({
+      data: { roomId: room.id, kind: "COMMON", key: "march8", day: 8, month: 3, accepted: true },
+    });
+
+    const view = await getGuestRoom(room.shareSlug);
+    expect(view?.occasion, "у комнаты без дня рождения принятый праздник не доехал").not.toBeNull();
+    expect(view?.occasion?.kind).toBe("common");
+    expect(view?.occasion?.key).toBe("march8");
+    expect(view?.occasion?.date.slice(5)).toBe("03-08");
+  });
+
+  it("отказ «не в этом году» гостю праздником не считается", async () => {
+    // Иначе «любого вида» превратилось бы в «любого, даже отклонённого».
+    const room = await createTestRoom();
+    await prisma.roomOccasion.create({
+      data: { roomId: room.id, kind: "COMMON", key: "newYear", day: 1, month: 1, accepted: false },
+    });
+    expect((await getGuestRoom(room.shareSlug))?.occasion).toBeNull();
   });
 
   it("ни у одной вещи выдачи нет ключей hidden/priceVisibility/брони", async () => {

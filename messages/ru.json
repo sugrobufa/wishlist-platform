@@ -301,9 +301,9 @@
     "metaDescription": "Загляни и тихо выбери подарок",
     "ctaHint": "Понравилось? Такая комната может быть и у тебя.",
     "cta": "Собрать свою",
-    "occasionToday": "Праздник сегодня",
-    "occasionTomorrow": "Праздник завтра",
-    "occasionIn": "Праздник через {days, plural, one {# день} few {# дня} many {# дней} other {# дня}}",
+    "occasionToday": "{holiday} сегодня",
+    "occasionTomorrow": "{holiday} завтра",
+    "occasionIn": "{holiday} через {days, plural, one {# день} few {# дня} many {# дней} other {# дня}}",
     "freeGifts": "{count, plural, one {# подарок ещё свободен} few {# подарка ещё свободны} many {# подарков ещё свободны} other {# подарка ещё свободны}}",
     "noSignup": "Регистрация не нужна · {name} не узнает, кто смотрел"
   },

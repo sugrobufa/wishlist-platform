@@ -7,6 +7,7 @@ import { cache } from "react";
 import { getGuestRoom } from "@/server/services/guest-room";
 import { rooms, zoneInfo } from "@/config/design";
 import { roomImageUrl } from "@/app/rooms/room-image";
+import { HOLIDAY_LABEL } from "@/components/occasion/occasion-offer";
 import { SceneStage } from "@/components/scene/SceneStage";
 import { asLightColor, asTimeOfDay } from "@/components/scene/grading";
 import { immersiveLayout } from "@/components/scene/immersive-layout";
@@ -131,6 +132,9 @@ export default async function GuestRoomPage({ params }: Params) {
   if (!preset) notFound();
 
   const t = await getTranslations("GuestRoom");
+  // Имена праздников живут в своём разделе (тикет 198) — второго набора имён
+  // для гостя не заводим.
+  const tOccasion = await getTranslations("Occasion");
   const tHall = await getTranslations("Hall");
   const ownerName = room.ownerName ?? t("ownerFallback");
 
@@ -164,15 +168,28 @@ export default async function GuestRoomPage({ params }: Params) {
   //
   // Отсчёт считается ЗДЕСЬ, при рендере, а не в сервисе: он про сегодняшний
   // день, а не про комнату. Прошедший праздник строки не даёт.
-  const daysLeft = daysUntilOccasion(room.occasionDate, new Date());
+  const daysLeft = daysUntilOccasion(room.occasion?.date, new Date());
+  // ИМЯ ПРАЗДНИКА ЕДЕТ ВМЕСТЕ С ОТСЧЁТОМ (тикет 206). Пока праздник был один,
+  // «Праздник через 5 дней» говорило всё; теперь это может быть и день
+  // рождения, и Новый год, и «Новоселье» — а гость выбирает подарок под повод.
+  // Сервер везёт ВИД, имя ему даёт словарь здесь: свой повод — единственный,
+  // чьё имя писала сама хозяйка, поэтому оно приезжает строкой.
+  const holiday =
+    room.occasion === null
+      ? null
+      : room.occasion.kind === "own"
+        ? (room.occasion.title ?? tOccasion("birthdayLabel"))
+        : room.occasion.kind === "common"
+          ? tOccasion(HOLIDAY_LABEL[room.occasion.key ?? "newYear"])
+          : tOccasion("birthdayLabel");
   const occasionLine =
-    daysLeft === null
+    daysLeft === null || holiday === null
       ? null
       : daysLeft === 0
-        ? t("occasionToday")
+        ? t("occasionToday", { holiday })
         : daysLeft === 1
-          ? t("occasionTomorrow")
-          : t("occasionIn", { days: daysLeft });
+          ? t("occasionTomorrow", { holiday })
+          : t("occasionIn", { holiday, days: daysLeft });
 
   // Сетки зон проходят client-границу пропом zoneContent (контракт тикета 02).
   // GuestZoneGrid — та же ZoneGrid, но со слотом действия: бирка «Подарить»

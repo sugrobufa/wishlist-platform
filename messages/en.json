@@ -301,9 +301,9 @@
     "metaDescription": "Step in and quietly pick a gift",
     "ctaHint": "Like it? You could have a room of your own.",
     "cta": "Start your own room",
-    "occasionToday": "The occasion is today",
-    "occasionTomorrow": "The occasion is tomorrow",
-    "occasionIn": "The occasion is in {days, plural, one {# day} other {# days}}",
+    "occasionToday": "{holiday} is today",
+    "occasionTomorrow": "{holiday} is tomorrow",
+    "occasionIn": "{holiday} in {days, plural, one {# day} other {# days}}",
     "freeGifts": "{count, plural, one {# gift is still free} other {# gifts are still free}}",
     "noSignup": "No sign-up needed · {name} will not know who looked"
   },

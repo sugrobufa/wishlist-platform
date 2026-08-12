@@ -12,7 +12,9 @@ import { unstable_cache } from "next/cache";
 import type { HallVisibility, Prisma } from "@prisma/client";
 import { z } from "zod";
 import { prisma } from "@/server/db";
-import { birthdayOf, nextOccasionDay } from "@/server/birthday";
+import { isoDay } from "@/server/birthday";
+import type { DatedOccasion, HolidayKey, OccasionKind } from "@/server/holidays";
+import { nearestOccasionByRoom } from "@/server/services/room-occasions";
 import { MONEY_ZONE_KEY, rooms as roomPresets } from "@/config/design";
 import { visibleZones } from "@/components/scene/zones";
 import { itemForGuest, type GuestItemDto } from "@/server/dto/guest-items";
@@ -32,6 +34,22 @@ const slugSchema = z.string().min(1).max(64);
 const ownerSelect = {
   user: { select: { displayName: true, name: true, avatarKey: true } },
 } satisfies Prisma.RoomInclude;
+
+/**
+ * Ближайший праздник комнаты для гостя — та же форма, что у ленты друзей
+ * (`ConnectionOccasionDto`, тикет 204). Две формы одного предмета мы завели бы
+ * только затем, чтобы однажды они разошлись.
+ */
+export type GuestOccasionDto = {
+  /** Календарный день `YYYY-MM-DD` — считан от «сегодня». */
+  date: string;
+  /** Откуда праздник: спросили при входе, приняли плашкой или завели рукой. */
+  kind: OccasionKind;
+  /** Ключ общей даты — имя ей даёт словарь; null у дня рождения и своего повода. */
+  key: HolidayKey | null;
+  /** Имя своего повода — текст хозяйки; null у дня рождения и общей даты. */
+  title: string | null;
+};
 
 export type GuestRoomView = {
   /** Внутренний id комнаты — тег кэша `room-{id}`, канал «занято» тикета 08. В HTML не светится. */
@@ -73,8 +91,13 @@ export type GuestRoomView = {
    * ДАТА ПОВТОРЯЕТСЯ (тикет 187): комната хранит день и месяц, ближайшее
    * вхождение считается здесь. Год перевалит — и отсчёт пойдёт к следующему,
    * а не замрёт на прошедшем.
+   *
+   * ВИД ЕДЕТ ВМЕСТЕ С ДАТОЙ (тикет 206). Праздник перестал быть один, и
+   * «через 5 дней» без имени больше ничего не значит: это может быть и день
+   * рождения, и Новый год. Сервер языка не знает, поэтому везёт не текст, а
+   * ВИД — имя ему даёт словарь на экране (тот же приём, что в ленте друзей).
    */
-  occasionDate: string | null;
+  occasion: GuestOccasionDto | null;
   /**
    * Сколько подарков комнаты ЕЩЁ СВОБОДНЫ — «7 подарков ещё свободны»
    * (турн 12b). Считается по вещам КОМНАТЫ без брони среди тех, что гость и
@@ -167,10 +190,17 @@ export async function getGuestRoom(slug: string): Promise<GuestRoomView | null> 
     ownerAvatarUrl: itemPhotoUrl(room.user.avatarKey),
     itemsByZone,
     summariesByZone,
-    // Календарный день, а не момент: ближайшее вхождение дня рождения
-    // считается полночью UTC (server/birthday) — тем же поясом, которым живёт
-    // весь цикл праздника, иначе день уехал бы на сутки восточнее Гринвича.
-    occasionDate: nextOccasionDay(birthdayOf(room), new Date()),
+    // ПРАЗДНИК ЛЮБОГО ВИДА, А НЕ ТОЛЬКО ДЕНЬ РОЖДЕНИЯ (тикет 206).
+    //
+    // Считает его то же общее место, что и комната хозяйки, и лента друзей —
+    // `nearestOccasionByRoom`. Здесь оно зовётся на список из одной комнаты:
+    // третьего правила «какой праздник ближе» в продукте нет, и разъехаться
+    // трём поверхностям теперь можно только вместе.
+    //
+    // Календарный день, а не момент: ближайшее вхождение считается полночью
+    // UTC (server/birthday) — тем же поясом, которым живёт весь цикл
+    // праздника, иначе день уехал бы на сутки восточнее Гринвича.
+    occasion: guestOccasionOf((await nearestOccasionByRoom([room], new Date())).get(room.id)),
     freeGiftCount: await countFreeGifts(
       room.id,
       visible.map((zone) => zone.key),
@@ -363,4 +393,10 @@ async function loadGuestItems(roomId: string): Promise<GuestRoomCache> {
   });
 
   return { itemsByZone, summariesByZone, hasHall: hallCount > 0 };
+}
+
+/** Праздник комнаты в гостевую форму; undefined (нет в карте) — праздников нет. */
+function guestOccasionOf(nearest: DatedOccasion | undefined): GuestOccasionDto | null {
+  if (!nearest) return null;
+  return { date: isoDay(nearest.date), kind: nearest.kind, key: nearest.key, title: nearest.title };
 }
