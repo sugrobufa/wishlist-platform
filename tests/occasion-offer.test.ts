@@ -13,6 +13,7 @@
 // его правила проверялись арифметикой, а не прокликиванием комнаты.
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
+import { createTranslator } from "next-intl";
 import { describe, expect, it } from "vitest";
 import {
   COMMON_HOLIDAYS,
@@ -23,6 +24,7 @@ import {
   isHolidayKey,
   nearestOccasion,
   nextHoliday,
+  wholeWeeks,
   type HolidayAnswer,
   type HolidayKey,
   type RoomOccasion,
@@ -58,6 +60,93 @@ describe("три общие даты — список закрыт пакето�
 
   it("три недели — это 21 сутки, и число одно на весь продукт", () => {
     expect(OFFER_LEAD_DAYS).toBe(21);
+  });
+});
+
+// ---------- Тикет 210: отсчёт целыми неделями (пакет 47) ----------
+//
+// Пакет прислал второй ключ отсчёта со словами: «предложение приходит именно за
+// три недели, и „через 21 день" там читается хуже». Правило вышло одно на всё
+// окно, а не заплатка на одно число: делится нацело — недели, не делится — дни.
+//
+// ЗАЧЕМ ТЕСТОМ. `leftWeeks` — новая строка словаря, и заводить её без
+// употребления было нельзя: сирота без места в интерфейсе возвращается в UI как
+// «готовая строка». Здесь стережётся и правило, и то, что плашка правда
+// выбирает между двумя ключами, а не печатает дни всегда.
+describe("целые недели говорятся неделями", () => {
+  it("21 → три недели, 14 → две, 7 → одна", () => {
+    expect(wholeWeeks(21)).toBe(3);
+    expect(wholeWeeks(14)).toBe(2);
+    expect(wholeWeeks(7)).toBe(1);
+  });
+
+  it("нацело не делится — недель нет, и это дни", () => {
+    for (const days of [1, 2, 6, 8, 13, 15, 20]) {
+      expect(wholeWeeks(days), `${days} суток`).toBeNull();
+    }
+  });
+
+  it("ноль и отрицательное неделями не становятся: в сам день праздника плашки нет", () => {
+    // Окно полуоткрытое (`1 ≤ left ≤ 21`), но правило не имеет права отвечать
+    // «ноль недель» никому — 0 % 7 === 0, и без явной проверки оно бы ответило.
+    expect(wholeWeeks(0)).toBeNull();
+    expect(wholeWeeks(-7)).toBeNull();
+  });
+
+  it("ПЕРВЫЙ ДЕНЬ ОКНА — тот самый случай, ради которого ключ и прислан", () => {
+    // Плашка приходит ровно за `OFFER_LEAD_DAYS` суток, и в этот день она
+    // говорила «Через 21 день». Теперь — «Через 3 недели».
+    expect(wholeWeeks(OFFER_LEAD_DAYS)).toBe(3);
+  });
+
+  it("плашка выбирает КЛЮЧ, а не печатает дни всегда", () => {
+    const source = read("../src/components/occasion/occasion-offer.tsx");
+    expect(source).toContain("wholeWeeks(daysLeft)");
+    expect(source).toContain('t("leftWeeks", { weeks })');
+    expect(source).toContain('t("leftDays", { days: daysLeft })');
+    // Прежнего имени не осталось нигде: ключ уехал в `leftDays` целиком.
+    expect(source).not.toMatch(/offerLeft/u);
+  });
+
+  it("склонение — настоящим форматтером, а не на глаз", () => {
+    const messages = JSON.parse(read("../messages/ru.json")) as Record<
+      string,
+      Record<string, string>
+    >;
+    const t = createTranslator({ locale: "ru", messages, namespace: "Occasion" });
+    // Значения дельты дословно: «# неделю / # недели / # недель».
+    expect(t("leftWeeks", { weeks: 1 })).toBe("1 неделю");
+    expect(t("leftWeeks", { weeks: 2 })).toBe("2 недели");
+    expect(t("leftWeeks", { weeks: 3 })).toBe("3 недели");
+    expect(t("leftDays", { days: 20 })).toBe("20 дней");
+    // И целая строка плашки — ради неё всё и затевалось.
+    expect(t("offerTitle", { left: t("leftWeeks", { weeks: 3 }), holiday: t("holidayNY") })).toBe(
+      "Через 3 недели Новый год",
+    );
+  });
+
+  it("имена ключей — дизайна, и значения совпали с ним дословно", () => {
+    // Тикет 210: `holidayFeb23` совпал и именем, два других переименованы.
+    const delta = JSON.parse(
+      read("../design/package/handoff/round47/strings-delta.json"),
+    ) as { asked: { holidays: Record<string, string>; days: Record<string, string> } };
+    const messages = JSON.parse(read("../messages/ru.json")) as Record<
+      string,
+      Record<string, string>
+    >;
+    for (const [full, value] of [
+      ...Object.entries(delta.asked.holidays),
+      ...Object.entries(delta.asked.days),
+    ]) {
+      const key = full.replace(/^Occasion\./u, "");
+      expect(messages.Occasion?.[key], `${full} — ключа нет в словаре`).toBe(value);
+    }
+    // Мёртвых имён не осталось ни в словаре, ни в каркасе.
+    const en = JSON.parse(read("../messages/en.json")) as Record<string, Record<string, string>>;
+    for (const dead of ["offerLeft", "holidayNewYear", "holidayMarch8"]) {
+      expect(messages.Occasion?.[dead], `ru: ${dead}`).toBeUndefined();
+      expect(en.Occasion?.[dead], `en: ${dead}`).toBeUndefined();
+    }
   });
 });
 

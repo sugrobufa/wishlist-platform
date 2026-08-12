@@ -4,6 +4,7 @@ import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { acceptHolidayAction, skipHolidayAction } from "@/app/room/occasion-actions";
+import { wholeWeeks } from "@/server/holidays";
 
 /**
  * ПЛАШКА ПРЕДЛОЖЕНИЯ ОБЩЕЙ ДАТЫ (тикет 198, пакет 44 → `occasions.json`).
@@ -57,12 +58,19 @@ export function OccasionOffer({
   };
 
   const holiday = t(HOLIDAY_LABEL[holidayKey]);
+  /**
+   * ЦЕЛЫЕ НЕДЕЛИ ГОВОРЯТСЯ НЕДЕЛЯМИ (тикет 210, `round47/strings-delta.json`).
+   * Плашка приходит ровно за три недели, и «Через 21 день Новый год» дизайн
+   * назвал худшим чтением, чем «Через 3 недели». Делится нацело — недели,
+   * не делится — дни; арифметику считает календарь (`wholeWeeks`), здесь
+   * выбирается только слово.
+   */
+  const weeks = wholeWeeks(daysLeft);
+  const left = weeks === null ? t("leftDays", { days: daysLeft }) : t("leftWeeks", { weeks });
 
   return (
     <section className="imm-offer" aria-label={holiday}>
-      <p className="imm-offer-title">
-        {t("offerTitle", { left: t("offerLeft", { days: daysLeft }), holiday })}
-      </p>
+      <p className="imm-offer-title">{t("offerTitle", { left, holiday })}</p>
       <p className="imm-offer-line">{t("offerLine")}</p>
       <div className="imm-offer-actions">
         <button
@@ -93,9 +101,16 @@ export function OccasionOffer({
 /**
  * Имена общих дат — ключи словаря, а не строки в коде. Значения взяты из
  * контракта дословно (`occasions.json → threeKinds.common.list`).
+ *
+ * ИМЕНА КЛЮЧЕЙ ТЕПЕРЬ ЕГО ЖЕ (тикет 210, `round47/strings-delta.json`): мы
+ * просили три имени ключами — прислали, и значения совпали с нашими дословно.
+ * `holidayFeb23` совпал и именем, два других переименованы в их
+ * (`holidayNewYear` → `holidayNY`, `holidayMarch8` → `holidayMar8`). Слева от
+ * двоеточия ключи ПРОДУКТА (`newYear` | `feb23` | `march8`) — они живут в БД
+ * и в календаре, и трогать их пакет не просил.
  */
 export const HOLIDAY_LABEL = {
-  newYear: "holidayNewYear",
+  newYear: "holidayNY",
   feb23: "holidayFeb23",
-  march8: "holidayMarch8",
+  march8: "holidayMar8",
 } as const;
