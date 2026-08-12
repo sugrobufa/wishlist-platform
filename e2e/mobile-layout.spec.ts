@@ -1081,7 +1081,12 @@ test("пустая комната: единственное действие в�
  * ЧТО ИМЕННО МЕРЯЕТСЯ. Не «блок выше бара» (этого мало: слот со своей
  * прокруткой уводит хвост под собственную кромку молча), а три вещи разом:
  * последний узел выше бара, слот НЕ переполнен (последняя строка видна без
- * прокрутки), и блок не наехал на пилюлю-обещание сверху.
+ * прокрутки), и обещание стоит В КАДРЕ, а не в полосе вместе с блоком.
+ *
+ * ТИКЕТ 208 УВЁЛ ОБЕЩАНИЕ В КАДР, и полоса вернула себе зазор, который под него
+ * держала (25 px строки действий). Прежняя проверка «блок не наехал на пилюлю
+ * сверху» сменилась на проверку самого переезда: низ пилюли выше нижней кромки
+ * кадра. Первая теперь верна сама собой и доказывала бы пустоту.
  */
 async function emptyBlockFits(page: Page, width: number, height: number): Promise<void> {
   await page.setViewportSize({ width, height });
@@ -1101,7 +1106,13 @@ async function emptyBlockFits(page: Page, width: number, height: number): Promis
   const cta = await rectOf(block.getByRole("link"), "полоса света");
   const overline = block.locator(".imm-empty-places");
   await expect(overline, "надстрочной «комната обставляется · N мест» нет").toBeVisible();
-  const pill = await rectOf(page.locator('[class*="hintPill"]'), "подпись-обещание");
+  const pill = await rectOf(page.locator('[class*="promisePill"]'), "подпись-обещание");
+  // «Коснись зоны» в пустой комнате не рисуется вовсе: касаться нечего, и её
+  // место в жёлобе занял переехавший блок первого шага.
+  await expect(
+    page.locator('[class*="hintPill"]'),
+    "в пустой комнате вернулась подсказка «коснись зоны»",
+  ).toHaveCount(0);
 
   // ЖИВОЕ ЧИСЛО МЕСТ, а не 13 константой: надстрочная называет ровно столько,
   // сколько мест нарисовано в кадре ЭТОЙ комнаты. Юнит стережёт, что число
@@ -1139,7 +1150,8 @@ async function emptyBlockFits(page: Page, width: number, height: number): Promis
     бар: `${bar.top.toFixed(1)}…${bar.bottom.toFixed(1)}`,
     слот: `${slot?.scrollHeight}/${slot?.clientHeight}`,
     "запас до бара": (bar.top - blockBox.bottom).toFixed(1),
-    "зазор до обещания": (blockBox.top - pill.bottom).toFixed(1),
+    "над блоком от кромки кадра": (blockBox.top - frame.bottom).toFixed(1),
+    "обещание над кромкой кадра": (frame.bottom - pill.bottom).toFixed(1),
     мест: String(places),
   });
 
@@ -1151,10 +1163,14 @@ async function emptyBlockFits(page: Page, width: number, height: number): Promis
     cta.bottom,
     `полоса света заходит под таб-бар: низ ${cta.bottom.toFixed(1)}, верх бара ${bar.top.toFixed(1)}`,
   ).toBeLessThanOrEqual(bar.top + PX);
+  // ОБЕЩАНИЕ — В КАДРЕ (тикет 208): «оно обещание про комнату, а в полосе под
+  // ним становится подписью к кнопке». Проверяется прямоугольником, а не
+  // деревом: узел может лежать внутри кадра в разметке и стоять под ним на
+  // экране — ровно так он и жил до переезда.
   expect(
-    blockBox.top,
-    `блок наехал на подпись-обещание: верх ${blockBox.top.toFixed(1)} при её низе ${pill.bottom.toFixed(1)}`,
-  ).toBeGreaterThanOrEqual(pill.bottom - PX);
+    pill.bottom,
+    `обещание вышло из кадра: низ ${pill.bottom.toFixed(1)} при нижней кромке кадра ${frame.bottom.toFixed(1)}`,
+  ).toBeLessThanOrEqual(frame.bottom + PX);
   expect(
     blockBox.top,
     `блок заехал на кадр: верх ${blockBox.top.toFixed(1)} при нижней кромке кадра ${frame.bottom.toFixed(1)}`,

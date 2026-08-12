@@ -671,17 +671,19 @@ describe("142 — места живут ровно столько же, скол
     expect(filtered.map((m) => m[1]).sort()).toEqual([".frame", ".openFrame"]);
     // Держится порядок ПОСТРОЕНИЕМ, а не z-index: фотографии, грейдинг и вуаль
     // лежат внутри `.panWindow`, слой хотспотов с местами — следующим соседом,
-    // подпись сцены (`.hint`) — ещё ниже по дереву, то есть поверх мест.
+    // подпись сцены — ещё ниже по дереву, то есть поверх мест. С тикета 208 эта
+    // подпись — своя пилюля `.promise` В КАДРЕ (прежде обещание делило узел с
+    // подсказкой «коснись зоны», а та живёт в жёлобе ПОД кадром).
     const panWindow = stage.indexOf("ref={panWindowRef}");
     const grade = stage.indexOf("className={s.grade}");
     const layer = stage.indexOf("ref={hotspotsLayerRef}");
     const place = stage.indexOf("s.placeCornerTL");
-    const hint = stage.indexOf("className={s.hintPill}");
+    const promise = stage.indexOf("className={s.promisePill}");
     expect(panWindow).toBeGreaterThan(-1);
     expect(grade, "слой грейдинга уехал из стопки камеры").toBeGreaterThan(panWindow);
     expect(layer, "слой мест уехал ПОД затемнение").toBeGreaterThan(grade);
     expect(place, "место уехало из слоя хотспотов — проверь фильтр").toBeGreaterThan(layer);
-    expect(hint, "подпись сцены должна лежать поверх мест").toBeGreaterThan(place);
+    expect(promise, "подпись сцены должна лежать поверх мест").toBeGreaterThan(place);
   });
 
   it("МЕСТО ГАСНЕТ НА ВРЕМЯ НАЕЗДА: 140 мс туда, 200 обратно", () => {

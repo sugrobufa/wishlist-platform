@@ -53,6 +53,13 @@ const read = (relative: string) =>
 const ownerPage = read("../src/app/room/page.tsx");
 const rail = read("../src/components/scene/zone-rail.tsx");
 const globalsCss = read("../src/app/globals.css");
+const stage = read("../src/components/scene/SceneStage.tsx");
+const sceneCss = read("../src/components/scene/scene.module.css");
+
+/** Телефонная ветка раскладки — точное дополнение десктопной, порог один. */
+const PHONE_BRANCH = /@media not all and \(min-width: 1024px\) \{([\s\S]*?)\n\}/gu;
+const phoneBlock = (css: string, selector: string) =>
+  [...css.matchAll(PHONE_BRANCH)].map((match) => match[1] ?? "").find((block) => block.includes(selector)) ?? "";
 const ru = JSON.parse(read("../messages/ru.json")) as Record<string, Record<string, string>>;
 
 const ZONES = [
@@ -103,6 +110,39 @@ describe("что на пустой комнате ВИДНО (41a, сверху 
     expect(EMPTY_ROOM_FILTER).toBe("brightness(.42) saturate(.72)");
     expect(ownerPage).toMatch(/<SceneStage[\s\S]*?empty=\{emptyRoom\}/u);
     expect(ru.Scene?.emptyRoom).toBe("свет включится, когда появятся вещи");
+  });
+
+  it("ОБЕЩАНИЕ СТОИТ В КАДРЕ, а не в полосе под ним (тикет 208)", () => {
+    // Пакет 47: «„свет включится, когда появятся вещи" обязана быть в кадре —
+    // она обещание про комнату, а в полосе под ним становится подписью к
+    // кнопке». Проверяется местом в дереве и системой отсчёта в CSS: узел
+    // лежит ВНУТРИ вьюпорта (то есть до подсказки «коснись зоны», которая
+    // вынесена наружу приёмкой тикета 52), а его телефонное правило меряет
+    // низ от кромки КАДРА, а не от `--imm-scene-h` — верха полосы.
+    const promise = stage.indexOf("className={s.promisePill}");
+    const hint = stage.indexOf("className={s.hintPill}");
+    expect(promise, "обещание пустой комнаты не рисуется вовсе").toBeGreaterThan(-1);
+    expect(hint, "подсказка «коснись зоны» пропала").toBeGreaterThan(-1);
+    expect(promise, "обещание уехало из кадра в жёлоб под ним").toBeLessThan(hint);
+
+    const phone = phoneBlock(sceneCss, ".promise {");
+    expect(phone, "телефонного правила обещания нет").toContain("bottom: 12px;");
+    expect(phone, "обещание меряется от полосы, а не от кадра").not.toContain("--imm-scene-h");
+
+    // Плашка при этом ЕСТЬ: под пилюлей теперь фотография, а не размытый фон
+    // под кадром, из-за которого её снимал тикет 141. Числа — доски (турн 41a).
+    const pill = /\.promisePill \{([\s\S]*?)\n\}/u.exec(sceneCss)?.[1] ?? "";
+    expect(pill).toContain("background: rgba(11, 8, 6, 0.72);");
+    expect(pill).toContain("font: 500 10px/1 var(--font-ui);");
+  });
+
+  it("в пустой комнате «коснись зоны» не рисуется: касаться нечего", () => {
+    // Раньше эти двое делили один узел (`empty ? emptyRoom : hint`), и переезд
+    // обещания в кадр их развёл. Подсказка обязана остаться в комнате С ВЕЩАМИ
+    // и не должна появляться в пустой: зон в кадре полно, но открывать в них
+    // нечего, и «коснись зоны» там врёт.
+    expect(stage).toMatch(/\{!empty && \(\s*<div className=\{zoneOpen \? `\$\{s\.hint\}/u);
+    expect(stage).toMatch(/\{empty && \(\s*<div\s+className=\{zoneOpen \? `\$\{s\.promise\}/u);
   });
 
   it("надстрочная «комната обставляется · N мест» стоит ПЕРВОЙ строкой блока", () => {
@@ -340,14 +380,15 @@ describe("блок помещается: числа замера, а не эск
     expect(body).not.toMatch(/font-size/u);
   });
 
-  it("пустая строка действий не резервирует цель нажатия, которой в ней нет", () => {
+  it("пустая строка действий не резервирует ни цели нажатия, ни чужой подписи", () => {
     // В пустой комнате в строке нет ни одного нажимаемого узла: «Добавить вещь»
     // только на десктопе, «поделиться» живёт после вещей, знака «Списком» нет.
-    // Высота там нужна ровно под пилюлю-обещание, а не под палец.
+    // Тикет 199 оставил ей 25 — зазор под пилюлю-обещание; тикет 208 увёл
+    // обещание В КАДР, и резервировать в полосе стало нечего.
     expect(rail).toContain('empty ? "imm-row imm-row-bare" : "imm-row"');
     const bare = /\.imm-rail-bottom \.imm-row-bare \{([^}]*)\}/u.exec(globalsCss)?.[1] ?? "";
     expect(bare, "правила .imm-row-bare нет").not.toBe("");
-    expect(bare).toMatch(/min-height:\s*25px;/u);
+    expect(bare).toMatch(/min-height:\s*0;/u);
     // ТОЛЬКО ТЕЛЕФОН: правило обязано лежать внутри той же ветки, что и
     // `min-height: 44px`, — на десктопе строка и так схлопнута в ноль, а
     // резерв под палец там честный (в комнате с вещами в строке стоят кнопки).
