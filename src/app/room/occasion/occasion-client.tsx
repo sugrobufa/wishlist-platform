@@ -1,7 +1,8 @@
 "use client";
 
 // Клиентские части экрана «что подарили» (тикет 10, турн 21a): строки
-// подарков с кнопкой «Дошло» и ручная кнопка «праздник прошёл».
+// подарков с кнопкой «Дошло» и ручное закрытие итога («Показать, кто что
+// подарил» — действие, а не состояние; тикет 217).
 // Данные приходят с сервера уже gated: имена существуют только при summary
 // (services/occasions), клиент ничего не раскрывает сам.
 import { useState, useTransition } from "react";
@@ -150,10 +151,38 @@ export function OccasionRows({
 }
 
 /**
- * «Праздник прошёл» — ручной запуск закрытия (работает и без даты).
- * Стиль — «полоса света», главная кнопка (турн 22).
+ * РУЧНОЕ ЗАКРЫТИЕ ИТОГА — действие, а не состояние (тикет 217).
+ *
+ * Кнопка называлась «Праздник прошёл»: это то, что человек СООБЩАЕТ экрану, а
+ * не то, что произойдёт по нажатию. А произойдёт необратимое — имена дарителей
+ * раскрываются ровно один раз (инвариант №2), — и действие обязано это
+ * называть: «Показать, кто что подарил». Стрелки нет: она приписывалась кодом
+ * строкой, а не приезжала из контракта («текст, да ещё и со стрелочкой — не
+ * очень»).
+ *
+ * ДВА ТОНА ПО СОСТОЯНИЮ ЭКРАНА (`screen-state`), а не один на все случаи:
+ * - `loud` — «полоса света», главная кнопка (турн 22). Праздник наступил,
+ *   итога нет: дело есть прямо сейчас, здесь ей и место. Подчёркивание 2 px —
+ *   пол пакета (инвариант 47), не ужимать;
+ * - `quiet` — тихая строка тем же тоном, что «В комнату». Праздник впереди
+ *   (или даты нет вовсе): дорогу мы не убираем — она работает и без даты
+ *   (решение гриллинга №6), — но гореть год до следующего праздника она не
+ *   должна.
+ *
+ * ВОПРОСА ПЕРЕД НАЖАТИЕМ ЗДЕСЬ ПОКА НЕТ. Тикет 217 просил его формой карточки
+ * вещи («Показать, кто что подарил?» и два ответа), но словами ТОЛЬКО
+ * существующими — а в разделе `Occasion` их нет, и делить ключ с чужим экраном
+ * (`Settings.itemHallAddConfirm`, `Hall.deleteYes`) этот словарь запрещает.
+ * Строки заводит ведущий вместе с записью у сторожа тона; до тех пор действие
+ * прямое.
  */
-export function CloseOccasionButton({ accent }: { accent: string }) {
+export function CloseOccasionButton({
+  accent,
+  tone,
+}: {
+  accent: string;
+  tone: "loud" | "quiet";
+}) {
   const t = useTranslations("Occasion");
   const router = useRouter();
   const [busy, setBusy] = useState(false);
@@ -174,16 +203,22 @@ export function CloseOccasionButton({ accent }: { accent: string }) {
     });
   }
 
+  const loud = tone === "loud";
+
   return (
     <div className="flex flex-col items-start gap-3">
       <button
         type="button"
         disabled={busy}
         onClick={close}
-        className="pressable border-b-2 px-6 py-3 font-semibold text-text-primary disabled:opacity-60"
-        style={{ borderColor: accent, boxShadow: `0 4px 18px -3px ${accent}6B` }}
+        className={
+          loud
+            ? "pressable border-b-2 px-6 py-3 font-semibold text-text-primary disabled:opacity-60"
+            : "pressable text-xs font-semibold text-text-strong disabled:opacity-60"
+        }
+        style={loud ? { borderColor: accent, boxShadow: `0 4px 18px -3px ${accent}6B` } : undefined}
       >
-        {busy ? t("closing") : `${t("closeButton")} →`}
+        {busy ? t("closing") : t(loud ? "closeButton" : "closeQuiet")}
       </button>
       {failed && <p className="text-sm text-text-muted">{t("errGeneric")}</p>}
     </div>

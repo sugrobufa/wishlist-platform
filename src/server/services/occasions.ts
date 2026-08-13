@@ -17,7 +17,13 @@ import { revalidateTag } from "next/cache";
 import { Prisma, type Item, type OccasionSummary } from "@prisma/client";
 import { z } from "zod";
 import { prisma } from "@/server/db";
-import { birthdayOf, dueOccasion } from "@/server/birthday";
+import {
+  birthdayOf,
+  dueOccasion,
+  isoDay,
+  nextOccasion,
+  type BirthdayColumns,
+} from "@/server/birthday";
 import { roomCacheTag } from "@/server/services/items";
 import {
   listPendingConsent,
@@ -65,6 +71,45 @@ function utcDayRange(date: Date): { gte: Date; lt: Date } {
   const gte = new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate()));
   const lt = new Date(gte.getTime() + 24 * 60 * 60 * 1000);
   return { gte, lt };
+}
+
+/**
+ * ПРАЗДНИК КОМНАТЫ В ДВУХ ВИДАХ — одно место на весь сервис (тикет 216).
+ *
+ * Экран «что подарили» и тихая строка комнаты отвечают на ОДИН вопрос —
+ * «праздник уже прошёл?» — и разошлись они ровно потому, что считали его в
+ * разных местах: комната по `dueOccasion`, экран по существованию итога.
+ * Владелец нажал в комнате «Праздник прошёл» и попал на «Праздник ещё
+ * впереди». Поэтому арифметика живёт в `server/birthday`, а этот вопрос к БД —
+ * здесь, и обе поверхности зовут его, а не переписывают.
+ *
+ * О БРОНЯХ НЕ ГОВОРИТ НИЧЕГО (инвариант №1): считается по колонкам дня
+ * рождения комнаты и по факту существования итога — ни одной строки о том,
+ * кто что занял.
+ */
+async function roomOccasion(
+  room: { id: string } & BirthdayColumns,
+  now: Date,
+): Promise<{
+  /** Наступивший день рождения (полночь UTC); null — комната между праздниками или без даты. */
+  due: Date | null;
+  /** Итог ЭТОГО наступившего праздника уже закрыт. */
+  dueClosed: boolean;
+  /** Ближайший день рождения впереди; null — дня рождения нет вовсе. */
+  next: Date | null;
+}> {
+  const birthday = birthdayOf(room);
+  if (!birthday) return { due: null, dueClosed: false, next: null };
+
+  const next = nextOccasion(birthday, now);
+  const due = dueOccasion(birthday, now);
+  if (!due) return { due: null, dueClosed: false, next };
+
+  const closed = await prisma.occasionSummary.findFirst({
+    where: { roomId: room.id, date: utcDayRange(due) },
+    select: { id: true },
+  });
+  return { due, dueClosed: closed !== null, next };
 }
 
 export type CloseOccasionResult = {
@@ -183,6 +228,21 @@ export type OccasionGoal = {
 export type OccasionView = {
   /** null — праздник не закрыт: имена и вещи с бронями НЕ отдаются вообще. */
   summary: { id: string; date: string; revealedAt: string | null } | null;
+  /**
+   * НАСТУПИВШИЙ праздник, по которому итог ещё не закрыт (календарный день
+   * `YYYY-MM-DD`); null — закрывать нечего. Ровно то, по чему в комнате горит
+   * тихая строка «Праздник прошёл» (`occasionBannerVisible`): состояний у
+   * экрана три, а не два, и это третье — «дело есть, но оно не сделано»
+   * (тикет 216). О бронях не говорит ничего — считается по дню рождения.
+   */
+  due: string | null;
+  /**
+   * БЛИЖАЙШИЙ праздник, когда он ВПЕРЕДИ (календарный день `YYYY-MM-DD`);
+   * null — праздник наступил (тогда есть `due`) или дня рождения нет вовсе.
+   * Взаимно исключает `due`: одна дата не бывает одновременно прошедшей и
+   * будущей, и экран не должен выбирать между двумя ответами.
+   */
+  next: string | null;
   pending: OccasionPendingGift[];
   received: OccasionReceivedGift[];
   /** «Осталось незабранным · N» — вещи комнаты без брони (голое число). */
@@ -211,11 +271,23 @@ export type OccasionView = {
 export async function getOccasionView(userId: string): Promise<OccasionView> {
   const room = await prisma.room.findUnique({
     where: { userId: idSchema.parse(userId) },
-    select: { id: true },
+    select: { id: true, birthdayDay: true, birthdayMonth: true, birthdayYear: true },
   });
   if (!room) {
     throw new OccasionError("NO_ROOM", "у пользователя нет комнаты — сначала онбординг");
   }
+
+  // ПРОШЁЛ ЛИ ПРАЗДНИК — тем же вопросом, что и тихая строка комнаты (тикет
+  // 216). Наступивший праздник живёт в ответе, только пока итог по нему НЕ
+  // закрыт: закрытый рассказывает о себе строками summary, а не обещанием
+  // «дело есть». Пока `due` есть, «впереди» не бывает — иначе экран получил бы
+  // два ответа на один вопрос и снова выбрал не тот.
+  const { due, dueClosed, next } = await roomOccasion(room, new Date());
+  const openDue = due !== null && !dueClosed ? due : null;
+  const dates = {
+    due: openDue === null ? null : isoDay(openDue),
+    next: openDue !== null || next === null ? null : isoDay(next),
+  };
 
   // Незабранные вещи комнаты остаются в ней до следующего повода (спрятанные
   // хозяйкой в подарочном цикле не участвуют — их бронь снята при скрытии).
@@ -230,7 +302,15 @@ export async function getOccasionView(userId: string): Promise<OccasionView> {
   if (!summary) {
     // Копилки здесь нет ни строкой: до закрытия праздника хозяйка не видит
     // ни прогресса сбора, ни участников (инвариант №1, ADR-0008).
-    return { summary: null, pending: [], received: [], unclaimedCount, goal: null, consent: [] };
+    return {
+      summary: null,
+      ...dates,
+      pending: [],
+      received: [],
+      unclaimedCount,
+      goal: null,
+      consent: [],
+    };
   }
 
   // Первое открытие экрана = момент раскрытия. Guard revealedAt=null держит
@@ -269,6 +349,7 @@ export async function getOccasionView(userId: string): Promise<OccasionView> {
   });
 
   return {
+    ...dates,
     goal: await revealedGoal(room.id),
     // Вопрос о связи (тикет 98) — ровно здесь: доска Б12 ставит его после
     // праздника, и здесь же имя дарителя уже раскрыто (инвариант №2).
@@ -446,6 +527,10 @@ export async function receiveGift(userId: string, itemId: string): Promise<Item>
  * Комната БЕЗ дня рождения ведёт себя как раньше: закрыть итог она может
  * только рукой, и пока в нём есть неотмеченные подарки, строка висит.
  * Возврат — ГОЛЫЙ boolean: о бронях он говорит не больше, чем счётчик 09.
+ *
+ * «Праздник прошёл?» спрашивается ОДНИМ местом с экраном «что подарили»
+ * (`roomOccasion`, тикет 216) — раньше каждая поверхность считала это сама,
+ * и они разошлись у владельца на глазах.
  */
 export async function occasionBannerVisible(userId: string): Promise<boolean> {
   const room = await prisma.room.findUnique({
@@ -454,17 +539,12 @@ export async function occasionBannerVisible(userId: string): Promise<boolean> {
   });
   if (!room) return false;
 
-  const now = new Date();
-  const birthday = birthdayOf(room);
-  const due = birthday ? dueOccasion(birthday, now) : null;
+  const { due, dueClosed, next } = await roomOccasion(room, new Date());
   if (due) {
-    const closed = await prisma.occasionSummary.findFirst({
-      where: { roomId: room.id, date: utcDayRange(due) },
-      select: { id: true },
-    });
-    if (!closed) return true; // праздник прошёл, а итога ещё нет
-  } else if (birthday) {
-    return false; // до следующего дня рождения комнате сказать нечего
+    if (!dueClosed) return true; // праздник прошёл, а итога ещё нет
+  } else if (next) {
+    // День рождения есть, но он впереди — до него комнате сказать нечего.
+    return false;
   }
 
   const summary = await prisma.occasionSummary.findFirst({

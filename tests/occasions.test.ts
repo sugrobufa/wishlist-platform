@@ -21,7 +21,7 @@ vi.mock("@/server/queues", () => ({
 
 import { enqueueItemGoneMail, enqueueOccasionOwnerMail } from "@/server/queues";
 import { prisma } from "../src/server/db";
-import { birthdayColumns, parseBirthday } from "../src/server/birthday";
+import { birthdayColumns, isoDay, nextOccasion, parseBirthday } from "../src/server/birthday";
 import * as occasionsService from "../src/server/services/occasions";
 import * as itemsService from "../src/server/services/items";
 import {
@@ -685,6 +685,70 @@ describe("состояний у вещи не осталось (тикет 124)"
     // Имя пишет только «Дошло» (инвариант №2). Проверка поведением — выше,
     // в блоке receiveGift; здесь замок на поверхности.
     expect(typeof toggleHall).toBe("function");
+  });
+});
+
+// ТРИ СОСТОЯНИЯ, А НЕ ДВА (тикет 216, приёмка 13.08.2026). Экран «что
+// подарили» смотрел только на существование итога и потому отвечал «Праздник
+// ещё впереди» на комнату, где праздник УЖЕ ПРОШЁЛ. Наступление праздника
+// теперь приезжает из того же сервиса, что и тихая строка комнаты.
+describe("getOccasionView — наступивший праздник рядом с итогом (тикет 216)", () => {
+  it("день рождения вчера, итога нет → due вчерашним днём, «впереди» нет", async () => {
+    const yesterday = utcMidnightDaysAgo(1);
+    const owner = await createOwnerWithRoom(yesterday);
+
+    const view = await getOccasionView(owner.user.id);
+    expect(view.summary).toBeNull();
+    expect(view.due).toBe(isoDay(yesterday));
+    // «Впереди» и «наступил» взаимно исключены: одна дата не бывает и той,
+    // и другой, а экрану нельзя давать два ответа на один вопрос.
+    expect(view.next).toBeNull();
+  });
+
+  it("та же комната с итогом → summary, due пуст", async () => {
+    const owner = await createOwnerWithRoom(utcMidnightDaysAgo(1));
+    await closeOccasion(owner.room.id);
+
+    const view = await getOccasionView(owner.user.id);
+    expect(view.summary).not.toBeNull();
+    expect(view.due).toBeNull();
+    // Закрытый праздник отпускает дату: ближайший теперь тот, что через год.
+    const birthday = parseBirthday(utcMidnightDaysAgo(1).toISOString().slice(0, 10))!;
+    expect(view.next).toBe(isoDay(nextOccasion(birthday, new Date())));
+  });
+
+  it("день рождения через месяц → next этой датой, due пуст", async () => {
+    const future = utcMidnightDaysAgo(-30);
+    const owner = await createOwnerWithRoom(future);
+
+    const view = await getOccasionView(owner.user.id);
+    expect(view.summary).toBeNull();
+    expect(view.due).toBeNull();
+    expect(view.next).toBe(isoDay(future));
+  });
+
+  it("дня рождения нет вовсе → оба пусты (сказать «когда он пройдёт» нечем)", async () => {
+    const owner = await createOwnerWithRoom(null);
+
+    const view = await getOccasionView(owner.user.id);
+    expect(view.due).toBeNull();
+    expect(view.next).toBeNull();
+  });
+
+  it("даты праздника О БРОНЯХ НЕ ГОВОРЯТ (инвариант №1)", async () => {
+    // Новые поля считаются по колонкам дня рождения — ровно как голый boolean
+    // тихой строки. Занятая вещь не меняет в них ни символа.
+    const owner = await createOwnerWithRoom(utcMidnightDaysAgo(1));
+    const before = await getOccasionView(owner.user.id);
+
+    const item = await createWantItem(owner.room.id, "jewelry", { title: "Кольцо-секрет" });
+    await bookItem({ itemId: item.id, name: "Секретная Гостья", email: "secret-due@mail.test" });
+
+    const after = await getOccasionView(owner.user.id);
+    expect({ due: after.due, next: after.next }).toEqual({ due: before.due, next: before.next });
+    expect(JSON.stringify({ due: after.due, next: after.next })).not.toMatch(
+      /Секретная|секрет|mail\.test/iu,
+    );
   });
 });
 

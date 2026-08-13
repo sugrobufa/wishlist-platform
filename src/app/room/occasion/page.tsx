@@ -9,6 +9,7 @@ import { rooms } from "@/config/design";
 import { formatHallMoney } from "@/app/room/hall/money";
 import { StayInTouch } from "@/components/consent/stay-in-touch";
 import { CloseOccasionButton, OccasionRows } from "./occasion-client";
+import { OCCASION_SCREEN, occasionScreenState } from "./screen-state";
 
 export const dynamic = "force-dynamic";
 
@@ -20,8 +21,13 @@ export async function generateMetadata(): Promise<Metadata> {
 /**
  * «Что подарили» (тикет 10, турн 21a) — экран-итог праздника. Имена
  * дарителей раскрываются ровно здесь и ровно один раз (инвариант №2):
- * до закрытия праздника сервис не отдаёт ни строк, ни имён — страница
- * показывает пустое состояние с кнопкой «праздник прошёл».
+ * до закрытия праздника сервис не отдаёт ни строк, ни имён.
+ *
+ * СОСТОЯНИЙ У ЭКРАНА ТРИ, А НЕ ДВА (тикет 216): итог открыт · праздник
+ * наступил, а итога нет · праздник впереди (плюс комната без даты вовсе).
+ * Какое из них сейчас и чем оно говорит — таблица `screen-state`, одна на
+ * разметку и на тест; наступление праздника считает сервис тем же вопросом,
+ * которым тихая строка комнаты, — раньше они считали порознь и разошлись.
  */
 export default async function OccasionPage() {
   const session = await auth();
@@ -43,6 +49,22 @@ export default async function OccasionPage() {
 
   const view = await getOccasionView(userId);
   const giftsTotal = view.pending.length + view.received.length;
+  const screen = OCCASION_SCREEN[occasionScreenState(view)];
+  const screenTitle = screen.title === null ? null : t(screen.title);
+  const screenHint = screen.hint === null ? null : t(screen.hint);
+  // Дата ближайшего праздника — тем же видом и тем же форматом, что в комнате
+  // («День рождения · 14 сентября»): календарь платформы, пояс UTC.
+  const nearestLine =
+    screen.nearest && view.next
+      ? t("nearestLine", {
+          holiday: t("birthdayLabel"),
+          date: format.dateTime(new Date(view.next), {
+            day: "numeric",
+            month: "long",
+            timeZone: "UTC",
+          }),
+        })
+      : null;
 
   return (
     <main className="min-h-screen pb-16">
@@ -73,7 +95,10 @@ export default async function OccasionPage() {
           ) : (
             <>
               <p className="overline mt-6 text-text-muted">{t("title")}</p>
-              <h1 className="display mt-3 text-3xl lg:text-4xl">{t("notClosedTitle")}</h1>
+              <h1 className="display mt-3 text-3xl lg:text-4xl">{screenTitle}</h1>
+              {/* «Праздник ещё впереди» без даты — половина ответа: комната
+                  свою дату показывает, экран обязан показывать ту же. */}
+              {nearestLine && <p className="overline mt-3 text-text-muted">{nearestLine}</p>}
             </>
           )}
         </header>
@@ -159,10 +184,19 @@ export default async function OccasionPage() {
             )}
           </>
         ) : (
-          <div className="flex max-w-md flex-col gap-5">
-            <p className="text-sm leading-relaxed text-text-muted">{t("notClosedHint")}</p>
-            {/* Ручное закрытие — решение гриллинга №6: работает и без даты. */}
-            <CloseOccasionButton accent={accent} />
+          <div className="flex max-w-md flex-col items-start gap-5">
+            <p className="text-sm leading-relaxed text-text-muted">{screenHint}</p>
+            {/* Ручное закрытие — решение гриллинга №6: работает и без даты.
+                Тон берётся из состояния (тикет 217): горит, только когда дело
+                есть прямо сейчас, а не десять месяцев до праздника. */}
+            {screen.close && <CloseOccasionButton accent={accent} tone={screen.close} />}
+            {/* Комнате без дня рождения сказать «когда он пройдёт» нечем —
+                у неё одна дорога, и это назвать дату. */}
+            {screen.settings && (
+              <Link href="/settings" className="pressable text-xs font-semibold text-text-strong">
+                {t("toSettings")}
+              </Link>
+            )}
           </div>
         )}
       </div>
