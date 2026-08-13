@@ -606,26 +606,36 @@ describe("кадры «открыто» (openFrame — единственный 
     }
   });
 
-  it("шапка карты и словарь зон — проза пакета 40, взятая ДОСЛОВНО", () => {
-    const pkg = JSON.parse(readFileSync(resolve(PKG, "handoff/round40/rooms.json"), "utf8")) as {
+  it("шапка карты — проза пакета 40, словарь зон — редакция пакета 52, обе ДОСЛОВНО", () => {
+    const round40 = JSON.parse(readFileSync(resolve(PKG, "handoff/round40/rooms.json"), "utf8")) as {
       mapSnapshot: unknown;
+    };
+    const round52 = JSON.parse(readFileSync(resolve(PKG, "handoff/round52/rooms.json"), "utf8")) as {
       zonesNote: string;
     };
     // Дословно — значит посимвольно: прозу дизайна мы не переписываем своими
     // словами, даже когда она говорит про его поля (`rectPrevDesign`, `status`),
     // которых у нас нет.
-    expect(roomsContract.mapSnapshot).toEqual(pkg.mapSnapshot);
-    expect(roomsContract.zonesNote).toBe(pkg.zonesNote);
+    expect(roomsContract.mapSnapshot).toEqual(round40.mapSnapshot);
+    expect(roomsContract.zonesNote).toBe(round52.zonesNote);
     // Снимок называет ту же карту, от которой посчитан `places.json`.
     expect(roomsContract.mapSnapshot.source).toContain("rooms-map-2026-08-10.json");
-    // Словарь зон подтверждает наши числа, а не заводит вторые.
-    expect(roomsContract.zonesNote).toContain("13 в каждой, 130 всего");
-    expect(roomsContract.zonesNote).toContain("Продукт показывает 122 зоны");
-    expect(roomsContract.zonesNote).toContain("под места пустой сцены не берутся");
-    // Разбивка 2+6 из раунда 37 отменена — и слово «выключенная» возвращено
-    // настройке хозяйки (`Room.zonesOff`, инвариант №5).
-    expect(roomsContract.zonesNote).toContain("ОТМЕНЕНА");
-    expect(roomsContract.zonesNote).toContain("zonesOff");
+
+    // ПРОЗА ПЕРЕЕХАЛА С 40 НА 52, А ПРЯМОУГОЛЬНИКИ — НЕТ, И ЭТО ГЛАВНОЕ В
+    // ЭТОЙ ПРОВЕРКЕ. Пакет 52 прислал `rooms.json` ЦЕЛИКОМ, и его копия наших
+    // координат отстала на час: `study/sport` у него 300,244,68,86 (пустой пол
+    // под столом), `loft/events` — 400,165,35,60 (чёрная колонна, билетов внутри
+    // ноль). Оба мы переразметили тикетом 233 в тот же день. Поэтому из его
+    // файла взято РОВНО ОДНО ПОЛЕ — `zonesNote`, точечно: перенос целиком стёр
+    // бы семь свежих прямоугольников, `rectOld`, `remappedRound` и перемеры
+    // порога. Правило старое (потеря раунда 20), цена выросла.
+    expect(roomsContract.zonesNote).toContain("13 в женских комнатах, 14 в мужских");
+    expect(roomsContract.zonesNote).toContain("134 адреса");
+    // Три состояния полки — новая редакция инварианта №9 (письмо 56).
+    expect(roomsContract.zonesNote).toContain("ЖИВАЯ полка без места на кадре");
+    expect(roomsContract.zonesNote).toContain("404 только за полкой, выключенной хозяйкой");
+    // И вывод письма 57: первый шаг выбирает КОМНАТЫ, а не полки.
+    expect(roomsContract.zonesNote).toContain("выбирает КОМНАТЫ");
   });
 
   it("шесть зон «по месту»: из пакета взята ПРОЗА, поведение не тронуто", () => {
