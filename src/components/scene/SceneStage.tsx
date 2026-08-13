@@ -19,7 +19,7 @@ import {
   zoneFramePercent,
   type SceneView,
 } from "./camera";
-import { visibleZones, zoneLabel } from "./zones";
+import { sceneZones, zoneLabel } from "./zones";
 import { useMediaQuery } from "./use-media-query";
 import {
   bloomShape,
@@ -263,7 +263,10 @@ export function SceneStage({
   className,
 }: SceneStageProps) {
   const t = useTranslations("Scene");
-  const zones = useMemo(() => visibleZones(preset.zones, zonesOff), [preset.zones, zonesOff]);
+  // Зоны СЦЕНЫ, а не все полки комнаты (тикет 235): у полки без места на кадре
+  // нет ни метки, ни наезда — метка живёт на прямоугольнике, а ехать некуда.
+  // Живёт такая полка в списке комнаты и на своей странице.
+  const zones = useMemo(() => sceneZones(preset.zones, zonesOff), [preset.zones, zonesOff]);
 
   // Кадр комнаты — LCP-элемент, но живёт CSS-фоном: сканер браузера его не
   // видит, и на медленной сети загрузка стартовала бы только после гидрации

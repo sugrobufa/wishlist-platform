@@ -22,7 +22,7 @@ import { useEffect, useMemo, useRef, type ReactNode } from "react";
 import { useTranslations } from "next-intl";
 import type { RoomZone } from "@/config/design";
 import type { ZoneSummaryDto } from "@/server/dto/zone-summary";
-import { visibleZones, zoneLabel } from "./zones";
+import { sceneZones, zoneLabel } from "./zones";
 import { useZoneIndexActions, useZoneIndexState } from "./zone-index-context";
 import s from "./zone-list.module.css";
 
@@ -67,7 +67,9 @@ export function ZoneList({
   const actions = useZoneIndexActions();
   const { active } = useZoneIndexState();
 
-  const shown = useMemo(() => visibleZones(zones, zonesOff), [zones, zonesOff]);
+  // `sceneZones`, а не все полки комнаты: нумерация здесь — номера меток в
+  // кадре, и полке без места на кадре в ней места нет (тикет 235).
+  const shown = useMemo(() => sceneZones(zones, zonesOff), [zones, zonesOff]);
   const itemRefs = useRef(new Map<string, HTMLButtonElement>());
 
   // Открытая зона подтягивает свою строку в видимую часть: список длиннее

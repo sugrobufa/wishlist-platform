@@ -31,7 +31,7 @@ import { ZoneIndexProvider } from "@/components/scene/zone-index-context";
 import { ZoneRail } from "@/components/scene/zone-rail";
 import { IconPeople, IconSettings, IconTreasury } from "@/components/icons";
 import { TabBar } from "@/components/tab-bar/tab-bar";
-import { visibleZones } from "@/components/scene/zones";
+import { sceneZones, visibleZones } from "@/components/scene/zones";
 import { SHEET_TILES, ZoneGrid } from "@/components/zone/ZoneGrid";
 import { zoneDisplayItems } from "@/components/zone/zone-display-items";
 import { RoomListView, type RoomListGroup } from "@/components/room-list/room-list-view";
@@ -179,11 +179,15 @@ export default async function RoomPage() {
    * ЧИСЛО ЖИВОЕ, А НЕ 13 КОНСТАНТОЙ. Пакет нарисовал «13 мест» потому, что
    * столько зон у пресета в его снимке `rooms.json`; но выключенная полка
    * исчезает вместе с мебелью (инвариант №5), и комната с двумя выключенными
-   * зонами обставляется одиннадцатью местами, а не тринадцатью. Считается тем
-   * же `visibleZones`, которым живут указатель зон и «полка 02 из 13»:
-   * второго правила видимости в продукте нет и заводить его нельзя.
+   * зонами обставляется одиннадцатью местами, а не тринадцатью.
+   *
+   * СЧИТАЕТ `sceneZones` — МЕСТА В КАДРЕ (тикет 235). Слово «место» здесь
+   * буквальное: это точка кадра, куда встанет вещь. У живой полки без места на
+   * кадре её нет по определению — полка есть, а места нет, — поэтому в число
+   * она не входит. Тем же списком живут указатель зон и «полка 02 из 13»:
+   * второго правила нумерации в продукте нет и заводить его нельзя.
    */
-  const emptyPlaces = preset ? visibleZones(preset.zones, room.zonesOff).length : 0;
+  const emptyPlaces = preset ? sceneZones(preset.zones, room.zonesOff).length : 0;
 
   // В шапке — ИМЯ хозяйки, а не название пресета (тикет 57). Владелец с
   // телефона: «там должна быть не комната, а имя». Доска говорит то же самое:

@@ -235,6 +235,11 @@ export default async function GuestRoomPage({ params }: Params) {
   // полностраничный ISR остаётся целым. Демо-призраки сюда не идут: в плоском
   // перечне они читались бы как вещи хозяйки. Пустые зоны секциями не
   // рисуются (task31.json → headers.roomList).
+  //
+  // СПИСОК ШИРЕ КАДРА (тикет 235), и это намеренно: `visibleZones` отдаёт все
+  // полки комнаты, включая живую полку без места на кадре, — у неё нет метки,
+  // и список остаётся единственной дорогой к её вещам. Сцена берёт свои зоны
+  // сама (`sceneZones`), поэтому лишних меток здесь не появится.
   const listGroups: RoomListGroup[] = [];
   for (const zone of visibleZones(preset.zones, room.zonesOff)) {
     const items = (room.itemsByZone[zone.key] ?? []).filter((item) => !item.isDemo);

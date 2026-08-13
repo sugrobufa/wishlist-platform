@@ -8,7 +8,9 @@ import {
   zoneInfo,
   zoneKeysHiddenByProduct,
   zoneKeysWithoutCatalogEntry,
+  zoneNotOnFrame,
   zonesHiddenByProduct,
+  zonesWithoutRect,
 } from "../src/config/design";
 
 // Контракт дизайн-пакета: эти числа зафиксированы в handoff/README.md.
@@ -207,7 +209,11 @@ describe("design handoff contract", () => {
     // (поднят на раскрытый кейс). `gamer/anything` переразмечен вторично —
     // `rectOld` у него уже был. 60 стало 65.
     // Тикет 81-3 добавил шестую — `emerald/anything`: 65 стало 66.
-    expect(allZones.filter(({ zone }) => zone.rectOld)).toHaveLength(66);
+    // Тикет 233 добавил две: `sport/grooming` и `study/sport` переразмечены
+    // впервые (у пяти остальных зон пакета 50 `rectOld` уже был и просто
+    // обновился). 66 стало 68. Пятно пересчитано по формуле всем семи — в
+    // реестр долга выше не попал никто.
+    expect(allZones.filter(({ zone }) => zone.rectOld)).toHaveLength(68);
   });
 
   it("каждая зона лежит в границах КАДРА 630×351, а не окна 430", () => {
@@ -480,41 +486,109 @@ describe("кадры «открыто» (openFrame — единственный 
     }
   });
 
-  it("единственный кадр раунда 7: study/events снят против нынешнего прямоугольника", () => {
+  it("единственный кадр раунда 7: study/events перемерен против нынешнего прямоугольника", () => {
     // Раунд 7 прислал 130 кадров, порог прошли 12, и одиннадцать из них — те же
     // зоны, что уже подключены (восемь — байт в байт тот же файл). Прибыток
     // ровно один, и он единственный, у кого прямоугольник переразмечен: кадр
     // снят ПОСЛЕ переразметки раунда 5, поэтому правило «у зоны с кадром
     // переразметки быть не может» ему не указ — оно про кадры раунда 3.
+    //
+    // ТИКЕТ 233 ПЕРЕРАЗМЕТИЛ ЕГО ВТОРИЧНО (`remappedRound` 5 → 50): пакет 50
+    // потребовал брать билеты вместе с ЗОЛОТОЙ РАМОЙ, а прежний прямоугольник
+    // накрывал только верхнюю левую четверть билетов. Кадр от этого не стал
+    // недействительным — он стал ИЗМЕРЕН ЗАНОВО: `check-frames.mjs --self`
+    // против нового прямоугольника, числа лежат в `frameRemeasured` (ниже
+    // сверяются). Это и есть выполнение правила, а не исключение из него.
     const round7 = withFrame.filter(({ zone }) => zone.frameRound === 7);
     expect(round7.map((z) => z.id)).toEqual(["study/events"]);
     for (const { id, zone } of round7) {
-      expect(zone.remappedRound, `${id}: прямоугольник исправлен осмотром раунда 5`).toBe(5);
+      expect(zone.remappedRound, `${id}: прямоугольник переразмечен пакетом 50`).toBe(50);
       expect(zone.rectOld, `${id}: прежний прямоугольник контракт держит`).toBeTruthy();
     }
     expect(roomsContract.round7).toMatchObject({ shot: 130, passedOurThreshold: 12, connected: 1 });
   });
 
-  it("у остальных 6 кадров прямоугольник не двигался с раунда 3 — иначе порог мерили не там", () => {
+  it("КАДР ДЕЙСТВИТЕЛЕН, ПОКА ПРЯМОУГОЛЬНИК ТОТ ЖЕ — или пока порог перемерен", () => {
     // Это правило, из которого и вычитаются отключения: кадр действителен
     // ровно до тех пор, пока прямоугольник тот же, против которого его мерили.
     // `rectOld` — прямоугольник до последней переразметки; если он есть, зона
-    // переразмечена, и кадр обязан быть снят заново.
+    // переразмечена, и порог обязан быть посчитан заново.
+    //
+    // ДО ТИКЕТА 233 ПРАВИЛО СТОЯЛО В ЖЁСТКОЙ ФОРМЕ: у пяти кадров раунда 3
+    // `rectOld` обязан отсутствовать. Форма годилась, пока ни один из пяти не
+    // двигался. `study/sport` пришлось сдвинуть: её прямоугольник был размечен
+    // ПО КАДРУ «ОТКРЫТО» (в `o-study-sport.jpg` гантели вынуты из стойки и
+    // стоят на полу под столом — ровно там, где стоял прямоугольник), а в
+    // базовом кадре там пустой пол. Это та самая ошибка, ради которой правило и
+    // заводилось, только с другой стороны: мерили не там не потому, что
+    // прямоугольник уехал, а потому, что он с самого начала стоял по второй
+    // половине пары.
+    //
+    // Поэтому форма сменилась на существо: у зоны с кадром либо прямоугольник
+    // не двигался, либо есть `frameRemeasured` — наш прогон `check-frames.mjs
+    // --self` ПОСЛЕ переразметки, с числами. Третьего не дано.
     const byRound: Record<string, number> = {};
     for (const { zone } of withFrame)
       byRound[zone.frameRound ?? "r3"] = (byRound[zone.frameRound ?? "r3"] ?? 0) + 1;
-    // 5 раунда 3 (без поля), 1 раунда 7, 4 партии 2 раунда 8.
     // 5 раунда 3 (без поля), 1 раунда 7, 4 партии 2 раунда 8,
     // 6 раунда 14 и 1 раунда 15 (тикет 81), плюс седьмой раунда 14 —
     // `lux/travel` подключён тикетом 81-2 после переразметки соседей,
     // и 1 раунда 16 — `warm/anything` (тикет 87), и 3 раунда 17 (тикет 90).
     expect(byRound).toEqual({ r3: 5, "7": 1, "8": 4, "14": 7, "15": 1, "16": 1, "17": 3 });
-    const round3 = withFrame.filter(({ zone }) => zone.frameRound === undefined);
-    expect(round3).toHaveLength(5);
-    for (const { id, zone } of round3) {
-      expect(zone.rectOld, `${id}: у зоны с кадром переразметки быть не может`).toBeUndefined();
-      expect(zone.remappedRound, `${id}`).toBeUndefined();
+    // Оба числа — номера раундов пакета, поэтому сравниваются напрямую. Кадр
+    // без `frameRound` снят в раунде 3. Переразметка ПОЗЖЕ съёмки (строго
+    // больше) обесценивает замер, переразметка раньше — нет: кадры раундов 8,
+    // 14–17 сняты уже против нынешних прямоугольников.
+    const stale = withFrame.filter(
+      ({ zone }) => (zone.remappedRound ?? 0) > (zone.frameRound ?? 3),
+    );
+    expect(stale.map((z) => z.id)).toEqual(["lux/travel", "study/events", "study/sport"]);
+    for (const { id, zone } of stale) {
+      expect(
+        zone.frameRemeasured,
+        `${id}: прямоугольник двигали, а порог против нового не мерили`,
+      ).toBeTruthy();
     }
+    // Перемеряли троих. Двоих — тикетом 233, третьего (`lux/travel`) тикетом
+    // 81-2 ещё в раунде 15: там перемер был, а поля для него не было, и правило
+    // держалось прозой в `eyeNote`. Поле завели — прозу оставили.
+    const remeasured = withFrame.filter(({ zone }) => zone.frameRemeasured);
+    expect(remeasured.map((z) => z.id)).toEqual(["lux/travel", "study/events", "study/sport"]);
+    for (const { id, zone } of remeasured) {
+      const m = zone.frameRemeasured as {
+        round: number;
+        own: number;
+        bg: number;
+        ratio: number;
+        ring: number;
+      };
+      // Мерили ПОСЛЕ той переразметки, которая обесценила прежний замер.
+      expect(m.round, `${id}`).toBe(zone.remappedRound);
+      // Тот же порог, что у `check-frames.mjs`: своя ≥ 0.05, отношение ≥ 3.
+      expect(m.own, `${id}: зона не изменилась`).toBeGreaterThanOrEqual(0.05);
+      expect(m.ratio, `${id}: фон плывёт`).toBeGreaterThanOrEqual(3);
+      // Кольцо теперь проходит и у него: RING_MAX = 0.09.
+      expect(m.ring, `${id}: кольцо плывёт`).toBeLessThanOrEqual(0.09);
+      // Отношение обязано сходиться со своими же own и bg. Точность до
+      // десятых, а не до сотых: скрипт делит НЕокруглённые числа и округляет
+      // результат, а в файле лежат уже округлённые — у `study/events` это даёт
+      // 19.93 против 19.97. Разойдись число всерьёз (переписали одно, забыли
+      // другое) — увидим и здесь.
+      expect(m.ratio, `${id}: отношение не сходится со своими числами`).toBeCloseTo(
+        m.own / m.bg,
+        1,
+      );
+    }
+    // И главное число тикета 233: у `study/events` кольцо перестало плыть —
+    // 0.1295 → 0.0439. Оно плыло не от нечестного раскрытия, а от обрезанного
+    // прямоугольника: жест «билеты выходят из рамки» законно выходил наружу,
+    // потому что самой рамы в прямоугольнике не было. Взяли раму — жест внутри.
+    const events = remeasured.find((z) => z.id === "study/events")?.zone.frameRemeasured as {
+      ring: number;
+      wasRing: number;
+    };
+    expect(events.wasRing).toBeGreaterThan(0.09);
+    expect(events.ring).toBeLessThan(events.wasRing);
   });
 
   it("восемь placeBased-прямоугольников пакета не применены — и это записано", () => {
@@ -524,8 +598,11 @@ describe("кадры «открыто» (openFrame — единственный 
     // прибавилось. Расстановка — измерение, а не вкус (CLAUDE.md); мы должны
     // дизайну десять прямоугольников, и эти восемь ждут их.
     expect(roomsContract.round7.rectsNotApplied).toMatch(/placeBased/u);
-    for (const address of zonesHiddenByProduct) {
-      expect(roomsContract.round7.rectsNotApplied, address).toContain(address);
+    // Восемь адресов, а не список одной двери: с тикета 235 они разложены по
+    // двум спискам — кто ждёт прямоугольника (`zonesHiddenByProduct`) и кто
+    // живёт без места на кадре (`zonesWithoutRect`).
+    for (const { id } of allZones.filter(({ zone }) => zone.objectAbsent)) {
+      expect(roomsContract.round7.rectsNotApplied, id).toContain(id);
     }
   });
 
@@ -565,10 +642,15 @@ describe("кадры «открыто» (openFrame — единственный 
       "study/gaming",
     ]);
     for (const { id, room, zone } of placeBased) {
-      // Поле НИЧЕГО не открывает: зона по-прежнему без предмета и скрыта
-      // продуктом, а место пустой сцены на неё не встаёт (empty-places.ts).
+      // Поле НИЧЕГО не открывает: зона по-прежнему без предмета и в кадре её
+      // нет, а место пустой сцены на неё не встаёт (empty-places.ts).
+      //
+      // «В кадре нет» — с тикета 235 это два разных состояния: адрес, скрытый
+      // продуктом (404), и живая полка без места на кадре (200, но без метки).
+      // Прямоугольник «по месту» не годится ни тому, ни другому.
       expect(zone.objectAbsent, `${id}: поле «по месту» вернуло зону в продукт`).toBe(true);
-      expect(zonesHiddenByProduct, `${id}`).toContain(id);
+      const [roomId, key] = id.split("/") as [string, string];
+      expect(zoneNotOnFrame(roomId, key), `${id}: прямоугольник «по месту» попал в кадр`).toBe(true);
       expect(zone.openFrame ?? null, `${id}`).toBeNull();
       // Привязка — ключ СОСЕДНЕЙ зоны той же комнаты, а не выдуманное слово.
       expect(
@@ -598,11 +680,31 @@ describe("кадры «открыто» (openFrame — единственный 
     const pkgZone = new Map<string, PkgZone>();
     for (const room of pkg.rooms) for (const zone of room.zones) pkgZone.set(`${room.id}/${zone.key}`, zone);
 
-    // ХОРОШАЯ НОВОСТЬ, которую тоже надо держать: вход сошёлся 130 из 130.
+    // ВХОД СХОДИЛСЯ 130 ИЗ 130 — до тикета 233. Пакет 40 повторял наш дамп, и
+    // расхождений не было ни одного. Теперь их семь, и все семь наши: пакет 50
+    // прислал не координаты, а ПРАВИЛО («прямоугольник берёт предмет вместе с
+    // тем, что его держит»), измеряет прямоугольники по уставу разработка, и
+    // эти семь измерены нами по базовым кадрам. Список закрытый: восьмое
+    // расхождение обязано быть объяснено здесь же, а не появиться молча.
     const rectDiff = allZones.filter(
       ({ id, zone }) => JSON.stringify(pkgZone.get(id)?.rect) !== JSON.stringify(zone.rect),
     );
-    expect(rectDiff.map((z) => z.id)).toEqual([]);
+    expect(rectDiff.map((z) => z.id)).toEqual([
+      "gamer/sport",
+      "gamer/events",
+      "sport/grooming",
+      "sport/events",
+      "study/events",
+      "study/sport",
+      "loft/events",
+    ]);
+    // И у каждого расхождения есть обе половины приёмки: прежний прямоугольник
+    // и разбор словами. Без них расхождение неотличимо от промаха.
+    for (const { id, zone } of rectDiff) {
+      expect(zone.rectOld, `${id}: прежний прямоугольник не сохранён`).toBeTruthy();
+      expect(zone.remapNote, `${id}: переразметка без разбора словами`).toBeTruthy();
+      expect(zone.remappedRound, `${id}`).toBe(50);
+    }
 
     // НАША ПРИЁМКА НА МЕСТЕ. В его копии эти числа обнулены.
     const count = (field: string) =>
@@ -615,14 +717,20 @@ describe("кадры «открыто» (openFrame — единственный 
       absentNote: count("absentNote"),
       reshoot: count("reshoot"),
       rectOld: count("rectOld"),
+      frameRemeasured: count("frameRemeasured"),
     }).toEqual({
       accepted: 130,
       reshootReason: 50,
-      remapNote: 16,
+      // 16 + 7 разборов переразметки тикета 233.
+      remapNote: 23,
       eyeNote: 12,
       absentNote: 8,
       reshoot: 100,
-      rectOld: 66,
+      // 66 + `sport/grooming` и `study/sport`, переразмеченные впервые.
+      rectOld: 68,
+      // Новое поле тикета 233: две пары «Кабинета» плюс `lux/travel`, чей
+      // перемер тикета 81-2 до сих пор жил только прозой.
+      frameRemeasured: 3,
     });
     // Блоки, вырезанные в его копии, и `flags` объектом, а не строкой.
     expect(roomsContract.round7).toBeTruthy();
@@ -1074,41 +1182,83 @@ describe("справочник зон (zones.json)", () => {
     }
   });
 
-  it("восемь зон без предмета скрыты адресно, набор комнаты стал своим", () => {
-    // Второй список исключений — не по ключу, а по адресу «комната/ключ»:
-    // «Музыка» живёт в восьми комнатах и прячется в двух. Это и есть правило,
-    // которое предложил дизайн: набор зон зависит от интерьера, а не от пола.
-    expect(zonesHiddenByProduct).toEqual([
-      "warm/music",
-      "lux/music",
+  it("восемь зон без предмета разложены по ДВУМ спискам (тикет 235)", () => {
+    // РАСЩЕПЛЕНИЕ. До 14.08.2026 все восемь адресов без предмета лежали в одном
+    // `zonesHiddenByProduct` и отвечали 404. Решение владельца развело их на
+    // два разных смысла:
+    //   - «ждёт прямоугольника» — зоны нет вовсе, 404 (предмет ей нашёл пакет
+    //     50, координаты меряет тикет 234);
+    //   - «живая полка без места на кадре» — 200, вещи на месте, нет только
+    //     метки и наезда.
+    // Список в коде не живёт своей жизнью: вместе они обязаны покрывать ровно
+    // те зоны, что помечены `objectAbsent` в контракте.
+    expect(zonesHiddenByProduct).toEqual(["warm/music", "lux/music", "sport/watches", "study/tech"]);
+    expect(zonesWithoutRect).toEqual([
       "emerald/beauty",
-      "sport/watches",
       "sport/gaming",
-      "study/tech",
       "study/gaming",
       "loft/gaming",
+      // Полки `bar` в контракте ещё нет — её заводит тикет 234. Адреса стоят
+      // вперёд нарочно, иначе новая полка выйдет в кадр меткой на пустом месте.
+      "gamer/bar",
+      "sport/bar",
+      "loft/bar",
     ]);
-    // Ровно те же восемь помечены `objectAbsent` в контракте — список в коде
-    // не живёт своей жизнью.
-    const absent = allZones.filter(({ zone }) => zone.objectAbsent).map((z) => z.id);
-    expect([...zonesHiddenByProduct].sort()).toEqual([...absent].sort());
+    // Один адрес не может быть в обоих списках сразу: 404 и 200 одновременно
+    // не бывает.
+    expect(zonesWithoutRect.filter((address) => zonesHiddenByProduct.includes(address))).toEqual([]);
 
-    // 130 − 8 (без предмета) = 122 зоны в рендере. Прежде вычиталось ещё
-    // десять — зона `money` во всех комнатах; ADR-0008 её включил.
+    const contractIds = new Set(allZones.map(({ id }) => id));
+    const absent = allZones.filter(({ zone }) => zone.objectAbsent).map((z) => z.id);
+    const both = [...zonesHiddenByProduct, ...zonesWithoutRect];
+    // 1. Ни одна зона без предмета не выпала из обоих списков — иначе продукт
+    //    поставил бы метку на пустое место.
+    for (const id of absent) {
+      expect(both, `${id}: помечена objectAbsent, но её нет ни в одном списке`).toContain(id);
+    }
+    // 2. И наоборот: всё, что мы прячем или выводим из кадра, помечено в
+    //    контракте. Адреса, которых в контракте ещё нет, названы поимённо —
+    //    появится зона, тест скажет, что её надо проверить глазами.
+    for (const id of both.filter((address) => contractIds.has(address))) {
+      const [roomId, key] = id.split("/") as [string, string];
+      const zone = allZones.find((candidate) => candidate.id === id)?.zone;
+      expect(zone?.objectAbsent, `${id}: выведена из кадра, а предмет у неё есть`).toBe(true);
+      expect(zoneNotOnFrame(roomId, key), id).toBe(true);
+    }
+    expect(both.filter((address) => !contractIds.has(address))).toEqual([
+      "gamer/bar",
+      "sport/bar",
+      "loft/bar",
+    ]);
+
+    // СКОЛЬКО ЗОН ПОКАЗЫВАЕТ ПРОДУКТ — считается по спискам, а не константой:
+    // тикет 234 снимает адреса по одному, и вбитое число врало бы на другой
+    // день. 130 − скрытые адресно.
+    const shown = rooms.reduce((n, room) => n + room.zones.length, 0);
+    expect(allZones).toHaveLength(130);
+    expect(shown).toBe(130 - zonesHiddenByProduct.length);
+    // Полка без места на кадре в этом числе ЕСТЬ (в том и смысл), а меток в
+    // кадре на столько же меньше.
+    const onFrame = rooms.reduce(
+      (n, room) => n + room.zones.filter((zone) => !zone.withoutRect).length,
+      0,
+    );
+    expect(shown - onFrame).toBe(zonesWithoutRect.filter((id) => contractIds.has(id)).length);
+
     const perRoom = Object.fromEntries(rooms.map((room) => [room.id, room.zones.length]));
     expect(perRoom).toEqual({
       cream: 13,
       warm: 12,
       lux: 12,
-      emerald: 12,
+      // «Красота» вернулась в изумрудную комнату: полка без места на кадре.
+      emerald: 13,
       bold: 13,
       cottage: 13,
       gamer: 13,
-      sport: 11,
-      study: 11,
-      loft: 12,
+      sport: 12,
+      study: 12,
+      loft: 13,
     });
-    expect(rooms.reduce((n, room) => n + room.zones.length, 0)).toBe(122);
     for (const address of zonesHiddenByProduct) {
       const [roomId, key] = address.split("/");
       expect(
@@ -1120,6 +1270,73 @@ describe("справочник зон (zones.json)", () => {
         rooms.some((room) => room.id !== roomId && room.zones.some((zone) => zone.key === key)),
         `${key} должен остаться в других комнатах`,
       ).toBe(true);
+    }
+    // Полка без места на кадре из пресета НЕ выброшена — и помечена флагом,
+    // по которому её отсеивает сцена.
+    for (const address of zonesWithoutRect.filter((id) => contractIds.has(id))) {
+      const [roomId, key] = address.split("/");
+      const zone = rooms.find((room) => room.id === roomId)?.zones.find((z) => z.key === key);
+      expect(zone, `${address}: живая полка пропала из пресета`).toBeDefined();
+      expect(zone?.withoutRect, address).toBe(true);
+      // Кадра раскрытия у неё нет и быть не может — раскрывать нечего.
+      expect(zone?.openFrame ?? null, address).toBeNull();
+    }
+  });
+
+  it("переезд без потерь: у комнат с одинаковым набором ключей он одинаков и в продукте", () => {
+    // ТО, РАДИ ЧЕГО ВЛАДЕЛЕЦ ВСЁ И ПРОСИЛ (приёмка 14.08.2026, замечание 7):
+    // «должен быть принцип как у женщин, лёгкий переезд во все комнаты без
+    // потерь». Вещи теряют полку так: `rooms.changeRoomPreset` переводит в
+    // «Что угодно» всё, чей ключ зоны не встретился в НОВОМ пресете, — а пресет
+    // это `rooms`, уже без скрытых адресов. Значит достаточно, чтобы у комнат с
+    // одинаковым набором ключей в контракте набор в продукте тоже совпадал.
+    //
+    // Здесь это проверяется на справочнике; на живой базе, через сам сервис, —
+    // `tests/settings.test.ts` («переезд без потерь»).
+    const keysOf = (zones: readonly { key: string }[]) => [...zones.map((z) => z.key)].sort();
+    const contractSet = new Map(contractRooms.map((room) => [room.id, keysOf(room.zones)]));
+    const productSet = new Map(rooms.map((room) => [room.id, keysOf(room.zones)]));
+
+    /** Ключи, скрытые в этой комнате дверью «ждёт прямоугольника» (тикет 234). */
+    const waitingIn = (roomId: string) =>
+      zonesHiddenByProduct
+        .filter((address) => address.startsWith(`${roomId}/`))
+        .map((address) => address.split("/")[1]!);
+
+    let pairs = 0;
+    const lostEverywhere = new Set<string>();
+    for (const from of contractRooms) {
+      for (const to of contractRooms) {
+        if (from.id === to.id) continue;
+        if (contractSet.get(from.id)!.join() !== contractSet.get(to.id)!.join()) continue;
+        pairs += 1;
+        const lost = productSet.get(from.id)!.filter((key) => !productSet.get(to.id)!.includes(key));
+        for (const key of lost) lostEverywhere.add(key);
+        // ПОТЕРЯТЬ ПОЛКУ МОЖНО ТОЛЬКО ЧЕРЕЗ ДВЕРЬ, И ТОЛЬКО ПОКА ОНА ОТКРЫТА.
+        // Полка без места на кадре в потери не попадает никогда — в новом
+        // интерьере она есть, и вещи остаются на ней. Опустеет дверь (тикет 234
+        // домерит прямоугольники) — правая часть станет пустой сама, и тест
+        // превратится в «не теряется ничего» без единой правки.
+        expect(
+          [...lost].sort(),
+          `${from.id} → ${to.id}: полки уедут в «Что угодно»`,
+        ).toEqual(waitingIn(to.id).filter((key) => !waitingIn(from.id).includes(key)).sort());
+      }
+    }
+    // Пары есть: иначе проверка была бы пустой и зелёной ни от чего. Женских
+    // комнат шесть (30 упорядоченных пар), мужских четыре (12).
+    expect(pairs).toBe(30 + 12);
+    // И то же самое одним взглядом: сегодня переезд теряет ровно три полки, все
+    // три ждут прямоугольника. «Красота» и «Игры», которые терялись до тикета
+    // 235, не теряются больше нигде.
+    expect([...lostEverywhere].sort()).toEqual(
+      [...new Set(zonesHiddenByProduct.map((address) => address.split("/")[1]!))].sort(),
+    );
+    for (const address of zonesWithoutRect) {
+      const key = address.split("/")[1]!;
+      expect(lostEverywhere.has(key), `${address}: полка без места на кадре потеряла вещи`).toBe(
+        false,
+      );
     }
   });
 
@@ -1172,6 +1389,17 @@ describe("пересечения прямоугольников зон", () => {
    * Список закрытый: новая пара уронит тест, а закрытая — исчезнет из него
    * вместе со строкой. Площадь держим, чтобы было видно, где кромка задела
    * кромку (15 px²), а где предметы наложились всерьёз (7020 px²).
+   *
+   * ТИКЕТ 233 ДОБАВИЛ ДВЕ — и обе осмотрены глазами по вырезке, а не приняты
+   * числом. Правило пакета 50 велит брать предмет вместе с рамой, и рамка с
+   * билетами в «Спорте» и веер билетов в «Лофте» оказались крупнее прежних
+   * прямоугольников:
+   *   • `sport/watches×events` 600 px² — `watches` это objectAbsent, витрины с
+   *     часами в этом интерьере НЕТ вовсе, её прямоугольник служебный. В
+   *     рендере пары нет: скрытая зона не рисуется (список ниже короче на неё).
+   *   • `loft/music×events` 364 px² — нижний левый угол рамки билетов лёг на
+   *     пустую белую стену правее микшера. Предметы не наложились: микшер стоит
+   *     на столе левее 340, билеты висят выше 172.
    */
   const OVERLAP_DEBT = [
     "cream/books×music (15 px²)",
@@ -1184,8 +1412,10 @@ describe("пересечения прямоугольников зон", () => {
     "bold/flowers×home (1380 px²)",
     "cottage/travel×home (7020 px²)",
     "gamer/watches×books (344 px²)",
+    "sport/watches×events (600 px²)",
     "sport/sport×money (450 px²)",
     "study/books×music (252 px²)",
+    "loft/music×events (364 px²)",
     "loft/sport×watches (165 px²)",
   ];
 
@@ -1214,14 +1444,22 @@ describe("пересечения прямоугольников зон", () => {
     expect(shared).toEqual([]);
   });
 
-  it("в рендере пар столько же: включённая зона money вернула свою пару", () => {
+  it("в рендере пар на одну меньше: пара со скрытой зоной до экрана не доходит", () => {
     // Прежде продукт не чувствовал пару `sport/sport×money`: зона `money` не
     // рисовалась вовсе, значит и нажатие у неё было не отнять. ADR-0008 зону
-    // включил — пара вернулась в живые, и реестр долга совпадает с рендером
+    // включил — пара вернулась в живые, и реестр долга совпадал с рендером
     // строка в строку.
+    //
+    // Тикет 233 эту точность сломал в хорошую сторону: `sport/watches×events`
+    // существует только в контракте. `watches` — objectAbsent (витрины с часами
+    // в интерьере нет), продукт её не показывает, и на экране пересечения не
+    // возникает. Поэтому рендер обязан быть КОРОЧЕ реестра ровно на эту строку —
+    // и это проверяется вычитанием, а не вторым списком: появись у пары живая
+    // зона, разница исчезнет и тест назовёт это здесь.
     const shown = rooms.flatMap(overlapsIn).map((o) => `${o.id} (${o.area} px²)`);
-    expect(shown).toEqual(OVERLAP_DEBT);
-    expect(shown).toHaveLength(13);
+    expect(shown).toEqual(OVERLAP_DEBT.filter((pair) => pair !== "sport/watches×events (600 px²)"));
+    expect(shown).toHaveLength(14);
+    expect(OVERLAP_DEBT).toHaveLength(15);
   });
 });
 
@@ -1267,8 +1505,14 @@ describe("флаги проверки: notClamped / eyeChecked / wrongTarget", (
     // проверяется только это, а машинное правило — у остальных, по их
     // собственному прямоугольнику.
     const remapped = allZones.filter(({ zone }) => zone.remappedRound);
-    expect(remapped.filter(({ zone }) => zone.remappedRound === 4)).toHaveLength(34);
-    expect(remapped.filter(({ zone }) => zone.remappedRound === 5)).toHaveLength(13);
+    // 34 и 13 держались до тикета 233: пакет 50 переразметил семь зон, и две из
+    // них ушли из счёта раунда 4 (`gamer/sport`, `gamer/events`), три — из
+    // счёта раунда 5 (`sport/events`, `study/events`, `loft/events`).
+    // Переразметка перезаписывает `remappedRound` своим номером, а не копит
+    // историю: `rectOld` всегда прямоугольник ДО ПОСЛЕДНЕЙ правки, и два числа
+    // обязаны говорить об одной и той же.
+    expect(remapped.filter(({ zone }) => zone.remappedRound === 4)).toHaveLength(32);
+    expect(remapped.filter(({ zone }) => zone.remappedRound === 5)).toHaveLength(10);
     expect(remapped.filter(({ zone }) => zone.remappedRound === 8).map((z) => z.id)).toEqual([
       "cream/beauty",
       "cream/events",
@@ -1308,6 +1552,24 @@ describe("флаги проверки: notClamped / eyeChecked / wrongTarget", (
       "loft/sneakers",
       "loft/travel",
     ]);
+    // Раунд 50 (тикет 233) — общее правило дизайна, а не партия прямоугольников:
+    // «прямоугольник берёт предмет ВМЕСТЕ С ТЕМ, ЧТО ЕГО ДЕРЖИТ — раму, полку,
+    // столешницу; предмет без опоры читается артефактом». Четыре `events` —
+    // рамка с билетами, обрезанная по стопке корешков во всех четырёх мужских
+    // комнатах одинаково. Три остальные — зоны, чьи пустые места владелец
+    // увидел висящими в воздухе 14.08.2026 (тикет 230): `gamer/sport` стояла на
+    // голой стене над скамьёй, `sport/grooming` — на стене слева от зеркала,
+    // `study/sport` — на полу под столом, потому что была размечена ПО КАДРУ
+    // «ОТКРЫТО», где гантели вынуты из стойки.
+    expect(remapped.filter(({ zone }) => zone.remappedRound === 50).map((z) => z.id)).toEqual([
+      "gamer/sport",
+      "gamer/events",
+      "sport/grooming",
+      "sport/events",
+      "study/events",
+      "study/sport",
+      "loft/events",
+    ]);
     for (const { id, zone } of remapped) {
       expect(zone.notClamped, `${id}: после переразметки обрезки нет`).toBe(true);
       expect(zone.rectOld, `${id}: прежний прямоугольник сохранён для сверки`).toBeTruthy();
@@ -1327,10 +1589,13 @@ describe("флаги проверки: notClamped / eyeChecked / wrongTarget", (
     expect(allZones.filter(({ zone }) => !zone.eyeChecked)).toEqual([]);
   });
 
-  it("13 прямоугольников исправлены осмотром раунда 5 — cream/events переехала дальше", () => {
+  it("10 прямоугольников осмотра раунда 5 — трое events переехали дальше", () => {
     // Раунд 5 исправлял 14; `cream/events` из этого счёта ушла в раунд 8:
     // rects-fix нашёл настоящую стену памяти, дизайн подтвердил, тикет 53
-    // применил — теперь у неё remappedRound: 8, а здесь остаются 13.
+    // применил — теперь у неё remappedRound: 8, оставалось 13.
+    // Тикет 233 забрал ещё троих — `sport/events`, `study/events`,
+    // `loft/events`: раунд 5 поставил их на билеты, а пакет 50 потребовал брать
+    // билеты ВМЕСТЕ С РАМОЙ. Осталось 10.
     const fixed = allZones.filter(({ zone }) => zone.remappedRound === 5);
     expect(fixed.map((z) => z.id)).toEqual([
       "cream/books",
@@ -1338,12 +1603,9 @@ describe("флаги проверки: notClamped / eyeChecked / wrongTarget", (
       "gamer/books",
       "gamer/money",
       "sport/sport",
-      "sport/events",
       "sport/money",
       "study/watches",
-      "study/events",
       "study/money",
-      "loft/events",
       "loft/watches",
       "loft/money",
     ]);
@@ -1375,10 +1637,12 @@ describe("флаги проверки: notClamped / eyeChecked / wrongTarget", (
       Math.max(...room.zones.map((zone) => zone.rect.x + zone.rect.w)),
     );
     expect(Math.max(...rights)).toBe(roomsContract.scene.phone.image.w);
-    // Правее прежней стены 430 стоит 46 зон — те самые, ради которых система
+    // Правее прежней стены 430 стоит 47 зон — те самые, ради которых система
     // координат и менялась (32 после раунда 4, ещё 14 после осмотра раунда 5).
+    // Сорок седьмой стала `gamer/sport`: тикет 233 переставил её с голой стены
+    // на скамью с гантелью, и правый край дошёл до 466.
     // Достижимость — tests/immersive-layout.test.ts.
     const beyondOldEdge = allZones.filter(({ zone }) => zone.rect.x + zone.rect.w > 430);
-    expect(beyondOldEdge).toHaveLength(46);
+    expect(beyondOldEdge).toHaveLength(47);
   });
 });

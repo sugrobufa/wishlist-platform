@@ -77,6 +77,9 @@ export default async function OwnerItemPage({ params }: Params) {
   // Фотография здесь своя, из карточки; витрине зала она в этом месте не нужна.
   const hall = item.inHall ? hallItemForOwner(item, hallSettingsOf(room), null) : null;
 
+  const presetZone = preset.zones.find((candidate) => candidate.key === item.zone);
+  const zoneRect = presetZone?.withoutRect ? null : (presetZone?.rect ?? null);
+
   return (
     <ItemCard
       item={itemForOwner(item)}
@@ -99,7 +102,12 @@ export default async function OwnerItemPage({ params }: Params) {
       // Полка миниатюрой КАДРА 76×48 (тикет 196, contract round45 →
       // owner.order). Прямоугольник — только из `rooms.json`, в системе кадра
       // 630×351 (ADR-0006): своей карты координат у карточки нет.
-      zoneRect={preset.zones.find((candidate) => candidate.key === item.zone)?.rect ?? null}
+      //
+      // У ПОЛКИ БЕЗ МЕСТА НА КАДРЕ МИНИАТЮРЫ НЕТ (тикет 235). Прямоугольник в
+      // контракте у неё лежит, но стоит он на поверхности, где предмет стоял
+      // бы, а не на предмете: вырезка показала бы кусок пустой полки и сказала
+      // бы «вот твоя полка» про то, чего в интерьере нет. `null` карточка умеет.
+      zoneRect={zoneRect}
       frameUrl={roomImageUrl(preset.base)}
       accent={preset.accent}
       ink={preset.ink}

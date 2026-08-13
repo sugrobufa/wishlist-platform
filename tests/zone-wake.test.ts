@@ -14,6 +14,7 @@ import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import motionJson from "@design/motion.json";
 import { rooms } from "@/config/design";
+import { sceneZones } from "@/components/scene/zones";
 import { wakeScore, zoneWakesWithLight } from "@/components/scene/zone-marker";
 
 const read = (path: string) => readFileSync(fileURLToPath(new URL(path, import.meta.url)), "utf8");
@@ -69,7 +70,12 @@ function phase(what: string): { at?: unknown; duration?: unknown } {
 // ---------- A. Кто отвечает светом ----------------------------------------
 
 describe("светом отвечают ровно те зоны, у которых нет кадра «открыто»", () => {
-  const all = rooms.flatMap((room) => room.zones.map((zone) => ({ room: room.id, zone })));
+  // Отклик светом — событие ВХОДА В ЗОНУ на сцене, поэтому список берётся тот
+  // же, что у сцены: живая полка без места на кадре не открывается в комнате
+  // вовсе (тикет 235), и светить ей нечем и негде.
+  const all = rooms.flatMap((room) =>
+    sceneZones(room.zones, []).map((zone) => ({ room: room.id, zone })),
+  );
 
   it("правило одно и то же на все комнаты: либо кадр, либо свет, третьего нет", () => {
     for (const { room, zone } of all) {
@@ -120,7 +126,8 @@ describe("светом отвечают ровно те зоны, у котор�
 
   it("свет достаётся всем остальным — тем самым мёртвым зонам из тикета", () => {
     const waking = all.filter(({ zone }) => zoneWakesWithLight(zone));
-    // 122 показанные зоны продукта (CLAUDE.md, инвариант 9) минус 18 с кадром
+    // 122 МЕТКИ В КАДРЕ (CLAUDE.md, инвариант №9: полок у продукта больше —
+    // живые полки без места на кадре в кадр не выходят) минус 18 с кадром
     // (было 10 — раунды 14–15 добавили семь, тикет 81; восемнадцатый,
     // `lux/travel`, подключён тикетом 81-2 после переразметки соседей,
     // девятнадцатый — `warm/anything` раунда 16, ещё три — раунд 17).

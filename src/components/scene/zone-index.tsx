@@ -22,7 +22,7 @@ import { useEffect, useMemo, useRef, type ReactNode } from "react";
 import { useLocale, useTranslations } from "next-intl";
 import type { RoomZone } from "@/config/design";
 import type { ZoneSummaryDto } from "@/server/dto/zone-summary";
-import { visibleZones, zoneLabel } from "./zones";
+import { sceneZones, zoneLabel } from "./zones";
 import { useZoneIndexActions, useZoneIndexState } from "./zone-index-context";
 import s from "./zone-index.module.css";
 
@@ -98,7 +98,10 @@ export function ZoneIndex({
   const { lit, active } = useZoneIndexState();
 
   // Тот же список и тот же порядок, что в сцене: номер пункта = номер метки.
-  const shown = useMemo(() => visibleZones(zones, zonesOff), [zones, zonesOff]);
+  // Отсюда `sceneZones`, а не все полки комнаты (тикет 235): полки без места на
+  // кадре в указателе нет — метки у неё нет, вести пункту некуда, а номера всех
+  // следующих поехали бы на единицу. Её дорога — список комнаты.
+  const shown = useMemo(() => sceneZones(zones, zonesOff), [zones, zonesOff]);
 
   const itemRefs = useRef(new Map<string, HTMLButtonElement>());
 

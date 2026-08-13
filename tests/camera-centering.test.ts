@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { rooms, roomsContract, sceneMotion } from "../src/config/design";
+import { sceneZones } from "../src/components/scene/zones";
 import {
   cameraOrigin,
   computeZoneCamera,
@@ -49,8 +50,15 @@ import {
 
 const VIEWS = ["phone", "desktop"] as const;
 
+/**
+ * Зоны, на которые камера умеет наезжать, — те, что есть в кадре (`sceneZones`).
+ *
+ * С тикета 235 пресет несёт и живые полки без места на кадре: страница у них
+ * есть, а прямоугольника нет, и наезд к ним не относится по определению —
+ * `SceneStage` их в свой список зон не берёт, активной такая зона не станет.
+ */
 const allZones = rooms.flatMap((room) =>
-  room.zones.map((zone) => ({ id: `${room.id}/${zone.key}`, rect: zone.rect })),
+  sceneZones(room.zones, []).map((zone) => ({ id: `${room.id}/${zone.key}`, rect: zone.rect })),
 );
 
 function must<T>(value: T | undefined, what: string): T {
@@ -472,8 +480,13 @@ describe("краевые зоны: сколько пустоты открыва�
     // Тикет 81-2: 63 → 64 на телефоне. Прибавилась `gamer/sneakers` — уехала от
     // левого края кадра, когда встала на саму обувь (x 42 → 56, w 119 → 88).
     // На десктопе она была чистой и до переезда: окно шире.
+    // Тикет 233: 64 → 63 на телефоне. Убыла ровно одна — `study/sport`: она
+    // переехала с пола под столом на стойку с гантелями у кресла, а стойка
+    // стоит НИЖЕ (y 244 → 264, низ 330 → 333), и наезд на неё обнажает нижний
+    // край кадра на 5.07 % — меньше худших 24.7, предел не сдвинулся.
+    // На десктопе счёт не изменился: окно шире, там она чистой и не была.
     const phone = worst("phone");
-    expect(phone.clean).toBe(64);
+    expect(phone.clean).toBe(63);
     expect(phone.left).toBeCloseTo(23.1, 1);
     expect(phone.right).toBeCloseTo(16.1, 1);
     expect(phone.top).toBeCloseTo(7.2, 1);

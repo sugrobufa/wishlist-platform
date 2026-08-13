@@ -692,7 +692,19 @@ describe("числа контракта round45 — из контракта, а 
     // своей карты у карточки нет и появиться не может.
     expect(thumb).toContain("export const FRAME = { w: 630, h: 351 } as const;");
     expect(thumb).not.toMatch(/\b(?:1120|430)\b/u);
-    expect(page).toContain("zoneRect={preset.zones.find(");
+    expect(page).toContain("preset.zones.find((candidate) => candidate.key === item.zone)");
+    expect(page).toContain("zoneRect={zoneRect}");
+  });
+
+  it("у полки без места на кадре миниатюры нет вовсе (тикет 235)", () => {
+    // Прямоугольник в контракте у такой зоны есть, но он стоит «по месту», а не
+    // по предмету: вырезка показала бы пустую поверхность и сказала бы «вот
+    // твоя полка» про то, чего в интерьере нет. Карточка умеет `null` — им и
+    // отвечаем, а не куском кадра наугад.
+    expect(page).toContain(
+      "const zoneRect = presetZone?.withoutRect ? null : (presetZone?.rect ?? null);",
+    );
+    expect(card).toContain("zoneRect");
   });
 
   it("заметка — СВОИМ БЛОКОМ С НАДСТРОЧНОЙ, 400 13.5/1.55", () => {

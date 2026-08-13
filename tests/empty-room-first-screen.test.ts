@@ -44,7 +44,7 @@ vi.mock("next-intl", async (importOriginal) => {
 
 const { createTranslator } = await import("next-intl");
 const { ZoneRail } = await import("../src/components/scene/zone-rail");
-const { visibleZones } = await import("../src/components/scene/zones");
+const { sceneZones, visibleZones } = await import("../src/components/scene/zones");
 const { rooms } = await import("../src/config/design");
 
 const read = (relative: string) =>
@@ -164,8 +164,12 @@ describe("что на пустой комнате ВИДНО (41a, сверху 
     // Пакет нарисовал «13 мест» по своему снимку rooms.json. Выключенная полка
     // исчезает вместе с мебелью (инвариант №5), и у комнаты с выключенными
     // зонами мест меньше — 13 в разметке соврало бы ей в лицо.
+    //
+    // Считает `sceneZones` (тикет 235): «место» здесь буквальное — точка кадра,
+    // куда встанет вещь. У живой полки без места на кадре его нет, и в число
+    // она не входит, хотя полкой быть не перестаёт.
     expect(ownerPage).toContain(
-      "const emptyPlaces = preset ? visibleZones(preset.zones, room.zonesOff).length : 0;",
+      "const emptyPlaces = preset ? sceneZones(preset.zones, room.zonesOff).length : 0;",
     );
     expect(firstStepBlock()).toContain('t("emptyPlaces", { count: emptyPlaces })');
     // Ни в разметке рядом с надстрочной, ни в самой строке словаря числа нет.
@@ -174,14 +178,26 @@ describe("что на пустой комнате ВИДНО (41a, сверху 
     expect(ru.Room?.emptyPlaces).toContain("{count, plural,");
   });
 
-  it("на комнате с ДРУГИМ набором зон число другое — считает visibleZones", () => {
+  it("на комнате с ДРУГИМ набором зон число другое — считает sceneZones", () => {
     // Тот же счёт, что у указателя зон и у «полка 02 из 13»: второго правила
-    // видимости в продукте нет и заводить его нельзя.
+    // нумерации в продукте нет и заводить его нельзя.
     expect(rooms.length, "в справочнике нет ни одной комнаты").toBeGreaterThan(0);
     const preset = rooms[0]!;
-    expect(visibleZones(preset.zones, [])).toHaveLength(13);
+    expect(sceneZones(preset.zones, [])).toHaveLength(13);
     const off = [preset.zones[0]!.key, preset.zones[1]!.key];
-    expect(visibleZones(preset.zones, off)).toHaveLength(11);
+    expect(sceneZones(preset.zones, off)).toHaveLength(11);
+  });
+
+  it("живая полка без места на кадре в число мест не входит (тикет 235)", () => {
+    // Полка есть, вещи на ней есть, а места на кадре нет — и «Комната
+    // обставляется · N мест» обязана считать места, а не полки. Комнату берём
+    // ту, где такая полка сегодня и стоит.
+    const emerald = rooms.find((room) => room.id === "emerald");
+    if (!emerald) throw new Error("комнаты emerald нет в справочнике");
+    const withoutRect = emerald.zones.filter((zone) => zone.withoutRect);
+    expect(withoutRect.map((zone) => zone.key)).toEqual(["beauty"]);
+    expect(visibleZones(emerald.zones, [])).toHaveLength(13);
+    expect(sceneZones(emerald.zones, [])).toHaveLength(12);
   });
 
   it("склонение живого числа — настоящим форматтером, а не на глаз", () => {

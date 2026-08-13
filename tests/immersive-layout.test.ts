@@ -7,7 +7,7 @@ import {
   rooms,
   roomsContract,
   scene,
-  zoneHiddenByProduct,
+  zoneNotOnFrame,
 } from "../src/config/design";
 import {
   round4,
@@ -18,7 +18,7 @@ import {
   zoneScenePercent,
   type SceneView,
 } from "../src/components/scene/camera";
-import { visibleZones } from "../src/components/scene/zones";
+import { sceneZones } from "../src/components/scene/zones";
 import {
   clampPan,
   clearBand,
@@ -362,9 +362,15 @@ function clippedByWindow(rect: Zone["rect"], view: SceneView, screen: Screen) {
   );
 }
 
-/** Указатель зон (`ZoneIndex`) — тот же список, что строит сцена: 122 зоны. */
+/**
+ * Указатель зон (`ZoneIndex`) — тот же список, что строит сцена: 122 зоны.
+ *
+ * `sceneZones`, а не `visibleZones` (тикет 235): пресет с 14.08.2026 несёт и
+ * живые полки без места на кадре, но метки у них нет, и в указателе их тоже
+ * нет — номер пункта есть номер метки. Дорога к ним другая: список комнаты.
+ */
 const listedInIndex = new Set(
-  rooms.flatMap((room) => visibleZones(room.zones, []).map((zone) => `${room.id}/${zone.key}`)),
+  rooms.flatMap((room) => sceneZones(room.zones, []).map((zone) => `${room.id}/${zone.key}`)),
 );
 
 /**
@@ -944,7 +950,7 @@ describe("все 130 зон достижимы: кадром или указат
   });
 
   it("ДОРОГА 2: каждая зона за краем окна есть в указателе зон", () => {
-    // Указатель (`ZoneIndex`) строит список тем же `visibleZones`, что и сцена,
+    // Указатель (`ZoneIndex`) строит список тем же `sceneZones`, что и сцена,
     // и смотрит только на данные — ни на кадр, ни на экран. Поэтому «зона не
     // видна» и «зона недоступна» — разные вещи, и это проверка, а не обещание.
     const listed = listedInIndex;
@@ -962,17 +968,22 @@ describe("все 130 зон достижимы: кадром или указат
 
   it("ДОРОГА 2 на десктопе: всё, что срезал кроп, лежит в указателе", () => {
     // То же требование, что у телефона, на каждом десктопном вьюпорте: зона
-    // без полных 44×44 обязана быть либо в указателе, либо скрытой продуктом.
-    // Скрытых осталось восемь — адресные исключения ADR-0006 «предмета нет в
+    // без полных 44×44 обязана быть либо в указателе, либо не иметь места на
+    // кадре. Таких восемь — адресные исключения ADR-0006 «предмета нет в
     // интерьере»; десять зон денег вернулись в продукт (ADR-0008).
+    //
+    // С тикета 235 восьмёрка живёт двумя разными жизнями: четыре ждут
+    // прямоугольника (зоны нет вовсе, 404), четыре — живые полки без места на
+    // кадре (страница есть, метки нет). Для указателя разницы никакой: метка
+    // одна и та же, её нет; вход в полку без места — список комнаты, не сцена.
     expect(listedInIndex.size).toBe(122);
-    expect(allZones.filter(({ roomId, key }) => zoneHiddenByProduct(roomId, key))).toHaveLength(8);
+    expect(allZones.filter(({ roomId, key }) => zoneNotOnFrame(roomId, key))).toHaveLength(8);
     for (const screen of DESKTOP_SCREENS) {
       const short = allZones.filter(({ rect }) => !fullTarget(rect, "desktop", screen));
       for (const { id, roomId, key } of short) {
         const where = `${id} @ ${screen.w}×${screen.h}`;
-        if (zoneHiddenByProduct(roomId, key)) {
-          expect(listedInIndex.has(id), `${where}: скрыта продуктом, в списке ей не место`).toBe(
+        if (zoneNotOnFrame(roomId, key)) {
+          expect(listedInIndex.has(id), `${where}: метки в кадре нет, в списке ей не место`).toBe(
             false,
           );
           continue;
@@ -1102,8 +1113,9 @@ describe("все 130 зон достижимы: кадром или указат
       const hit = phoneZoneHitBoxAtPan(rect, PHONE, phonePanToZone(rect));
       expect(hit.width, `${id} ширина цели паном`).toBeGreaterThanOrEqual(hitTargetMin - EPS);
       expect(hit.height, `${id} высота цели паном`).toBeGreaterThanOrEqual(hitTargetMin - EPS);
-      // Дорога 2 — указатель: либо зона в нём, либо продукт её не показывает.
-      if (zoneHiddenByProduct(roomId, key)) continue;
+      // Дорога 2 — указатель: либо зона в нём, либо метки в кадре у неё нет
+      // вовсе (скрыта адресно или живая полка без места — тикет 235).
+      if (zoneNotOnFrame(roomId, key)) continue;
       expect(listedInIndex.has(id), `${id}: под вуалью и не в указателе`).toBe(true);
     }
     // Ни одна из них не потеряла цель нажатия от переезда кадра: вуаль не
@@ -1345,12 +1357,14 @@ describe("пан окна по кадру (тикет 55)", () => {
   });
 
   it("намёк на край: справа в покое горит во всех 10 комнатах, слева — ни в одной", () => {
-    // Правило по данным ВИДИМЫХ зон (тот же visibleZones, что у сцены и
-    // указателя) с люфтом EDGE_HINT_SLACK: спрятано больше люфта — горит.
+    // Правило по данным зон СЦЕНЫ (тот же `sceneZones`, что у сцены и
+    // указателя — им же кормится `use-scene-pan`) с люфтом EDGE_HINT_SLACK:
+    // спрятано больше люфта — горит. Полки без места на кадре в расчёт не
+    // входят: намёк обещает зону за краем, а этой в кадре нет (тикет 235).
     expect(EDGE_HINT_SLACK).toBe(12);
     expect(EDGE_HINT_SLACK).toBe(-scene.phone.image.x);
     for (const room of rooms) {
-      const visible = visibleZones(room.zones, []);
+      const visible = sceneZones(room.zones, []);
       const rest = phoneEdgeHints(visible, 0);
       expect(rest.right, `${room.id} справа в покое`).toBe(true);
       expect(rest.left, `${room.id} слева в покое`).toBe(false);
