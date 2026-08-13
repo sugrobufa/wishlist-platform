@@ -40,6 +40,10 @@ const read = (relative: string) =>
 const card = read("../src/app/room/zone/[zone]/i/[id]/item-card.tsx");
 const page = read("../src/app/room/zone/[zone]/i/[id]/page.tsx");
 const css = read("../src/components/item/owner-card.module.css");
+/** Общий файл — источник чисел подложки (`.imm-corner-mark`, тикет 218). */
+const globalsCss = read("../src/app/globals.css");
+const sheetCss = read("../src/components/item/item-actions.module.css");
+const sheetSrc = read("../src/components/item/item-actions.tsx");
 const shopCss = read("../src/components/zone/shop-link.module.css");
 const thumb = read("../src/components/item/shelf-frame.ts");
 const dto = read("../src/server/dto/items.ts");
@@ -134,6 +138,33 @@ const poolSignSize = (text: string): number =>
  */
 const strip = (source: string): string =>
   source.replace(/\/\*[\s\S]*?\*\//gu, "").replace(/^\s*\/\/.*$/gmu, "");
+
+/**
+ * Пары «селектор → тело» из CSS БЕЗ КОММЕНТАРИЕВ. Нужны там, где важно не
+ * «встречается ли свойство в файле», а «в каком именно правиле оно стоит»:
+ * подложка знаков шапки законна на самих знаках и незаконна на любом их
+ * предке (тикет 218, ловушка 170).
+ */
+function rules(css: string): Array<{ selector: string; body: string }> {
+  return [...strip(css).matchAll(/([^{}]+)\{([^{}]*)\}/gu)].map((match) => ({
+    selector: (match[1] as string).trim(),
+    body: match[2] as string,
+  }));
+}
+
+/** Тело правила с РОВНО таким селектором (а не с похожим на него). */
+function ruleBody(css: string, selector: string): string {
+  const found = rules(css).filter((rule) => rule.selector === selector);
+  expect(found, `в CSS нет правила ${selector}`).toHaveLength(1);
+  return found[0]?.body ?? "";
+}
+
+/** Значение свойства из тела правила — «rgba(11, 8, 6, 0.55)», «blur(8px)». */
+function value(body: string, property: string): string {
+  const match = new RegExp(`(?:^|[;\\s])${property}:\\s*([^;]+);`, "u").exec(body);
+  expect(match, `в правиле нет свойства ${property}`).not.toBeNull();
+  return (match?.[1] ?? "").trim();
+}
 
 /**
  * Ключи строк листа в порядке появления, без повторов, — та же мерка, что в
@@ -410,6 +441,93 @@ describe("числа контракта round45 — из контракта, а 
     // ФИЛЬТР — НА САМОМ SVG. На обёртке он сделал бы её содержащим блоком для
     // `position: fixed`, а лист «⋯» на телефоне именно fixed.
     expect(css).not.toMatch(/\.headActions \{[^}]*filter:/u);
+  });
+
+  it("тень мала на светлой фотографии — под знаками ПОДЛОЖКА `.imm-corner-mark`", () => {
+    // ЧИСЛА НЕ НАБИТЫ, А СКОПИРОВАНЫ, и проверяется именно это: приём взят
+    // готовым из `globals.css` — знак сокровищницы, стоящий на кадре комнаты.
+    // Случай тот же (знак на фотографии) и цели те же 44. Уедут числа в общем
+    // файле — покраснеет здесь, а не на приёмке.
+    const mark = ruleBody(globalsCss, ".imm-corner-mark");
+    const ground = rules(css).filter((rule) => /backdrop-filter/u.test(rule.body));
+    expect(ground, "подложки под знаками нет вовсе").toHaveLength(1);
+    const body = ground[0]?.body ?? "";
+    expect(value(body, "background")).toBe(value(mark, "background"));
+    expect(value(body, "backdrop-filter")).toBe(value(mark, "backdrop-filter"));
+    // Те самые числа тикета — 44, .55, blur(8px).
+    expect(value(mark, "background")).toBe("rgba(11, 8, 6, 0.55)");
+    expect(value(mark, "backdrop-filter")).toBe("blur(8px)");
+    expect(value(mark, "width")).toBe("var(--hit-target-min, 44px)");
+    // Наведение — оттуда же: плашка ТЕМНЕЕТ, а не светлеет (комнаты бывают
+    // светлые), и живёт это за общими воротами hover продукта.
+    const markHover = ruleBody(globalsCss, ".imm-corner-mark:hover");
+    const groundHover = rules(css).filter(
+      (rule) => rule.selector.includes(":hover") && rule.selector.includes("headOnPhoto"),
+    );
+    expect(groundHover).toHaveLength(1);
+    expect(value(groundHover[0]?.body ?? "", "background")).toBe(value(markHover, "background"));
+    expect(css).toMatch(
+      /@media \(hover: hover\) and \(pointer: fine\) \{\s*\n\s*\.headOnPhoto \.headSign:hover/u,
+    );
+    // Скругления нет: прямой угол — умолчание продукта.
+    expect(body).not.toContain("border-radius");
+    // Тень под самим знаком ОСТАЛАСЬ: подложка светлее фотографии не бывает,
+    // но контур на границе квадрата держит она.
+    expect(css).toMatch(/\.headSign svg,\s*\n\.headActions svg \{[\s\S]*?filter: drop-shadow/u);
+  });
+
+  it("подложка ОБОИМ знакам: «назад» и «⋯» читались парой и остались парой", () => {
+    const ground = rules(css).find((rule) => /backdrop-filter/u.test(rule.body));
+    const targets = (ground?.selector ?? "").split(",").map((one) => one.trim());
+    expect(targets).toEqual([
+      ".headOnPhoto .headSign",
+      '.headOnPhoto .headActions button[aria-haspopup="menu"]',
+    ]);
+    // Знак «⋯» рисует лист действий, класса у его кнопки здесь нет — карточка
+    // дотягивается до неё по роли, которую та обещает читалке. Крючок живой:
+    expect(sheetSrc).toContain('aria-haspopup="menu"');
+  });
+
+  it("ЛОВУШКА 170: ни у одного предка листа нет свойства содержащего блока", () => {
+    // `filter` делает элемент содержащим блоком для `position: fixed` внутри —
+    // и `backdrop-filter` делает ТО ЖЕ САМОЕ (Filter Effects 2). Лист «⋯» на
+    // телефоне именно fixed и центруется по экрану; повесь подложку на любую
+    // обёртку — и он поедет к знаку в угол фотографии.
+    const HOLDS_FIXED =
+      /(?:^|[;\s])(?:backdrop-filter|filter|transform|perspective|contain|will-change):/u;
+    const ANCESTORS = [".screen", ".column", ".photo", ".head", ".headActions"];
+    for (const rule of rules(css)) {
+      const targets = rule.selector.split(",").map((one) => one.trim());
+      if (!targets.some((one) => ANCESTORS.includes(one))) continue;
+      expect(rule.body, rule.selector).not.toMatch(HOLDS_FIXED);
+    }
+    // Подложка стоит на САМИХ знаках — последний простой селектор — знак.
+    for (const rule of rules(css).filter((one) => /backdrop-filter/u.test(one.body))) {
+      for (const target of rule.selector.split(",").map((one) => one.trim())) {
+        expect(target, target).toMatch(/(?:\.headSign|button\[aria-haspopup="menu"\])$/u);
+      }
+    }
+    // ПРИЧИНА ЖИВА с двух сторон. Лист на телефоне — fixed по центру экрана:
+    expect(sheetCss).toMatch(
+      /@media \(max-width: 639px\) \{[\s\S]*?position: fixed;[\s\S]*?transform: translateY\(-50%\);/u,
+    );
+    // …и он СОСЕД кнопки «⋯», а не её потомок, — иначе подложка на кнопке
+    // ломала бы центровку ровно так же, как на обёртке.
+    const hook = sheetSrc.indexOf('aria-haspopup="menu"');
+    const closes = sheetSrc.indexOf("</button>", hook);
+    expect(hook).toBeGreaterThan(-1);
+    expect(closes).toBeLessThan(sheetSrc.indexOf("{open && ("));
+  });
+
+  it("БЕЗ ФОТОГРАФИИ подложки нет: под знаками ровная заливка, а не фото", () => {
+    // Знаки на пустом месте стоят на собственной заливке .05 — подложка была
+    // бы тёмным пятном на ровном фоне. Включает её карточка, и только когда
+    // фотография есть.
+    expect(card).toContain("className={item.photoUrl ? `${s.head} ${s.headOnPhoto}` : s.head}");
+    // Ни одного правила подложки без `.headOnPhoto`: класс — единственный вход.
+    for (const rule of rules(css).filter((one) => /backdrop-filter/u.test(one.body))) {
+      expect(rule.selector, rule.selector).toContain(".headOnPhoto ");
+    }
   });
 
   it("название 700 24/1.28 Onest, до двух строк (было 22)", () => {
@@ -829,7 +947,6 @@ describe("чего мы из контракта НЕ взяли — ПЯТЬ П�
     expect(contract.sheet.form).toContain("строки 52");
     expect(contract.sheet.form).toContain("подпись 500 13.5");
     expect(contract.sheet.form).toContain("знак 19 в цели 44");
-    const sheetCss = read("../src/components/item/item-actions.module.css");
     expect(sheetCss).toContain("min-height: 52px");
     expect(sheetCss).toContain("font: 500 13.5px/1 var(--font-ui)");
     // Лист рисует свой модуль — второй его копии карточка не заводит.

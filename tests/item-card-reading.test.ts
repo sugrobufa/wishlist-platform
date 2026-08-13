@@ -377,6 +377,44 @@ describe("три случая — вызовом, а не прокликиван
 });
 
 /**
+ * ПОДЛОЖКА ПОД ЗНАКАМИ ШАПКИ (тикет 218) — здесь ВЫЗОВОМ, а не чтением
+ * исходника: числа и место подложки держит `tests/item-card-owner.test.ts`, а
+ * увидеть, включилась ли она, можно только в разметке. Случая ровно два, и
+ * второй — тот, ради которого заведён класс: у вещи БЕЗ фотографии знаки
+ * стоят на собственной заливке .05, и тёмный квадрат был бы там пятном.
+ */
+describe("знаки на фотографии получают подложку (тикет 218)", () => {
+  it("фотография есть — подложка включена", () => {
+    const markup = owner(dbItem());
+    expect(markup).toMatch(/class="_head_[^"]*\s_headOnPhoto_/u);
+    // Крючок, по которому CSS дотягивается до кнопки «⋯»: своего класса у неё
+    // здесь нет, знак рисует лист действий. Пропадёт роль — пропадёт подложка,
+    // и молча: покраснеет эта строка.
+    expect(markup).toContain('aria-haspopup="menu"');
+  });
+
+  it("фотографии нет — подложки нет тоже", () => {
+    const markup = owner(dbItem({ photoKey: null }));
+    expect(markup).toContain("_head_");
+    expect(markup).not.toContain("_headOnPhoto_");
+    // Знаки при этом на месте оба: подложки нет, а «назад» и «⋯» есть.
+    expect(markup).toContain('aria-haspopup="menu"');
+    expect(markup).toContain("_headSign_");
+  });
+
+  it("у ГОСТЯ шапка своя и стоит НЕ на фотографии — трогать её нечем", () => {
+    // Граница тикета: гостевую карточку менять только если знаки стоят так же
+    // на фотографии. У неё «назад» — слово `btn-quiet` отдельной строкой НАД
+    // фотографией, и разбора «знак пропадает на светлом» там нет.
+    const guestSource = read("../src/app/r/[slug]/i/[id]/guest-item-view.tsx");
+    expect(guestSource).toContain("<header className={s.head}>");
+    expect(guestSource).toContain('className="pressable btn-quiet"');
+    expect(guestCss).not.toMatch(/\.head \{[^}]*position: absolute/u);
+    expect(guestCss).not.toContain("headOnPhoto");
+  });
+});
+
+/**
  * ПРИ СКРЫТОЙ ЦЕНЕ ПРОДУКТ НЕ ПЕЧАТАЕТ НИ ОДНОГО ЧИСЛА ДЕНЕГ — правило пакета
  * 46 (`item-card-hidden-price.json` → leak), найденное дизайном в НАШЕЙ же
  * починке тикета 195.

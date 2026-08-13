@@ -42,6 +42,7 @@ vi.mock("next-intl", async () => {
 const { DesireScale, DESIRE_DREAM, DESIRE_STEPS } = await import(
   "../src/components/item/desire-scale"
 );
+const { DesirePicker } = await import("../src/components/item/desire-picker");
 
 const read = (relative: string) =>
   readFileSync(fileURLToPath(new URL(relative, import.meta.url)), "utf8");
@@ -242,6 +243,91 @@ describe("где показ обязан быть", () => {
   it("значение доезжает до строки контрактом сетки, а не кастом", () => {
     const types = read("../src/components/zone/types.ts");
     expect(types).toContain("desire?: number | null;");
+  });
+});
+
+// ПУСТАЯ ШКАЛА НАЗЫВАЕТ СЕБЯ САМА (тикет 215).
+//
+// ЗАЧЕМ ЭТОТ РАЗДЕЛ. Один и тот же `DesirePicker` стоит в двух местах, и
+// подпись была только в одном: в форме добавления над шкалой стоит своей
+// строкой `AddItem.desireLabel`, а в карточке вещи нет ни подписи, ни
+// подсказки. У вещи СО степенью её называет слово ступени («очень хочется»), а
+// у вещи БЕЗ степени — а это самый частый случай — на экране оставались четыре
+// серых кружка и «не скажу». Владелец на приёмке 13.08: «непонятно, что за
+// точки он выставляет».
+//
+// Разница между местами тонкая и ломается молча: подпись, переданная и в
+// форму, напишет одно слово дважды подряд, а забытая в карточке вернёт четыре
+// безымянных кружка. Ни то, ни другое не видно ни типам, ни линту — только
+// глазу. Поэтому проверяются оба места и оба положения шкалы.
+describe("огоньки называют себя в карточке (тикет 215)", () => {
+  const pick = (desire: number | null, emptyLabel?: string) =>
+    renderToStaticMarkup(
+      createElement(DesirePicker, { desire, accent: "#E7C9A9", onPick: () => {}, emptyLabel }),
+    );
+
+  /** Строка под огоньками — та самая, где стоит слово ступени. */
+  const words = (markup: string) =>
+    [...markup.matchAll(/<p class="_word_[^"]*">([^<]*)<\/p>/gu)].map(
+      (match) => match[1] as string,
+    );
+
+  it("В КАРТОЧКЕ пустое положение подписано — теми же словами, что в форме", () => {
+    // Слово карточки не своё: это подпись поля из формы добавления, которую
+    // человек читал, когда вещь заводил. Нового ключа у тикета нет.
+    expect(words(pick(null, ru.AddItem.desireLabel))).toEqual([ru.AddItem.desireLabel]);
+    expect(ru.AddItem.desireLabel).toBe("Насколько хочется");
+    expect(en.AddItem).toHaveProperty("desireLabel");
+  });
+
+  it("В ФОРМЕ пустое положение молчит: подпись у неё уже стоит своей строкой", () => {
+    expect(words(pick(null))).toEqual([]);
+    // ГЛАЗАМ — ни слова. Читалке шкала называет себя в обоих местах, и это не
+    // то же самое: `aria-label` группы стоял здесь с раунда 29 и остаётся, а
+    // повторить его строкой в форме значило бы написать одно слово дважды
+    // подряд — над шкалой и под ней.
+    expect(pick(null)).toContain(`aria-label="${ru.AddItem.desireLabel}"`);
+    expect(pick(null).replace(/aria-label="[^"]*"/gu, "")).not.toContain(ru.AddItem.desireLabel);
+    // И «не скажу» подписью не повторяется ни там, ни там: оно уже написано
+    // кнопкой рядом, и второй раз это то же самое слово.
+    expect(words(pick(null, ru.AddItem.desireLabel))).not.toContain(ru.AddItem.desireUnset);
+  });
+
+  it("ВЫБРАННАЯ СТУПЕНЬ в обоих местах даёт слово ступени, а не подпись", () => {
+    for (const step of DESIRE_STEPS) {
+      const word = ru.AddItem[`desire${step}`];
+      expect(words(pick(step)), `форма, ${step}`).toEqual([word]);
+      expect(words(pick(step, ru.AddItem.desireLabel)), `карточка, ${step}`).toEqual([word]);
+    }
+  });
+
+  it("в карточке строка под огоньками есть ВСЕГДА — раскладка не прыгает", () => {
+    // Побочная польза подписи, ради которой её и держат на месте слова: выбор
+    // ступени больше не двигает всё, что ниже, на высоту строки.
+    for (const desire of [null, ...DESIRE_STEPS]) {
+      expect(words(pick(desire, ru.AddItem.desireLabel)), String(desire)).toHaveLength(1);
+    }
+  });
+
+  it("подпись приходит СНАРУЖИ, и карточка передаёт её, а форма — нет", () => {
+    const picker = read("../src/components/item/desire-picker.tsx");
+    expect(picker).toContain("emptyLabel?: string;");
+    const card = read("../src/app/room/zone/[zone]/i/[id]/item-card.tsx");
+    expect(card).toContain('emptyLabel={tField("desireLabel")}');
+    // `tField` — ns AddItem: карточка говорит теми же словами, что форма.
+    expect(card).toContain('const tField = useTranslations("AddItem");');
+    // В форме свойства нет вовсе: подпись у неё стоит своей строкой сверху.
+    const form = read("../src/app/room/add/add-item-flow.tsx");
+    expect(form).toContain('<span className={s.fieldLabel}>{t("desireLabel")}</span>');
+    expect(form.slice(form.indexOf("<DesirePicker"))).not.toContain("emptyLabel");
+  });
+
+  it("гостевую половину это не трогает: там слово ступени стоит рядом всегда", () => {
+    // У гостя показ (`DesireScale`), и вопроса «что за точки» не возникает:
+    // пустая шкала у него не рисуется вовсе.
+    const scale = read("../src/components/item/desire-scale.tsx");
+    expect(scale).not.toContain("emptyLabel");
+    expect(draw(null)).toBe("");
   });
 });
 
