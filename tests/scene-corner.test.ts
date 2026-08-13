@@ -68,6 +68,30 @@ const fromPackage = (file: string) =>
 const fromOurs = (component: Parameters<typeof createElement>[0]) =>
   shapeOf(renderToStaticMarkup(createElement(component)));
 
+/**
+ * ФОРМА ЗНАКОВ — ОКОНЧАТЕЛЬНО (тикет 232, пакет 50 → round50/signs-final.json,
+ * турн 56c). Дизайн отменил СВОЙ ЖЕ вердикт раунда 49 («знак витрины не
+ * круглить»): `.imm-corner-mark` это `<Link>` со своим адресом, целью 44 и
+ * focus-visible, то есть по его собственному правилу КНОПКА, а кнопка круглая.
+ * Подложка при этом остаётся наша, 44, а не его 36: у кнопки подложка равна
+ * цели нажатия.
+ */
+const shape = JSON.parse(read("../design/package/handoff/round50/signs-final.json")) as {
+  withdraws: string;
+  rule: { test: string; yes: string; no: string };
+  circles: readonly string[];
+  squares: readonly string[];
+  backing: { size: number; why44: string; fill: string; blur: string };
+  group: string;
+};
+
+/** Тело правила знака — форма и числа подложки живут ровно в нём одном. */
+const markBody = () => {
+  const body = /\.imm-corner-mark \{([^}]*)\}/u.exec(globalsCss)?.[1] ?? "";
+  expect(body, "правило `.imm-corner-mark` не найдено").not.toBe("");
+  return body;
+};
+
 describe("иконки — путь в путь с набором дизайна", () => {
   it.each([
     // `ui-list` живёт теперь не в углу, а в полосе (тикет 129) — сверка та же:
@@ -268,6 +292,65 @@ describe("числа знака и его место", () => {
     expect(globalsCss).toMatch(
       /\.imm-corner-mark \{[\s\S]*?width: var\(--hit-target-min, 44px\);[\s\S]*?height: var\(--hit-target-min, 44px\);/u,
     );
+  });
+
+  it("ЗНАК УГЛА КРУГЛЫЙ — по правилу дизайна он кнопка (тикет 232, пакет 50)", () => {
+    // Правило контракта: «по знаку можно тапнуть ОТДЕЛЬНО? да — круг, нет —
+    // квадрат». По этому знаку тапают отдельно: у него свой адрес и свой
+    // видимый фокус, — значит круг. Раунд 49 говорил обратное («знак витрины не
+    // круглить»), сославшись на свойство, которого не смотрел; раунд 50 свой
+    // вердикт отозвал. Здесь держатся обе половины: и что контракт это сказал,
+    // и что код это сделал.
+    expect(shape.rule.test).toContain("тапнуть ОТДЕЛЬНО");
+    expect(shape.rule.yes).toContain("круг");
+    expect(shape.withdraws).toContain("не круглить");
+    expect(markBody()).toMatch(/border-radius: 50%;/u);
+    // Он и правда кнопка, а не метка: ссылка со своим href и видимый фокус.
+    expect(corner).toContain("<Link href={href}");
+    expect(globalsCss).toMatch(/\.imm-corner-mark:focus-visible \{/u);
+  });
+
+  it("ПОДЛОЖКА РАВНА ЦЕЛИ — 44 наши, а не 36 прежнего контракта", () => {
+    // «У кнопки подложка равна цели» — иначе видимая форма меньше нажимаемой:
+    // человек метит в круг, попадает в воздух. Число наше, и дизайн взял его.
+    expect(shape.backing.size).toBe(44);
+    expect(shape.backing.why44).toContain("подложка равна цели");
+    const body = markBody();
+    expect(body).toMatch(/width: var\(--hit-target-min, 44px\);/u);
+    expect(body).toMatch(/height: var\(--hit-target-min, 44px\);/u);
+    // Прежнее число в правило не просочилось: подложки 36 у знака нет.
+    expect(body).not.toMatch(/36px/u);
+  });
+
+  it("ТРИ ЗНАКА УГЛА — ОДИН РЯД: форму им даёт одно правило, порознь не выйдет", () => {
+    // «Квадрат посреди двух кругов назначил бы витрине статус, которого у неё
+    // нет». Держится это не аккуратностью, а устройством: витрину, «Друзей» и
+    // «Настройки» рисует ОДИН `CornerMark` с одним классом — своей формы ни у
+    // одного из трёх нет, и завестись ей негде.
+    expect(shape.group).toContain("одной группой");
+    for (const sign of ["знак витрины на кадре", "«Друзья» на кадре", "«Настройки» на кадре"]) {
+      expect(shape.circles, sign).toContain(sign);
+    }
+    expect(corner).toContain('className="pressable imm-corner-mark"');
+    for (const href of ['href="/connections"', 'href="/settings"', 'href="/room/hall"']) {
+      expect(ownerPage, href).toContain(`<CornerMark ${href}`);
+    }
+    // Класс страницы себе не набивают — иначе форма разъехалась бы по местам.
+    expect(ownerPage).not.toContain("imm-corner-mark");
+    expect(guestPage).not.toContain("imm-corner-mark");
+    // И правило на весь ряд одно: базовое. Ниже только наведение и фокус.
+    expect(globalsCss.match(/\.imm-corner-mark[^:{]*\{/gu) ?? []).toHaveLength(1);
+  });
+
+  it("КВАДРАТНЫМИ ОСТАЮТСЯ МЕТКИ — правило поменяло не форму, а классификацию", () => {
+    // Граница тикета 232: круглыми стали ЗНАКИ УГЛА, потому что они кнопки.
+    // Пометки вещей и зон и прямоугольник разметки принадлежат МЕСТУ, тапнуть
+    // их отдельно нельзя — они как были квадратными, так и остались.
+    expect(shape.rule.no).toBe("квадрат");
+    for (const mark of ["пометка «уже дарят» на вещи", "пометка зоны", "прямоугольник разметки"]) {
+      expect(shape.squares, mark).toContain(mark);
+    }
+    expect(shape.circles).not.toContain("пометка зоны");
   });
 
   it("ряд стоит в правом верхнем углу, шаг 8, и учитывает чёлку", () => {

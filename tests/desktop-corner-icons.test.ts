@@ -118,6 +118,19 @@ describe("знаки — из канона, новых не рисовали", (
     expect(globalsCss).toMatch(/\.imm-corner-mark \{[\s\S]*?background: rgba\(11, 8, 6, 0\.55\);/u);
     expect(globalsCss).toMatch(/\.imm-corner-mark \{[\s\S]*?backdrop-filter: blur\(8px\);/u);
   });
+
+  it("И ФОРМА ТА ЖЕ — круг с тикета 232: «Друзья» и «Настройки» тоже кнопки", () => {
+    // Пакет 50 (round50/signs-final.json, турн 56c) отменил вердикт раунда 49 и
+    // назвал круглыми ВСЕ ТРИ знака угла: они один ряд одного рода, и порознь
+    // их круглить нельзя — «квадрат посреди двух кругов назначил бы витрине
+    // статус, которого у неё нет». Здесь это проверяется с той стороны, где
+    // ряда трое: слева служебные входы, справа витрина.
+    expect(globalsCss).toMatch(/\.imm-corner-mark \{[\s\S]*?border-radius: 50%;/u);
+    // Своей формы у служебных знаков нет: они рисуются тем же `CornerMark`, и
+    // единственный класс формы приезжает из него.
+    expect(actionsRow).not.toMatch(/border-radius|rounded-/u);
+    expect(corner).toContain('className="pressable imm-corner-mark"');
+  });
 });
 
 describe("промежуток разводит две группы", () => {
