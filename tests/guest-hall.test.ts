@@ -9,6 +9,8 @@
 // - «Кто подарил» гостю не показывается ни при каком тумблере;
 // - формы гостя не существует ключей inHall/hiddenFromHall/booking.
 import "dotenv/config";
+import { readFileSync } from "node:fs";
+import { fileURLToPath } from "node:url";
 import { randomUUID } from "node:crypto";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import type { Prisma } from "@prisma/client";
@@ -26,10 +28,45 @@ vi.mock("next/cache", () => ({
   revalidateTag: () => undefined,
 }));
 
+// ---------- Рантайм Next: нужен последнему блоку файла (тикет 222) ----------
+// Страница гостя РИСУЕТСЯ по-настоящему: набор строки счётчика виден только в
+// готовой разметке, а «в файле есть такая строка» зеленело бы и у класса,
+// приколоченного к другой ветке. Тексты при этом настоящие — счётчик «2 вещи»
+// собирает форматтер next-intl, на глаз ICU-плюрал не набрать.
+vi.mock("next-intl/server", async () => {
+  const actual = await vi.importActual<typeof import("next-intl")>("next-intl");
+  const messages = (await import("../messages/ru.json")).default as unknown as Record<
+    string,
+    Record<string, string>
+  >;
+  return {
+    getTranslations: async (namespace: string) =>
+      actual.createTranslator({ locale: "ru", messages, namespace }),
+    getLocale: async () => "ru",
+  };
+});
+
+// notFound в рисуемых ветках не зовётся: комната и пресет у теста настоящие.
+// Сработает — тест упадёт с внятным «notFound», а не нарисует пустоту.
+vi.mock("next/navigation", () => ({
+  notFound: () => {
+    throw new Error("notFound");
+  },
+}));
+
+// Зритель — аноним, и это ленивый auth страницы (`optionalSessionUserId`):
+// настоящий модуль тянет next-auth, которому вне запроса делать нечего.
+vi.mock("@/server/auth", () => ({ auth: async () => null }));
+
+import { renderToStaticMarkup } from "react-dom/server";
+import { createTranslator } from "next-intl";
 import { prisma } from "../src/server/db";
 import { getGuestHall } from "../src/server/services/guest-hall";
 import { getGuestRoom } from "../src/server/services/guest-room";
 import { setHallSettings } from "../src/server/services/rooms";
+import GuestHallPage from "../src/app/r/[slug]/hall/page";
+// Имена классов модуля — из самого модуля: vitest отдаёт их со своим хэшем.
+import hallCss from "../src/components/hall/hall.module.css";
 
 const TEST_EMAIL_DOMAIN = "@guest-hall.test";
 
@@ -265,5 +302,62 @@ describe("getGuestHall — «Кто подарил», «около» и заме
     const items = (await getGuestHall(room.shareSlug))?.items ?? [];
     expect(items[0]?.note).toBe("Ждала её два года");
     expect(items[1]?.note).toBeNull();
+  });
+});
+
+// ---------- Тикет 222: набор строки счётчика на витрине ГОСТЯ ----------
+//
+// Строка счётчика была набрана классом `.overline` — приёмом НАДСТРОЧНЫХ
+// («ЧТО ПОДАРИЛИ», «ПРАЗДНИКИ»): 9 px, капс, разрядка .2em. Контракт 48
+// (`round48/hall-owner.json`) даёт «11.5 Onest 500 при .6», и доска рисует эти
+// строки без капса.
+//
+// ПОЧЕМУ ЭТО ПРОВЕРЯЕТСЯ И ЗДЕСЬ, а не только у хозяйки. Класс общий, но
+// контракт зовёт `ownerSubtitle`/`guestSubtitle` парой — «то же место, та же
+// ступень», — и развести витрины нельзя. Сторож у одной из них разрешил бы
+// вернуть капс второй. Правило CSS разбирается в tests/hall-owner-subtitle.ts,
+// здесь — что гостю достался ровно этот класс, а не приём надстрочных.
+const ru = JSON.parse(
+  readFileSync(fileURLToPath(new URL("../messages/ru.json", import.meta.url)), "utf8"),
+) as Record<string, Record<string, string>>;
+
+describe("витрина гостя: строка счётчика набрана не приёмом надстрочных", () => {
+  const t = createTranslator({ locale: "ru", messages: ru, namespace: "Hall" });
+  const COUNTER_CLASS = hallCss.counter ?? "";
+
+  /** Абзац готовой разметки, внутри которого стоит `needle`. */
+  const paragraphWith = (markup: string, needle: string) =>
+    (markup.match(/<p\b[^>]*>[\s\S]*?<\/p>/gu) ?? []).find((p) => p.includes(needle));
+
+  /** Классы элемента списком: `class="overline mt-2.5"` → ["overline", …]. */
+  const classesOf = (element: string) =>
+    (/\bclass="([^"]*)"/u.exec(element)?.[1] ?? "").split(/\s+/u).filter(Boolean);
+
+  it("счётчик несёт тот же класс, что у хозяйки, и НЕ несёт .overline", async () => {
+    const { room } = await createRoom();
+    await createLove(room.id, "Браслет", { receivedAt: new Date("2025-03-14T12:00:00Z") });
+    await createLove(room.id, "Кольцо");
+
+    const markup = renderToStaticMarkup(
+      await GuestHallPage({ params: Promise.resolve({ slug: room.shareSlug }) }),
+    );
+    // Вещи на месте — рисовалась полная витрина, а не пустая.
+    expect(markup).toContain("Браслет");
+
+    const counter = paragraphWith(markup, t("count", { count: 2 }));
+    expect(counter, "счётчик пропал с витрины гостя").toBeDefined();
+
+    const classes = classesOf(counter ?? "");
+    expect(classes, "счётчик снова набран приёмом надстрочных").not.toContain("overline");
+    expect(COUNTER_CLASS, "в hall.module.css пропал класс счётчика").not.toBe("");
+    expect(classes).toContain(COUNTER_CLASS);
+    // Тон .6 контракта — токен `text-muted`: цвета в модуле нет намеренно.
+    expect(classes).toContain("text-text-muted");
+
+    // Соседние строки шапки этот тикет не трогал: «всё здесь уже дома» стоит
+    // отдельной строкой и своим набором, а не хвостом счётчика.
+    const guestSubtitle = ru.Hall?.guestSubtitle ?? "";
+    expect(guestSubtitle.trim()).not.toBe("");
+    expect(paragraphWith(markup, guestSubtitle)).not.toContain(t("count", { count: 2 }));
   });
 });

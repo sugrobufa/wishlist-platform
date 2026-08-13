@@ -749,7 +749,12 @@ const OWNER_REWRITE_187: readonly string[] = [
 ];
 
 /**
- * ПЯТЫЙ список того же рода — приёмка владельца 13.08.2026 (тикеты 216 и 217).
+ * ~~ПЯТЫЙ список~~ — **ПРОЖИЛ ОДИН ДЕНЬ И СНЯТ ПАКЕТОМ 48**, потому что дизайн
+ * согласился с обоими доводами и снял свои строки сам. Записи переехали в
+ * `PACKAGE_ONLY` ниже: у нас этих ключей больше нет вовсе.
+ *
+ * Разбор ниже оставлен целиком — он объясняет, почему ключи сняты, и стоит
+ * рядом с тем местом, куда они уехали.
  * Механика опять другая, чем в пакете, и опять не по нашей прихоти.
  *
  * ЧТО СЛУЧИЛОСЬ. Владелец нажал в комнате «Праздник прошёл — посмотри, что
@@ -774,7 +779,7 @@ const OWNER_REWRITE_187: readonly string[] = [
  * вид (владелец: «цвет устраивает, а текст, да ещё и со стрелочкой — не очень»).
  * Приедет его редакция — записи обязаны отсюда уйти.
  */
-const OWNER_REWRITE_216: readonly string[] = ["Occasion.notClosedHint", "Occasion.closeButton"];
+const OWNER_REWRITE_216: readonly string[] = [];
 
 /**
  * ЧЕТВЁРТЫЙ список — ОБРАТНОЕ РАСХОЖДЕНИЕ: строки, которые в пакете есть, а в
@@ -868,6 +873,25 @@ const PACKAGE_ONLY: readonly string[] = [
   "Hall.hideFromGuests",
   "Hall.hideFromGuestsHint",
   "Hall.showToGuests",
+  // 3а. КЛЮЧ СНЯТ САМИМ ДИЗАЙНОМ (пакет 48, `strings-delta.json` →
+  //     `Occasion._removedKeys`) — причина пятая и новая.
+  //
+  //     Все три ключа обслуживали ОДНО состояние «итог не открыт», которое на
+  //     деле было тремя: праздник наступил · праздник впереди · даты нет вовсе.
+  //     Отсюда и приёмка 13.08: комната зовёт «Праздник прошёл», экран отвечает
+  //     «Праздник ещё впереди». Дизайн принял довод и снял ключи у себя:
+  //     `notClosedTitle`/`notClosedHint` разошлись на `aheadTitle`/`aheadHint`,
+  //     `noDateTitle`/`noDateHint` и блок порога `due*`, а `closeButton`
+  //     («Праздник прошёл») стал `openButton` — «называл состояние, а не
+  //     действие, и вёл к прогрессу „Открываем…" другим глаголом».
+  //
+  //     ЗАПИСЬ ЖИВЁТ, ПОКА ЕГО `messages-ru.json` НЕ ПЕРЕВЫПУЩЕН: ключи сняты в
+  //     дельте round48, а в словаре пакета — нашей копии от 13.08 — они ещё
+  //     стоят. Приедет обновлённый словарь без них — записи обязаны отсюда
+  //     уйти, и замок «пакет знает, у нас нет» это заметит.
+  "Occasion.closeButton",
+  "Occasion.notClosedHint",
+  "Occasion.notClosedTitle",
   "Onboarding.wantsMax",
   "Onboarding.wantsSkip",
   "Onboarding.wantsStep",
@@ -1438,6 +1462,15 @@ describe("словарь и дизайн-пакет", () => {
       // объяснить». Мы распространили исключение с пустой витрины на полную:
       // причина у них одна, и полная объясняет себя даже хуже — вещи стоят,
       // а чем это место отличается от комнаты, не сказано ничем.
+      //
+      // ПАКЕТ 48 ИСКЛЮЧЕНИЕ ПРИНЯЛ И СТРОКУ ПЕРЕПИСАЛ (тикет 220). Наша была
+      // одна и длинная; у него их две, и работают они в разных местах:
+      // `ownerSubtitle` («уже твои») встаёт В СТРОКУ СЧЁТЧИКА парой к гостевой
+      // `guestSubtitle`, `ownerHint` объясняет ЧЕРЕЗ КОМНАТУ («В комнате — чего
+      // хочется. Здесь — что сбылось»). Довод против нашей: «вещи, которыми
+      // гордишься» ставит человеку условие — сюда приезжает всё, что уже твоё,
+      // включая подаренный крем.
+      "Hall.ownerHint",
       "Hall.ownerSubtitle",
       "Hall.priceAbout",
       "Hall.priceSeenAria",
@@ -1460,6 +1493,13 @@ describe("словарь и дизайн-пакет", () => {
       // двух голых кнопок. Наши пять удалены из словаря: мёртвая строка стоит
       // килобайта в разметке КАЖДОЙ страницы (правило выше).
       "Hall.zoneBridge",
+      // СВОЙ РАЗДЕЛ У КАРТОЧКИ ВЕЩИ (пакет 48, `ItemCard._scale`). Строка
+      // пустой шкалы желания принадлежит карточке, а не форме: в форме шкала —
+      // ВОПРОС («Насколько хочется»), в карточке — ОТВЕТ, и пустой ответ это
+      // «не сказано», а не приглашение заполнить. Наша редакция ставила в
+      // карточку вопрос формы, и дизайн поймал это одной фразой: «не скажу» —
+      // законное значение, а не пустота.
+      "ItemCard.desireEmpty",
       // ПРАЗДНИКИ, КОТОРЫХ НЕ ОДИН (тикет 198, пакет 44 → `occasions.json` и
       // `strings-delta.json`). Семнадцать ключей, и они трёх разных пород —
       // разбор по породам, потому что спрос с них разный.
@@ -1521,6 +1561,9 @@ describe("словарь и дизайн-пакет", () => {
       //      в своём разделе: делить ключ между экранами — способ однажды
       //      переименовать чужую кнопку.
       "Occasion.addOwn",
+      "Occasion.aheadHint",
+      "Occasion.aheadNoLoud",
+      "Occasion.aheadTitle",
       "Occasion.birthdayLabel",
       "Occasion.birthdayRepeat",
       // ТРИ СОСТОЯНИЯ ЭКРАНА «ЧТО ПОДАРИЛИ» (тикеты 216 и 217, приёмка
@@ -1536,25 +1579,55 @@ describe("словарь и дизайн-пакет", () => {
       // «или она будет гореть год до следующего праздника? Так не надо»).
       // `notClosedNoDate` и `toSettings` — комната без дня рождения: сказать
       // «когда он пройдёт» ей нечем, дорога у неё одна — назвать дату.
-      "Occasion.closeQuiet",
-      "Occasion.dueHint",
+      //
+      // ПАКЕТ 48 ПРИСЛАЛ ЭТИ ЧЕТЫРЕ СОСТОЯНИЯ СВОИМИ СЛОВАМИ (тикет 219), и
+      // наши четыре временные строки сняты — держались они ровно до его
+      // редакции. Породы у новых ключей три:
+      //
+      // - `due*` + `openButton`/`openOnceHint`/`notNow` — ПОРОГ. Его в пакете
+      //   не было вовсе; главное в нём — блок «Что случится по нажатию»,
+      //   который называет необратимость ДО нажатия, а не после (раньше человек
+      //   узнавал о ней из `hint`, то есть уже за порогом);
+      // - `ahead*` + `taken*` + `manual*` + `dateLink` — ОЖИДАНИЕ. Счётчик
+      //   забранного здесь тот же, что в комнате (инвариант №1), и `takenOnly`
+      //   говорит вслух, что это единственное число до праздника;
+      // - `noDate*` — комната без даты: громкая полоса зовёт не к итогу, а к
+      //   дате, потому что итога у неё не будет никогда.
+      "Occasion.dateLink",
+      "Occasion.dueDone",
+      "Occasion.dueLead",
+      "Occasion.dueNames",
       "Occasion.dueTitle",
+      "Occasion.dueUnclaimed",
+      "Occasion.dueWhatOverline",
       "Occasion.holidayFeb23",
       "Occasion.holidayMar8",
       "Occasion.holidayNY",
       "Occasion.leftDays",
       "Occasion.leftWeeks",
       "Occasion.listOverline",
+      "Occasion.manualHint",
+      "Occasion.manualLink",
+      "Occasion.manualOverline",
       "Occasion.nearestLine",
-      "Occasion.notClosedNoDate",
+      "Occasion.noDateButton",
+      "Occasion.noDateButtonHint",
+      "Occasion.noDateHint",
+      "Occasion.noDateTitle",
+      "Occasion.noDateWorks",
+      "Occasion.notNow",
       "Occasion.offerLine",
       "Occasion.offerShow",
       "Occasion.offerSkip",
       "Occasion.offerTitle",
+      "Occasion.openButton",
+      "Occasion.openOnceHint",
       "Occasion.ownHint",
       "Occasion.ownTitleLabel",
       "Occasion.removeOwn",
-      "Occasion.toSettings",
+      "Occasion.takenCaption",
+      "Occasion.takenNumber",
+      "Occasion.takenOnly",
       "Onboarding.emailNote",
       "Onboarding.nameFromBooking",
       "Onboarding.nameLabel",

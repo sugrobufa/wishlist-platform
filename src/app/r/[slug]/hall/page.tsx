@@ -102,8 +102,14 @@ export default async function GuestHallPage({ params }: Params) {
           {/* «Всё здесь уже дома» (раунд 19): гость сразу понимает, что тут
               не выбирают подарок — тут смотрят на человека. */}
           <p className="mt-1.5 text-xs text-text-muted">{t("guestSubtitle")}</p>
+          {/* НАБОР СЧЁТЧИКА — свой `s.counter` (11.5 Onest 500 при .6, тикет
+              222), а не общий `.overline`: тот 9 px капсом вразрядку и сделан
+              для надстрочных. Класс общий с витриной хозяйки и правится только
+              парой — контракт 48 ставит обе подписи в «то же место, ту же
+              ступень». Строки хозяйки сюда при этом не переезжают ни одной:
+              у гостя своя, и она про другое. */}
           {hall.items.length > 0 && (
-            <p className="overline mt-2.5 text-text-muted">
+            <p className={`${s.counter} mt-2.5 text-text-muted`}>
               {t("count", { count: hall.items.length })}
               {totalLine !== null && ` · ${totalLine}`}
             </p>
