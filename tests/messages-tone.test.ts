@@ -47,15 +47,43 @@ function readJson(relativePath: string): Raw {
  * - СЕКЦИИ со строчной буквы: `pool`, `zoneCounterGuest`, `phoneFieldRemoved`
  *   (раунд 27). Это не экраны, а разделы брифа: внутри вложенные объекты и
  *   массивы примеров («в складчине Аня, Катя и ещё трое»), а сами строки
- *   продукт держит под своими именами — `Booking.pool*`, `Scene.summaryFree*`.
- *   Экраны у дизайна всегда с прописной, и это единственное различие, по
- *   которому машина отличает бриф от словаря.
+ *   продукт держит под своими именами — `Booking.pool*`, `Scene.summaryFree*`;
+ * - СЕКЦИИ С ПОДЧЁРКИВАНИЕМ в начале — `_phoneFieldRemoved` (раунд 49). Дизайн
+ *   переименовал в него строчный `phoneFieldRemoved` по нашей же просьбе: «не
+ *   словарь» должно читаться намеренно, а не по случайности регистра;
+ * - **РАЗДЕЛЫ, У КОТОРЫХ ХОТЬ ОДНО ЗНАЧЕНИЕ НЕ СТРОКА, — ТОЖЕ БРИФ, и с раунда
+ *   49 машина различает их ПО ФОРМЕ, а не по регистру первой буквы.** Причина:
+ *   тем же раундом `pool` стал `PoolInline`, а `zoneCounterGuest` —
+ *   `ZoneCounterGuest` (в них правда есть живые строки, и они шли мимо
+ *   сторожа), но ФОРМОЙ это по-прежнему брифы: проза `note`/`why`/`form`,
+ *   массив `examples`, деревья `cases`/`participants`/`progress`. Регистр
+ *   перестал отличать бриф от словаря в тот же миг; форма отличает надёжнее —
+ *   словарь это плоская карта «ключ → строка», и всё.
  */
+
+/** Раздел-БРИФ: внутри есть хоть одно значение, которое не строка. */
+function isBrief(entries: Raw): boolean {
+  return Object.entries(entries).some(
+    ([key, value]) => !key.startsWith("_") && typeof value !== "string",
+  );
+}
+
+/** Имена разделов-брифов файла — их состав под замком (тест ниже). */
+function briefSections(raw: Raw): string[] {
+  return Object.entries(raw)
+    .filter(([, entries]) => typeof entries === "object" && entries !== null)
+    .filter(([section]) => !/^[a-z_]/u.test(section))
+    .filter(([, entries]) => isBrief(entries as Raw))
+    .map(([section]) => section)
+    .sort();
+}
+
 function flatten(raw: Raw): Map<string, string> {
   const flat = new Map<string, string>();
   for (const [section, entries] of Object.entries(raw)) {
     if (typeof entries !== "object" || entries === null) continue;
-    if (/^[a-z]/u.test(section)) continue;
+    if (/^[a-z_]/u.test(section)) continue;
+    if (isBrief(entries as Raw)) continue;
     for (const [key, value] of Object.entries(entries as Raw)) {
       if (key.startsWith("_") || key.endsWith("_WITHDRAWN")) continue;
       expect(typeof value, `${section}.${key} — значение словаря обязано быть строкой`).toBe(
@@ -782,6 +810,25 @@ const OWNER_REWRITE_187: readonly string[] = [
 const OWNER_REWRITE_216: readonly string[] = [];
 
 /**
+ * ШЕСТОЙ список — И ЕДИНСТВЕННЫЙ, ГДЕ ПРИЧИНА НЕ РЕШЕНИЕ ВЛАДЕЛЬЦА, А ПАМЯТКА
+ * САМОГО ДИЗАЙНА. `Settings.tryOnLine`, поймано раундом 43.
+ *
+ * Пакет говорит: «„{name}" пока только на этом кадре». Его же `tone.md`
+ * запрещает «кадр» в интерфейсе — это слово технического контракта, и запрет
+ * пришёл ОТ НЕГО. Поймал наш общий сторож тона, когда строка ехала в словарь.
+ * Наша редакция: «„{name}" пока только в примерке. В комнате всё как было».
+ *
+ * ДО РАУНДА 49 ЗАПИСИ ЗДЕСЬ НЕ ТРЕБОВАЛОСЬ: ключа в его словаре не было вовсе,
+ * и наша строка числилась сиротой. Пакет 49 приложил словарь целиком — ключ
+ * появился, и расхождение стало настоящим. Рядом приехал `tryOnLineAlt`, вторая
+ * редакция той же строки; она в `PACKAGE_ONLY` — брать её значило бы вернуть
+ * «кадр» другим ключом.
+ *
+ * ЗАПРОС ДИЗАЙНУ — письмо 54: заменить «кадр» в обеих редакциях.
+ */
+const TONE_REWRITE_43: readonly string[] = ["Settings.tryOnLine"];
+
+/**
  * ЧЕТВЁРТЫЙ список — ОБРАТНОЕ РАСХОЖДЕНИЕ: строки, которые в пакете есть, а в
  * нашем словаре такого ключа нет вовсе. До раунда 27 списка не требовалось:
  * словарь продукта был надмножеством пакета, и «перенесено дословно» читалось
@@ -866,6 +913,21 @@ const PACKAGE_ONLY: readonly string[] = [
   "Access.waysOverline",
   "Consent.oneWayRow",
   "Consent.quietGiver",
+  // 3б. ЭКРАН ЖДЁТ РАБОТЫ, А СТРОКИ УЖЕ ПРИЕХАЛИ (раунд 49) — шестая причина.
+  //     Складчина изнутри (тикет 211) и строка друга (212) стояли с 12.08 без
+  //     слов: README пакета 47 обещал 38 ключей, в файле лежало 5. Пакет 48
+  //     прислал 33 недостающих, пакет 49 положил их в сам словарь — считать
+  //     больше нечего, ключи на месте поимённо.
+  //
+  //     `Pool.*` — 28 строк экрана координации, `FriendRow.*` — 5 строки друга.
+  //     `Light.*` — та же порода, что причина 2: у нас те же строки живут под
+  //     именами `Settings.light*`/`state_*`/`tod_*`, и переименование ключей —
+  //     отдельная работа. Записи уйдут отсюда, когда экраны соберут.
+  "FriendRow.canGift",
+  "FriendRow.canGiftCaption",
+  "FriendRow.noOccasion",
+  "FriendRow.occasionFar",
+  "FriendRow.occasionSoon",
   "Hall.addItem",
   "Hall.deleteConfirmTitle",
   "Hall.deleteKeep",
@@ -885,13 +947,26 @@ const PACKAGE_ONLY: readonly string[] = [
   //     («Праздник прошёл») стал `openButton` — «называл состояние, а не
   //     действие, и вёл к прогрессу „Открываем…" другим глаголом».
   //
-  //     ЗАПИСЬ ЖИВЁТ, ПОКА ЕГО `messages-ru.json` НЕ ПЕРЕВЫПУЩЕН: ключи сняты в
-  //     дельте round48, а в словаре пакета — нашей копии от 13.08 — они ещё
-  //     стоят. Приедет обновлённый словарь без них — записи обязаны отсюда
-  //     уйти, и замок «пакет знает, у нас нет» это заметит.
-  "Occasion.closeButton",
-  "Occasion.notClosedHint",
-  "Occasion.notClosedTitle",
+  //     ЗАПИСЬ ПРОЖИЛА ЗДЕСЬ ЧАС И УШЛА. Пакет 49 перевыпустил словарь целиком,
+  //     трёх ключей не стало ни у него, ни у нас — замок «пакет знает, у нас
+  //     нет» сработал ровно как задуман: запись держится, пока расхождение
+  //     настоящее, и уходит в тот же час, когда оно закрылось. Разбор оставлен:
+  //     он объясняет, откуда взялись `aheadTitle`, `noDateTitle` и `openButton`.
+  "Light.colorCandle",
+  "Light.colorWarm",
+  "Light.colorWhite",
+  "Light.hint",
+  "Light.overline",
+  "Light.roomState",
+  "Light.stateCandle",
+  "Light.stateDay",
+  "Light.stateDusk",
+  "Light.stateMorning",
+  "Light.stateWarm",
+  "Light.stateWhite",
+  "Light.todDay",
+  "Light.todDusk",
+  "Light.todMorning",
   "Onboarding.wantsMax",
   "Onboarding.wantsSkip",
   "Onboarding.wantsStep",
@@ -911,7 +986,39 @@ const PACKAGE_ONLY: readonly string[] = [
   //    ЗАПРОС ДИЗАЙНУ: у него это по-прежнему две строки одного действия —
   //    `Hall.remove` и `Settings.itemHallRemove`; вторую стоит снять. Уедет —
   //    запись отсюда обязана уйти, и замок «пакет знает, у нас нет» заметит.
+  "Pool.collected",
+  "Pool.daysLeft",
+  "Pool.doneCollecting",
+  "Pool.failedLine",
+  "Pool.failedMoney",
+  "Pool.failedTitle",
+  "Pool.gap",
+  "Pool.handedOver",
+  "Pool.leaveAndWrite",
+  "Pool.leaveHandedLine",
+  "Pool.leaveHandedTitle",
+  "Pool.leaveLine",
+  "Pool.leaveTitle",
+  "Pool.markBought",
+  "Pool.markBoughtWhoCan",
+  "Pool.markHandedOver",
+  "Pool.notHandedYet",
+  "Pool.ofNeed",
+  "Pool.organizerLine",
+  "Pool.organizerTag",
+  "Pool.overLine",
+  "Pool.overTitle",
+  "Pool.ownerBlind",
+  "Pool.participantsOverline",
+  "Pool.stay",
+  "Pool.takeMore",
+  "Pool.title",
+  "Pool.writeOrganizer",
   "Settings.itemHallRemove",
+  // `tryOnLineAlt` — вторая редакция строки примерки. Первую мы переписали,
+  // потому что в ней стояло слово «кадр» (см. `TONE_REWRITE_43` выше); взять
+  // вторую поверх переписанной первой значило бы вернуть «кадр» другим ключом.
+  "Settings.tryOnLineAlt",
   "TreasuryAccess.optLink",
   "TreasuryAccess.optLinkHint",
   "TreasuryAccess.optMutual",
@@ -924,6 +1031,7 @@ const PACKAGE_ONLY: readonly string[] = [
   // переименованием из `emptyWant`, имени, пережившего отмену состояний.
   // Список сверяется НА РАВЕНСТВО с обеих сторон, поэтому запись обязана была
   // уйти в тот же коммит, что и переименование.
+  "ZoneGrid.emptyPlaceCaption",
   "ZoneGrid.guestFilterAll",
   "ZoneGrid.guestFilterFree",
 ];
@@ -936,6 +1044,7 @@ describe("словарь и дизайн-пакет", () => {
       ...OWNER_REWRITE_105,
       ...OWNER_REWRITE_187,
       ...OWNER_REWRITE_216,
+      ...TONE_REWRITE_43,
       ...PACKAGE_ONLY,
     ]);
     const drift = [...handoff]
@@ -956,6 +1065,7 @@ describe("словарь и дизайн-пакет", () => {
       ...OWNER_REWRITE_105,
       ...OWNER_REWRITE_187,
       ...OWNER_REWRITE_216,
+      ...TONE_REWRITE_43,
     ]
       .filter((key) => !handoff.has(key) || ru.get(key) === handoff.get(key))
       .sort();
@@ -981,6 +1091,22 @@ describe("словарь и дизайн-пакет", () => {
         `${key}: в продукте ${JSON.stringify(ru.get(key))}, из пакета переименованием выходит ${JSON.stringify(renamed(handoff.get(key) ?? ""))}`,
     );
     expect(rewritten).toEqual([]);
+  });
+
+  it("разделы-брифы названы поимённо — новый не проедет молча", () => {
+    // Раунд 49 переименовал два брифа в прописные (`pool` → `PoolInline`,
+    // `zoneCounterGuest` → `ZoneCounterGuest`), и сверка словарей чуть не
+    // приняла их за экраны. Форма их выдаёт: внутри проза и деревья, а не
+    // плоская карта строк. Список — замок: появится третий, тест назовёт его.
+    //
+    // ЖИВЫЕ СТРОКИ В НИХ ЕСТЬ, и это не ошибка дизайна, а незакрытая работа:
+    // `ZoneCounterGuest.cases.*` — шесть строк счётчика зоны, `PoolInline.*` —
+    // строки складчины в списке вещей. Пока они лежат деревом, сверять их
+    // нечем; просьба вынести их плоским разделом ушла письмом 54.
+    expect(briefSections(packageRaw)).toEqual(["PoolInline", "ZoneCounterGuest"]);
+    // У наших словарей брифов нет вовсе: продукт хранит только строки.
+    expect(briefSections(ruRaw)).toEqual([]);
+    expect(briefSections(enRaw)).toEqual([]);
   });
 
   it("служебная пометка пакета в продукт не уехала", () => {
@@ -1178,15 +1304,6 @@ describe("словарь и дизайн-пакет", () => {
       // (`canonicalUrl`). Подставляем настоящее число, а не нарисованное;
       // мультимагазинность живёт за флагом `CATALOG_ENABLED` и до карточки не
       // доезжает.
-      "AddItem.cardAddPhoto",
-      "AddItem.cardAddedOn",
-      "AddItem.cardNoteOverline",
-      "AddItem.cardPoolNote",
-      "AddItem.cardPriceVisALL",
-      "AddItem.cardPriceVisFRIENDS",
-      "AddItem.cardPriceVisME",
-      "AddItem.cardQuietHint",
-      "AddItem.cardShelfLine",
       // ТРИ СТРОКИ ПАКЕТА 46 — «цена скрыта, а магазин есть» (тикет 196,
       // `round46/item-card-hidden-price.json`). Состояние появилось тикетом
       // 195: ссылка приходит гостю всегда, когда она есть, — и дизайн нашёл в
@@ -1202,10 +1319,6 @@ describe("словарь и дизайн-пакет", () => {
       //
       // Приехали дельтой round46, поэтому в handoff-словаре их нет — сироты по
       // той же причине, что и одиннадцать строк round44 выше.
-      "AddItem.cardStoreOpen",
-      "AddItem.cardStorePriceByStore",
-      "AddItem.cardStores",
-      "AddItem.cardStoresFrom",
       "AddItem.desireGuestHint",
       "AddItem.hallHint",
       "AddItem.hallLabel",
@@ -1223,7 +1336,6 @@ describe("словарь и дизайн-пакет", () => {
       // Строка хозяйке под переключателем «Кто видит цену» (тикет 196,
       // round46 → ownerString): дорога к вещи остаётся, цену на ней покажет
       // сам магазин. Разбор — у соседей `AddItem.cardStore*` выше.
-      "AddItem.priceHiddenPathHint",
       "AddItem.roomHint",
       "AddItem.roomLabel",
       "AddItem.saveHint",
@@ -1470,8 +1582,6 @@ describe("словарь и дизайн-пакет", () => {
       // хочется. Здесь — что сбылось»). Довод против нашей: «вещи, которыми
       // гордишься» ставит человеку условие — сюда приезжает всё, что уже твоё,
       // включая подаренный крем.
-      "Hall.ownerHint",
-      "Hall.ownerSubtitle",
       "Hall.priceAbout",
       "Hall.priceSeenAria",
       "Hall.seenALL",
@@ -1499,7 +1609,6 @@ describe("словарь и дизайн-пакет", () => {
       // «не сказано», а не приглашение заполнить. Наша редакция ставила в
       // карточку вопрос формы, и дизайн поймал это одной фразой: «не скажу» —
       // законное значение, а не пустота.
-      "ItemCard.desireEmpty",
       // ПРАЗДНИКИ, КОТОРЫХ НЕ ОДИН (тикет 198, пакет 44 → `occasions.json` и
       // `strings-delta.json`). Семнадцать ключей, и они трёх разных пород —
       // разбор по породам, потому что спрос с них разный.
@@ -1560,12 +1669,6 @@ describe("словарь и дизайн-пакет", () => {
       //      (`AddItem.photoRemove`, `Settings.avatarRemove`), но каждое живёт
       //      в своём разделе: делить ключ между экранами — способ однажды
       //      переименовать чужую кнопку.
-      "Occasion.addOwn",
-      "Occasion.aheadHint",
-      "Occasion.aheadNoLoud",
-      "Occasion.aheadTitle",
-      "Occasion.birthdayLabel",
-      "Occasion.birthdayRepeat",
       // ТРИ СОСТОЯНИЯ ЭКРАНА «ЧТО ПОДАРИЛИ» (тикеты 216 и 217, приёмка
       // 13.08.2026). У пакета экран знает два — «итог открыт» и «не открыт», —
       // и второе обслуживало разом и наступивший праздник, и будущий. Отсюда
@@ -1593,41 +1696,9 @@ describe("словарь и дизайн-пакет", () => {
       //   говорит вслух, что это единственное число до праздника;
       // - `noDate*` — комната без даты: громкая полоса зовёт не к итогу, а к
       //   дате, потому что итога у неё не будет никогда.
-      "Occasion.dateLink",
-      "Occasion.dueDone",
-      "Occasion.dueLead",
-      "Occasion.dueNames",
-      "Occasion.dueTitle",
-      "Occasion.dueUnclaimed",
-      "Occasion.dueWhatOverline",
-      "Occasion.holidayFeb23",
-      "Occasion.holidayMar8",
-      "Occasion.holidayNY",
-      "Occasion.leftDays",
-      "Occasion.leftWeeks",
       "Occasion.listOverline",
-      "Occasion.manualHint",
-      "Occasion.manualLink",
-      "Occasion.manualOverline",
-      "Occasion.nearestLine",
-      "Occasion.noDateButton",
-      "Occasion.noDateButtonHint",
-      "Occasion.noDateHint",
-      "Occasion.noDateTitle",
-      "Occasion.noDateWorks",
-      "Occasion.notNow",
-      "Occasion.offerLine",
-      "Occasion.offerShow",
-      "Occasion.offerSkip",
-      "Occasion.offerTitle",
-      "Occasion.openButton",
-      "Occasion.openOnceHint",
-      "Occasion.ownHint",
       "Occasion.ownTitleLabel",
       "Occasion.removeOwn",
-      "Occasion.takenCaption",
-      "Occasion.takenNumber",
-      "Occasion.takenOnly",
       "Onboarding.emailNote",
       "Onboarding.nameFromBooking",
       "Onboarding.nameLabel",
@@ -1867,9 +1938,6 @@ describe("словарь и дизайн-пакет", () => {
       // Имена ключей наши: дизайн прислал их разделом `Settings.*`, а вот
       // соседние строки света — разделом `Light.*`, и разводить один экран по
       // двум разделам ради этого мы не стали (см. `Settings.roomState` выше).
-      "Settings.tryOn",
-      "Settings.tryOnCancel",
-      "Settings.tryOnLine",
       // Косметика доски В2 (турн 11e): счётчик вещей у зоны в настройках
       // («Красота и уход · 31»). Выключая полку, человек видит, сколько на
       // ней стоит, — это и есть цена решения. Слова у доски цифрой, у нас —
@@ -1931,7 +1999,6 @@ describe("словарь и дизайн-пакет", () => {
       //
       // Новое имя места пустой зоны (`emptyPlaceLabel`) — сирота настоящая:
       // пакет 46 прислал его сам, но в handoff-словарь оно ещё не попало.
-      "ZoneGrid.emptyPlaceLabel",
       // Занятая вещь на ГОСТЕВОЙ КАРТОЧКЕ (тикет 196, contract round45 →
       // guest.taken.instead): «уже дарят» + «в комнате есть свободные» со
       // ссылкой на полку. Пришли той же дельтой round44, и по той же причине
@@ -1942,8 +2009,6 @@ describe("словарь и дизайн-пакет", () => {
       // уже дарят»), а на карточке дизайн просит две короткие строки — там уже
       // приглушена фотография, и предложение поверх неё сказало бы то же
       // третий раз.
-      "ZoneGrid.guestTakenHint",
-      "ZoneGrid.guestTakenTitle",
       "ZoneGrid.loveCaption",
       // Экран зоны списком (тикет 74, турн 29b): чипы порядка, выбор вещей,
       // массовое скрытие и гостевой фильтр «только свободные». Слова с доски

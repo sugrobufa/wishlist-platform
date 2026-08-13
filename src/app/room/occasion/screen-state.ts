@@ -108,8 +108,6 @@ export type OccasionScreenShape = {
   dateLink: boolean;
   /** Показать дату ближайшего праздника строкой `nearestLine` — как в комнате. */
   nearest: boolean;
-  /** Подпись внизу: почему громкой кнопки на этом экране нет (с датой). */
-  noLoudNote: "aheadNoLoud" | null;
 };
 
 /** ЕДИНСТВЕННОЕ место, где записано, чем говорит каждое состояние. */
@@ -129,7 +127,6 @@ export const OCCASION_SCREEN: Record<OccasionScreenState, OccasionScreenShape> =
     notNow: false,
     dateLink: false,
     nearest: false,
-    noLoudNote: null,
   },
   // DUE — ПОРОГ. Человек пришёл узнать, кто что подарил: заголовок, лид со
   // счётчиком забранного, блок «что случится», полоса света и тихий выход.
@@ -146,7 +143,6 @@ export const OCCASION_SCREEN: Record<OccasionScreenState, OccasionScreenShape> =
     dateLink: false,
     // Ближайший праздник отсюда — через год, а разговор про тот, что прошёл.
     nearest: false,
-    noLoudNote: null,
   },
   // AHEAD — ОЖИДАНИЕ, а не пустое состояние. Громкого действия нет и не
   // должно быть: до праздника делать здесь нечего, а полоса, горящая семь
@@ -162,7 +158,6 @@ export const OCCASION_SCREEN: Record<OccasionScreenState, OccasionScreenShape> =
     notNow: false,
     dateLink: true,
     nearest: true,
-    noLoudNote: "aheadNoLoud",
   },
   // NO_DATE — комната без даты. Итога у неё не будет никогда, поэтому громкое
   // зовёт к дате; тихая дорога к ручному итогу остаётся (решение гриллинга
@@ -178,6 +173,5 @@ export const OCCASION_SCREEN: Record<OccasionScreenState, OccasionScreenShape> =
     notNow: false,
     dateLink: false,
     nearest: false,
-    noLoudNote: null,
   },
 };

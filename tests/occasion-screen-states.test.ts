@@ -223,7 +223,6 @@ describe("состояний четыре, и каждое говорит сво
     // про тот, что уже прошёл.
     expect(due.nearest).toBe(false);
     expect(due.dateLink).toBe(false);
-    expect(due.noLoudNote).toBeNull();
   });
 
   it("AHEAD — ОЖИДАНИЕ: счётчик блоком, две тихие ссылки, БЕЗ громкой кнопки", () => {
@@ -233,7 +232,6 @@ describe("состояний четыре, и каждое говорит сво
     expect(next.taken).toBe("box");
     // Громкой кнопки нет — и экран сам объясняет, почему (с датой).
     expect(next.loud).toBeNull();
-    expect(next.noLoudNote).toBe("aheadNoLoud");
     // Дорогу не убираем (решение гриллинга №6), но гореть год она не должна.
     expect(next.manual).toBe("quiet");
     expect(next.dateLink).toBe(true);
@@ -258,7 +256,6 @@ describe("состояний четыре, и каждое говорит сво
     expect(noDate.taken).toBe("box"); // комната работает и без даты
     // «Когда он пройдёт» такой комнате сказать нечем — даты нет.
     expect(noDate.nearest).toBe(false);
-    expect(noDate.noLoudNote).toBeNull();
   });
 
   it("OPEN не тронут ни строкой: таблица о нём молчит", () => {
@@ -277,7 +274,6 @@ describe("состояний четыре, и каждое говорит сво
       notNow: false,
       dateLink: false,
       nearest: false,
-      noLoudNote: null,
     });
   });
 
@@ -292,7 +288,6 @@ describe("состояний четыре, и каждое говорит сво
           shape.title,
           shape.lead,
           shape.aside,
-          shape.noLoudNote,
           shape.loud?.key ?? null,
           shape.loud?.hint ?? null,
           ...(shape.whatHappens ?? []),
@@ -477,7 +472,17 @@ describe("порог: единственное число — счётчик з�
     expect(markup).toContain(words.manualLink);
     expect(markup).toContain(words.manualHint);
     expect(markup).toContain(words.dateLink);
-    expect(markup).toContain(t("aheadNoLoud", { date: onDate(view.next!) }));
+    // ДАТА НА ЭКРАНЕ ТА ЖЕ, ЧТО В КОМНАТЕ — «День рождения · 14 сентября»
+    // (тикет 216: две поверхности отвечают на один вопрос одними словами).
+    // Проверка встала сюда, когда пакет 49 снял `aheadNoLoud`: дату несла и
+    // та строка, и без неё экран мог бы остаться без даты незамеченным.
+    expect(markup).toContain(
+      t("nearestLine", { holiday: t("birthdayLabel"), date: onDate(view.next!) }),
+    );
+    // ПОДПИСИ «ПОЧЕМУ КНОПКИ НЕТ» ЗДЕСЬ БОЛЬШЕ НЕТ (пакет 49 снял
+    // `Occasion.aheadNoLoud`, тикет 223): строка объясняла хозяйке наше
+    // проектное решение, а её работу делает `aheadHint` выше. Ключа нет и в
+    // словаре — сторож словаря упадёт, если он вернётся без разговора.
     // ГРОМКОЙ КНОПКИ НЕТ: полоса света — единственный `border-b-2` экрана.
     expect(markup).not.toContain("border-b-2");
     // И ни слова о том, кто именно занял.

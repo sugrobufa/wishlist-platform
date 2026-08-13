@@ -469,7 +469,7 @@
     "manualLink": "The occasion already happened — open the summary",
     "manualHint": "If it was not the birthday — a wedding, a housewarming, any occasion of your own",
     "dateLink": "Change the date — in settings",
-    "aheadNoLoud": "There is no loud button on this screen: until {date} there is nothing to do here, and a strip glowing for seven months stops meaning anything",
+    "thanksGuest": "Say thank you",
     "noDateTitle": "The date is not named yet",
     "noDateHint": "The summary is counted from the occasion date: without it the product cannot tell when it passed, remind the guests, or open the names",
     "noDateWorks": "The room works without a date — guests still gift. What is missing is the occasion it all comes together for",
