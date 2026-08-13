@@ -36,6 +36,19 @@ const CONTRACT = {
 /** Зона без пула: там копилка на мечту, а не вещи (инвариант №9). */
 const MONEY_POOL = "money";
 
+/**
+ * ПУЛ, КОТОРОГО В КОНТРАКТЕ ЗЁРЕН ЕЩЁ НЕТ, — назван поимённо (тикет 234).
+ *
+ * Полка «Бар и табак» приехала справочником зон пакета 51 и заведена в карту
+ * тикетом 234; зёрен к ней пакет не прислал — в `seeds/seeds.json` по-прежнему
+ * девятнадцать пулов. Придумывать вещи здесь нельзя: их названия и цены —
+ * значения пакета, и весь смысл этого файла в том, что они живут в пакете, а не
+ * в коде. Приедут зёрна — запись уйдёт, и проверка станет строгой сама.
+ */
+const POOLS_NOT_DELIVERED: Record<string, string> = {
+  bar: "пакет 51 прислал полку «Бар и табак» без зёрен: в seeds.json по-прежнему девятнадцать пулов",
+};
+
 const contractPools = (seedsJson as unknown as { pools: Record<string, unknown[]> }).pools;
 
 describe("контракт зёрен — значения пакета живут в пакете, а не в коде", () => {
@@ -92,8 +105,23 @@ describe("контракт зёрен — значения пакета живу
           expect(livePoolSeeds(zone.pool), `${room.id}/${zone.key}`).toEqual([]);
           continue;
         }
+        if (POOLS_NOT_DELIVERED[zone.pool]) {
+          expect(
+            livePoolSeeds(zone.pool),
+            `${room.id}/${zone.key}: зёрна приехали, запись просрочена`,
+          ).toEqual([]);
+          continue;
+        }
         expect(livePoolSeeds(zone.pool), `${room.id}/${zone.key}`).toHaveLength(CONTRACT.perPool);
       }
+    }
+    // Названный пул обязан ПРАВДА стоять в карте: запись, не разрешающая
+    // ничего, завтра разрешит случайно совпавший ключ.
+    for (const pool of Object.keys(POOLS_NOT_DELIVERED)) {
+      expect(
+        roomPresets.some((room) => room.zones.some((zone) => zone.pool === pool)),
+        `${pool}: пула нет ни в одной комнате — запись лишняя`,
+      ).toBe(true);
     }
   });
 });

@@ -40,16 +40,35 @@ describe("лист вещей: сколько зона показывает и �
     expect(rows.filter((row) => row.raw === "").map((row) => row.key)).toEqual([]);
   });
 
+  /**
+   * ЗОНА, ЧЬИ ДВА ЧИСЛА НЕ СХОДЯТСЯ, — названа поимённо, а не прощена молча.
+   *
+   * `bar` («Бар и табак», пакет 51): счётчик-заглушка «5 вещей · 2 в подарок»
+   * при ярлыке «+3». По правилу самого пакета лист показывает SHEET_TILES
+   * вещей, а прячет остальные — при пяти вещах прятать нечего, и на этом месте
+   * у `flowers` (тоже «5 вещей») стоит прочерк. Значение взято из пакета
+   * дословно: правим мы у себя только координаты, слова и числа словаря —
+   * его. Расхождение ушло письмом; в интерфейс ни то, ни другое число не едет,
+   * там счётчики живые (полировка 16).
+   */
+  const KNOWN_MISMATCH: Record<string, string> = {
+    bar: "пакет 51: «5 вещей» при ярлыке «+3» — при пяти вещах прятать нечего, у flowers на этом месте прочерк",
+  };
+
   it("moreLabel = счётчик зоны минус SHEET_TILES — во всех зонах с числом", () => {
     const hidden = rows.filter((row) => row.total !== null && row.more !== null);
-    // Семнадцать зон из девятнадцати: у `flowers` вместо числа прочерк,
+    // Восемнадцать зон из двадцати: у `flowers` вместо числа прочерк,
     // у `money` нет и счётчика («основной подарок · открыт для всех»).
     expect(hidden.length).toBeGreaterThan(10);
-    expect(
-      hidden
-        .filter((row) => (row.total as number) - (row.more as number) !== SHEET_TILES)
-        .map((row) => `${row.key}: ${row.total} − ${row.more}`),
-    ).toEqual([]);
+    const off = hidden.filter(
+      (row) => (row.total as number) - (row.more as number) !== SHEET_TILES,
+    );
+    expect(off.filter((row) => !KNOWN_MISMATCH[row.key]).map((row) => `${row.key}: ${row.total} − ${row.more}`)).toEqual(
+      [],
+    );
+    // Названная зона обязана ПРАВДА расходиться: запись, пережившая свою
+    // причину, завтра тихо разрешит следующую.
+    expect(Object.keys(KNOWN_MISMATCH).sort()).toEqual(off.map((row) => row.key).sort());
   });
 
   it("прочерк вместо числа стоит там, где прятать нечего", () => {

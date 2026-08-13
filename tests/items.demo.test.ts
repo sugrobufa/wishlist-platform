@@ -59,6 +59,26 @@ const PACKAGE_POOL_COUNT = 19;
  * ровно тот перевод, которого в продукте нет (PRD §12а).
  */
 const MONEY_POOL = "money";
+
+/**
+ * ПУЛ, КОТОРОГО ПАКЕТ ЕЩЁ НЕ ПРИСЛАЛ, — назван поимённо, а не отфильтрован
+ * молча.
+ *
+ * `bar` («Бар и табак») приехал в справочник зон пакетом 51 и заведён в карту
+ * тикетом 234: подпись, глагол раскрытия, глагол кнопки и ключ пула у него
+ * есть, а САМИХ ВЕЩЕЙ нет — ни в `seeds/seeds.json` (там по-прежнему
+ * девятнадцать пулов), ни у нас. Придумывать их здесь нельзя: содержимое пула
+ * это слова продукта, они приезжают из пакета, а `grooming` — единственный
+ * пул, состав которого писали не мы, — приехал ответом дизайна.
+ *
+ * ЧТО ЭТО ЛОМАЕТ СЕГОДНЯ: ничего видимого. Показ призраков снят тикетом 104,
+ * посев стенда читает контракт зёрен, а не эти наборы. Придёт состав — запись
+ * уйдёт отсюда, и обе проверки ниже станут строгими сами.
+ */
+const POOLS_NOT_DELIVERED: Record<string, string> = {
+  bar: "пакет 51 прислал полку «Бар и табак» без вещей: ни в seeds.json, ни отдельным списком",
+};
+
 const zonesPoolKeys = Object.entries(
   (zonesJson as unknown as { keys: Record<string, [string, string, string, string, string]> })
     .keys,
@@ -72,8 +92,18 @@ const roomPoolKeys = rooms
 describe("demoPools — покрытие пулов дизайн-пакета", () => {
   it("есть все 19 ключей справочника зон, лишних нет", () => {
     const fromPackage = [...new Set([...zonesPoolKeys, ...roomPoolKeys])].sort();
-    expect(Object.keys(demoPools).sort()).toEqual(fromPackage);
-    expect(fromPackage).toHaveLength(PACKAGE_POOL_COUNT);
+    const waiting = fromPackage.filter((pool) => POOLS_NOT_DELIVERED[pool]);
+    expect(Object.keys(demoPools).sort()).toEqual(
+      fromPackage.filter((pool) => !POOLS_NOT_DELIVERED[pool]),
+    );
+    expect(fromPackage).toHaveLength(PACKAGE_POOL_COUNT + waiting.length);
+    // Запись, пережившая свою причину, разрешает то, чего нет: названный пул
+    // обязан ПРАВДА отсутствовать, и обязан быть в справочнике.
+    expect(waiting.sort()).toEqual(Object.keys(POOLS_NOT_DELIVERED).sort());
+    for (const [pool, why] of Object.entries(POOLS_NOT_DELIVERED)) {
+      expect(demoPools[pool], `${pool}: набор приехал, запись просрочена — ${why}`).toBeUndefined();
+      expect(why.length, `${pool}: причина словами, а не отметка «известно»`).toBeGreaterThan(40);
+    }
   });
 
   it("«Уход» смотрит в свой пул grooming — мужская комната без свечи с инжиром", () => {
@@ -97,6 +127,7 @@ describe("demoPools — покрытие пулов дизайн-пакета", 
 
   it("каждый пул, на который ссылаются zones.json и rooms.json, наполнен", () => {
     for (const key of new Set([...zonesPoolKeys, ...roomPoolKeys])) {
+      if (POOLS_NOT_DELIVERED[key]) continue;
       expect(demoPools[key], `пул ${key}`).toBeDefined();
     }
   });

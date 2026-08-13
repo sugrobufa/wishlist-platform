@@ -17,10 +17,14 @@ import zonesContract from "../design/package/handoff/zones.json";
 const zoneKeys = Object.keys((zonesContract as { keys: Record<string, unknown> }).keys);
 
 describe("глагол кнопки по зоне (тикет 110)", () => {
-  it("глагол есть у каждой из девятнадцати зон справочника", () => {
+  it("глагол есть у каждой из двадцати зон справочника", () => {
+    // Двадцатой стала полка «Бар и табак» (пакет 51, тикет 234): глагол
+    // «Поставить на тележку» приехал вместе с подписью, и мужской набор стал
+    // первым, который длиннее женского.
     const missing = zoneKeys.filter((key) => !zoneCta(key));
     expect(missing).toEqual([]);
-    expect(zoneKeys).toHaveLength(19);
+    expect(zoneKeys).toHaveLength(20);
+    expect(zoneCta("bar")).toBe("Поставить на тележку");
   });
 
   it("глагол есть у каждой зоны каждой из десяти комнат", () => {

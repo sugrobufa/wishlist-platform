@@ -90,12 +90,25 @@ describe("design handoff contract", () => {
     expect(contractRooms).toHaveLength(10);
   });
 
-  it("130 зон суммарно, по 13 в каждой комнате", () => {
+  it("134 адреса: по 13 в женской комнате, по 14 в мужской", () => {
+    // ДЛИНА НАБОРОВ РАЗОШЛАСЬ, И ЭТО РЕШЕНИЕ ВЛАДЕЛЬЦА (14.08.2026, тикет 234):
+    // полка «Бар и табак» заведена ТОЛЬКО в мужских комнатах, у женских её нет
+    // вовсе. До этого дня наборы были одной длины во всех десяти, и число 130
+    // стояло здесь с раунда 2. Теперь 130 + четыре адреса `bar` = 134 — ровно
+    // то, что `zonesNote` контракта обещал вперёд карты.
     const total = contractRooms.reduce((n, room) => n + room.zones.length, 0);
-    expect(total).toBe(130);
+    expect(total).toBe(134);
     for (const room of contractRooms) {
-      expect(room.zones.length, `${room.id}: 12 зон набора + деньги`).toBe(13);
+      expect(room.zones.length, `${room.id}: 12 зон набора + деньги (+ бар у мужчин)`).toBe(
+        room.sex === "M" ? 14 : 13,
+      );
     }
+    // Полка `bar` живёт только у мужчин — и во всех четырёх комнатах сразу,
+    // иначе «переезд без потерь» между мужскими интерьерами потеряет её вещи.
+    const withBar = contractRooms
+      .filter((room) => room.zones.some((zone) => zone.key === "bar"))
+      .map((room) => room.id);
+    expect(withBar).toEqual(["gamer", "sport", "study", "loft"]);
   });
 
   it("ключи зон внутри комнаты не повторяются", () => {
@@ -213,7 +226,12 @@ describe("design handoff contract", () => {
     // впервые (у пяти остальных зон пакета 50 `rectOld` уже был и просто
     // обновился). 66 стало 68. Пятно пересчитано по формуле всем семи — в
     // реестр долга выше не попал никто.
-    expect(allZones.filter(({ zone }) => zone.rectOld)).toHaveLength(68);
+    // Тикет 234 добавил три: `warm/music`, `sport/watches` и `study/tech` —
+    // зоны, которым пакет 50 НАШЁЛ предмет глазами, а мы его измерили. Все три
+    // переразмечены впервые, все три вышли из `objectAbsent`. 68 стало 71.
+    // Четвёртая правка того же тикета — новая полка `study/bar`: у неё
+    // `rectOld` нет и быть не может, «было» у новой зоны не существует.
+    expect(allZones.filter(({ zone }) => zone.rectOld)).toHaveLength(71);
   });
 
   it("каждая зона лежит в границах КАДРА 630×351, а не окна 430", () => {
@@ -599,10 +617,34 @@ describe("кадры «открыто» (openFrame — единственный 
     // дизайну десять прямоугольников, и эти восемь ждут их.
     expect(roomsContract.round7.rectsNotApplied).toMatch(/placeBased/u);
     // Восемь адресов, а не список одной двери: с тикета 235 они разложены по
-    // двум спискам — кто ждёт прямоугольника (`zonesHiddenByProduct`) и кто
+    // двум спискам — кто ждал прямоугольника (`zonesHiddenByProduct`) и кто
     // живёт без места на кадре (`zonesWithoutRect`).
-    for (const { id } of allZones.filter(({ zone }) => zone.objectAbsent)) {
+    //
+    // СВЕРЯЕМ ТОЛЬКО ТЕХ, КОГО РАУНД 7 МОГ ЗНАТЬ. Полка `bar` заведена тикетом
+    // 234 по решению владельца 14.08.2026 — на три года пакетов позже этой
+    // прозы, и требовать её имени от текста раунда 7 значит требовать
+    // предвидения. Ключ назван прямо, а не отфильтрован молча: появится ещё
+    // одна наша зона без предмета — эта строка заставит решить, чья она.
+    const OURS_AFTER_ROUND_7 = ["bar"];
+    for (const { id, zone } of allZones.filter(({ zone }) => zone.objectAbsent)) {
+      if (OURS_AFTER_ROUND_7.includes(zone.key)) continue;
       expect(roomsContract.round7.rectsNotApplied, id).toContain(id);
+    }
+    // И обратно: всё, что раунд 7 перечислил, обязано быть в контракте — либо
+    // без предмета до сих пор, либо с измеренным прямоугольником и `rectOld`.
+    // Тикет 234 перевёл в правую половину троих; `emerald/beauty`,
+    // `sport/gaming`, `study/gaming`, `loft/gaming` и `lux/music` остались в
+    // левой (предмета в интерьере нет).
+    const namedByRound7 = allZones.filter(({ id }) =>
+      roomsContract.round7.rectsNotApplied.includes(id),
+    );
+    expect(namedByRound7).toHaveLength(8);
+    expect(
+      namedByRound7.filter(({ zone }) => !zone.objectAbsent).map(({ id }) => id),
+    ).toEqual(["warm/music", "sport/watches", "study/tech"]);
+    for (const { id, zone } of namedByRound7.filter(({ zone }) => !zone.objectAbsent)) {
+      expect(zone.rectOld, `${id}: вышла из «нет предмета» без прежнего прямоугольника`).toBeTruthy();
+      expect(zone.remapNote, `${id}: вышла из «нет предмета» без разбора словами`).toBeTruthy();
     }
   });
 
@@ -636,21 +678,43 @@ describe("кадры «открыто» (openFrame — единственный 
     expect(roomsContract.zonesNote).toContain("404 только за полкой, выключенной хозяйкой");
     // И вывод письма 57: первый шаг выбирает КОМНАТЫ, а не полки.
     expect(roomsContract.zonesNote).toContain("выбирает КОМНАТЫ");
+
+    // ОДНО ЧИСЛО ЕГО ПРОЗЫ РАЗОШЛОСЬ С КАРТОЙ, и разошлось нашей работой:
+    // «Таких 7» — про полки без места на кадре. Тикет 234 сделал восьмой
+    // `lux/music`: пакет 50 обещал в мраморной нише проигрыватель, а в нише
+    // книги, раскрытый альбом и ящик — вертушка видна только отражением в
+    // зеркале столика, и размечать отражение нельзя. Строку НЕ правим, она
+    // дословная цитата; расхождение названо здесь и ушло письмом. Приедет
+    // копия с восьмёркой — тест велит перечитать её прозу.
+    expect(roomsContract.zonesNote).toContain("Таких 7");
+    expect(zonesWithoutRect, "дизайн обещал семь полок списком, у нас восемь").toHaveLength(8);
   });
 
-  it("шесть зон «по месту»: из пакета взята ПРОЗА, поведение не тронуто", () => {
+  it("зоны «по месту»: из пакета взята ПРОЗА, поведение не тронуто", () => {
     // Раунд 40 назвал словом то, что у шести зон без предмета прямоугольник
     // стоит на ПОВЕРХНОСТИ, где предмет стоял бы, и привязан к соседу
-    // (`anchoredTo`). Прямоугольники при этом наши — все 130 совпали с дампом.
+    // (`anchoredTo`). Прямоугольники при этом наши — все совпали с дампом.
+    //
+    // ИХ СТАЛО ТРИ (тикет 234). Половина шестёрки была «по месту» ровно потому,
+    // что предмет не нашли ГЛАЗАМИ: пакет 50 пересмотрел кадры и назвал предмет
+    // трём из них — `warm/music`, `sport/watches`, `study/tech`. Мы их измерили,
+    // и «по месту» с них снято вместе с `objectAbsent` и `anchoredTo`: у зоны с
+    // измеренным предметом этому полю взяться неоткуда. Осталась ровно та
+    // половина, где предмета нет и по второму осмотру.
     const placeBased = allZones.filter(({ zone }) => zone.placeBased);
     expect(placeBased.map((z) => z.id)).toEqual([
-      "warm/music",
       "lux/music",
       "emerald/beauty",
-      "sport/watches",
-      "study/tech",
       "study/gaming",
     ]);
+    // Новые полки `bar` в трёх мужских комнатах этим полем НЕ помечены, хотя
+    // прямоугольник у них тоже служебный: `placeBased` — слово пакета 40 про
+    // его собственную восьмёрку, и раздавать чужой флаг своим зонам значит
+    // тихо менять его смысл. Наш служебный прямоугольник объяснён `absentNote`.
+    for (const { id, zone } of allZones.filter(({ zone }) => zone.key === "bar")) {
+      expect(zone.placeBased, `${id}: чужой флаг на нашей полке`).toBeUndefined();
+      expect(zone.anchoredTo, `${id}`).toBeUndefined();
+    }
     for (const { id, room, zone } of placeBased) {
       // Поле НИЧЕГО не открывает: зона по-прежнему без предмета и в кадре её
       // нет, а место пустой сцены на неё не встаёт (empty-places.ts).
@@ -691,20 +755,46 @@ describe("кадры «открыто» (openFrame — единственный 
     for (const room of pkg.rooms) for (const zone of room.zones) pkgZone.set(`${room.id}/${zone.key}`, zone);
 
     // ВХОД СХОДИЛСЯ 130 ИЗ 130 — до тикета 233. Пакет 40 повторял наш дамп, и
-    // расхождений не было ни одного. Теперь их семь, и все семь наши: пакет 50
-    // прислал не координаты, а ПРАВИЛО («прямоугольник берёт предмет вместе с
-    // тем, что его держит»), измеряет прямоугольники по уставу разработка, и
-    // эти семь измерены нами по базовым кадрам. Список закрытый: восьмое
+    // расхождений не было ни одного. Теперь их десять, и все десять наши: пакет
+    // 50 прислал не координаты, а ПРАВИЛО («прямоугольник берёт предмет вместе
+    // с тем, что его держит»), измеряет прямоугольники по уставу разработка, и
+    // эти десять измерены нами по базовым кадрам. Список закрытый: одиннадцатое
     // расхождение обязано быть объяснено здесь же, а не появиться молча.
-    const rectDiff = allZones.filter(
+    //
+    // ЧЕТЫРЁХ АДРЕСОВ У ПАКЕТА 40 НЕТ ВОВСЕ — это полка `bar`, заведённая
+    // решением владельца 14.08.2026. Отсутствие записи и расхождение координат —
+    // разные вещи, и мерить их одной проверкой значит спрятать одно за другим.
+    const knownToPackage = allZones.filter(({ id }) => pkgZone.has(id));
+    const newAddresses = allZones.filter(({ id }) => !pkgZone.has(id));
+    expect(newAddresses.map((z) => z.id)).toEqual([
+      "gamer/bar",
+      "sport/bar",
+      "study/bar",
+      "loft/bar",
+    ]);
+    // У новой зоны «было» не существует, поэтому с неё спрашивается другое:
+    // разбор словами (у той, чей прямоугольник измерен) либо причина, почему
+    // предмета нет (у трёх остальных).
+    for (const { id, zone } of newAddresses) {
+      expect(zone.rectOld, `${id}: у новой полки «было» взяться неоткуда`).toBeUndefined();
+      expect(
+        zone.remapNote ?? zone.absentNote,
+        `${id}: новая полка без разбора словами`,
+      ).toBeTruthy();
+    }
+
+    const rectDiff = knownToPackage.filter(
       ({ id, zone }) => JSON.stringify(pkgZone.get(id)?.rect) !== JSON.stringify(zone.rect),
     );
     expect(rectDiff.map((z) => z.id)).toEqual([
+      "warm/music",
       "gamer/sport",
       "gamer/events",
+      "sport/watches",
       "sport/grooming",
       "sport/events",
       "study/events",
+      "study/tech",
       "study/sport",
       "loft/events",
     ]);
@@ -729,15 +819,21 @@ describe("кадры «открыто» (openFrame — единственный 
       rectOld: count("rectOld"),
       frameRemeasured: count("frameRemeasured"),
     }).toEqual({
-      accepted: 130,
+      accepted: 134,
       reshootReason: 50,
-      // 16 + 7 разборов переразметки тикета 233.
-      remapNote: 23,
+      // 16 + 7 разборов переразметки тикета 233 + 4 тикета 234 (три предмета,
+      // найденные пакетом 50, и новая полка `study/bar`).
+      remapNote: 27,
       eyeNote: 12,
+      // Восемь и осталось: три зоны вышли из «нет предмета» и причину потеряли
+      // вместе с флагом, три новые полки `bar` её завели, `lux/music` осталась.
       absentNote: 8,
-      reshoot: 100,
-      // 66 + `sport/grooming` и `study/sport`, переразмеченные впервые.
-      rectOld: 68,
+      // 100 + четыре зоны тикета 234: у каждой теперь есть прямоугольник, но
+      // кадра «открыто» нет, а третьего состояния у зоны не бывает.
+      reshoot: 104,
+      // 66 + `sport/grooming` и `study/sport`, переразмеченные впервые,
+      // + три предмета тикета 234.
+      rectOld: 71,
       // Новое поле тикета 233: две пары «Кабинета» плюс `lux/travel`, чей
       // перемер тикета 81-2 до сих пор жил только прозой.
       frameRemeasured: 3,
@@ -781,15 +877,22 @@ describe("кадры «открыто» (openFrame — единственный 
   });
 
   it("восемь зон без предмета: кадра нет и не будет, пока дизайн не дорисует", () => {
+    // ЧИСЛО ТО ЖЕ, СОСТАВ ДРУГОЙ (тикет 234). Пакет 50 пересмотрел кадры
+    // глазами и нашёл предмет трём из прежних восьми: `warm/music`,
+    // `sport/watches`, `study/tech` — мы их измерили, и флаг с них снят.
+    // Ровно столько же пришло с другой стороны: новая полка `bar` заведена в
+    // четырёх мужских комнатах, и бара нет в трёх из них.
+    // `lux/music` осталась: обещанного пакетом проигрывателя в нише нет, а
+    // единственная вертушка кадра видна отражением в зеркале.
     expect(absent.map((z) => z.id)).toEqual([
-      "warm/music",
       "lux/music",
       "emerald/beauty",
-      "sport/watches",
+      "gamer/bar",
       "sport/gaming",
-      "study/tech",
+      "sport/bar",
       "study/gaming",
       "loft/gaming",
+      "loft/bar",
     ]);
     for (const { id, zone } of absent) {
       expect(zone.openFrame ?? null, `${id}`).toBeNull();
@@ -819,7 +922,11 @@ describe("кадры «открыто» (openFrame — единственный 
     // здесь — это и есть сторож решения.
     // Раунд 16 вернул девятую — `warm/anything`: 104 → 103, 18 → 19.
     // Раунд 17 вернул ещё три: 103 → 100, 19 → 22.
-    expect([accepted.length, reshoot.length, absent.length]).toEqual([22, 100, 8]);
+    // Тикет 234 прибавил четыре зоны сразу в «переснять»: 100 → 104. Три из
+    // них вышли из «нет предмета» с измеренным прямоугольником, четвёртая —
+    // новая полка `study/bar`. Кадра «открыто» нет ни у одной, значит место им
+    // ровно одно. Сумма выросла со 130 до 134 вместе с картой.
+    expect([accepted.length, reshoot.length, absent.length]).toEqual([22, 104, 8]);
     const doubled = allZones.filter(
       ({ zone }) => [zone.accepted, zone.reshoot, zone.objectAbsent].filter(Boolean).length > 1,
     );
@@ -828,7 +935,7 @@ describe("кадры «открыто» (openFrame — единственный 
       ({ zone }) => !zone.accepted && !zone.reshoot && !zone.objectAbsent,
     );
     expect(stateless).toEqual([]);
-    expect(accepted.length + reshoot.length + absent.length).toBe(130);
+    expect(accepted.length + reshoot.length + absent.length).toBe(134);
   });
 
   it("зона без кадра не обещает раскрытия: ни кадра, ни глагола", () => {
@@ -1192,24 +1299,29 @@ describe("справочник зон (zones.json)", () => {
     }
   });
 
-  it("восемь зон без предмета разложены по ДВУМ спискам (тикет 235)", () => {
+  it("восемь зон без предмета разложены по ДВУМ спискам (тикеты 235 и 234)", () => {
     // РАСЩЕПЛЕНИЕ. До 14.08.2026 все восемь адресов без предмета лежали в одном
     // `zonesHiddenByProduct` и отвечали 404. Решение владельца развело их на
     // два разных смысла:
     //   - «ждёт прямоугольника» — зоны нет вовсе, 404 (предмет ей нашёл пакет
-    //     50, координаты меряет тикет 234);
+    //     50, координаты мерил тикет 234);
     //   - «живая полка без места на кадре» — 200, вещи на месте, нет только
     //     метки и наезда.
+    // ЛЕВАЯ ПОЛОВИНА ОПУСТЕЛА В ТОТ ЖЕ ДЕНЬ. Тикет 234 измерил три предмета из
+    // четырёх; четвёртому (`lux/music`) предмета в кадре не нашлось вовсе, и
+    // адрес ушёл не в 404, а в живые полки. Ответов 404 по продуктовому решению
+    // в карте больше нет ни одного — 404 осталась за `Room.zonesOff`.
     // Список в коде не живёт своей жизнью: вместе они обязаны покрывать ровно
     // те зоны, что помечены `objectAbsent` в контракте.
-    expect(zonesHiddenByProduct).toEqual(["warm/music", "lux/music", "sport/watches", "study/tech"]);
+    expect(zonesHiddenByProduct).toEqual([]);
     expect(zonesWithoutRect).toEqual([
       "emerald/beauty",
+      "lux/music",
       "sport/gaming",
       "study/gaming",
       "loft/gaming",
-      // Полки `bar` в контракте ещё нет — её заводит тикет 234. Адреса стоят
-      // вперёд нарочно, иначе новая полка выйдет в кадр меткой на пустом месте.
+      // Три адреса `bar` стояли здесь вперёд самой зоны — и дождались её:
+      // тикет 234 завёл полку, а в кадр она не вышла ни на день.
       "gamer/bar",
       "sport/bar",
       "loft/bar",
@@ -1235,18 +1347,16 @@ describe("справочник зон (zones.json)", () => {
       expect(zone?.objectAbsent, `${id}: выведена из кадра, а предмет у неё есть`).toBe(true);
       expect(zoneNotOnFrame(roomId, key), id).toBe(true);
     }
-    expect(both.filter((address) => !contractIds.has(address))).toEqual([
-      "gamer/bar",
-      "sport/bar",
-      "loft/bar",
-    ]);
+    // Адресов, которых в контракте ещё нет, не осталось: полка `bar` заведена.
+    expect(both.filter((address) => !contractIds.has(address))).toEqual([]);
 
     // СКОЛЬКО ЗОН ПОКАЗЫВАЕТ ПРОДУКТ — считается по спискам, а не константой:
-    // тикет 234 снимает адреса по одному, и вбитое число врало бы на другой
-    // день. 130 − скрытые адресно.
+    // тикет 234 снимал адреса по одному, и вбитое число врало бы на другой
+    // день. 134 − скрытые адресно, а скрытых адресно больше нет.
     const shown = rooms.reduce((n, room) => n + room.zones.length, 0);
-    expect(allZones).toHaveLength(130);
-    expect(shown).toBe(130 - zonesHiddenByProduct.length);
+    expect(allZones).toHaveLength(134);
+    expect(shown).toBe(134 - zonesHiddenByProduct.length);
+    expect(shown).toBe(134);
     // Полка без места на кадре в этом числе ЕСТЬ (в том и смысл), а меток в
     // кадре на столько же меньше.
     const onFrame = rooms.reduce(
@@ -1258,28 +1368,29 @@ describe("справочник зон (zones.json)", () => {
     const perRoom = Object.fromEntries(rooms.map((room) => [room.id, room.zones.length]));
     expect(perRoom).toEqual({
       cream: 13,
-      warm: 12,
-      lux: 12,
+      // «Музыка» вернулась во все комнаты: у `warm` с измеренным предметом,
+      // у `lux` полкой без места на кадре. Ни одна не вычитается из состава.
+      warm: 13,
+      lux: 13,
       // «Красота» вернулась в изумрудную комнату: полка без места на кадре.
       emerald: 13,
       bold: 13,
       cottage: 13,
-      gamer: 13,
-      sport: 12,
-      study: 12,
-      loft: 13,
+      // У мужских комнат состав стал 14 — прибавилась полка «Бар и табак».
+      gamer: 14,
+      sport: 14,
+      study: 14,
+      loft: 14,
     });
-    for (const address of zonesHiddenByProduct) {
-      const [roomId, key] = address.split("/");
-      expect(
-        rooms.find((room) => room.id === roomId)?.zones.some((zone) => zone.key === key),
-        address,
-      ).toBe(false);
-      // А в других комнатах тот же ключ остаётся: прячем адрес, не категорию.
-      expect(
-        rooms.some((room) => room.id !== roomId && room.zones.some((zone) => zone.key === key)),
-        `${key} должен остаться в других комнатах`,
-      ).toBe(true);
+    // ДВЕРЬ 404 ПУСТА, И ЭТО ПРОВЕРЯЕТСЯ ОБЕИМИ СТОРОНАМИ. Пустой цикл ничего
+    // не доказывает, поэтому пустота названа прямо: из продукта не вычтено ни
+    // одного адреса, и число полок в комнате равно числу в контракте.
+    expect(zonesHiddenByProduct).toHaveLength(0);
+    for (const room of rooms) {
+      const inContract = contractRooms.find((candidate) => candidate.id === room.id);
+      expect(room.zones.length, `${room.id}: продукт показывает не весь состав`).toBe(
+        inContract?.zones.length,
+      );
     }
     // Полка без места на кадре из пресета НЕ выброшена — и помечена флагом,
     // по которому её отсеивает сцена.
@@ -1404,12 +1515,26 @@ describe("пересечения прямоугольников зон", () => {
    * числом. Правило пакета 50 велит брать предмет вместе с рамой, и рамка с
    * билетами в «Спорте» и веер билетов в «Лофте» оказались крупнее прежних
    * прямоугольников:
-   *   • `sport/watches×events` 600 px² — `watches` это objectAbsent, витрины с
-   *     часами в этом интерьере НЕТ вовсе, её прямоугольник служебный. В
-   *     рендере пары нет: скрытая зона не рисуется (список ниже короче на неё).
+   *   • `sport/watches×events` 600 px² — ЗАКРЫТА ТИКЕТОМ 234. Пара держалась на
+   *     служебном прямоугольнике: витрину с часами дизайн тогда «не нашёл», и
+   *     `watches` стояла посреди кадра. Пакет 50 нашёл её глазами на правой
+   *     полке, мы измерили — прямоугольник уехал к правому краю, пара исчезла.
    *   • `loft/music×events` 364 px² — нижний левый угол рамки билетов лёг на
    *     пустую белую стену правее микшера. Предметы не наложились: микшер стоит
    *     на столе левее 340, билеты висят выше 172.
+   *
+   * ТИКЕТ 234 ДОБАВИЛ ОДНУ, И ОНА ХУЖЕ ОСТАЛЬНЫХ — `study/tech×travel`
+   * 756 px². Это не «кромка задела кромку»: плёночная камера, которую пакет 50
+   * назвал предметом зоны `tech`, СТОИТ НА кожаном сундуке, и сундук — предмет
+   * зоны `travel`. Прямоугольники вложены по построению, и правило пакета 50
+   * («предмет вместе с тем, что его держит») другого исхода не допускает: без
+   * куска крышки под камерой она читалась бы артефактом.
+   *
+   * ЦЕНА НАЗВАНА ЧИСЛОМ И СЛОВОМ. `travel` стоит в списке зоны ПОЗЖЕ `tech`,
+   * значит в перекрытии выигрывает он: нажатие по камере откроет
+   * «Путешествия». Метка камеры при этом горит на своём месте, и вход в полку
+   * есть через указатель зон. Развести обязан дизайн — либо `travel` подрезают
+   * сверху, либо камера остаётся без метки; вопрос ушёл письмом.
    */
   const OVERLAP_DEBT = [
     "cream/books×music (15 px²)",
@@ -1422,9 +1547,9 @@ describe("пересечения прямоугольников зон", () => {
     "bold/flowers×home (1380 px²)",
     "cottage/travel×home (7020 px²)",
     "gamer/watches×books (344 px²)",
-    "sport/watches×events (600 px²)",
     "sport/sport×money (450 px²)",
     "study/books×music (252 px²)",
+    "study/tech×travel (756 px²)",
     "loft/music×events (364 px²)",
     "loft/sport×watches (165 px²)",
   ];
@@ -1454,22 +1579,28 @@ describe("пересечения прямоугольников зон", () => {
     expect(shared).toEqual([]);
   });
 
-  it("в рендере пар на одну меньше: пара со скрытой зоной до экрана не доходит", () => {
+  it("РЕЕСТР И ЭКРАН СНОВА СОВПАДАЮТ СТРОКА В СТРОКУ", () => {
     // Прежде продукт не чувствовал пару `sport/sport×money`: зона `money` не
     // рисовалась вовсе, значит и нажатие у неё было не отнять. ADR-0008 зону
-    // включил — пара вернулась в живые, и реестр долга совпадал с рендером
-    // строка в строку.
+    // включил — пара вернулась в живые, и реестр долга совпал с рендером.
     //
-    // Тикет 233 эту точность сломал в хорошую сторону: `sport/watches×events`
-    // существует только в контракте. `watches` — objectAbsent (витрины с часами
-    // в интерьере нет), продукт её не показывает, и на экране пересечения не
-    // возникает. Поэтому рендер обязан быть КОРОЧЕ реестра ровно на эту строку —
-    // и это проверяется вычитанием, а не вторым списком: появись у пары живая
-    // зона, разница исчезнет и тест назовёт это здесь.
+    // Тикет 233 эту точность сломал: `sport/watches×events` существовала только
+    // в контракте, потому что `watches` была objectAbsent и на экран не
+    // выходила. Тикет 234 её вернул — витрина с часами нашлась, прямоугольник
+    // уехал на неё, и самой пары не стало. Ни одной пары «только в контракте»
+    // не осталось: каждая строка реестра — это настоящее перекрытие двух
+    // НАЖИМАЕМЫХ областей, и цена у него та же, что была в 142-м.
     const shown = rooms.flatMap(overlapsIn).map((o) => `${o.id} (${o.area} px²)`);
-    expect(shown).toEqual(OVERLAP_DEBT.filter((pair) => pair !== "sport/watches×events (600 px²)"));
-    expect(shown).toHaveLength(14);
-    expect(OVERLAP_DEBT).toHaveLength(15);
+    expect(shown).toEqual(OVERLAP_DEBT);
+    expect(shown).toHaveLength(15);
+    // И ни один участник пары не спрятан: разница между контрактом и рендером
+    // считается, а не помнится, — вернись она, здесь и упадёт.
+    for (const pair of OVERLAP_DEBT) {
+      const [roomId, keys] = pair.split("/") as [string, string];
+      for (const key of (keys.split(" ")[0] as string).split("×")) {
+        expect(zoneNotOnFrame(roomId, key), `${roomId}/${key}: пара с зоной вне кадра`).toBe(false);
+      }
+    }
   });
 });
 
@@ -1571,12 +1702,23 @@ describe("флаги проверки: notClamped / eyeChecked / wrongTarget", (
     // голой стене над скамьёй, `sport/grooming` — на стене слева от зеркала,
     // `study/sport` — на полу под столом, потому что была размечена ПО КАДРУ
     // «ОТКРЫТО», где гантели вынуты из стойки.
+    // Тикет 234 дописал в тот же раунд ТРИ — и это другая половина правила
+    // пакета 50. Тикет 233 применял его к прямоугольникам, обрезанным по
+    // предмету; здесь дизайн пересмотрел кадры глазами и НАШЁЛ ПРЕДМЕТ там, где
+    // мы три раунда считали, что его нет: проигрыватель на мраморной консоли
+    // (`warm/music`), стеклянная шкатулка с часами на правой полке
+    // (`sport/watches`), плёночная камера на кожаном сундуке (`study/tech`).
+    // Все три вышли из `objectAbsent`, у всех трёх прямоугольник взят вместе с
+    // опорой — консолью, полкой, крышкой сундука.
     expect(remapped.filter(({ zone }) => zone.remappedRound === 50).map((z) => z.id)).toEqual([
+      "warm/music",
       "gamer/sport",
       "gamer/events",
+      "sport/watches",
       "sport/grooming",
       "sport/events",
       "study/events",
+      "study/tech",
       "study/sport",
       "loft/events",
     ]);
@@ -1590,12 +1732,15 @@ describe("флаги проверки: notClamped / eyeChecked / wrongTarget", (
     }
   });
 
-  it("eyeChecked теперь у всех 130 — непроверенных зон не осталось", () => {
+  it("eyeChecked теперь у всех 134 — непроверенных зон не осталось", () => {
     // Главный итог раунда 5. До него смотрели на 38 зон, и из оставшихся 92
     // четырнадцать показывали не тот предмет, а пять — вообще ничего: пересъёмка
     // девятнадцати кадров ушла бы впустую. Машинный `notClamped` этого не ловил
     // и поймать не мог — он про обрезку окна, а не про предмет.
-    expect(allZones.filter(({ zone }) => zone.eyeChecked)).toHaveLength(130);
+    // Четыре новых адреса тикета 234 (полка `bar`) флаг получили сразу: три
+    // комнаты осмотрены на предмет бара глазами и бара в них нет, четвёртая
+    // (`study`) измерена по барной тележке.
+    expect(allZones.filter(({ zone }) => zone.eyeChecked)).toHaveLength(134);
     expect(allZones.filter(({ zone }) => !zone.eyeChecked)).toEqual([]);
   });
 
@@ -1627,13 +1772,26 @@ describe("флаги проверки: notClamped / eyeChecked / wrongTarget", (
     expect(toRightThird.length).toBeGreaterThanOrEqual(9);
   });
 
-  it("wrongTarget — три зоны, и все три без предмета в интерьере", () => {
-    // Флаг остался с раунда 4 и на новые пять `objectAbsent` не распространён:
-    // там дизайн не «увидел не тот предмет», а не нашёл предмета вовсе.
+  it("wrongTarget — одна зона, и она без предмета в интерьере", () => {
+    // Флаг остался с раунда 4 и на новые `objectAbsent` не распространён: там
+    // дизайн не «увидел не тот предмет», а не нашёл предмета вовсе.
+    //
+    // ДВОИХ ИЗ ТРЁХ СНЯЛ ТИКЕТ 234, и снял правильным способом — не стиранием
+    // флага, а исчезновением причины: у `warm/music` и `sport/watches` предмет
+    // нашёлся и прямоугольник измерен ПО НЕМУ, значит «предмет не тот» больше
+    // не про них. Флаг без своего прямоугольника — это и есть тот `verified`,
+    // который врал названием.
     const wrong = allZones.filter(({ zone }) => zone.wrongTarget);
-    expect(wrong.map((z) => z.id)).toEqual(["warm/music", "lux/music", "sport/watches"]);
+    expect(wrong.map((z) => z.id)).toEqual(["lux/music"]);
     for (const { id, zone } of wrong) {
       expect(zone.objectAbsent, `${id}`).toBe(true);
+    }
+    // И у снятых флаг именно СНЯТ, а не переставлен в `false`: поле пропало
+    // вместе с причиной.
+    for (const id of ["warm/music", "sport/watches"]) {
+      const zone = allZones.find((candidate) => candidate.id === id)?.zone;
+      expect(zone?.wrongTarget, `${id}: флаг пережил свою причину`).toBeUndefined();
+      expect(zone?.rectOld, `${id}`).toBeTruthy();
     }
   });
 
@@ -1647,12 +1805,15 @@ describe("флаги проверки: notClamped / eyeChecked / wrongTarget", (
       Math.max(...room.zones.map((zone) => zone.rect.x + zone.rect.w)),
     );
     expect(Math.max(...rights)).toBe(roomsContract.scene.phone.image.w);
-    // Правее прежней стены 430 стоит 47 зон — те самые, ради которых система
+    // Правее прежней стены 430 стоит 50 зон — те самые, ради которых система
     // координат и менялась (32 после раунда 4, ещё 14 после осмотра раунда 5).
     // Сорок седьмой стала `gamer/sport`: тикет 233 переставил её с голой стены
     // на скамью с гантелью, и правый край дошёл до 466.
-    // Достижимость — tests/immersive-layout.test.ts.
+    // Тикет 234 добавил трёх, и все три — та же болезнь правой трети: предмет
+    // стоял справа, а прямоугольник ему ставили в середину кадра.
+    // `sport/watches` дошла до самого края 630, `warm/music` до 538,
+    // `study/bar` до 483. Достижимость — tests/immersive-layout.test.ts.
     const beyondOldEdge = allZones.filter(({ zone }) => zone.rect.x + zone.rect.w > 430);
-    expect(beyondOldEdge).toHaveLength(47);
+    expect(beyondOldEdge).toHaveLength(50);
   });
 });

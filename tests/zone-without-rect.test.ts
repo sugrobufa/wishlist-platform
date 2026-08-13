@@ -92,9 +92,12 @@ describe("полка есть, места на кадре нет", () => {
       const preset = presetOf(roomId);
       expect(visibleZones(preset.zones, []).map((zone) => zone.key), address).toContain(key);
       expect(sceneZones(preset.zones, []).map((zone) => zone.key), address).not.toContain(key);
-      // Ровно на одну полку меньше — остальные на месте, а не «заодно ушли».
+      // Меньше ровно на столько полок, сколько их без места В ЭТОЙ комнате, —
+      // остальные на месте, а не «заодно ушли». С тикета 234 таких комнат две:
+      // в `sport` и `loft` без места живут и «Игры», и «Бар и табак».
+      const withoutRectHere = live.filter((other) => other.roomId === roomId).length;
       expect(sceneZones(preset.zones, []).length, address).toBe(
-        visibleZones(preset.zones, []).length - 1,
+        visibleZones(preset.zones, []).length - withoutRectHere,
       );
     }
     // Указатель зон и его десктопный близнец строят список тем же правилом:
@@ -167,8 +170,17 @@ describe("страница зоны отвечает 200, а 404 остаётс�
     }
   });
 
-  it("адрес, скрытый продуктом, по-прежнему 404 — его нет в пресете вовсе", () => {
-    expect(zonesHiddenByProduct.length).toBeGreaterThan(0);
+  it("дверь 404 пуста — и работает: за ней нет ни одного адреса", () => {
+    // ТИКЕТ 234 ОПУСТОШИЛ ЭТУ ДВЕРЬ. За ней стояли четыре адреса, ждавшие
+    // прямоугольника; трём предмет измерен, четвёртый (`lux/music`) ушёл в
+    // живые полки — предмета в кадре не нашлось. Ответов 404 по продуктовому
+    // решению в карте больше нет: 404 осталась за `Room.zonesOff`.
+    //
+    // Проверка не стала пустой: она требует, чтобы дверь ПРОДОЛЖАЛА работать,
+    // — механизм остался, и первое же новое решение владельца им и пишется.
+    expect(zonesHiddenByProduct).toEqual([]);
+    expect(zoneHiddenByProduct("study", "bar"), "дверь заело: она прячет живую полку").toBe(false);
+    expect(zoneNotOnFrame("study", "bar"), "у бара в кабинете есть место на кадре").toBe(false);
     for (const address of zonesHiddenByProduct) {
       const [roomId, key] = address.split("/") as [string, string];
       const preset = presetOf(roomId);

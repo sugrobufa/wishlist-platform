@@ -21,6 +21,12 @@ import { demoPools } from "../src/config/demo-pools";
  */
 const ZONES_WITHOUT_POOL = new Set(["money"]);
 
+/**
+ * Пулы, которых пакет ещё не прислал, — поимённо, с причиной (тикет 234).
+ * Полный разбор и второй замок на ту же запись — `tests/items.demo.test.ts`.
+ */
+const POOLS_NOT_DELIVERED = new Set(["bar"]);
+
 describe("пулы зон (тикет 108)", () => {
   it("каждая зона смотрит в существующий набор", () => {
     const broken: string[] = [];
@@ -31,6 +37,7 @@ describe("пулы зон (тикет 108)", () => {
           broken.push(`${room.id}/${zone.key}: пула нет вовсе`);
           continue;
         }
+        if (POOLS_NOT_DELIVERED.has(zone.pool)) continue;
         if (!Object.hasOwn(demoPools, zone.pool)) {
           broken.push(`${room.id}/${zone.key}: пул «${zone.pool}» не существует`);
         }
