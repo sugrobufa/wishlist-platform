@@ -196,9 +196,30 @@ export type OccasionPendingGift = {
    * на этом экране раскрываются ВСЕ имена (README турн 21). */
   mode: "QUIET" | "SIGNED" | "POOL";
   guestName: string;
+  /**
+   * «СКАЗАТЬ СПАСИБО» ЕСТЬ КУДА СКАЗАТЬ (пакет 49, `thanksGuest.shownWhen`).
+   * Почта гостя необязательна; нет её — строки благодарности нет ВОВСЕ: не
+   * серой, не выключенной, никакой (правило раунда 3: не сообщаем человеку о
+   * том, чего у нас нет). Флаг отделён от адреса нарочно: показ решается им, а
+   * у складчины строка есть, если почта есть хотя бы у одного участника, —
+   * там адресов может быть больше одного.
+   */
+  canThank: boolean;
+  /**
+   * Адрес для `mailto` — ТОЛЬКО там, где строка показывается (`canThank`).
+   * Больше почта гостя на клиент не уезжает ни в каком виде: имя на этом
+   * экране уже раскрыто (инвариант №2), а почта — нет, и раскрывать её незачем.
+   */
+  thanksEmail: string | null;
 };
 
-/** Уже отмеченное «Дошло» этого праздника — «уже в зале славы». */
+/**
+ * Уже отмеченное «Дошло» этого праздника — «уже в зале славы».
+ *
+ * СТРОКИ «СПАСИБО» ЗДЕСЬ НЕТ, И ЭТО НЕ ЗАБЫТО: «Дошло» закрывает бронь
+ * (`receiveGift`, контракт тикета 09), а почта гостя жила только в ней —
+ * у вещи её нет и не заводится. Писать некуда, значит и звать писать нельзя.
+ */
 export type OccasionReceivedGift = {
   itemId: string;
   title: string;
@@ -349,6 +370,9 @@ export async function getOccasionView(userId: string): Promise<OccasionView> {
     select: {
       mode: true,
       guestName: true,
+      // Почта — ради одной строки «Сказать спасибо» (пакет 49) и только под
+      // существующим summary: до раскрытия этих строк не бывает вовсе.
+      guestEmail: true,
       item: { select: { id: true, title: true, photoKey: true } },
     },
   });
@@ -385,6 +409,8 @@ export async function getOccasionView(userId: string): Promise<OccasionView> {
       photoUrl: itemPhotoUrl(booking.item.photoKey),
       mode: booking.mode,
       guestName: booking.guestName,
+      canThank: booking.guestEmail !== null,
+      thanksEmail: booking.guestEmail,
     })),
     received: receivedItems.map((item) => ({
       itemId: item.id,
