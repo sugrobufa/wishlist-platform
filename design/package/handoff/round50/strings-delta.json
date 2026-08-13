@@ -1,0 +1,53 @@
+{
+ "_letters": "письма 54 и 55",
+ "_note": "полный словарь приложен рядом: design_handoff_round50/messages-ru.json",
+ "added": {
+  "Occasion.thanksSubject": "Спасибо за подарок",
+  "Occasion.emptyBackToRoom": "В комнату — вещи на месте"
+ },
+ "changed": {
+  "Settings.tryOnLine": "«{name}» пока только в примерке. В комнате всё как было"
+ },
+ "removed": {
+  "Settings.tryOnLineAlt": "две редакции одной строки — источник расхождений; живёт ваша",
+  "Occasion.aheadNoLoud": "снят письмом 53",
+  "PoolInline.examples": "массив → _examples строкой",
+  "ZoneCounterGuest.cases": "дерево → плоские ключи"
+ },
+ "notAdded": {
+  "noEmailHint": "«почты ни у кого нет — писать некуда» — нарушает правило «не сообщаем о том, чего у нас нет»",
+  "zeroCounters": "строки на ноль у dueLead и takenNumber — при нуле блока нет вовсе",
+  "Occasion.emptyTitle": "почти завёл дубль: строка уже была вашей редакции"
+ },
+ "flattened": {
+  "ZoneCounterGuest": [
+   "allFreeOne",
+   "allFree",
+   "someTakenOneFree",
+   "someTaken",
+   "allTaken",
+   "empty",
+   "owner"
+  ],
+  "PoolInline": [
+   "participantsOne",
+   "participantsTwo",
+   "participantsFew",
+   "participantsYouAmong",
+   "progressCollecting",
+   "progressLeft",
+   "progressLastDay",
+   "progressShort",
+   "joinCta",
+   "joinCtaWithAmount",
+   "joinFull",
+   "refundNote",
+   "refundLine"
+  ]
+ },
+ "newRules": {
+  "Occasion._zero": "письмо 54, п.3. Строки на пустой итог УЖЕ БЫЛИ — emptyTitle/emptyHint выше; при сборке пакета 50 я почти завёл им дубль, поймал на разборе. Не было ПРАВИЛА, и оно такое: при нуле забранных состояние DUE НЕ НАСТУПАЕТ — раскрывать нечего, необратимого шага нет, «Пора узнать, кто что подарил» было бы неправдой; итог сразу открыт и пуст, показывает emptyTitle/emptyHint. Про счётчики: ПРИ НУЛЕ БЛОКА НЕТ — ни в ожидании, ни в комнате без даты, ни здесь (как комната прячет свой счётчик при нуле, турн 11d). Строки на ноль не будет ни у dueLead, ни у takenNumber: «0 вещей забрали» сообщает о том, чего не произошло.",
+  "PoolInline._flattened": "письмо 54: живые строки вынесены плоско, деревья participants/progress/join/refund сняты, проза и примеры уехали в ключи с подчёркиванием. Ключи стали составными — иначе плоско не выходит. Соответствие: participants.one → participantsOne, progress.collecting → progressCollecting, join.cta → joinCta, refund.line → refundLine.",
+  "ZoneCounterGuest._flattened": "письмо 54: шесть живых строк вынесены плоско, дерево cases снято. Соответствие: cases.allFree → allFree, cases.someTaken → someTaken, ownerVariant.text → owner."
+ }
+}
