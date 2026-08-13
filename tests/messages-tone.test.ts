@@ -824,9 +824,13 @@ const OWNER_REWRITE_216: readonly string[] = [];
  * редакция той же строки; она в `PACKAGE_ONLY` — брать её значило бы вернуть
  * «кадр» другим ключом.
  *
- * ЗАПРОС ДИЗАЙНУ — письмо 54: заменить «кадр» в обеих редакциях.
+ * ЗАПРОС ВЫПОЛНЕН, СПИСОК ПУСТ (пакет 50, ответ на письмо 54): «беру вашу
+ * редакцию слово в слово, свой `tryOnLineAlt` снимаю — две редакции одной
+ * строки и есть источник расхождений». Ключ теперь совпадает с нашим, и
+ * запись обязана была уйти в тот же час: замок «расхождение настоящее» иначе
+ * покраснел бы. Разбор оставлен — он объясняет, почему строка звучит так.
  */
-const TONE_REWRITE_43: readonly string[] = ["Settings.tryOnLine"];
+const TONE_REWRITE_43: readonly string[] = [];
 
 /**
  * ЧЕТВЁРТЫЙ список — ОБРАТНОЕ РАСХОЖДЕНИЕ: строки, которые в пакете есть, а в
@@ -1014,11 +1018,30 @@ const PACKAGE_ONLY: readonly string[] = [
   "Pool.takeMore",
   "Pool.title",
   "Pool.writeOrganizer",
+  "Occasion.emptyBackToRoom",
+  // `PoolInline.*` и `ZoneCounterGuest.*` — ТЕ ЖЕ ДВА РАЗДЕЛА, что раньше были
+  // брифами (раунд 49), а пакетом 50 стали плоскими по нашей просьбе: дерево
+  // `cases` снято, ключи стали составными (`joinCta`, `progressLeft`,
+  // `refundLine`), соответствие старых путей новым — в его `_flattened`.
+  //
+  // Теперь они в сверке, и это ровно то, чего мы просили. У нас этих ключей
+  // нет: те же строки живут под своими именами (`Booking.pool*`,
+  // `Scene.summaryFree*`) — переименование ключей отдельная работа, причина 2
+  // выше. Записи уйдут, когда её сделаем.
+  "PoolInline.joinCta",
+  "PoolInline.joinCtaWithAmount",
+  "PoolInline.joinFull",
+  "PoolInline.participantsFew",
+  "PoolInline.participantsOne",
+  "PoolInline.participantsTwo",
+  "PoolInline.participantsYouAmong",
+  "PoolInline.progressCollecting",
+  "PoolInline.progressLastDay",
+  "PoolInline.progressLeft",
+  "PoolInline.progressShort",
+  "PoolInline.refundLine",
+  "PoolInline.refundNote",
   "Settings.itemHallRemove",
-  // `tryOnLineAlt` — вторая редакция строки примерки. Первую мы переписали,
-  // потому что в ней стояло слово «кадр» (см. `TONE_REWRITE_43` выше); взять
-  // вторую поверх переписанной первой значило бы вернуть «кадр» другим ключом.
-  "Settings.tryOnLineAlt",
   "TreasuryAccess.optLink",
   "TreasuryAccess.optLinkHint",
   "TreasuryAccess.optMutual",
@@ -1031,6 +1054,13 @@ const PACKAGE_ONLY: readonly string[] = [
   // переименованием из `emptyWant`, имени, пережившего отмену состояний.
   // Список сверяется НА РАВЕНСТВО с обеих сторон, поэтому запись обязана была
   // уйти в тот же коммит, что и переименование.
+  "ZoneCounterGuest.allFree",
+  "ZoneCounterGuest.allFreeOne",
+  "ZoneCounterGuest.allTaken",
+  "ZoneCounterGuest.empty",
+  "ZoneCounterGuest.owner",
+  "ZoneCounterGuest.someTaken",
+  "ZoneCounterGuest.someTakenOneFree",
   "ZoneGrid.emptyPlaceCaption",
   "ZoneGrid.guestFilterAll",
   "ZoneGrid.guestFilterFree",
@@ -1099,11 +1129,19 @@ describe("словарь и дизайн-пакет", () => {
     // приняла их за экраны. Форма их выдаёт: внутри проза и деревья, а не
     // плоская карта строк. Список — замок: появится третий, тест назовёт его.
     //
-    // ЖИВЫЕ СТРОКИ В НИХ ЕСТЬ, и это не ошибка дизайна, а незакрытая работа:
-    // `ZoneCounterGuest.cases.*` — шесть строк счётчика зоны, `PoolInline.*` —
-    // строки складчины в списке вещей. Пока они лежат деревом, сверять их
-    // нечем; просьба вынести их плоским разделом ушла письмом 54.
-    expect(briefSections(packageRaw)).toEqual(["PoolInline", "ZoneCounterGuest"]);
+    // ПРОСЬБА ВЫПОЛНЕНА, БРИФОВ НЕ ОСТАЛОСЬ (пакет 50, ответ на письмо 54):
+    // `ZoneCounterGuest` — шесть строк счётчика плоско, дерево `cases` снято;
+    // `PoolInline` — тринадцать строк вместо четырёх деревьев. Ключи стали
+    // составными (`joinCta`, `progressLeft`, `refundLine`), соответствие
+    // старых путей новым — в его `_flattened`. Проза уехала в ключи с
+    // подчёркиванием, и сверка их не читает.
+    //
+    // Список НЕ снимаем вместе с расхождением, в отличие от прочих замков:
+    // дерево может вернуться «из лучших побуждений» в любом раунде, и это
+    // ровно тот случай, когда сторож должен стоять на пустом месте. Дизайн
+    // сам просил записать «плоская карта ключ → строка» требованием, а не
+    // наблюдением, — вот запись.
+    expect(briefSections(packageRaw)).toEqual([]);
     // У наших словарей брифов нет вовсе: продукт хранит только строки.
     expect(briefSections(ruRaw)).toEqual([]);
     expect(briefSections(enRaw)).toEqual([]);
