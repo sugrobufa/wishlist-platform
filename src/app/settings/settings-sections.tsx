@@ -64,10 +64,28 @@ function errorKey(code: SettingsError): string {
   }
 }
 
-/** Карточка секции — общий каркас. */
-function Section({ overline, children }: { overline: string; children: ReactNode }) {
+/**
+ * Карточка секции — общий каркас.
+ *
+ * `id` заводит ЯКОРЬ: `/settings#about` приводит прямо к карточке «О себе»
+ * (тикет 226) — фотография в шапке комнаты ведёт к самой фотографии, а не на
+ * длинную страницу настроек. `scroll-mt` не даёт карточке прилипнуть к самой
+ * кромке окна; без якоря класс ничего не делает.
+ */
+function Section({
+  id,
+  overline,
+  children,
+}: {
+  id?: string;
+  overline: string;
+  children: ReactNode;
+}) {
   return (
-    <section className="flex flex-col gap-3 border border-surface-hairline bg-surface-fill p-5">
+    <section
+      id={id}
+      className="flex scroll-mt-6 flex-col gap-3 border border-surface-hairline bg-surface-fill p-5"
+    >
       <p className="overline text-text-muted">{overline}</p>
       {children}
     </section>
@@ -176,7 +194,11 @@ export function ProfileSection({
   }
 
   return (
-    <Section overline={t("profileOverline")}>
+    // ЯКОРЬ «О СЕБЕ» (тикет 226): сюда приводит нажатие на фотографию в шапке
+    // комнаты — `/settings#about`. Имя якоря живёт в двух файлах и сверяется
+    // тестом (tests/owner-face.test.ts): ссылка в никуда молча прокручивает
+    // страницу к началу, и заметить это можно только глазами.
+    <Section id="about" overline={t("profileOverline")}>
       <div className="flex items-center gap-4">
         <div
           aria-hidden

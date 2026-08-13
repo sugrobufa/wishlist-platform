@@ -274,7 +274,60 @@ export default async function RoomPage() {
                 {t("overline")}
                 {roomTod !== NATIVE_TIME_OF_DAY && ` · ${tSettings(`tod_${roomTod}`)}`}
               </p>
-              <h1 className="display imm-title mt-1 text-2xl lg:text-4xl">{roomTitle}</h1>
+              {/* ЛИЦО ХОЗЯЙКИ В СВОЕЙ ШАПКЕ (тикет 226, приёмка владельца
+                  14.08: «фото надо показывать и хозяйке, как гостю, это важно
+                  для идентификации, в какой комнате я нахожусь»). До этого
+                  фотография жила только у гостя, и свой экран отвечал на вопрос
+                  «чьё это место» одними словами.
+
+                  ВИД И ЧИСЛА — ГОСТЕВЫЕ, ДО КЛАССА (src/app/r/[slug]/page.tsx):
+                  тот же кружок 36 → 44 на широком экране, та же кромка, та же
+                  подложка и тот же промежуток до имени. Два экрана показывают
+                  одного человека, и разойтись им нечем — держит
+                  tests/owner-face.test.ts, он сверяет разметку обеих страниц.
+                  Фон-div, как у плиток вещей: раздача /media, alt не нужен.
+
+                  НАЖАТИЕ ВЕДЁТ К САМОЙ ФОТОГРАФИИ, а не «в настройки»: якорь
+                  `#about` стоит на карточке «О себе» (settings-sections.tsx),
+                  где фото и меняют. Владелец просил попасть «в место, где
+                  фотография», — страница настроек длинная, и без якоря человек
+                  приезжал бы к интерьеру и свету.
+
+                  ЦЕЛЬ НАЖАТИЯ НЕ НАБИВАЕТСЯ ЗДЕСЬ: `.imm-rail a` в globals.css
+                  даёт всему нажимаемому в полосах min-height 44 (rooms.json →
+                  hitTargetMin). А `-my-1` возвращает СТРОКЕ гостевой рост:
+                  плашка 44 растила её до 44 против гостевых 36, и имя уезжало
+                  вниз вместе с тихими строками под ним. Отрицательный отступ
+                  снимает по 4 сверху и снизу — палец получает свои 44, строка
+                  остаётся ростом с кружок, как на гостевом экране. На широком
+                  экране поправка снимается (`lg:my-0`): там кружок сам 44,
+                  плашка ничего не растит, и вычитать нечего.
+
+                  ФОТОГРАФИИ НЕТ — НЕТ И НИЧЕГО: ни серого круга, ни буквы.
+                  Пусто означает пусто (правило пустых состояний), а дорога в
+                  настройки у человека и так есть — шестерня в углу на десктопе
+                  и таб-бар на телефоне. */}
+              <div className="mt-1 flex items-center gap-3">
+                {profile?.avatarUrl && (
+                  <Link
+                    href="/settings#about"
+                    aria-label={t("settingsLink")}
+                    title={t("settingsLink")}
+                    className="pressable -my-1 flex-none lg:my-0"
+                  >
+                    <div
+                      aria-hidden
+                      className="h-9 w-9 flex-none rounded-full border border-surface-hairline bg-surface-fill lg:h-11 lg:w-11"
+                      style={{
+                        backgroundImage: `url(${profile.avatarUrl})`,
+                        backgroundSize: "cover",
+                        backgroundPosition: "center",
+                      }}
+                    />
+                  </Link>
+                )}
+                <h1 className="display imm-title text-2xl lg:text-4xl">{roomTitle}</h1>
+              </div>
             </div>
 
             <div className="imm-area-quiet">
