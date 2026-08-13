@@ -38,6 +38,11 @@ const HEADER_GRADIENT =
  * тест; наступление праздника считает сервис тем же вопросом, которым тихая
  * строка комнаты, — раньше они считали порознь и разошлись.
  *
+ * ПРИ НУЛЕ ЗАБРАННЫХ ПОРОГА НЕ БЫВАЕТ (пакет 50, тикет 236): раскрывать
+ * нечего, и экран сразу показывает пустой итог — «В этот раз тихо» с одним
+ * тихим выходом. Счётчика при нуле нет ни в одном состоянии: «0 вещей
+ * забрали» сообщает о том, чего не произошло.
+ *
  * НАПОЛНЕНИЕ СОСТОЯНИЙ — СЛОВАМИ ПАКЕТА 48 (тикет 219, турны 54a и 54b):
  * порог с блоком «Что случится по нажатию» до нажатия, ожидание со счётчиком
  * забранного, комната без даты с громкой полосой к дате. Машина состояний та
@@ -78,7 +83,8 @@ export default async function OccasionPage() {
 
   const view = await getOccasionView(userId);
   const giftsTotal = view.pending.length + view.received.length;
-  const screen = OCCASION_SCREEN[occasionScreenState(view)];
+  const state = occasionScreenState(view);
+  const screen = OCCASION_SCREEN[state];
   const screenTitle = screen.title === null ? null : t(screen.title);
   // Лид состояния. На пороге он несёт в себе счётчик забранного — то самое
   // единственное число, которое хозяйке видно до раскрытия (инвариант №1).
@@ -88,6 +94,16 @@ export default async function OccasionPage() {
       : screen.taken === "lead"
         ? t(screen.lead, { count: view.takenTotal })
         : t(screen.lead);
+  // СЧЁТЧИК ПРИ НУЛЕ НЕ РИСУЕТСЯ ВОВСЕ (пакет 50, тикет 236): «0 вещей
+  // забрали» сообщает о том, чего не произошло. Число знает только экран —
+  // таблица состояний его не видит, поэтому ноль снимается здесь.
+  const takenBox = screen.taken === "box" && view.takenTotal > 0;
+  // ДАТА ПРОШЕДШЕГО ПРАЗДНИКА — одна на оба входа в итог: у открытого она
+  // своя, у пустого без итога (`due` при нуле) это день рождения, который
+  // прошёл. Дата хранится полуночью UTC → форматируется в UTC, чтобы день не
+  // съехал ни в одном поясе.
+  const closedDay =
+    state === "summary" || state === "summaryEmpty" ? (view.summary?.date ?? view.due) : null;
   // Дата ближайшего праздника — тем же видом и тем же форматом, что в комнате
   // («День рождения · 14 сентября»): календарь платформы, пояс UTC.
   const nearestDate =
@@ -137,22 +153,30 @@ export default async function OccasionPage() {
             ← {t("backToRoom")}
           </Link>
 
-          {view.summary ? (
+          {closedDay ? (
             <>
-              {/* «14 марта · праздник прошёл» — дата итога, не клика.
-                  Дата хранится полуночью UTC → форматируем в UTC, чтобы день
-                  не съехал ни в одном поясе. */}
+              {/* «14 марта · праздник прошёл» — дата праздника, не клика. */}
               <p className="overline mt-6" style={{ color: accent }}>
                 {t("overlineClosed", {
-                  date: format.dateTime(new Date(view.summary.date), {
+                  date: format.dateTime(new Date(closedDay), {
                     day: "numeric",
                     month: "long",
                     timeZone: "UTC",
                   }),
                 })}
               </p>
+              {/* Заголовок пустого итога («В этот раз тихо») приезжает из
+                  таблицы, как у остальных состояний; у полного его собирает
+                  число подарков, и в таблице его поэтому нет.
+
+                  ВЕЩЕЙ МОЖЕТ НЕ БЫТЬ И В НЕПУСТОМ ИТОГЕ — ровно в одном
+                  случае: скинулись только в копилку, и она считается забранной
+                  вещью (ADR-0008), а строкой подарка не становится. Заголовок
+                  тогда говорит теми же словами, что пустой итог: «Тебе
+                  подарили 0 вещей» — это строка на ноль, а их не бывает. */}
               <h1 className="display mt-3 text-3xl lg:text-4xl">
-                {giftsTotal > 0 ? t("headline", { count: giftsTotal }) : t("emptyTitle")}
+                {screenTitle ??
+                  (giftsTotal > 0 ? t("headline", { count: giftsTotal }) : t("emptyTitle"))}
               </h1>
             </>
           ) : (
@@ -171,7 +195,11 @@ export default async function OccasionPage() {
       {/* Список начинается сразу под шапкой: у кадра 430×932 шапка кончается на
           236, список идёт с 254 (`measuredFrom` пакета 49). */}
       <div className="mx-auto w-full max-w-xl px-5 pt-[18px] lg:px-0">
-        {view.summary ? (
+        {/* ПУСТОЙ ИТОГ ИДЁТ НЕ СЮДА, А В ВЕТКУ СОСТОЯНИЙ НИЖЕ, и это не
+            экономия: он и говорит как состояние — заголовком и подсказкой из
+            таблицы плюс один тихий выход. Здесь живёт итог, в котором есть
+            что показать: строки подарков, копилка, вопрос о связи. */}
+        {state === "summary" ? (
           <>
             {view.pending.length > 0 && (
               <div
@@ -208,6 +236,10 @@ export default async function OccasionPage() {
                 connectionReady={view.consent.length === 0}
               />
             ) : (
+              // Подарков нет, а итог всё-таки не пуст — так бывает ровно в
+              // одном случае: скинулись только в копилку, и она стоит ниже
+              // своим блоком. Пустой итог целиком (ноль забранных) сюда не
+              // попадает: он живёт состоянием `summaryEmpty`.
               <p className="text-sm text-text-muted">{t("emptyHint")}</p>
             )}
 
@@ -266,8 +298,9 @@ export default async function OccasionPage() {
             {/* СЧЁТЧИК ЗАБРАННОГО БЛОКОМ — то же число, что в комнате, и
                 единственное, что хозяйке видно до раскрытия (инвариант №1).
                 `takenOnly` говорит это вслух: «Больше не покажем — даже
-                себе». */}
-            {screen.taken === "box" && (
+                себе». ПРИ НУЛЕ БЛОКА НЕТ ВОВСЕ (пакет 50) — так же, как
+                комната прячет свой счётчик при нуле (турн 11d). */}
+            {takenBox && (
               <div className="w-full border border-surface-hairline bg-[rgba(255,255,255,.03)] px-[17px] py-[15px]">
                 <p className="text-[20px] font-bold leading-none text-text-primary">
                   {t("takenNumber", { count: view.takenTotal })}
@@ -345,11 +378,25 @@ export default async function OccasionPage() {
               </Link>
             )}
 
-            {/* Тихий выход с порога: раскрытие необратимо, и уйти, не открыв,
-                должно быть так же просто, как открыть. */}
-            {screen.notNow && (
-              <Link href="/room" className="pressable text-[13px] font-medium text-text-body">
-                {t("notNow")}
+            {/* «Остаться на связи?» (тикет 98) в этой ветке достаётся ровно
+                одному состоянию — ПУСТОМУ ИТОГУ, и это не запас на будущее:
+                вопрос рождается подарком прошлого праздника, а этот итог
+                пуст только по нынешнему. У порога, ожидания и комнаты без
+                даты `view.consent` пуст по сервису — до summary связей из
+                подарков не существует, — и блок не рисуется вовсе. */}
+            <StayInTouch rows={view.consent} accent={accent} ink={ink} variant="bulk" />
+
+            {/* ТИХИЙ ВЫХОД В КОМНАТУ, СВОИМИ СЛОВАМИ У КАЖДОГО СОСТОЯНИЯ. На
+                пороге «Не сейчас — в комнату»: раскрытие необратимо, и уйти,
+                не открыв, должно быть так же просто, как открыть. У пустого
+                итога «В комнату — вещи на месте» — единственное действие
+                экрана, на котором делать больше нечего. Цель 44 (пакет 50). */}
+            {screen.exit && (
+              <Link
+                href="/room"
+                className="pressable inline-flex min-h-11 items-center text-[13px] font-medium text-text-body"
+              >
+                {t(screen.exit)}
               </Link>
             )}
 

@@ -450,6 +450,7 @@
     "unclaimedHint": "They went nowhere — they stay in the room until the next occasion. Nothing to clean up",
     "emptyTitle": "Quiet this time",
     "emptyHint": "Nobody claimed a gift for this occasion. Your “want” items stay in the room for the next one",
+    "emptyBackToRoom": "Back to the room — the items are in place",
     "dueTitle": "Time to learn who gifted what",
     "dueLead": "{count, plural, one {# item} other {# items}} from the room were claimed before the occasion. Who and what stays closed until now: the booking is quiet, and the product kept it that way",
     "dueWhatOverline": "What happens when you tap",

@@ -1018,7 +1018,6 @@ const PACKAGE_ONLY: readonly string[] = [
   "Pool.takeMore",
   "Pool.title",
   "Pool.writeOrganizer",
-  "Occasion.emptyBackToRoom",
   // `PoolInline.*` и `ZoneCounterGuest.*` — ТЕ ЖЕ ДВА РАЗДЕЛА, что раньше были
   // брифами (раунд 49), а пакетом 50 стали плоскими по нашей просьбе: дерево
   // `cases` снято, ключи стали составными (`joinCta`, `progressLeft`,

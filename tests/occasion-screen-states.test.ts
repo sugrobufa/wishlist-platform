@@ -25,6 +25,12 @@
 //    кадр не приносит с собой ни одного имени;
 // 6. «Сказать спасибо» — строка есть у дарителя с почтой и её нет ВОВСЕ у
 //    дарителя без почты; громкой «спасибо всем» у открытого итога нет.
+//
+// СЕДЬМАЯ ПРИЕХАЛА ПАКЕТОМ 50 (тикет 236) И ПРОШИТА ПО ВСЕМУ ФАЙЛУ: при нуле
+// забранных состояние DUE НЕ НАСТУПАЕТ — раскрывать нечего, итог сразу открыт
+// и пуст, а блока счётчика при нуле нет ни в одном состоянии. Отсюда же правка
+// старых фикстур: комната без единой брони проверяет теперь пустой итог, и
+// там, где нужен порог, бронь посеяна нарочно.
 import "dotenv/config";
 import { randomUUID } from "node:crypto";
 import { readFileSync } from "node:fs";
@@ -91,6 +97,7 @@ vi.mock("../src/app/room/occasion/actions", () => ({
 
 import { createFormatter, createTranslator } from "next-intl";
 import contract from "@design/round49/occasion-open.json";
+import zero from "@design/round50/occasion-zero.json";
 import { auth } from "@/server/auth";
 import { rooms } from "@/config/design";
 import { roomImageUrl } from "@/app/rooms/room-image";
@@ -207,13 +214,54 @@ function titleOf(state: OccasionScreenState): string | null {
 describe("состояний четыре, и каждое говорит своё (тикеты 216 и 219)", () => {
   it("выбор состояния: итог старше наступившего праздника, наступивший — будущего", () => {
     const summary = { id: "s", date: "2026-08-12T00:00:00.000Z", revealedAt: null };
-    expect(occasionScreenState({ summary, due: null, next: null })).toBe("summary");
+    // Забранное есть: при нуле порога не бывает вовсе (пакет 50, тест ниже).
+    const taken = { takenTotal: 2, received: [] };
+    expect(occasionScreenState({ summary, due: null, next: null, ...taken })).toBe("summary");
     // Итог закрыт, а праздник наступил снова (следующий год до автозакрытия):
     // экран показывает итог — но «впереди» не говорит ни при каком раскладе.
-    expect(occasionScreenState({ summary, due: "2026-08-12", next: null })).toBe("summary");
-    expect(occasionScreenState({ summary: null, due: "2026-08-12", next: null })).toBe("due");
-    expect(occasionScreenState({ summary: null, due: null, next: "2026-09-14" })).toBe("next");
-    expect(occasionScreenState({ summary: null, due: null, next: null })).toBe("noDate");
+    expect(occasionScreenState({ summary, due: "2026-08-12", next: null, ...taken })).toBe(
+      "summary",
+    );
+    expect(occasionScreenState({ summary: null, due: "2026-08-12", next: null, ...taken })).toBe(
+      "due",
+    );
+    expect(occasionScreenState({ summary: null, due: null, next: "2026-09-14", ...taken })).toBe(
+      "next",
+    );
+    expect(occasionScreenState({ summary: null, due: null, next: null, ...taken })).toBe("noDate");
+  });
+
+  it("ПРИ НУЛЕ ЗАБРАННЫХ ПОРОГА НЕТ: тот же вход даёт пустой итог (пакет 50)", () => {
+    // Правило оказалось сильнее вопроса: мы спрашивали, какой строкой говорить
+    // ноль, а состояния DUE при нуле просто не наступает — раскрывать нечего,
+    // и «Пора узнать, кто что подарил» было бы неправдой.
+    const summary = { id: "s", date: "2026-08-12T00:00:00.000Z", revealedAt: null };
+    const nothing = { takenTotal: 0, received: [] };
+    // Тот же наступивший праздник, что строкой выше давал порог.
+    expect(occasionScreenState({ summary: null, due: "2026-08-12", next: null, ...nothing })).toBe(
+      "summaryEmpty",
+    );
+    // И открытый итог, в котором ничего не оказалось, — то же состояние: вход
+    // в пустоту один, откуда бы в неё ни пришли.
+    expect(occasionScreenState({ summary, due: null, next: null, ...nothing })).toBe(
+      "summaryEmpty",
+    );
+    // ОЖИДАНИЕ И КОМНАТА БЕЗ ДАТЫ НУЛЁМ НЕ ТРОГАЮТСЯ: порога у них и так нет,
+    // а итог у одной впереди, у другой не будет никогда. Снимается у них
+    // только блок счётчика — это видно на разметке, ниже.
+    expect(occasionScreenState({ summary: null, due: null, next: "2026-09-14", ...nothing })).toBe(
+      "next",
+    );
+    expect(occasionScreenState({ summary: null, due: null, next: null, ...nothing })).toBe(
+      "noDate",
+    );
+
+    // ПРОВЕРКА НЕ ПУСТАЯ: «забранных ноль» и «показывать нечего» — разные
+    // вещи. Все подарки отмечены «Дошло», брони закрылись вместе с ними, и
+    // счётчик честно ноль — но итог не пуст, подарки стоят в нём строками.
+    expect(
+      occasionScreenState({ summary, due: null, next: null, takenTotal: 0, received: [{}] }),
+    ).toBe("summary");
   });
 
   it("DUE — ПОРОГ: счётчик в лиде, блок «что случится» из трёх строк, полоса света", () => {
@@ -226,7 +274,7 @@ describe("состояний четыре, и каждое говорит сво
     expect(due.whatHappens).toEqual(["dueNames", "dueDone", "dueUnclaimed"]);
     expect(due.loud).toEqual({ key: "openButton", hint: "openOnceHint", action: "open" });
     // Тихий выход есть, тихой дороги к ручному итогу нет: она и есть полоса.
-    expect(due.notNow).toBe(true);
+    expect(due.exit).toBe("notNow");
     expect(due.manual).toBeNull();
     // Дату ближайшего здесь не показываем: ближайший — через год, а разговор
     // про тот, что уже прошёл.
@@ -283,13 +331,37 @@ describe("состояний четыре, и каждое говорит сво
       taken: null,
       loud: null,
       manual: null,
-      notNow: false,
+      exit: null,
       dateLink: false,
       nearest: false,
       // Кадр шапки — единственное, чем таблица говорит об открытом итоге.
       photo: 1,
       photoHeight: 236,
     });
+  });
+
+  it("OPEN, ПУСТОЙ: слова наши давние, кадр как в ожидании, громкого нет (пакет 50)", () => {
+    const empty = OCCASION_SCREEN.summaryEmpty;
+    // СЛОВ НЕ СОЧИНЯЛИ, И ДИЗАЙН ЭТО ПРИЗНАЛ ОТДЕЛЬНЫМ ПУНКТОМ: «начал
+    // сочинять свои и почти завёл дубль» — `emptyTitle` и `emptyHint` уже
+    // были в словаре нашей редакции.
+    expect(empty.title).toBe("emptyTitle");
+    expect(empty.lead).toBe("emptyHint");
+    expect(titleOf("summaryEmpty")).toBe("В этот раз тихо");
+    // Выход — ключ и текст самого контракта, слово в слово.
+    expect(`Occasion.${empty.exit}`).toBe(zero.screen.exit.key);
+    expect(words[empty.exit!]).toBe(zero.screen.exit.text);
+    // «Громкой кнопки нет: делать здесь нечего» — и тихой дороги к ручному
+    // итогу тоже: итог уже открыт, звать её некуда.
+    expect(empty.loud).toBeNull();
+    expect(empty.manual).toBeNull();
+    // Счётчика нет — он и есть тот ноль, из-за которого экран сюда пришёл.
+    expect(empty.taken).toBeNull();
+    // «Кадр комнаты при .5 — КАК В AHEAD»: сверяем с самим ожиданием, чтобы
+    // числа не разъехались, если пакет однажды двинет приглушение.
+    expect(empty.photo).toBe(OCCASION_SCREEN.next.photo);
+    expect(empty.photo).not.toBe(OCCASION_SCREEN.summary.photo);
+    expect(empty.photoHeight).toBe(236);
   });
 
   it("КАЖДЫЙ ключ таблицы есть в словаре: на пропавшем next-intl падает", () => {
@@ -303,6 +375,7 @@ describe("состояний четыре, и каждое говорит сво
           shape.title,
           shape.lead,
           shape.aside,
+          shape.exit,
           shape.loud?.key ?? null,
           shape.loud?.hint ?? null,
           ...(shape.whatHappens ?? []),
@@ -311,12 +384,14 @@ describe("состояний четыре, и каждое говорит сво
     );
     // Проверка не пустая: ключей в таблице действительно много.
     expect(keys.length).toBeGreaterThanOrEqual(12);
+    // И новый ключ пакета 50 сюда попадает: он назван таблицей, а не разметкой.
+    expect(keys).toContain("emptyBackToRoom");
     for (const key of keys) {
       expect(words[key], `ключа Occasion.${key} нет в словаре`).toBeDefined();
       expect(words[key]?.trim()).not.toBe("");
     }
     // И слова, которые таблица не называет, но экран печатает рядом.
-    for (const key of ["dueWhatOverline", "notNow", "manualOverline", "manualHint", "dateLink"]) {
+    for (const key of ["dueWhatOverline", "manualOverline", "manualHint", "dateLink"]) {
       expect(words[key], `ключа Occasion.${key} нет в словаре`).toBeDefined();
     }
   });
@@ -325,11 +400,15 @@ describe("состояний четыре, и каждое говорит сво
     // Иначе таблица стала бы вторым описанием экрана — и разъехалась бы с ним
     // ровно так же, как разъехались комната и экран (тикет 216).
     const page = readSource("../src/app/room/occasion/page.tsx");
-    expect(page).toContain("OCCASION_SCREEN[occasionScreenState(view)]");
+    expect(page).toContain("occasionScreenState(view)");
+    expect(page).toContain("OCCASION_SCREEN[state]");
     expect(page).toContain("screen.loud");
     expect(page).toContain("screen.taken");
     expect(page).toContain("screen.manual");
     expect(page).toContain("screen.whatHappens");
+    expect(page).toContain("screen.exit");
+    // Заголовок пустого итога — оттуда же, из таблицы (пакет 50).
+    expect(page).toContain("t(screen.title)");
     expect(page).not.toMatch(/t\("(dueTitle|aheadTitle|noDateTitle|dueLead|aheadHint)"\)/u);
     // Снятые ключи не должны остаться ни в разметке, ни в кнопке.
     const gone =
@@ -531,6 +610,110 @@ describe("порог: единственное число — счётчик з�
     expect(markup).toContain(t("takenNumber", { count: 1 }));
     expect(markup).not.toMatch(/Без Даты|Ваза-секрет/u);
   });
+
+  it("ПРИ НУЛЕ СЧЁТЧИКА НЕТ ВОВСЕ — ни блока, ни строки на ноль (пакет 50)", async () => {
+    // Три комнаты, в которых счётчик вообще бывает, и во всех трёх забранных
+    // ноль. «0 вещей забрали» сообщает о том, чего не произошло, — так же
+    // комната прячет свой счётчик при нуле (турн 11d).
+    const ahead = await createOwnerWithRoom(utcMidnightDaysAgo(-30));
+    const dateless = await createOwnerWithRoom(null);
+    const passed = await createOwnerWithRoom(utcMidnightDaysAgo(1));
+
+    for (const owner of [ahead, dateless, passed]) {
+      const view = await getOccasionView(owner.user.id);
+      expect(view.takenTotal).toBe(0);
+
+      const markup = await drawOccasion(owner.user.id);
+      // Блока нет целиком: ни числа, ни подписи, ни примечания «даже себе».
+      expect(markup).not.toContain(words.takenCaption);
+      expect(markup).not.toContain(words.takenOnly);
+      expect(markup).not.toContain(t("takenNumber", { count: 0 }));
+      // И лида со счётчиком нет: он живёт только на пороге, а порога при нуле
+      // не бывает — экран у третьей комнаты ушёл в пустой итог.
+      expect(markup).not.toContain(t("dueLead", { count: 0 }));
+      expect(markup).not.toContain(words.dueTitle);
+    }
+
+    // ПРОВЕРКА НЕ ПУСТАЯ: та же комната с одной бронью блок ПОКАЗЫВАЕТ —
+    // значит «блока нет» выше про ноль, а не про сломанную разметку.
+    const item = await createItem(ahead.room.id, "Плед-один");
+    await bookItem({ itemId: item.id, name: "Гостья Первая" });
+    const withOne = await drawOccasion(ahead.user.id);
+    expect(withOne).toContain(t("takenNumber", { count: 1 }));
+    expect(withOne).toContain(words.takenCaption);
+    expect(withOne).toContain(words.takenOnly);
+  });
+
+  it("скинулись только в копилку: итог НЕ пуст, и «0 вещей» он не говорит", async () => {
+    // Единственный случай, где подарков строками нет, а итог всё-таки полный:
+    // копилка считается забранной вещью (ADR-0008), но строкой подарка не
+    // становится. Заголовок «Тебе подарили 0 вещей» здесь и есть та самая
+    // строка на ноль, которых не бывает (пакет 50).
+    const owner = await createOwnerWithRoom(utcMidnightDaysAgo(1));
+    await prisma.roomGoal.create({
+      data: {
+        roomId: owner.room.id,
+        title: "На велосипед",
+        amount: "40000",
+        currency: "RUB",
+        pledges: {
+          create: [
+            {
+              guestName: "Гостья Копилки",
+              amount: "3000",
+              currency: "RUB",
+              cancelToken: `goal-${randomUUID()}`,
+            },
+          ],
+        },
+      },
+    });
+    await closeOccasion(owner.room.id, { manual: true });
+
+    const view = await getOccasionView(owner.user.id);
+    expect(view.takenTotal).toBe(1);
+    expect(view.pending).toEqual([]);
+    expect(view.received).toEqual([]);
+    expect(occasionScreenState(view)).toBe("summary");
+
+    const markup = await drawOccasion(owner.user.id);
+    expect(markup).not.toContain(t("headline", { count: 0 }));
+    // Вместо неё — те же слова, что у пустого итога: вещей и правда нет.
+    expect(markup).toContain(words.emptyTitle);
+    // Копилка на месте — ради неё этот итог и открывали.
+    expect(markup).toContain("На велосипед");
+    expect(markup).toContain("Гостья Копилки");
+  });
+
+  it("пустой итог: заголовок, подсказка и один выход — громкого действия нет", async () => {
+    const owner = await createOwnerWithRoom(utcMidnightDaysAgo(1));
+
+    const view = await getOccasionView(owner.user.id);
+    expect(occasionScreenState(view)).toBe("summaryEmpty");
+    // ИТОГА В БАЗЕ НЕТ И НЕ ПОЯВИЛОСЬ: раскрывать было нечего, необратимого
+    // шага не случилось — инвариант №2 не тронут (`revealedAt` ставится, как
+    // и раньше, первым заходом на открытый итог).
+    expect(view.summary).toBeNull();
+    expect(await prisma.occasionSummary.count({ where: { roomId: owner.room.id } })).toBe(0);
+
+    const markup = await drawOccasion(owner.user.id);
+    expect(markup).toContain(words.emptyTitle);
+    expect(markup).toContain(words.emptyHint);
+    // Выход — словами контракта, целью 44: не тоньше пальца.
+    expect(markup).toContain(zero.screen.exit.text);
+    expect(markup).toMatch(/min-h-11[^>]*>\s*В комнату — вещи на месте/u);
+    // Громкой кнопки нет: полоса света — единственный `border-b-2` продукта.
+    expect(markup).not.toContain("border-b-2");
+    expect(markup).not.toContain(words.openButton);
+    expect(markup).not.toContain(words.openOnceHint);
+    // И порога нет ни словом: ни заголовка, ни блока «что случится», ни его
+    // собственного тихого выхода.
+    expect(markup).not.toContain(words.dueTitle);
+    expect(markup).not.toContain(words.dueWhatOverline);
+    expect(markup).not.toContain(words.notNow);
+    // Кадр приглушён, как в ожидании (пакет 50: «при .5 — как в AHEAD»).
+    expect(headerOf(markup)).toContain(`opacity:${OCCASION_SCREEN.next.photo}`);
+  });
 });
 
 // ---------------------------------------------------------------------------
@@ -540,6 +723,11 @@ describe("порог: единственное число — счётчик з�
 describe("комната и экран отвечают на «праздник прошёл?» одинаково (тикет 216)", () => {
   it("день рождения вчера, итога нет: комната зовёт — экран зовёт узнать", async () => {
     const owner = await createOwnerWithRoom(utcMidnightDaysAgo(1));
+    // ПОРОГ СУЩЕСТВУЕТ ТОЛЬКО ПРИ ЗАБРАННЫХ ВЕЩАХ (пакет 50, тикет 236): при
+    // нуле раскрывать нечего, и экран уходит в пустой итог. Бронь здесь не
+    // декорация — без неё эта комната проверяла бы другое состояние.
+    const gift = await createItem(owner.room.id, "Вещь-порог");
+    await bookItem({ itemId: gift.id, name: "Гостья Порога" });
 
     // Ровно стенд владельца: день рождения 12-го, приёмка 13-го.
     expect(await occasionBannerVisible(owner.user.id)).toBe(true);
@@ -585,6 +773,8 @@ describe("комната и экран отвечают на «праздник 
     };
 
     const dueNoSummary = await createOwnerWithRoom(utcMidnightDaysAgo(1));
+    const dueItem = await createItem(dueNoSummary.room.id);
+    await bookItem({ itemId: dueItem.id, name: "Гостья Порога" });
     await walk("dueNoSummary", dueNoSummary.user.id);
 
     const closedWithPending = await createOwnerWithRoom(utcMidnightDaysAgo(2));
@@ -607,6 +797,8 @@ describe("комната и экран отвечают на «праздник 
     // этот праздник. Строка в комнате горит — экран показывает прошлый итог и
     // «впереди» всё равно не говорит.
     const staleSummary = await createOwnerWithRoom(utcMidnightDaysAgo(1));
+    const staleItem = await createItem(staleSummary.room.id);
+    await bookItem({ itemId: staleItem.id, name: "Гостья Прошлогодняя" });
     await prisma.occasionSummary.create({
       data: { roomId: staleSummary.room.id, date: utcMidnightDaysAgo(400) },
     });
@@ -617,10 +809,12 @@ describe("комната и экран отвечают на «праздник 
     // трёх») говорил только «сколько», и упавшая проверка не называла комнату;
     // вектор называет её сразу и держит обе стороны вопроса — три горящих и три
     // молчащих, каждая со своей причиной.
+    // `closedClean` — единственная из шести, где забирать было нечего: с
+    // пакета 50 её итог зовётся пустым и говорит «В этот раз тихо».
     expect(walked).toEqual([
       { name: "dueNoSummary", banner: true, state: "due" },
       { name: "closedWithPending", banner: true, state: "summary" },
-      { name: "closedClean", banner: false, state: "summary" },
+      { name: "closedClean", banner: false, state: "summaryEmpty" },
       { name: "ahead", banner: false, state: "next" },
       { name: "dateless", banner: false, state: "noDate" },
       { name: "staleSummary", banner: true, state: "summary" },
@@ -655,7 +849,8 @@ describe("комната и экран отвечают на «праздник 
     // Решение гриллинга №6 в силе: ручное закрытие без даты закрывает «сегодня».
     const closed = await closeOccasion(owner.room.id, { manual: true });
     expect(closed?.created).toBe(true);
-    expect(occasionScreenState(await getOccasionView(owner.user.id))).toBe("summary");
+    // Итог открылся и оказался пуст — забирать в этой комнате было нечего.
+    expect(occasionScreenState(await getOccasionView(owner.user.id))).toBe("summaryEmpty");
   });
 });
 
@@ -680,9 +875,15 @@ const THANKS = words.thanksGuest!;
 
 /** Комната в нужном состоянии — и проверка, что фикстура действительно та. */
 async function drawInState(state: OccasionScreenState): Promise<string> {
-  const birthday =
-    state === "noDate" ? null : utcMidnightDaysAgo(state === "next" ? -30 : 1);
+  const birthday = state === "noDate" ? null : utcMidnightDaysAgo(state === "next" ? -30 : 1);
   const owner = await createOwnerWithRoom(birthday);
+  // ПОРОГ И НЕПУСТОЙ ИТОГ ЖИВУТ ТОЛЬКО ПРИ ЗАБРАННЫХ ВЕЩАХ (пакет 50): комната
+  // с нулём уходит в пустой итог, и фикстура без брони проверяла бы не то
+  // состояние. Пустому итогу, наоборот, бронь не нужна — он ею и определяется.
+  if (state === "due" || state === "summary") {
+    const item = await createItem(owner.room.id);
+    await bookItem({ itemId: item.id, name: "Гостья Кадра" });
+  }
   if (state === "summary") await closeOccasion(owner.room.id, { manual: true });
   expect(occasionScreenState(await getOccasionView(owner.user.id))).toBe(state);
   return drawOccasion(owner.user.id);
@@ -697,18 +898,21 @@ describe("шапка итога — кадр СОБСТВЕННОЙ комнат
     expect(OCCASION_SCREEN.summary.photo).toBe(byState.OPEN);
     expect(OCCASION_SCREEN.next.photo).toBe(byState.AHEAD);
     expect(OCCASION_SCREEN.noDate.photo).toBe(byState.NO_DATE);
+    // Пустой итог у пакета 49 своего числа не имел — его прислал пакет 50
+    // и словом «как в AHEAD»: сверяем с ожиданием, а не с константой в тесте.
+    expect(OCCASION_SCREEN.summaryEmpty.photo).toBe(byState.AHEAD);
     // Проверка не пустая: приглушение действительно разное, а не одно на всех.
     expect(new Set(Object.values(byState)).size).toBe(3);
     // Окно порога выше остальных на 14 px (`crop430.window`: 236, в DUE — 250).
     expect(OCCASION_SCREEN.due.photoHeight).toBe(250);
-    for (const state of ["summary", "next", "noDate"] as const) {
+    for (const state of ["summary", "summaryEmpty", "next", "noDate"] as const) {
       expect(OCCASION_SCREEN[state].photoHeight).toBe(236);
     }
   });
 
-  it("во всех четырёх состояниях в шапке стоит кадр своей комнаты — и он приглушается", async () => {
+  it("во всех пяти состояниях в шапке стоит кадр своей комнаты — и он приглушается", async () => {
     const heads = new Map<OccasionScreenState, string>();
-    for (const state of ["summary", "due", "next", "noDate"] as const) {
+    for (const state of ["summary", "summaryEmpty", "due", "next", "noDate"] as const) {
       const markup = await drawInState(state);
       const head = headerOf(markup);
       // ТОТ ЖЕ ФАЙЛ, ЧТО НА ГЛАВНОМ ЭКРАНЕ, и простое кадрирование контракта.
@@ -725,11 +929,15 @@ describe("шапка итога — кадр СОБСТВЕННОЙ комнат
       heads.set(state, head);
     }
 
-    // ПРОВЕРКА НЕ ПУСТАЯ: приглушение живое, а не одно число на четыре экрана.
+    // ПРОВЕРКА НЕ ПУСТАЯ: приглушение живое, а не одно число на пять экранов.
     expect(heads.get("next")).not.toContain("opacity:1");
     expect(heads.get("noDate")).not.toContain("opacity:1");
     expect(heads.get("due")).not.toContain("opacity:0.5");
     expect(heads.get("noDate")).not.toContain("opacity:0.5");
+    // Полный итог горит в полную силу, пустой — приглушён: одно состояние
+    // дизайна, а кадр у них разный, и это ровно то, что прислал пакет 50.
+    expect(heads.get("summary")).toContain("opacity:1");
+    expect(heads.get("summaryEmpty")).not.toContain("opacity:1");
     expect(heads.get("due")).toContain("height:250px");
     expect(heads.get("next")).not.toContain("height:250px");
   });
@@ -772,7 +980,13 @@ describe("«Сказать спасибо» — адресно и только �
 
     // Строка ровно одна — у того, кому есть куда писать.
     expect(countOf(markup, THANKS)).toBe(1);
-    expect(markup).toContain('href="mailto:thanks-here@mail.test"');
+    // СБОРКА `mailto` ПОДТВЕРЖДЕНА ПАКЕТОМ 50 с одним уточнением: тема из
+    // ключа `thanksSubject`, а ТЕЛО ПУСТОЕ — «благодарить за человека
+    // заготовкой нельзя, слова его». Поэтому параметр в ссылке ровно один.
+    expect(markup).toContain(
+      `href="mailto:thanks-here@mail.test?subject=${encodeURIComponent(words.thanksSubject!)}"`,
+    );
+    expect(markup).not.toContain("body=");
     // «Нет почты — строки нет вовсе: не серой, не выключенной, никакой».
     expect(countOf(markup, "mailto:")).toBe(1);
     // Цель нажатия 44 (`thanksGuest.target`) — строка не тоньше пальца.
@@ -785,11 +999,13 @@ describe("«Сказать спасибо» — адресно и только �
     expect(markup).toContain("Гостья Одна");
     expect(countOf(markup, THANKS)).toBe(0);
     expect(markup).not.toContain("mailto:");
-    // Тихой пояснительной «почты ни у кого нет — писать некуда» тоже нет:
-    // в пакете она названа прозой (`rowGeometry.noEmail`), ключа не существует.
-    // Спрошено письмом 54 — до ответа экран об этом молчит.
+    // Тихой пояснительной «почты ни у кого нет — писать некуда» тоже нет.
+    // СПРОШЕНО ПИСЬМОМ 54, ОТВЕТ ПРИШЁЛ ПАКЕТОМ 50: строки не будет вовсе —
+    // «нарушает правило, которым я же обосновал скрытие: не сообщаем о том,
+    // чего у нас нет». Дизайн снял её из макета сам, а мы её и не заводили.
     expect(markup).not.toMatch(/писать некуда/iu);
     expect((ru.Occasion as Record<string, string>).thanksNoEmail).toBeUndefined();
+    expect(zero.noEmailString.verdict).toBe("строки не будет");
   });
 
   it("ПРОВЕРКА НЕ ПУСТАЯ: две почты — две строки, каждая своим адресом", async () => {

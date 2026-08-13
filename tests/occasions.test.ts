@@ -774,6 +774,31 @@ describe("getOccasionView — наступивший праздник рядом
     expect(view.next).toBeNull();
   });
 
+  it("ноль забранных ДАТ НЕ ТРОГАЕТ: порог снимает экран, а не сервис (пакет 50)", async () => {
+    // Тикет 236: при нуле забранных состояние DUE не наступает — но правило
+    // это ЭКРАННОЕ (`screen-state`), и сервису его знать не надо. Здесь
+    // проверяется граница: `due` по-прежнему считается по дню рождения и о
+    // бронях не говорит ничего (инвариант №1), а «показывать нечего» экран
+    // складывает сам из счётчика и отмеченных подарков.
+    const owner = await createOwnerWithRoom(utcMidnightDaysAgo(1));
+
+    const view = await getOccasionView(owner.user.id);
+    expect(view.due).toBe(isoDay(utcMidnightDaysAgo(1)));
+    expect(view.takenTotal).toBe(0);
+    expect(view.received).toEqual([]);
+    // И тихая строка комнаты тоже не меняется: праздник прошёл — это правда,
+    // сколько бы вещей ни забрали.
+    expect(await occasionBannerVisible(owner.user.id)).toBe(true);
+
+    // ПРОВЕРКА НЕ ПУСТАЯ: появилась бронь — изменился ТОЛЬКО счётчик, даты те
+    // же. Иначе «ноль» протёк бы в поля, которые о бронях молчать обязаны.
+    const item = await createWantItem(owner.room.id);
+    await bookItem({ itemId: item.id, name: "Гостья Порога" });
+    const after = await getOccasionView(owner.user.id);
+    expect({ due: after.due, next: after.next }).toEqual({ due: view.due, next: view.next });
+    expect(after.takenTotal).toBe(1);
+  });
+
   it("даты праздника О БРОНЯХ НЕ ГОВОРЯТ (инвариант №1)", async () => {
     // Новые поля считаются по колонкам дня рождения — ровно как голый boolean
     // тихой строки. Занятая вещь не меняет в них ни символа.
