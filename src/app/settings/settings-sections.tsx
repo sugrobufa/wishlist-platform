@@ -1159,54 +1159,63 @@ export function LightSection({ accent, ink }: { accent: string; ink: string }) {
   const { busy, error, run } = useSettingsAction();
   // Оптимистичность цела: обе ручки живут в состоянии кадра и меняют его в
   // момент нажатия, а не после ответа сервера.
-  const { timeOfDay, setTimeOfDay, lightColor, setLightColor } = useRoomStudio();
+  const { timeOfDay, setTimeOfDay, lightColor, setLightColor, knobsRef } = useRoomStudio();
 
   return (
     <Section overline={t("lightOverline")}>
       <p className="text-xs leading-relaxed text-text-faint">{t("lightHint")}</p>
 
-      <p className="overline text-text-muted">{t("todLabel")}</p>
-      {/* ТРИ ПОЛОЖЕНИЯ, А НЕ ЧЕТЫРЕ (тикет 133): «ночь» упразднена — она давала
-          тот же кадр, что вечер, а два одинаковых положения с разными именами
-          это ложь интерфейсу. Ряд берёт их из TIMES_OF_DAY, а не из головы. */}
-      <div className={studio.knobRow}>
-        {TIMES_OF_DAY.map((option) => (
-          <LightKnob
-            key={option}
-            on={timeOfDay === option}
-            accent={accent}
-            ink={ink}
-            busy={busy}
-            onClick={() => {
-              // Времянки «ночь = свеча» здесь больше нет (тикет 112): тёплый
-              // свет ламп теперь ВНУТРИ ночного рецепта, и цвет света снова
-              // независимая ручка — выбор хозяйки уважается во всех временах.
-              setTimeOfDay(option);
-              run(() => setLightSettingsAction({ timeOfDay: option }));
-            }}
-          >
-            {t(`tod_${option}`)}
-          </LightKnob>
-        ))}
-      </div>
+      {/* ОБЕ СТРОКИ ОДНИМ БЛОКОМ — за ним следит кадр (тикет 237). Пока хоть
+          одна ручка видна, кадр липнет; ушла последняя — отпускает. Ссылка
+          приезжает из `RoomStudio`: наблюдателя заводит он, потому что мерить
+          надо ЕГО кадр. */}
+      <div ref={knobsRef} className={studio.knobs}>
+        <p className="overline text-text-muted">{t("todLabel")}</p>
+        {/* ТРИ ПОЛОЖЕНИЯ, А НЕ ЧЕТЫРЕ (тикет 133): «ночь» упразднена — она давала
+            тот же кадр, что вечер, а два одинаковых положения с разными именами
+            это ложь интерфейсу. Ряд берёт их из TIMES_OF_DAY, а не из головы. */}
+        <div className={studio.knobRow}>
+          {TIMES_OF_DAY.map((option) => (
+            <LightKnob
+              key={option}
+              on={timeOfDay === option}
+              accent={accent}
+              ink={ink}
+              busy={busy}
+              onClick={() => {
+                // Времянки «ночь = свеча» здесь больше нет (тикет 112): тёплый
+                // свет ламп теперь ВНУТРИ ночного рецепта, и цвет света снова
+                // независимая ручка — выбор хозяйки уважается во всех временах.
+                setTimeOfDay(option);
+                run(() => setLightSettingsAction({ timeOfDay: option }));
+              }}
+            >
+              {t(`tod_${option}`)}
+            </LightKnob>
+          ))}
+        </div>
 
-      <p className="overline mt-1 text-text-muted">{t("lightColorLabel")}</p>
-      <div className={studio.knobRow}>
-        {LIGHT_COLORS.map((option) => (
-          <LightKnob
-            key={option}
-            on={lightColor === option}
-            accent={accent}
-            ink={ink}
-            busy={busy}
-            onClick={() => {
-              setLightColor(option);
-              run(() => setLightSettingsAction({ lightColor: option }));
-            }}
-          >
-            {t(`light_${option}`)}
-          </LightKnob>
-        ))}
+        <p className="overline mt-1 text-text-muted">{t("lightColorLabel")}</p>
+        {/* ПОСЛЕДНЯЯ РУЧКА БЛОКА: её низ и есть та кромка, по которой кадр
+            отпускает (тикет 237). Допишется третья строка — блок вырастет сам,
+            наблюдатель следит за ним целиком, а не за этим рядом. */}
+        <div className={studio.knobRow}>
+          {LIGHT_COLORS.map((option) => (
+            <LightKnob
+              key={option}
+              on={lightColor === option}
+              accent={accent}
+              ink={ink}
+              busy={busy}
+              onClick={() => {
+                setLightColor(option);
+                run(() => setLightSettingsAction({ lightColor: option }));
+              }}
+            >
+              {t(`light_${option}`)}
+            </LightKnob>
+          ))}
+        </div>
       </div>
 
       {error && <p className="text-sm text-text-muted">{t(errorKey(error))}</p>}

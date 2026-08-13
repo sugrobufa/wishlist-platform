@@ -20,6 +20,7 @@
 // стоит в комнате» и «что человек смотрит» — в чистом `room-preview.ts`.
 import {
   createContext,
+  useCallback,
   useContext,
   useEffect,
   useMemo,
@@ -27,6 +28,7 @@ import {
   useState,
   type CSSProperties,
   type Dispatch,
+  type Ref,
   type ReactNode,
   type SetStateAction,
 } from "react";
@@ -42,6 +44,7 @@ import {
   type TimeOfDay,
 } from "@/components/scene/grading";
 import { previewOf, type PresetCard } from "./room-preview";
+import { watchKnobs } from "./knobs-in-sight";
 import s from "./room-studio.module.css";
 
 type RoomStudioValue = {
@@ -59,6 +62,12 @@ type RoomStudioValue = {
   setTimeOfDay: Dispatch<SetStateAction<TimeOfDay>>;
   lightColor: LightColor;
   setLightColor: Dispatch<SetStateAction<LightColor>>;
+  /**
+   * Блок ручек света — за ним кадр и следит, чтобы вовремя отпустить (тикет
+   * 237). Едет через контекст по той же причине, что и всё здесь: между этим
+   * узлом и разделом света лежит серверная страница.
+   */
+  knobsRef: (node: HTMLDivElement | null) => void;
 };
 
 const RoomStudioContext = createContext<RoomStudioValue | null>(null);
@@ -104,6 +113,7 @@ export function RoomStudio({
   // ответа сервера (требование тикета — «не сломать»).
   const [tod, setTod] = useState(timeOfDay);
   const [color, setColor] = useState(lightColor);
+  const { loose, dockRef, knobsRef } = useDockWhileKnobsInSight();
 
   const { shown, pending } = previewOf(cards, currentPreset, selected);
 
@@ -118,18 +128,73 @@ export function RoomStudio({
       setTimeOfDay: setTod,
       lightColor: color,
       setLightColor: setColor,
+      knobsRef,
     }),
-    [cards, currentPreset, shown, pending, tod, color],
+    [cards, currentPreset, shown, pending, tod, color, knobsRef],
   );
 
   return (
     <RoomStudioContext.Provider value={value}>
       <div className={s.studio}>
-        {shown && <RoomFrame card={shown} timeOfDay={tod} lightColor={color} />}
+        {shown && (
+          <RoomFrame
+            card={shown}
+            timeOfDay={tod}
+            lightColor={color}
+            dockRef={dockRef}
+            loose={loose}
+          />
+        )}
         {children}
       </div>
     </RoomStudioContext.Provider>
   );
+}
+
+/**
+ * ЛИПКОСТЬ ЖИВЁТ РОВНО СТОЛЬКО, СКОЛЬКО ВИДНЫ РУЧКИ (тикет 237).
+ *
+ * Довод и числа — в шапке `knobs-in-sight.ts`; здесь только проводка: кадр
+ * отдаёт свою высоту (кромка видимого проходит по его низу — он непрозрачный),
+ * блок ручек отдаёт себя наблюдателю.
+ *
+ * ПО УМОЛЧАНИЮ ЛИПНЕТ. Ни разметка сервера, ни браузер без наблюдателя, ни
+ * страница без раздела света (пресет незнаком — `LightSection` не рисуется, и
+ * ссылка на блок ручек не придёт никогда) липкости не теряют: молчание значит
+ * «как было до тикета».
+ */
+function useDockWhileKnobsInSight(): {
+  loose: boolean;
+  dockRef: Ref<HTMLDivElement>;
+  knobsRef: (node: HTMLDivElement | null) => void;
+} {
+  const dock = useRef<HTMLDivElement>(null);
+  const [inSight, setInSight] = useState(true);
+  const unwatch = useRef<(() => void) | null>(null);
+
+  const knobsRef = useCallback((node: HTMLDivElement | null) => {
+    unwatch.current?.();
+    unwatch.current = null;
+    if (!node) {
+      setInSight(true);
+      return;
+    }
+    unwatch.current = watchKnobs(
+      node,
+      () => dock.current?.getBoundingClientRect().height ?? 0,
+      setInSight,
+    );
+  }, []);
+
+  useEffect(
+    () => () => {
+      unwatch.current?.();
+      unwatch.current = null;
+    },
+    [],
+  );
+
+  return { loose: !inSight, dockRef: dock, knobsRef };
 }
 
 /**
@@ -182,16 +247,26 @@ export function RoomFrame({
   card,
   timeOfDay,
   lightColor,
+  dockRef,
+  loose = false,
 }: {
   card: PresetCard;
   timeOfDay: TimeOfDay;
   lightColor: LightColor;
+  /** Док измеряют снаружи: его высота — кромка видимого для ручек (тикет 237). */
+  dockRef?: Ref<HTMLDivElement>;
+  /** Ручки ушли за спину кадра — липнуть больше не за чем (тикет 237). */
+  loose?: boolean;
 }) {
   const t = useTranslations("Settings");
   const leaving = useLeavingCard(card);
 
   return (
-    <div className={s.dock} style={{ "--preview-accent": card.accent } as CSSProperties}>
+    <div
+      ref={dockRef}
+      className={loose ? `${s.dock} ${s.dockLoose}` : s.dock}
+      style={{ "--preview-accent": card.accent } as CSSProperties}
+    >
       <div aria-hidden className={s.frame}>
         <GradedBase card={card} timeOfDay={timeOfDay} lightColor={lightColor} />
         {/* УХОДЯЩАЯ БАЗА ЛЕЖИТ ПОВЕРХ И ГАСНЕТ (пакет 43, `motion.roomChange`).
