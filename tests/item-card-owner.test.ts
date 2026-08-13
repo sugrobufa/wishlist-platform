@@ -121,6 +121,33 @@ const reading = JSON.parse(read("../design/package/handoff/round45/item-card.jso
   scaling: string;
 };
 
+/**
+ * ЗНАКИ ШАПКИ НА ФОТОГРАФИИ — round48 (тикет 221, ответ на письмо 52, пункт 5).
+ * Приём подложки дизайн принял целиком и «принял потому, что он не новый», и
+ * поставил три условия. Два взяты кодом (тень снять, форма круглая), третье у
+ * нас беспредметно — шапка карточки не липкая; все три читаются здесь, чтобы
+ * взятое и невзятое стояли рядом и назывались вслух.
+ */
+const signs = JSON.parse(read("../design/package/handoff/round48/photo-signs.json")) as {
+  backing: {
+    size: number;
+    shape: string;
+    fill: string;
+    blur: string;
+    underBothSigns: boolean;
+    whyBoth: string;
+  };
+  conditions: ReadonlyArray<{ n: number; rule: string; why: string }>;
+  glyphs: { back: number; more: number; changed: boolean };
+};
+
+/** Условие контракта по номеру — их ровно три, и порядок в файле не обещан. */
+const condition = (n: number) => {
+  const found = signs.conditions.find((one) => one.n === n);
+  expect(found, `в контракте нет условия ${n}`).toBeDefined();
+  return found as { n: number; rule: string; why: string };
+};
+
 /** Первое число контрактной строки — «знак зоны 16 при .55», «⋯ 20 в цели 44». */
 const firstNumber = (text: string): number => Number(/(\d+(?:\.\d+)?)/u.exec(text)?.[1]);
 
@@ -431,8 +458,8 @@ describe("числа контракта round45 — из контракта, а 
 
   it("тень под знаками шапки доехала до рисунка, а не осталась у текста", () => {
     // `text-shadow` контур SVG не красит вовсе. Пока стрелка была глифом, тень
-    // работала у неё одной; знаком она потеряла бы её совсем, а на светлых
-    // комнатах знак .92 по мрамору без тени не читается.
+    // работала у неё одной; знаком она потеряла бы её совсем, а на карточке
+    // БЕЗ фотографии (где подложки нет) тень — единственная защита знака.
     expect(css).toMatch(/\.headSign svg,\s*\n\.headActions svg \{[\s\S]*?filter: drop-shadow/u);
     // Правил с `text-shadow` не осталось. Сверяется КОД, а не комментарии: про
     // текстовую тень в файле написано много и написано правильно — это разбор,
@@ -447,17 +474,21 @@ describe("числа контракта round45 — из контракта, а 
     // ЧИСЛА НЕ НАБИТЫ, А СКОПИРОВАНЫ, и проверяется именно это: приём взят
     // готовым из `globals.css` — знак сокровищницы, стоящий на кадре комнаты.
     // Случай тот же (знак на фотографии) и цели те же 44. Уедут числа в общем
-    // файле — покраснеет здесь, а не на приёмке.
+    // файле — покраснеет здесь, а не на приёмке. Пакет 48 приём подтвердил
+    // теми же числами и той же причиной: «принят потому, что он не новый».
     const mark = ruleBody(globalsCss, ".imm-corner-mark");
     const ground = rules(css).filter((rule) => /backdrop-filter/u.test(rule.body));
     expect(ground, "подложки под знаками нет вовсе").toHaveLength(1);
     const body = ground[0]?.body ?? "";
     expect(value(body, "background")).toBe(value(mark, "background"));
     expect(value(body, "backdrop-filter")).toBe(value(mark, "backdrop-filter"));
-    // Те самые числа тикета — 44, .55, blur(8px).
+    // Те самые числа тикета — 44, .55, blur(8px), и они же в контракте 48.
     expect(value(mark, "background")).toBe("rgba(11, 8, 6, 0.55)");
     expect(value(mark, "backdrop-filter")).toBe("blur(8px)");
     expect(value(mark, "width")).toBe("var(--hit-target-min, 44px)");
+    expect(signs.backing.fill).toBe("rgba(11,8,6,.55)");
+    expect(signs.backing.blur).toBe("backdrop-filter: blur(8px)");
+    expect(signs.backing.size).toBe(44);
     // Наведение — оттуда же: плашка ТЕМНЕЕТ, а не светлеет (комнаты бывают
     // светлые), и живёт это за общими воротами hover продукта.
     const markHover = ruleBody(globalsCss, ".imm-corner-mark:hover");
@@ -469,11 +500,64 @@ describe("числа контракта round45 — из контракта, а 
     expect(css).toMatch(
       /@media \(hover: hover\) and \(pointer: fine\) \{\s*\n\s*\.headOnPhoto \.headSign:hover/u,
     );
-    // Скругления нет: прямой угол — умолчание продукта.
-    expect(body).not.toContain("border-radius");
-    // Тень под самим знаком ОСТАЛАСЬ: подложка светлее фотографии не бывает,
-    // но контур на границе квадрата держит она.
+  });
+
+  it("ФОРМА ПОДЛОЖКИ КРУГЛАЯ — и это единственное число не из `.imm-corner-mark`", () => {
+    // Условие 3 пакета 48 (тикет 221): «прямоугольная подложка в продукте
+    // занята другим — ею помечены вещи и зоны». Мы взяли квадрат, скопировав
+    // приём целиком, и ошиблись в другую сторону.
+    expect(signs.backing.shape).toBe("круг");
+    expect(condition(3).rule).toBe("форма круглая");
+    const ground = rules(css).find((rule) => /backdrop-filter/u.test(rule.body));
+    expect(value(ground?.body ?? "", "border-radius")).toBe("50%");
+
+    // РАСХОЖДЕНИЕ НАЗВАНО ВСЛУХ, А НЕ ЗАМОЛЧАНО (границы тикета, письмо 53).
+    // Контракт зовёт круг «родством» со знаком витрины на кадре комнаты, а
+    // `.imm-corner-mark` у нас КВАДРАТ: `border-radius` в `globals.css` нет
+    // вовсе. Родство сегодня работает в обратную сторону, и знак витрины мы не
+    // трогаем — до ответа. Округлится он сам — покраснеет эта строка, и
+    // расхождение придётся закрыть осознанно.
+    expect(condition(3).why).toContain("родство со знаком витрины");
+    expect(ruleBody(globalsCss, ".imm-corner-mark")).not.toContain("border-radius");
+    // Разбор живёт у самого правила — иначе он потеряется первой же правкой.
+    expect(css).toContain("round48/photo-signs.json");
+    expect(css).toMatch(/КВАДРАТ/u);
+  });
+
+  it("ТЕНЬ СНЯТА РОВНО ТАМ, ГДЕ ПОДЛОЖКА: одна защита, не две", () => {
+    // Условие 1 пакета 48: «вместе они дают серый ореол по краю круга — на
+    // светлом кадре он читается как грязь». Проверяется не «тени нет в файле»,
+    // а СОВПАДЕНИЕ АДРЕСОВ: где подложка — там `filter: none`, и наоборот.
+    // Разъедутся селекторы — на светлом кадре вернётся ореол, и увидит это
+    // только глаз.
+    expect(condition(1).rule).toContain("drop-shadow(0 1px 6px rgba(11,8,6,.85)) снять");
+    expect(condition(1).why).toContain("Одна защита, не две");
+
+    const backing = rules(css).find((rule) => /backdrop-filter/u.test(rule.body));
+    const off = rules(css).filter((rule) => /filter:\s*none/u.test(rule.body));
+    expect(off, "тень не снята нигде или снята дважды").toHaveLength(1);
+    const targets = (selector: string) => selector.split(",").map((one) => one.trim());
+    expect(targets(off[0]?.selector ?? "")).toEqual(
+      targets(backing?.selector ?? "").map((one) => `${one} svg`),
+    );
+
+    // Тень под знаком БЕЗ подложки жива — там она единственная защита, и
+    // контракт снимает её только «там, где есть подложка».
+    expect(condition(1).rule).toContain("снять");
     expect(css).toMatch(/\.headSign svg,\s*\n\.headActions svg \{[\s\S]*?filter: drop-shadow/u);
+  });
+
+  it("ТРЕТЬЕ УСЛОВИЕ БЕСПРЕДМЕТНО: шапка карточки не липкая — и записано это", () => {
+    // Контракт снимает подложку, когда шапка залипает со своим фоном: «тёмный
+    // круг на тёмной шапке — уже не защита, а второй прямоугольник». У нас
+    // шапка `absolute` над фотографией и никуда не липнет, поэтому правило не
+    // воплощается — но записано у самой подложки, чтобы нашлось, если липкость
+    // однажды заведут.
+    expect(condition(2).rule).toContain("при залипании шапки со своим фоном — снимается");
+    expect(ruleBody(css, ".head")).toContain("position: absolute");
+    expect(strip(css)).not.toContain("position: sticky");
+    expect(css).toContain("Шапка");
+    expect(css).toMatch(/не липкая/u);
   });
 
   it("подложка ОБОИМ знакам: «назад» и «⋯» читались парой и остались парой", () => {
@@ -519,13 +603,18 @@ describe("числа контракта round45 — из контракта, а 
     expect(closes).toBeLessThan(sheetSrc.indexOf("{open && ("));
   });
 
-  it("БЕЗ ФОТОГРАФИИ подложки нет: под знаками ровная заливка, а не фото", () => {
+  it("БЕЗ ФОТОГРАФИИ подложки нет, А ТЕНЬ ЕСТЬ: она там единственная защита", () => {
     // Знаки на пустом месте стоят на собственной заливке .05 — подложка была
     // бы тёмным пятном на ровном фоне. Включает её карточка, и только когда
     // фотография есть.
     expect(card).toContain("className={item.photoUrl ? `${s.head} ${s.headOnPhoto}` : s.head}");
     // Ни одного правила подложки без `.headOnPhoto`: класс — единственный вход.
     for (const rule of rules(css).filter((one) => /backdrop-filter/u.test(one.body))) {
+      expect(rule.selector, rule.selector).toContain(".headOnPhoto ");
+    }
+    // ТЕМ ЖЕ КЛАССОМ СНИМАЕТСЯ И ТЕНЬ, и это вторая половина условия 1: без
+    // фотографии снимать её нечем — и незачем, подложки-то нет.
+    for (const rule of rules(css).filter((one) => /filter:\s*none/u.test(one.body))) {
       expect(rule.selector, rule.selector).toContain(".headOnPhoto ");
     }
   });

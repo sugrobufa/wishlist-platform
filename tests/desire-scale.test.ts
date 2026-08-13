@@ -246,7 +246,7 @@ describe("где показ обязан быть", () => {
   });
 });
 
-// ПУСТАЯ ШКАЛА НАЗЫВАЕТ СЕБЯ САМА (тикет 215).
+// ПУСТАЯ ШКАЛА НАЗЫВАЕТ СЕБЯ САМА (тикет 215) — И СВОИМИ СЛОВАМИ (тикет 221).
 //
 // ЗАЧЕМ ЭТОТ РАЗДЕЛ. Один и тот же `DesirePicker` стоит в двух местах, и
 // подпись была только в одном: в форме добавления над шкалой стоит своей
@@ -260,7 +260,15 @@ describe("где показ обязан быть", () => {
 // форму, напишет одно слово дважды подряд, а забытая в карточке вернёт четыре
 // безымянных кружка. Ни то, ни другое не видно ни типам, ни линту — только
 // глазу. Поэтому проверяются оба места и оба положения шкалы.
-describe("огоньки называют себя в карточке (тикет 215)", () => {
+//
+// СЛОВО КАРТОЧКИ СТАЛО ИХ (пакет 48 → round48/desire-scale.json, тикет 221).
+// Сутки в карточке стояла наша `AddItem.desireLabel` — «Насколько хочется», —
+// и дизайн снял её одним доводом: в форме шкала ВОПРОС, в карточке ОТВЕТ, а
+// «не скажу» законное значение, а не пустота; вопрос на его месте читается
+// приглашением заполнить там, где человек уже ответил. Поэтому проверяется не
+// «строка есть», а КАКАЯ строка: своё слово карточки (`ItemCard.desireEmpty`)
+// и отсутствие вопроса формы на его месте.
+describe("огоньки называют себя в карточке (тикеты 215, 221)", () => {
   const pick = (desire: number | null, emptyLabel?: string) =>
     renderToStaticMarkup(
       createElement(DesirePicker, { desire, accent: "#E7C9A9", onPick: () => {}, emptyLabel }),
@@ -272,12 +280,61 @@ describe("огоньки называют себя в карточке (тике
       (match) => match[1] as string,
     );
 
-  it("В КАРТОЧКЕ пустое положение подписано — теми же словами, что в форме", () => {
-    // Слово карточки не своё: это подпись поля из формы добавления, которую
-    // человек читал, когда вещь заводил. Нового ключа у тикета нет.
-    expect(words(pick(null, ru.AddItem.desireLabel))).toEqual([ru.AddItem.desireLabel]);
+  it("В КАРТОЧКЕ пустое положение — ОТВЕТ «не сказано», а не вопрос формы", () => {
+    // Слово карточки СВОЁ, и раздел словаря у него свой: в форме шкала вопрос,
+    // здесь ответ, и одним ключом два голоса не покрыть (пакет 48).
+    expect(words(pick(null, ru.ItemCard.desireEmpty))).toEqual([ru.ItemCard.desireEmpty]);
+    expect(ru.ItemCard.desireEmpty).toBe("не сказано, насколько хочется");
+    expect(en.ItemCard).toHaveProperty("desireEmpty");
+    // И это НЕ подпись формы: ровно её дизайн с этого места и снял.
+    expect(ru.ItemCard.desireEmpty).not.toBe(ru.AddItem.desireLabel);
     expect(ru.AddItem.desireLabel).toBe("Насколько хочется");
-    expect(en.AddItem).toHaveProperty("desireLabel");
+  });
+
+  it("слово карточки — из контракта пакета 48, а не наше", () => {
+    // Оба конца: контракт зовёт ключ по имени и приводит саму строку. Уедет
+    // словарь или уедет контракт — покраснеет здесь, а не на приёмке.
+    const scale = JSON.parse(read("../design/package/handoff/round48/desire-scale.json")) as {
+      states: ReadonlyArray<{ case: string; word: string; text?: string }>;
+      row: { word: { alwaysPresent: boolean } };
+      whyNotYours: { yours: string; keptFromYours: string };
+    };
+    const empty = scale.states.find((state) => state.case === "ступень не выбрана");
+    expect(empty?.word).toBe("ItemCard.desireEmpty");
+    expect(empty?.text).toBe(ru.ItemCard.desireEmpty);
+    // Причина замены — та самая: на месте ответа стоял наш вопрос.
+    expect(scale.whyNotYours.yours).toContain("Насколько хочется");
+    // А строку «есть всегда» дизайн забрал у нас дословно — она и остаётся.
+    expect(scale.row.word.alwaysPresent).toBe(true);
+    expect(scale.whyNotYours.keptFromYours).toContain("есть всегда");
+  });
+
+  it("ЧИСЕЛ ШКАЛЫ ИЗ ПАКЕТА 48 МЫ НЕ ВЗЯЛИ — и это названо вслух", () => {
+    // РАСХОЖДЕНИЕ, А НЕ НЕДОСМОТР (тикет 221, письмо 53). `round48` описывает
+    // огоньки строки как 5 px с шагом 4 — ровно ту пару, которую round41 снял
+    // сам: «числа 5/4 из нашего файла были числами СТРОКИ ЗОНЫ, вы поймали
+    // верно», и там же «в карточке огоньки 6 px с шагом 5». Плюс арифметика:
+    // четыре точки по 5 с шагом 4 — 32 px на всю лестницу, а цель нажатия
+    // контракта — вся полоса; тапнуть в такой полосе третью ступень нельзя, а
+    // правка тапом — их же правило (round29 → editInPlace).
+    const scale = JSON.parse(read("../design/package/handoff/round48/desire-scale.json")) as {
+      row: { lights: { size: number; gap: number } };
+      hitTarget: { height: number; width: string };
+    };
+    expect([scale.row.lights.size, scale.row.lights.gap]).toEqual([5, 4]);
+    const round41 = JSON.parse(read("../design/package/handoff/round41/item-card-owner.json")) as {
+      body: { wish: string };
+    };
+    expect(round41.body.wish).toContain("огоньки 6 px с шагом 5");
+    expect(round41.body.wish).toContain("числа 5/4 из нашего файла были числами СТРОКИ ЗОНЫ");
+    // Шкала ввода осталась как есть: точка 14 в цели 44 (числа раунда 29).
+    const css = read("../src/components/item/desire-picker.module.css");
+    expect(css).toContain("width: 14px");
+    expect(css).not.toContain("width: 5px");
+    expect(css).not.toContain("gap: 4px");
+    // Цель 44 у контракта та же — спор ровно про точку, а не про цель.
+    expect(scale.hitTarget.height).toBe(44);
+    expect(css).toContain("width: var(--hit-target-min, 44px)");
   });
 
   it("В ФОРМЕ пустое положение молчит: подпись у неё уже стоит своей строкой", () => {
@@ -290,32 +347,35 @@ describe("огоньки называют себя в карточке (тике
     expect(pick(null).replace(/aria-label="[^"]*"/gu, "")).not.toContain(ru.AddItem.desireLabel);
     // И «не скажу» подписью не повторяется ни там, ни там: оно уже написано
     // кнопкой рядом, и второй раз это то же самое слово.
-    expect(words(pick(null, ru.AddItem.desireLabel))).not.toContain(ru.AddItem.desireUnset);
+    expect(words(pick(null, ru.ItemCard.desireEmpty))).not.toContain(ru.AddItem.desireUnset);
   });
 
   it("ВЫБРАННАЯ СТУПЕНЬ в обоих местах даёт слово ступени, а не подпись", () => {
     for (const step of DESIRE_STEPS) {
       const word = ru.AddItem[`desire${step}`];
       expect(words(pick(step)), `форма, ${step}`).toEqual([word]);
-      expect(words(pick(step, ru.AddItem.desireLabel)), `карточка, ${step}`).toEqual([word]);
+      expect(words(pick(step, ru.ItemCard.desireEmpty)), `карточка, ${step}`).toEqual([word]);
     }
   });
 
   it("в карточке строка под огоньками есть ВСЕГДА — раскладка не прыгает", () => {
-    // Побочная польза подписи, ради которой её и держат на месте слова: выбор
-    // ступени больше не двигает всё, что ниже, на высоту строки.
+    // Побочная польза слова, ради которой его и держат на месте слова ступени:
+    // выбор ступени больше не двигает всё, что ниже, на высоту строки. Дизайн
+    // забрал это правило у нас дословно (`row.word.alwaysPresent`).
     for (const desire of [null, ...DESIRE_STEPS]) {
-      expect(words(pick(desire, ru.AddItem.desireLabel)), String(desire)).toHaveLength(1);
+      expect(words(pick(desire, ru.ItemCard.desireEmpty)), String(desire)).toHaveLength(1);
     }
   });
 
-  it("подпись приходит СНАРУЖИ, и карточка передаёт её, а форма — нет", () => {
+  it("слово приходит СНАРУЖИ, и карточка передаёт его, а форма — нет", () => {
     const picker = read("../src/components/item/desire-picker.tsx");
     expect(picker).toContain("emptyLabel?: string;");
     const card = read("../src/app/room/zone/[zone]/i/[id]/item-card.tsx");
-    expect(card).toContain('emptyLabel={tField("desireLabel")}');
-    // `tField` — ns AddItem: карточка говорит теми же словами, что форма.
-    expect(card).toContain('const tField = useTranslations("AddItem");');
+    expect(card).toContain('emptyLabel={tCard("desireEmpty")}');
+    // `tCard` — ns ItemCard, СВОЙ раздел карточки: подпись формы здесь больше
+    // не звучит, и передать её нечем — ключа с таким смыслом у карточки нет.
+    expect(card).toContain('const tCard = useTranslations("ItemCard");');
+    expect(card).not.toContain('emptyLabel={tField("desireLabel")}');
     // В форме свойства нет вовсе: подпись у неё стоит своей строкой сверху.
     const form = read("../src/app/room/add/add-item-flow.tsx");
     expect(form).toContain('<span className={s.fieldLabel}>{t("desireLabel")}</span>');
