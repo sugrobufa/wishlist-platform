@@ -107,13 +107,30 @@ export function RoomListView({
   const [freeOnly, setFreeOnly] = useState(false);
 
   const shown = useMemo(() => {
-    // «Только свободные» — фильтр по ОТСУТСТВИЮ брони. Он про брони, а не про
-    // состояния, и потому пережил тикет 124: в списке лежат вещи комнаты, и
-    // свободна та, которую ещё не заняли.
-    const free = (items: ZoneGridItem[]) =>
-      freeOnly && takenIds ? items.filter((item) => !takenIds.has(item.id)) : items;
+    // ПУСТАЯ ПОЛКА ОСТАЁТСЯ В СПИСКЕ (тикет 239). Прежде здесь стояло
+    // `.filter((group) => group.items.length > 0)`: список был «про вещи», и
+    // полка без единой вещи из него выпадала. С решением владельца 14.08.2026
+    // это стало дырой: у семи полок нет места на кадре (`zonesWithoutRect`,
+    // тикет 235), метки у них тоже нет — и пустая такая полка не была видна
+    // НИГДЕ, ни в кадре, ни в списке. Теперь видна: полка есть, просто тише.
+    //
+    // ЭТО ОТМЕНЯЕТ ПРАВИЛО РАУНДА 29 (`round29/task31.json` → headers.roomList:
+    // «пустые зоны секциями не рисуются — список про вещи, ПОЛКИ ЖИВУТ В
+    // КОМНАТЕ»). Отменяет не по недосмотру, а вместе с его доводом: семь полок
+    // в комнате больше не живут. Правило верно ровно для тех, у кого есть место
+    // на кадре, а различать полки по этому признаку экран не имеет права
+    // (пакет 51: «иначе это второй сорт полок, а не закрытая дырка»), — значит
+    // остаются в списке все.
+    //
+    // «Только свободные» — другое дело: это ФИЛЬТР по отсутствию брони, и
+    // отфильтрованная полка молчит, а не говорит «пусто». Иначе включённый
+    // фильтр превратил бы список в таблицу из тринадцати «пусто».
+    if (!freeOnly || !takenIds) return groups;
     return groups
-      .map((group) => ({ ...group, items: free(group.items) }))
+      .map((group) => ({
+        ...group,
+        items: group.items.filter((item) => !takenIds.has(item.id)),
+      }))
       .filter((group) => group.items.length > 0);
   }, [groups, freeOnly, takenIds]);
 
@@ -157,7 +174,11 @@ export function RoomListView({
         <p className={s.empty}>{freeOnly ? tZone("emptyFree") : t("empty")}</p>
       ) : (
         shown.map((group) => (
-          <section key={group.key} className={s.group}>
+          // Якорь `zone-{ключ}` — по нему в полку приходят из списка полок
+          // (экран 57a): у гостя своего экрана полки нет, и это его дорога к
+          // вещам. Знаком он не является и ничего не помечает — в разметке его
+          // видно только адресу.
+          <section key={group.key} id={`zone-${group.key}`} className={s.group}>
             <h2 className={s.groupHead}>
               {zoneHrefBase ? (
                 <Link href={`${zoneHrefBase}${group.key}`} className="pressable">
@@ -166,7 +187,11 @@ export function RoomListView({
               ) : (
                 group.label
               )}
-              <span className={s.groupCount}>·{group.items.length}</span>
+              {/* Пустая полка говорит «пусто» вместо числа — то же слово и то
+                  же место, что на экране полок (контракт → states.empty). */}
+              <span className={s.groupCount}>
+                {group.items.length === 0 ? tZone("empty") : `·${group.items.length}`}
+              </span>
             </h2>
             <ul className={s.rows}>
               {group.items.map((item) => {

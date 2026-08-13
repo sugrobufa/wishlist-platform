@@ -69,11 +69,15 @@ export default async function RoomAsListPage() {
   // Ради этого владелец и просил третье состояние — «лёгкий переезд во все
   // комнаты без потерь»: вещь не пропадает с экрана оттого, что в новом
   // интерьере полке не нашлось предмета.
+  // ПУСТАЯ ПОЛКА ТОЖЕ ЗДЕСЬ (тикет 239). Здесь стояло `if (rows.length === 0)
+  // continue` — список был «про вещи». Пока у каждой полки была метка в кадре,
+  // это ничего не стоило: пустую полку человек видел в комнате. С семью
+  // полками без места на кадре пустая полка перестала быть видна где бы то ни
+  // было — ни в кадре, ни в списке. Полка есть, и в списке она есть.
   const zones = visibleZones(preset.zones, room.zonesOff);
   const groups: RoomListGroup[] = [];
   for (const zone of zones) {
     const rows = await listZoneItems(room.id, zone.key);
-    if (rows.length === 0) continue;
     groups.push({
       key: zone.key,
       label: zoneInfo(zone.key)?.label ?? zone.label,

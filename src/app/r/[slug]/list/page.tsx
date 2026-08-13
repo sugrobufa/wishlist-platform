@@ -57,10 +57,13 @@ export default async function GuestRoomAsListPage({ params }: Params) {
   const t = await getTranslations("RoomList");
   const back = `/r/${room.nick ?? room.shareSlug}`;
 
+  // ПУСТАЯ ПОЛКА ТОЖЕ ЗДЕСЬ (тикет 239) — тем же доводом, что у хозяйки:
+  // у семи полок нет места на кадре, метки у них нет, и «список про вещи»
+  // прятал такую полку целиком. Сюда же приходят из списка полок по якорю
+  // `#zone-{ключ}`: своего экрана полки у гостя нет.
   const groups: RoomListGroup[] = [];
   for (const zone of visibleZones(preset.zones, room.zonesOff)) {
     const items = (room.itemsByZone[zone.key] ?? []).filter((item) => !item.isDemo);
-    if (items.length === 0) continue;
     groups.push({
       key: zone.key,
       label: zoneInfo(zone.key)?.label ?? zone.label,
