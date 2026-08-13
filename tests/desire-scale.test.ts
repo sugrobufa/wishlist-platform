@@ -209,11 +209,14 @@ describe("где показ обязан быть", () => {
     expect(picker).toContain("onPick(null)");
   });
 
-  it("цель нажатия у огонька — 44, точка 14 (числа раунда 29)", () => {
+  it("цель нажатия у огонька — 44, точка 14, шаг 10 (round49, числа раунда 29)", () => {
     const css = read("../src/components/item/desire-picker.module.css");
     expect(css).toContain("width: var(--hit-target-min, 44px)");
     expect(css).toContain("height: var(--hit-target-min, 44px)");
     expect(css).toContain("width: 14px");
+    // Шаг между целями — 10 (было 2). Число не наше: см. раздел «одно число»
+    // ниже, где оно сверяется с контрактом 49 и с его же шириной ряда.
+    expect(css).toMatch(/\.steps \{[\s\S]*?gap: 10px;/u);
   });
 
   it("в карточке вещи у ГОСТЯ — тем же видом: он по шкале выбирает подарок", () => {
@@ -309,32 +312,45 @@ describe("огоньки называют себя в карточке (тике
     expect(scale.whyNotYours.keptFromYours).toContain("есть всегда");
   });
 
-  it("ЧИСЕЛ ШКАЛЫ ИЗ ПАКЕТА 48 МЫ НЕ ВЗЯЛИ — и это названо вслух", () => {
-    // РАСХОЖДЕНИЕ, А НЕ НЕДОСМОТР (тикет 221, письмо 53). `round48` описывает
-    // огоньки строки как 5 px с шагом 4 — ровно ту пару, которую round41 снял
-    // сам: «числа 5/4 из нашего файла были числами СТРОКИ ЗОНЫ, вы поймали
-    // верно», и там же «в карточке огоньки 6 px с шагом 5». Плюс арифметика:
-    // четыре точки по 5 с шагом 4 — 32 px на всю лестницу, а цель нажатия
-    // контракта — вся полоса; тапнуть в такой полосе третью ступень нельзя, а
-    // правка тапом — их же правило (round29 → editInPlace).
-    const scale = JSON.parse(read("../design/package/handoff/round48/desire-scale.json")) as {
-      row: { lights: { size: number; gap: number } };
-      hitTarget: { height: number; width: string };
+  it("СПОР О ЧИСЛАХ ЗАКРЫТ ПАКЕТОМ 49 — и закрыт в нашу сторону", () => {
+    // ПЕРЕВЁРНУТО (тикет 225). Сутки здесь держалось наше расхождение с
+    // пакетом 48: он описывал огоньки как 5 px с шагом 4, и это были числа
+    // СТРОКИ ЗОНЫ, перенесённые в карточку — та же ошибка, что round41 признал
+    // своей однажды. Письмо 53 сказало это второй раз, и round49 снял ОБА
+    // своих числа: и 5/4, и 6/5. Проверка не удалена, а перевёрнута — теперь
+    // она требует, чтобы контракт говорил то же, что делает код.
+    const v2 = JSON.parse(read("../design/package/handoff/round49/desire-scale-v2.json")) as {
+      replaces: string;
+      oneNumber: { dot: number; target: number; gapBetweenTargets: number; rowWidth: number };
+      withdrawn: Record<string, string>;
+      targets: { count: number; each: string };
     };
-    expect([scale.row.lights.size, scale.row.lights.gap]).toEqual([5, 4]);
-    const round41 = JSON.parse(read("../design/package/handoff/round41/item-card-owner.json")) as {
-      body: { wish: string };
-    };
-    expect(round41.body.wish).toContain("огоньки 6 px с шагом 5");
-    expect(round41.body.wish).toContain("числа 5/4 из нашего файла были числами СТРОКИ ЗОНЫ");
-    // Шкала ввода осталась как есть: точка 14 в цели 44 (числа раунда 29).
+    // Файл 48 ЗАМЕНЁН ЦЕЛИКОМ — числа из него больше не читаются нигде.
+    expect(v2.replaces).toBe("round48/desire-scale.json целиком");
+    expect(Object.keys(v2.withdrawn).sort()).toEqual(["5/4", "6/5"]);
+    expect(v2.withdrawn["5/4"]).toContain("числа СТРОКИ ЗОНЫ");
+    // ОДНО ЧИСЛО НА КАРТОЧКУ: точка 14 в цели 44, шаг 10.
+    expect([v2.oneNumber.dot, v2.oneNumber.target, v2.oneNumber.gapBetweenTargets]).toEqual([
+      14, 44, 10,
+    ]);
+    // ПРОВЕРКА СЧЁТОМ, которой не хватило самому контракту 48: ряд из четырёх
+    // целей с этим шагом обязан сойтись с его же шириной строки.
+    expect(v2.targets.count * v2.oneNumber.target + 3 * v2.oneNumber.gapBetweenTargets).toBe(
+      v2.oneNumber.rowWidth,
+    );
     const css = read("../src/components/item/desire-picker.module.css");
-    expect(css).toContain("width: 14px");
-    expect(css).not.toContain("width: 5px");
-    expect(css).not.toContain("gap: 4px");
-    // Цель 44 у контракта та же — спор ровно про точку, а не про цель.
-    expect(scale.hitTarget.height).toBe(44);
+    expect(css).toContain(`width: ${v2.oneNumber.dot}px`);
+    expect(css).toMatch(new RegExp(String.raw`\.steps \{[\s\S]*?gap: ${v2.oneNumber.gapBetweenTargets}px;`, "u"));
     expect(css).toContain("width: var(--hit-target-min, 44px)");
+    // Снятых чисел в модуле ввода нет ни одного — ни 5/4, ни 6/5.
+    for (const gone of ["width: 5px", "gap: 4px", "width: 6px", "gap: 5px"]) {
+      expect(css, gone).not.toContain(gone);
+    }
+    // ТОЧКА 5 ОСТАЁТСЯ РОВНО В ОДНОМ МЕСТЕ — в строке зоны, и контракт 49
+    // называет это сам. Заберёт её кто-нибудь в карточку в третий раз —
+    // покраснеет здесь.
+    const zoneRow = read("../src/components/zone-row/zone-row.module.css");
+    expect(zoneRow).toMatch(/\.dot \{[\s\S]*?width: 5px;/u);
   });
 
   it("В ФОРМЕ пустое положение молчит: подпись у неё уже стоит своей строкой", () => {
@@ -388,6 +404,148 @@ describe("огоньки называют себя в карточке (тике
     const scale = read("../src/components/item/desire-scale.tsx");
     expect(scale).not.toContain("emptyLabel");
     expect(draw(null)).toBe("");
+  });
+});
+
+// ШКАЛА ВСТАЁТ СВОЕЙ СТРОКОЙ (тикет 225, пакет 49 → round49/desire-scale-v2.json).
+//
+// ЗАЧЕМ РАЗДЕЛ. Раскладка «цена · огоньки · слово» держалась на точке 5, и
+// вместе с ней уходит: «цель 44 в мета-строку не встаёт». Ломается это молча —
+// строка цены в карточке живёт своим `flex-wrap`, и шкала в ней не падает, а
+// просто переносится второй строкой ВНУТРИ чужого блока. Поэтому проверяется
+// не вид, а ШОВ: где стоит компонент относительно строки цены.
+//
+// И второе — СВЕЧЕНИЕ. Контракт 49 просит его у ПОСЛЕДНЕЙ ВЫБРАННОЙ ступени, а
+// правило 36d, по которому код жил, давало ореол только «мечтаю». Правила
+// спорят на трёх ступенях из четырёх; взята редакция round49 как свежая, и
+// «мечтаю» при этом НЕ ПОГАШЕНА — на 4 из 4 верхняя горящая точка и есть она.
+// Здесь это записано проверками, чтобы откат в любую сторону был виден.
+describe("шкала своей строкой — числа и место (тикет 225, пакет 49)", () => {
+  const ACCENT = "#E7C9A9";
+  const css = read("../src/components/item/desire-picker.module.css");
+  const card = read("../src/app/room/zone/[zone]/i/[id]/item-card.tsx");
+  const contract = JSON.parse(read("../design/package/handoff/round49/desire-scale-v2.json")) as {
+    layout: {
+      ownRow: string;
+      why: string;
+      word: string;
+      wordTone: string;
+      emptyDots: string;
+      chosenGlow: string;
+    };
+    targets: { tapOnCurrent: string; noDialog: string };
+  };
+
+  const pick = (desire: number | null, emptyLabel?: string) =>
+    renderToStaticMarkup(
+      createElement(DesirePicker, { desire, accent: ACCENT, onPick: () => {}, emptyLabel }),
+    );
+
+  /** Четыре точки ввода в порядке ступеней. */
+  const dots = (markup: string) =>
+    [...markup.matchAll(/<span[^>]*class="_flame_[^"]*"[^>]*><\/span>/gu)].map((m) => m[0]);
+
+  it("ШКАЛА НЕ В СТРОКЕ ЦЕНЫ — своим блоком под ней", () => {
+    expect(contract.layout.ownRow).toContain("не в мета-строке при цене");
+    expect(contract.layout.why).toContain("цель 44 в мета-строку не встаёт");
+    // Строка цены осталась строкой ЦЕНЫ: внутри неё шкалы нет.
+    const priceRow =
+      /\{!item\.inHall && roomPrice !== null && \(\s*<div className=\{s\.priceRow\}>[\s\S]*?<\/div>\s*\)\}/u.exec(
+        card,
+      )?.[0] ?? "";
+    expect(priceRow, "строка цены не найдена — раскладка уехала").toContain("s.price");
+    expect(priceRow, "огоньки вернулись в строку цены").not.toContain("DesirePicker");
+    // И стоит шкала ПОД ценой — после подписи «цену видят все», которая
+    // приклеена к цене отрицательным отступом и принадлежит ей, а не шкале.
+    expect(card.indexOf("<DesirePicker")).toBeGreaterThan(card.indexOf("<p className={s.priceSeen}>"));
+    // Своей строкой — то есть прямым ребёнком поверхности, а не жильцом чужого
+    // блока: обёртки над ним нет ни одной.
+    expect(card).toMatch(/\{!item\.inHall && \(\s*<DesirePicker/u);
+  });
+
+  it("ПУСТЫЕ ТОЧКИ КОНТУРНЫЕ — то же место и тот же размер", () => {
+    expect(contract.layout.emptyDots).toContain("border 1.5 rgba(255,249,242,.28)");
+    expect(css).toMatch(/\.flame \{[\s\S]*?border: 1\.5px solid rgba\(255, 249, 242, 0\.28\);/u);
+    // «Тот же размер» — обещание, которое держит `box-sizing`: без него граница
+    // растит точку до 17 и сдвигает всю лестницу.
+    expect(css).toMatch(/\.flame \{[\s\S]*?box-sizing: border-box;/u);
+    expect(css).toMatch(/\.flame \{[\s\S]*?width: 14px;/u);
+    // Заливки .2 у пустой точки больше нет — она была прежним видом.
+    expect(css).not.toContain("background: rgba(255, 249, 242, 0.2)");
+    // У горящей точки контура нет: поверх заливки он читался бы кольцом.
+    expect(css).toMatch(/\.flameOn \{[\s\S]*?border-color: transparent;/u);
+  });
+
+  it("СВЕЧЕНИЕ — у последней выбранной ступени, и цвет его акцент комнаты", () => {
+    expect(contract.layout.chosenGlow).toContain("box-shadow 0 0 14px 2px rgba(231,201,169,.5)");
+    // Цвет контракта записан числом, а у нас он ДАННЫЕ: сверяем, что rgba из
+    // файла — это ровно акцент комнаты с .5, и что в разметку уезжает он же.
+    const [, r, g, b, alpha] = /rgba\((\d+),(\d+),(\d+),(\.\d+)\)/u.exec(
+      contract.layout.chosenGlow,
+    ) as RegExpExecArray;
+    const hex = `#${[r, g, b].map((n) => Number(n).toString(16).padStart(2, "0")).join("")}`;
+    expect(hex.toUpperCase()).toBe(ACCENT);
+    expect(Math.round(Number(alpha) * 255).toString(16)).toBe("80");
+    const glow = `box-shadow:0 0 14px 2px ${ACCENT}80`;
+
+    for (const step of DESIRE_STEPS) {
+      const lit = dots(pick(step));
+      expect(lit, String(step)).toHaveLength(4);
+      // Светится ровно одна точка — та, по которой нажали.
+      expect(lit.filter((dot) => dot.includes("box-shadow")), String(step)).toHaveLength(1);
+      expect(lit[step - 1], `ступень ${step}`).toContain(glow);
+    }
+    // Пустое положение не светится ничем: дефолта у шкалы нет.
+    expect(pick(null)).not.toContain("box-shadow");
+  });
+
+  it("«МЕЧТАЮ» НЕ ПОГАШЕНА — на 4 из 4 светится она же (правило 36d живо)", () => {
+    // Контракт 49 не отменял 36d («мечта в этом продукте всегда подсвечена») —
+    // он расширил свечение на все ступени. Проверка держит обе половины: на
+    // «мечтаю» горит четвёртая точка, и она по-прежнему последняя горящая.
+    const dream = dots(pick(DESIRE_DREAM));
+    expect(dream[DESIRE_DREAM - 1]).toContain("box-shadow:0 0 14px 2px");
+    expect(dream.filter((dot) => dot.includes("box-shadow"))).toHaveLength(1);
+    // ПОКАЗ ГОСТЯ ЖИВЁТ ПО 36d ПО-ПРЕЖНЕМУ: контракт 49 его не упоминает вовсе,
+    // и трогать его было нечем (открытый хвост тикета 225). Разъедутся эти два
+    // места дальше — разговор об этом начнётся здесь.
+    expect(draw(DESIRE_DREAM)).toContain("box-shadow:0 0 8px #E7C9A9e6");
+    expect(draw(3)).not.toContain("box-shadow");
+  });
+
+  it("СЛОВО СПРАВА, и тон у него разный: выбрано 500 12.5, пусто 400 12", () => {
+    expect(contract.layout.word).toContain("справа");
+    expect(contract.layout.wordTone).toContain("выбрано — 500 12.5 при .6");
+    expect(css).toMatch(/\.word \{[\s\S]*?margin-inline-start: auto;/u);
+    expect(css).toMatch(/\.word \{[\s\S]*?text-align: end;/u);
+    expect(css).toMatch(/\.word \{[\s\S]*?font: 400 12px\/1 var\(--font-ui\);/u);
+    expect(css).toMatch(/\.word \{[\s\S]*?color: rgba\(255, 249, 242, 0\.6\);/u);
+    expect(css).toMatch(/\.wordChosen \{[\s\S]*?font: 500 12\.5px\/1 var\(--font-ui\);/u);
+    // Тон выбирает ЗНАЧЕНИЕ поля, а не место вызова: второй класс приходит
+    // ровно со ступенью и пропадает на пустом.
+    expect(pick(2, ru.ItemCard.desireEmpty)).toMatch(/<p class="_word_[^"]*\s_wordChosen_/u);
+    expect(pick(null, ru.ItemCard.desireEmpty)).not.toContain("_wordChosen_");
+  });
+
+  it("УЖЕ 400 — слово переносится под ряд, по левому краю первой ЦЕЛИ", () => {
+    expect(contract.layout.word).toContain("при ширине экрана < 400 переносится под ряд");
+    const narrow = /@media \(max-width: 399\.98px\) \{[\s\S]*?\n\}/u.exec(css)?.[0] ?? "";
+    expect(narrow, "правила переноса нет вовсе").toContain(".word");
+    expect(narrow).toContain("width: 100%");
+    // По левому краю ЦЕЛИ, а не первой точки: отступа 15 (полполя цели) здесь
+    // больше нет — он равнял слово по кружку, а не по краю строки.
+    expect(narrow).toContain("margin-inline-start: 0");
+    expect(narrow).toContain("text-align: start");
+    expect(css).not.toContain("padding-inline-start: 15px");
+  });
+
+  it("ТАП ПО ТЕКУЩЕЙ СНИМАЕТ СТЕПЕНЬ, и диалога нет (не сломано переездом)", () => {
+    expect(contract.targets.tapOnCurrent).toContain("шкала возвращается в «не сказано»");
+    expect(contract.targets.noDialog).toContain("обратимо тем же тапом");
+    const picker = read("../src/components/item/desire-picker.tsx");
+    expect(picker).toContain("onClick={() => onPick(value === step ? null : step)}");
+    // Подтверждения на этом пути нет ни одного: спрашивают о необратимом.
+    expect(picker).not.toMatch(/confirm|Confirm/u);
   });
 });
 

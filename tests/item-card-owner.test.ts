@@ -323,8 +323,12 @@ describe("инвариант №8: цена комнаты по правилу, 
     expect(view).toContain('tField(`cardPriceVis${want?.priceVisibility ?? "ALL"}`)');
     expect(view).toContain('guestSeesPrice(want?.priceVisibility ?? "ALL")');
     // Сама цена по-прежнему нарисована БЕЗ единого условия про видимость:
-    // хозяйке её собственная цена видна всегда (инвариант №8).
-    expect(view).toContain("{roomPrice !== null && <span className={s.price}>{roomPrice}</span>}");
+    // хозяйке её собственная цена видна всегда (инвариант №8). С пакета 49
+    // условие переехало на всю строку — огоньков в ней больше нет, и пустой
+    // строке цены стоять не за чем (тикет 225).
+    expect(view).toMatch(
+      /\{!item\.inHall && roomPrice !== null && \(\s*<div className=\{s\.priceRow\}>\s*<span className=\{s\.price\}>\{roomPrice\}<\/span>/u,
+    );
   });
 
   it("цена вещи ВИТРИНЫ приходит отдельным путём и только хозяйке", () => {
@@ -625,18 +629,33 @@ describe("числа контракта round45 — из контракта, а 
     expect(css).toMatch(/\.name \{[\s\S]*?-webkit-line-clamp: 2;/u);
   });
 
-  it("цена 500 16 в строке с огоньками, tabular-nums", () => {
-    // ЦЕНА ОСТАЛАСЬ У ОГОНЬКОВ — довод 47a контракт подтверждает дословно:
-    // «оба про „насколько нужно"». Выросла только величина: 16 вместо 15.
+  it("цена 500 16 tabular-nums — И БЕЗ ОГОНЬКОВ: мета-строка снята (round49)", () => {
+    // ПЕРЕВЁРНУТО (тикет 225). Огоньки стояли у цены с round39 («оба числа про
+    // одно»), round45 записал это строкой порядка, а пакет 49 снял раскладку
+    // целиком: «цель 44 в мета-строку не встаёт». Величина цены не менялась —
+    // менялось только соседство, поэтому проверка не удалена, а разделена:
+    // числа строки держатся, а сама строка теперь про одну цену.
     expect(reading.owner.order).toContain("строка: цена 500 16 · разделитель · огоньки · слово");
-    expect(reading.owner.unchangedFrom47a.join(" ")).toContain("цена 16 в строке с огоньками");
     expect(css).toContain("font: 500 16px/1.2 var(--font-ui)");
     expect(css).toContain("font-variant-numeric: tabular-nums");
     // Ступень .72 с тикета 174 пишется ИМЕНЕМ: значение её стоит в одном месте
     // (объявление токена), и равенство «пакет = токен» держит design-contract.
     expect(css).toMatch(/\.price \{[\s\S]*?color: var\(--color-text-body\);/u);
-    // Огоньки стоят У ЦЕНЫ — в той же строке, а не отдельным блоком.
-    expect(card).toMatch(/<div className=\{s\.priceRow\}>[\s\S]{0,400}?<DesirePicker/u);
+    // РАСХОЖДЕНИЕ С round45 НАЗВАНО ВСЛУХ: строку порядка отменил round49, и
+    // отменил её словами про число, а не про вкус. Уедет он обратно —
+    // покраснеет здесь.
+    const v2 = JSON.parse(read("../design/package/handoff/round49/desire-scale-v2.json")) as {
+      layout: { ownRow: string; why: string };
+    };
+    expect(v2.layout.why).toContain("«цена · огоньки · слово» из турна 54c отменяется");
+    expect(v2.layout.ownRow).toContain("не в мета-строке при цене");
+    // В самой строке цены не осталось ничего, кроме цены.
+    const priceRow =
+      /\{!item\.inHall && roomPrice !== null && \(\s*<div className=\{s\.priceRow\}>[\s\S]*?<\/div>\s*\)\}/u.exec(
+        card,
+      )?.[0] ?? "";
+    expect(priceRow, "строка цены не найдена — раскладка уехала").toContain("s.price");
+    expect(priceRow, "огоньки вернулись в строку цены").not.toContain("DesirePicker");
   });
 
   it("«цену видят все» — 11 при .5, и у NONE её нет вовсе", () => {
@@ -719,8 +738,9 @@ describe("числа контракта round45 — из контракта, а 
     const order = [
       at("<div\n          className={["), // фотография
       at("<h1 className={"), // название 24
-      at("<div className={s.priceRow}>"), // цена и огоньки
+      at("<div className={s.priceRow}>"), // цена одна (огоньки ушли, round49)
       at("<p className={s.priceSeen}>"), // «цену видят все»
+      at("<DesirePicker"), // ШКАЛА СВОЕЙ СТРОКОЙ — пакет 49
       at("<hr className={s.divider} />"), // разделитель 1 px
       at("className={`pressable ${s.shelfRow}`}"), // полка миниатюрой кадра
       at("<div className={s.noteBlock}>"), // заметка блоком
@@ -729,9 +749,14 @@ describe("числа контракта round45 — из контракта, а 
       at("<p className={s.since}>"), // «Стоит в комнате с»
     ];
     expect([...order].sort((a, b) => a - b)).toEqual(order);
-    // Столько же блоков, сколько строк у контракта, минус надстрочная бренда —
-    // её у нас нет и взять неоткуда (раздел «чего не взяли» ниже).
-    expect(reading.owner.order).toHaveLength(order.length + 1);
+    // СЧЁТ БЛОКОВ СОШЁЛСЯ, но арифметика у него теперь на два слагаемых
+    // (тикет 225): у round45 одиннадцать строк, из них одна — надстрочная
+    // бренда, которой у нас нет и взять неоткуда (раздел «чего не взяли»
+    // ниже), а строка «цена · огоньки · слово» разошлась у нас на ДВЕ: пакет
+    // 49 вывел шкалу своей строкой.
+    const BRAND_OVERLINE = 1; // есть у контракта, нет у нас
+    const SCALE_SPLIT = 1; // одна строка контракта — два блока у нас
+    expect(reading.owner.order).toHaveLength(order.length - SCALE_SPLIT + BRAND_OVERLINE);
   });
 
   it("главное действие: «Изменить» полосой света, цель — вся строка от 44", () => {
@@ -870,9 +895,10 @@ describe("вариант сокровищницы (contract → treasuryVariant)
     // Round41 сказал это адреснее прежнего: «Шкалы нет НИ У КОГО» — то есть и
     // хозяйке тоже, в отличие от цены, у которой адресат появился разный.
     expect(contract.treasuryVariant).toContain("Шкалы нет ни у кого");
-    // Шкала рисуется только у вещи КОМНАТЫ — тем же условием, что и цена.
-    expect(card).toMatch(/\{!item\.inHall && \(\s*<div className=\{s\.priceRow\}>/u);
-    expect(card).toContain("<DesirePicker");
+    // Шкала рисуется только у вещи КОМНАТЫ — тем же условием, что и цена, хотя
+    // строки у них с пакета 49 разные (тикет 225): условие одно на оба блока.
+    expect(card).toMatch(/\{!item\.inHall && roomPrice !== null && \(\s*<div className=\{s\.priceRow\}>/u);
+    expect(card).toMatch(/\{!item\.inHall && \(\s*<DesirePicker/u);
   });
 
   it("подпись под названием — «Подарок {год} года · от {кто}», из словаря", () => {
@@ -1014,14 +1040,26 @@ describe("чего мы из контракта НЕ взяли — ПЯТЬ П�
     expect(read("../src/components/icons.tsx")).toContain("export function IconGallery");
   });
 
-  it("2. огоньки 6/5 и ВВОД — дизайн подтвердил наши числа", () => {
+  it("2. ВВОД подтверждён, а числа 6/5 сам же дизайн и снял (round49)", () => {
     // Было: round39 просил 5 px с шагом 4, а это числа СТРОКИ ЗОНЫ (наш
     // контракт 36d, тикет 125). Стало: «числа 5/4 из нашего файла были числами
     // СТРОКИ ЗОНЫ, вы поймали верно» — и ввод тапом подтверждён отдельно.
+    //
+    // ДОПИСАНО ТИКЕТОМ 225. Половина про ввод жива и сегодня, а половина про
+    // числа кончилась: пакет 49 снял и 6/5, и 5/4 — «одно число на карточку»,
+    // точка 14 на цели 44 с шагом 10 (`desire-picker.module.css`, свои тесты).
     expect(contract.body.wish).toContain("6 px с шагом 5");
     expect(contract.body.wish).toContain("ВВОД, а не показ");
+    const v2 = JSON.parse(read("../design/package/handoff/round49/desire-scale-v2.json")) as {
+      withdrawn: Record<string, string>;
+    };
+    expect(Object.keys(v2.withdrawn)).toContain("6/5");
+    // 6 px ОСТАЛИСЬ У ПОКАЗА — гостевой шкалы контракт 49 не касается вовсе
+    // (открытый хвост тикета 225). Здесь это записано затем, чтобы «прибраться
+    // заодно» в чужой половине никто не пришёл молча.
     const scaleCss = read("../src/components/item/desire-scale.module.css");
     expect(scaleCss).toMatch(/\.flame \{[\s\S]*?width: 6px;/u);
+    expect(read("../src/app/r/[slug]/i/[id]/guest-item-view.tsx")).toContain("<DesireScale");
     // В карточке стоит ввод, а не показ, — второго места ввода на экране нет.
     expect(card).toContain("<DesirePicker");
     expect(card).not.toContain("DesireScale");
@@ -1062,7 +1100,13 @@ describe("чего мы из контракта НЕ взяли — ПЯТЬ П�
     // слиплись в одну фразу, извините», и наше правило принято дословно.
     expect(contract.body.price).toContain("НЕТ ЦЕНЫ — НЕТ СТРОКИ (ваше правило, принимаем)");
     expect(contract.body.price).toContain("ЗНАЧЕНИЕ цены у денежной вещи");
-    expect(card).toContain("{roomPrice !== null && <span className={s.price}>{roomPrice}</span>}");
+    // «НЕТ ЦЕНЫ — НЕТ СТРОКИ» стало буквальным с тикета 225: прежде без цены
+    // оставался пустой блок строки — в нём стояли огоньки, — и место под неё
+    // всё равно занималось. Огоньки ушли своей строкой, и условие поднялось на
+    // весь блок: цены нет — строки нет вовсе.
+    expect(card).toMatch(
+      /\{!item\.inHall && roomPrice !== null && \(\s*<div className=\{s\.priceRow\}>\s*<span className=\{s\.price\}>\{roomPrice\}<\/span>\s*<\/div>\s*\)\}/u,
+    );
     // Слова «открыто» в продукте по-прежнему нет: денежная вещь — это зона
     // `money` с копилкой (инвариант №9), а не строка цены в карточке.
     expect(ru.Settings).not.toHaveProperty("itemPriceOpen");

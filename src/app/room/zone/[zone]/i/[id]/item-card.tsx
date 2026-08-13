@@ -617,8 +617,31 @@ export function ItemCard({
 
           {item.hidden && <p className={s.caption}>{t("itemHiddenBadge")}</p>}
 
-          {/* Цена и огоньки — вместе, как просит round39: оба числа про одно.
-              У вещи витрины шкалы нет вовсе: желание исполнено.
+          {/* ЦЕНА СТОИТ ОДНА, И БЕЗ ЦЕНЫ СТРОКИ НЕТ ВОВСЕ (round41 →
+              body.price: «нет цены — нет строки», наше правило принято
+              дословно). Огоньки отсюда УШЛИ: мета-строку «цена · огоньки ·
+              слово» турна 54c дизайн снял вместе с числами, на которых она
+              держалась, — «цель 44 в мета-строку не встаёт» (тикет 225, пакет
+              49 → desire-scale-v2.json → layout). Условие видимости здесь
+              по-прежнему не спрашивается: хозяйке её цена видна всегда
+              (инвариант №8). */}
+          {!item.inHall && roomPrice !== null && (
+            <div className={s.priceRow}>
+              <span className={s.price}>{roomPrice}</span>
+            </div>
+          )}
+
+          {/* «Цену видят все» — 11 при .5 (contract → owner.order). Строка
+              про ГОСТЯ: у `NONE` слова нет вовсе, потому что и адресата нет. */}
+          {!item.inHall && roomPrice !== null && want?.priceVisibility !== "NONE" && (
+            <p className={s.priceSeen}>{tField(`cardPriceVis${want?.priceVisibility ?? "ALL"}`)}</p>
+          )}
+
+          {/* ШКАЛА ЖЕЛАНИЯ — СВОЕЙ СТРОКОЙ ПОД ЦЕНОЙ (тикет 225, пакет 49 →
+              round49/desire-scale-v2.json → layout.ownRow), «как в форме».
+              Стоит она ПОСЛЕ строки «цену видят все» нарочно: та подпись
+              приклеена к цене отрицательным отступом и принадлежит ей, а не
+              шкале. У вещи витрины шкалы нет вовсе: желание исполнено.
 
               ПУСТАЯ ШКАЛА НАЗЫВАЕТ СЕБЯ САМА (тикет 215). Подписи над шкалой
               здесь нет — в отличие от формы добавления, — и у вещи БЕЗ степени
@@ -635,22 +658,13 @@ export function ItemCard({
               Ключ не наш: он приехал дельтой пакета вместе с самим разделом.
               Форма по-прежнему не передаёт ничего — у неё свой вопрос сверху. */}
           {!item.inHall && (
-            <div className={s.priceRow}>
-              {roomPrice !== null && <span className={s.price}>{roomPrice}</span>}
-              <DesirePicker
-                desire={desire}
-                accent={accent}
-                onPick={onPickDesire}
-                disabled={busy}
-                emptyLabel={tCard("desireEmpty")}
-              />
-            </div>
-          )}
-
-          {/* «Цену видят все» — 11 при .5 (contract → owner.order). Строка
-              про ГОСТЯ: у `NONE` слова нет вовсе, потому что и адресата нет. */}
-          {!item.inHall && roomPrice !== null && want?.priceVisibility !== "NONE" && (
-            <p className={s.priceSeen}>{tField(`cardPriceVis${want?.priceVisibility ?? "ALL"}`)}</p>
+            <DesirePicker
+              desire={desire}
+              accent={accent}
+              onPick={onPickDesire}
+              disabled={busy}
+              emptyLabel={tCard("desireEmpty")}
+            />
           )}
 
           {/* Цена вещи СОКРОВИЩНИЦЫ. Хозяйке своя цена видна всегда (инвариант
