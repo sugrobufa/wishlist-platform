@@ -6,10 +6,12 @@ import { auth } from "@/server/auth";
 import { getRoomForUser, getSessionUserId } from "@/server/services/rooms";
 import { listConnections, listPendingConsent } from "@/server/services/connections";
 import { listFriendsFeed } from "@/server/services/friends-feed";
+import { getHardenState, shouldAskToHarden } from "@/server/services/harden";
 import { rooms } from "@/config/design";
 import { TabBar } from "@/components/tab-bar/tab-bar";
 import { StayInTouch } from "@/components/consent/stay-in-touch";
 import { ConnectionsList } from "./connections-list";
+import { ShareRoomButton } from "./share-room-button";
 import { WhatsHappening } from "./whats-happening";
 
 export const dynamic = "force-dynamic";
@@ -75,6 +77,28 @@ export default async function ConnectionsPage() {
     viewed: friends.filter((row) => row.kind === "VIEWED").length,
   };
 
+  // Пустой экран — единственное место страницы, откуда отдают ссылку (тикет
+  // 227). Красивый адрес с ником, когда он занят, — тот же, что в комнате
+  // (тикет 13): короткий код продолжает работать редиректом.
+  const showEmptyState = connections.length === 0 && consent.length === 0;
+  const sharePath = `/r/${room.nick ?? room.shareSlug}`;
+
+  // ПРЕДУСЛОВИЕ ШЕРА: просьба укрепить аккаунт перед ПЕРВЫМ шером (тикет 94,
+  // доска Б8). Кнопка здесь отдаёт ту же ссылку, что кнопка комнаты, — значит
+  // и спрашивает о том же и по тому же правилу. Политика при этом одна на оба
+  // экрана и живёт в `services/harden.shouldAskToHarden`: здесь её только
+  // читают. Спрашиваем сервер, лишь когда кнопке есть где показаться.
+  const hardenState = showEmptyState ? await getHardenState(userId) : null;
+  const harden =
+    hardenState !== null &&
+    shouldAskToHarden({
+      providers: hardenState.available,
+      secondAuth: hardenState.secondAuth,
+      askedAt: hardenState.asked ? new Date() : null,
+    })
+      ? { providers: hardenState.available }
+      : null;
+
   return (
     // Нижний отступ освобождает место постоянному таб-бару: в переменной с
     // тикета 182 лежит полоса знаков 86 плюс нижний инсет, так что прибавлять
@@ -108,20 +132,17 @@ export default async function ConnectionsPage() {
           // Тихое пустое состояние: добавлять руками нечего — и это нормально.
           // При висящем вопросе молчим: «здесь пока никого» рядом с «остаться
           // на связи с Кириллом?» — это про одного и того же человека.
-          consent.length === 0 && (
+          showEmptyState && (
             <div className="max-w-md border border-dashed border-surface-hairline p-5">
               <p className="text-sm leading-relaxed text-text-muted">{t("empty")}</p>
               {/* Доска В8 (турн 20a): в пустых связях мало объяснить — надо
                   предложить действие. Друзья рождаются из открытой ссылки,
-                  значит единственный ход отсюда — отдать её. Ведём на комнату,
-                  где кнопка шера и живёт: второй такой кнопки не заводим. */}
-              <Link
-                href="/room"
-                className="pressable mt-4 inline-block border-b-2 px-5 py-2.5 text-[13px] font-semibold text-text-primary"
-                style={{ borderColor: accent, boxShadow: `0 4px 18px -3px ${accent}6B` }}
-              >
-                {t("emptyShare")} →
-              </Link>
+                  значит единственный ход отсюда — отдать её.
+                  ШЕР ОТКРЫВАЕТСЯ ЗДЕСЬ ЖЕ (тикет 227): прежняя ссылка в
+                  комнату уводила человека искать кнопку, которую он уже нажал.
+                  Второй логики шера не завелось — кнопка комнаты отдала свою
+                  хуком, вместе с просьбой укрепить аккаунт. */}
+              <ShareRoomButton path={sharePath} accent={accent} harden={harden} />
             </div>
           )
         )}

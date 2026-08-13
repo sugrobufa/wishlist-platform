@@ -15,6 +15,14 @@ function providerLabel(provider: string): string {
 const CONFIRM_MS = 5000;
 
 /**
+ * Просьба укрепить аккаунт перед ПЕРВЫМ шером (тикет 94, доска Б8).
+ * `null` — не просим: либо уже спрашивали, либо второй способ уже привязан,
+ * либо в сборке его нет вовсе. Решение принимает сервер
+ * (services/harden.shouldAskToHarden), экран его только показывает.
+ */
+export type HardenAsk = { providers: string[] } | null;
+
+/**
  * Копирование адреса — прежняя логика CopyButton (тикет 13) слово в слово,
  * включая запасной путь для небезопасного контекста: `navigator.clipboard`
  * есть только на https и localhost, а стенд живёт и по http.
@@ -37,46 +45,19 @@ async function copyToClipboard(url: string): Promise<void> {
 }
 
 /**
- * Значок «поделиться» в нижней полосе (тикет 24) вместо карточки с адресом.
+ * ПОВЕДЕНИЕ ШЕРА БЕЗ ВИДА — одно на все экраны, где ссылку отдают (тикет 227).
  *
- * Нажатие: где есть системное окно — открываем его (`navigator.share`), там
- * человек отправит ссылку туда, куда привык. Где нет — копируем в буфер и
- * показываем короткое подтверждение: сам адрес и объяснение, зачем он.
- * Постоянно на экране адрес не нужен — он живёт в «Настройках», рядом с
- * ником, которым его и меняют.
+ * Экранов стало два: круг в нижней полосе комнаты и кнопка на пустых «Друзьях»
+ * («Отдать ссылку на комнату» — единственный ход с того экрана, доска В8).
+ * Выглядят они по-разному, а делают одно и то же, и главное здесь —
+ * ПРЕДУСЛОВИЕ: перед первым шером спрашиваем про второй способ входа. Пока
+ * поведение жило внутри одной кнопки, второй экран мог только позвать в
+ * комнату — что владелец и увидел как «при нажатии ничего не происходит».
  *
- * ПРИ ОТКРЫТОЙ ЗОНЕ КНОПКИ НЕТ ВОВСЕ (тикет 121, приёмка 09.08: «при
- * наведении на вещи внизу слева прослеживается кнопка поделиться»). Значок
- * живёт в нижней полосе, а та не часть сцены — это соседний слой раскладки
- * тикета 24, и лежит он НАД листом вещей. Пока лист короткий (а он такой
- * почти всегда), его верхняя кромка проходит ниже полосы, и круг «поделиться»
- * остаётся видимым и нажимаемым прямо над листом: на снимке владельца он
- * стоит между «Отойти» и рядом «Хочу · 2 / Люблю · 2».
- *
- * Снимаем С РЕНДЕРА, а не гасим прозрачностью: прозрачный элемент поверх
- * листа остался бы кликабельным — это второй баг в том же месте, и тикет
- * просил закрыть оба. Открытую зону приносит мост указателя зон
- * (zone-index-context): своего состояния кнопка не заводит, и работает это
- * ровно там, где мост есть, — на странице комнаты.
+ * Возвращает ровно то, чем экран рисует: нажатие (`press`), два признака
+ * открытых карточек и ответ «поделиться без этого» (`shareAnyway`).
  */
-export function ShareButton({
-  path,
-  accent,
-  harden,
-}: {
-  path: string;
-  accent: string;
-  /**
-   * Просьба укрепить аккаунт перед ПЕРВЫМ шером (тикет 94, доска Б8).
-   * `null` — не просим: либо уже спрашивали, либо второй способ уже привязан,
-   * либо в сборке его нет вовсе. Решение принимает сервер
-   * (services/harden.shouldAskToHarden), кнопка его только показывает.
-   */
-  harden?: { providers: string[] } | null;
-}) {
-  const t = useTranslations("Room");
-  // Какая зона открыта — из моста сцены и указателя зон (тикет 34).
-  const { active: openZoneKey } = useZoneIndexState();
+export function useRoomShare({ path, harden }: { path: string; harden?: HardenAsk }) {
   const [copied, setCopied] = useState(false);
   /** Просьба открыта: шер ждёт ответа, но уйти без ответа можно всегда. */
   const [asking, setAsking] = useState(false);
@@ -112,7 +93,8 @@ export function ShareButton({
     }, CONFIRM_MS);
   }, [path]);
 
-  const ask = harden != null && harden.providers.length > 0;
+  const providers = harden?.providers ?? [];
+  const ask = providers.length > 0;
 
   /** Ответ получен — записываем его и отдаём ссылку, как и просили. */
   const shareAnyway = useCallback(async () => {
@@ -121,66 +103,169 @@ export function ShareButton({
     await share();
   }, [share]);
 
+  /** Нажатие на кнопку экрана: сначала просьба (если она положена), потом шер. */
+  const press = useCallback(() => {
+    if (ask && !asking) {
+      setAsking(true);
+      return;
+    }
+    void share();
+  }, [ask, asking, share]);
+
+  return { asking, copied, press, shareAnyway, providers };
+}
+
+/**
+ * Просьба укрепить аккаунт — ровно перед первым шером и ровно один раз
+ * (доска Б8: «тот же экран на входе был бы бюрократией — терять ещё нечего»).
+ * Отказ разрешён и запоминается: второй раз не спросим.
+ *
+ * Вид общий на оба экрана; место карточки задаёт `className` — в комнате она
+ * висит над полосой, на «Друзьях» стоит в потоке под кнопкой.
+ */
+export function HardenAskCard({
+  providers,
+  accent,
+  onSkip,
+  className = "",
+}: {
+  providers: string[];
+  accent: string;
+  onSkip: () => void;
+  className?: string;
+}) {
+  const t = useTranslations("Room");
+
+  return (
+    <span
+      className={`flex flex-col gap-2 border border-surface-hairline bg-surface-overlay-ground p-4 text-left ${className}`}
+    >
+      <span className="overline" style={{ color: accent }}>
+        {t("hardenOverline")}
+      </span>
+      <span className="text-xs leading-snug text-text-muted">{t("hardenBody")}</span>
+      <span className="mt-1 flex flex-col gap-2">
+        {providers.map((provider) => (
+          <button
+            key={provider}
+            type="button"
+            onClick={() => void linkSecondAuthAction(provider)}
+            className="pressable border border-surface-hairline-strong px-3 py-2 text-xs font-semibold text-text-strong"
+          >
+            {t("hardenLink", { provider: providerLabel(provider) })}
+          </button>
+        ))}
+        <button
+          type="button"
+          onClick={() => void onSkip()}
+          className="pressable text-xs font-semibold text-text-muted hover:text-text-strong"
+        >
+          {t("hardenSkip")}
+        </button>
+      </span>
+    </span>
+  );
+}
+
+/**
+ * Короткое подтверждение с адресом — там, где системного окна не нашлось и
+ * ссылка уехала в буфер (тикет 24). Нажатия не перехватывает: зона под ним
+ * остаётся нажимаемой всё время, пока оно видно.
+ */
+export function ShareAddressCard({
+  path,
+  accent,
+  className = "",
+}: {
+  path: string;
+  accent: string;
+  className?: string;
+}) {
+  const t = useTranslations("Room");
+
+  return (
+    <span
+      role="status"
+      className={`pointer-events-none flex flex-col gap-1 border border-surface-hairline bg-surface-overlay-ground p-4 text-left ${className}`}
+    >
+      <span className="overline" style={{ color: accent }}>
+        {t("shareOverline")}
+      </span>
+      <span className="font-mono text-sm text-text-primary">{path}</span>
+      <span className="text-xs font-semibold text-text-strong">{t("copied")}</span>
+      <span className="text-xs leading-snug text-text-muted">{t("shareHint")}</span>
+      {/* Доска В5 (турн 13a): «Кто видит комнату: только по ссылке · не в
+          поиске». Строка стоит в момент шера, потому что страх появляется
+          именно здесь. Обещание не выдумано: комната закрыта от индексации
+          (инвариант №7, `robots: index: false` на всех её маршрутах). */}
+      <span className="text-[11px] leading-snug text-text-faint">{t("shareWhoSees")}</span>
+    </span>
+  );
+}
+
+/**
+ * Значок «поделиться» в нижней полосе (тикет 24) вместо карточки с адресом.
+ *
+ * Нажатие: где есть системное окно — открываем его (`navigator.share`), там
+ * человек отправит ссылку туда, куда привык. Где нет — копируем в буфер и
+ * показываем короткое подтверждение: сам адрес и объяснение, зачем он.
+ * Постоянно на экране адрес не нужен — он живёт в «Настройках», рядом с
+ * ником, которым его и меняют.
+ *
+ * ПРИ ОТКРЫТОЙ ЗОНЕ КНОПКИ НЕТ ВОВСЕ (тикет 121, приёмка 09.08: «при
+ * наведении на вещи внизу слева прослеживается кнопка поделиться»). Значок
+ * живёт в нижней полосе, а та не часть сцены — это соседний слой раскладки
+ * тикета 24, и лежит он НАД листом вещей. Пока лист короткий (а он такой
+ * почти всегда), его верхняя кромка проходит ниже полосы, и круг «поделиться»
+ * остаётся видимым и нажимаемым прямо над листом: на снимке владельца он
+ * стоит между «Отойти» и рядом «Хочу · 2 / Люблю · 2».
+ *
+ * Снимаем С РЕНДЕРА, а не гасим прозрачностью: прозрачный элемент поверх
+ * листа остался бы кликабельным — это второй баг в том же месте, и тикет
+ * просил закрыть оба. Открытую зону приносит мост указателя зон
+ * (zone-index-context): своего состояния кнопка не заводит, и работает это
+ * ровно там, где мост есть, — на странице комнаты.
+ */
+export function ShareButton({
+  path,
+  accent,
+  harden,
+}: {
+  path: string;
+  accent: string;
+  harden?: HardenAsk;
+}) {
+  const t = useTranslations("Room");
+  // Какая зона открыта — из моста сцены и указателя зон (тикет 34).
+  const { active: openZoneKey } = useZoneIndexState();
+  const { asking, copied, press, shareAnyway, providers } = useRoomShare({ path, harden });
+
   // Зона открыта — значка нет: ни видимого, ни прозрачного (тикет 121).
   // Ниже всех хуков намеренно: ранний выход между ними сломал бы их порядок.
   if (openZoneKey !== null) return null;
 
   return (
     <span className="relative inline-flex">
-      {/* Просьба укрепить аккаунт — ровно перед первым шером и ровно один раз
-          (доска Б8: «тот же экран на входе был бы бюрократией — терять ещё
-          нечего»). Отказ разрешён и запоминается: второй раз не спросим. */}
       {asking && (
-        <span className="absolute right-0 bottom-[calc(100%+10px)] flex w-[min(340px,84vw)] flex-col gap-2 border border-surface-hairline bg-surface-overlay-ground p-4 text-left">
-          <span className="overline" style={{ color: accent }}>
-            {t("hardenOverline")}
-          </span>
-          <span className="text-xs leading-snug text-text-muted">{t("hardenBody")}</span>
-          <span className="mt-1 flex flex-col gap-2">
-            {harden?.providers.map((provider) => (
-              <button
-                key={provider}
-                type="button"
-                onClick={() => void linkSecondAuthAction(provider)}
-                className="pressable border border-surface-hairline-strong px-3 py-2 text-xs font-semibold text-text-strong"
-              >
-                {t("hardenLink", { provider: providerLabel(provider) })}
-              </button>
-            ))}
-            <button
-              type="button"
-              onClick={() => void shareAnyway()}
-              className="pressable text-xs font-semibold text-text-muted hover:text-text-strong"
-            >
-              {t("hardenSkip")}
-            </button>
-          </span>
-        </span>
+        <HardenAskCard
+          providers={providers}
+          accent={accent}
+          onSkip={shareAnyway}
+          className="absolute right-0 bottom-[calc(100%+10px)] w-[min(340px,84vw)]"
+        />
       )}
 
-      {/* Подтверждение висит НАД полосой и нажатие не перехватывает: зона под
-          ним остаётся нажимаемой всё время, пока оно видно. */}
+      {/* Подтверждение висит НАД полосой и нажатие не перехватывает. */}
       {copied && (
-        <span
-          role="status"
-          className="pointer-events-none absolute right-0 bottom-[calc(100%+10px)] flex w-[min(320px,78vw)] flex-col gap-1 border border-surface-hairline bg-surface-overlay-ground p-4 text-left"
-        >
-          <span className="overline" style={{ color: accent }}>
-            {t("shareOverline")}
-          </span>
-          <span className="font-mono text-sm text-text-primary">{path}</span>
-          <span className="text-xs font-semibold text-text-strong">{t("copied")}</span>
-          <span className="text-xs leading-snug text-text-muted">{t("shareHint")}</span>
-          {/* Доска В5 (турн 13a): «Кто видит комнату: только по ссылке · не в
-              поиске». Строка стоит в момент шера, потому что страх появляется
-              именно здесь. Обещание не выдумано: комната закрыта от индексации
-              (инвариант №7, `robots: index: false` на всех её маршрутах). */}
-          <span className="text-[11px] leading-snug text-text-faint">{t("shareWhoSees")}</span>
-        </span>
+        <ShareAddressCard
+          path={path}
+          accent={accent}
+          className="absolute right-0 bottom-[calc(100%+10px)] w-[min(320px,78vw)]"
+        />
       )}
       <button
         type="button"
-        onClick={() => (ask && !asking ? setAsking(true) : void share())}
+        onClick={press}
         aria-label={t("copy")}
         className="pressable justify-center rounded-full border border-surface-hairline-strong text-text-strong"
         style={{ width: "var(--hit-target-min)", height: "var(--hit-target-min)" }}
