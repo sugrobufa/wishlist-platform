@@ -16,7 +16,14 @@
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
-import { hitTargetMin, rooms, roomsContract, scene } from "../src/config/design";
+import {
+  hitTargetMin,
+  rooms,
+  roomsContract,
+  scene,
+  zoneHiddenByProduct,
+  zonesHiddenByProduct,
+} from "../src/config/design";
 import { phoneWindowOnFrame } from "../src/components/scene/immersive-layout";
 import { EMPTY_ROOM_FILTER } from "../src/components/scene/grading";
 import {
@@ -259,6 +266,44 @@ describe("142 — правило выбора трёх мест", () => {
           `${room.id}/${place.key}`,
         );
       }
+    }
+  });
+
+  it("МЕСТО НЕ ВСТАЁТ НА ЗОНУ, СКРЫТУЮ АДРЕСНО — ни при каком контракте (тикет 230)", () => {
+    // Проверка выше сторожит `objectAbsent` — ФЛАГ ДИЗАЙН-ПАКЕТА. Прячет зону,
+    // однако, не он, а наш список адресов `zonesHiddenByProduct` (инвариант №9,
+    // «комната/ключ»), и место на такой зоне — уголок, ведущий в никуда: камера
+    // поедет к предмету, которого в этом интерьере нет вовсе.
+    //
+    // Сегодня оба набора — одни и те же восемь адресов, и правило держится на
+    // этом совпадении. Совпадение и сторожим: разъедутся — падает здесь, а не
+    // на приёмке (14.08.2026 владелец увидел ровно места, замечание 3).
+    expect([...zonesHiddenByProduct].sort()).toEqual(
+      roomsContract.rooms
+        .flatMap((room) =>
+          room.zones.filter((zone) => zone.objectAbsent).map((zone) => `${room.id}/${zone.key}`),
+        )
+        .sort(),
+    );
+    // И то же самое РЕЗУЛЬТАТОМ, а не сверкой списков. Правило зовём СЫРЫМ
+    // контрактом — все 130 зон, фильтр пресета не участвует: так проверяется
+    // само правило, а не то, что вызывающий отфильтровал за него.
+    for (const room of roomsContract.rooms) {
+      for (const place of emptyPlaces(room.zones).places) {
+        expect(
+          zoneHiddenByProduct(room.id, place.key),
+          `${room.id}/${place.key}: место на зоне, которой продукт не показывает`,
+        ).toBe(false);
+      }
+    }
+    // Тройка на сыром контракте совпадает с тройкой на пресете во всех десяти:
+    // фильтр правила и фильтр вызова дают один ответ, и переставить места
+    // молча нельзя ни с одной стороны.
+    for (const room of rooms) {
+      const raw = roomsContract.rooms.find((candidate) => candidate.id === room.id);
+      expect(emptyPlaces(raw?.zones ?? []).places.map((place) => place.key), room.id).toEqual(
+        emptyPlaces(room.zones).places.map((place) => place.key),
+      );
     }
   });
 
