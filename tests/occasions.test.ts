@@ -33,6 +33,7 @@ import {
 } from "../src/server/services/occasions";
 import { ItemMutationError, toggleHall } from "../src/server/services/items";
 import { bookItem, ownerTakenCount } from "../src/server/services/bookings";
+import { ownerTakenTotal } from "../src/server/services/goal";
 import { processOccasionClose } from "../src/worker/occasion-close";
 
 const TEST_EMAIL_DOMAIN = "@occasions.test";
@@ -185,6 +186,11 @@ describe("getOccasionView — раскрытие живёт ТОЛЬКО под 
     expect(view.received).toEqual([]);
     // Только голое число незанятых «хочу» (спрятанная не считается).
     expect(view.unclaimedCount).toBe(1);
+    // И счётчик забранного — ТОТ ЖЕ, что в комнате (тикет 219): экран
+    // показывает его до раскрытия, и это единственное число, которое хозяйка
+    // о движении узнаёт. Считает его одна функция на три поверхности.
+    expect(view.takenTotal).toBe(2);
+    expect(view.takenTotal).toBe(await ownerTakenTotal(owner.user.id));
 
     const serialized = JSON.stringify(view);
     expect(serialized).not.toMatch(

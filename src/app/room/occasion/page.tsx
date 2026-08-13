@@ -23,11 +23,21 @@ export async function generateMetadata(): Promise<Metadata> {
  * дарителей раскрываются ровно здесь и ровно один раз (инвариант №2):
  * до закрытия праздника сервис не отдаёт ни строк, ни имён.
  *
- * СОСТОЯНИЙ У ЭКРАНА ТРИ, А НЕ ДВА (тикет 216): итог открыт · праздник
- * наступил, а итога нет · праздник впереди (плюс комната без даты вовсе).
- * Какое из них сейчас и чем оно говорит — таблица `screen-state`, одна на
- * разметку и на тест; наступление праздника считает сервис тем же вопросом,
- * которым тихая строка комнаты, — раньше они считали порознь и разошлись.
+ * СОСТОЯНИЙ У ЭКРАНА ЧЕТЫРЕ, А НЕ ДВА (тикет 216): итог открыт · праздник
+ * наступил, а итога нет · праздник впереди · комната без даты вовсе. Какое из
+ * них сейчас и чем оно говорит — таблица `screen-state`, одна на разметку и на
+ * тест; наступление праздника считает сервис тем же вопросом, которым тихая
+ * строка комнаты, — раньше они считали порознь и разошлись.
+ *
+ * НАПОЛНЕНИЕ СОСТОЯНИЙ — СЛОВАМИ ПАКЕТА 48 (тикет 219, турны 54a и 54b):
+ * порог с блоком «Что случится по нажатию» до нажатия, ожидание со счётчиком
+ * забранного, комната без даты с громкой полосой к дате. Машина состояний та
+ * же, что мы собрали утром, — переписано ровно то, чем каждое состояние
+ * говорит.
+ *
+ * ЕДИНСТВЕННОЕ ЧИСЛО ДО РАСКРЫТИЯ — счётчик забранного по комнате
+ * (`view.takenTotal`, инвариант №1): ни имени, ни названия вещи, ни списка.
+ * Их у экрана до раскрытия и нет — сервис их не отдаёт вовсе.
  */
 export default async function OccasionPage() {
   const session = await auth();
@@ -51,19 +61,27 @@ export default async function OccasionPage() {
   const giftsTotal = view.pending.length + view.received.length;
   const screen = OCCASION_SCREEN[occasionScreenState(view)];
   const screenTitle = screen.title === null ? null : t(screen.title);
-  const screenHint = screen.hint === null ? null : t(screen.hint);
+  // Лид состояния. На пороге он несёт в себе счётчик забранного — то самое
+  // единственное число, которое хозяйке видно до раскрытия (инвариант №1).
+  const screenLead =
+    screen.lead === null
+      ? null
+      : screen.taken === "lead"
+        ? t(screen.lead, { count: view.takenTotal })
+        : t(screen.lead);
   // Дата ближайшего праздника — тем же видом и тем же форматом, что в комнате
   // («День рождения · 14 сентября»): календарь платформы, пояс UTC.
+  const nearestDate =
+    view.next === null
+      ? null
+      : format.dateTime(new Date(view.next), {
+          day: "numeric",
+          month: "long",
+          timeZone: "UTC",
+        });
   const nearestLine =
-    screen.nearest && view.next
-      ? t("nearestLine", {
-          holiday: t("birthdayLabel"),
-          date: format.dateTime(new Date(view.next), {
-            day: "numeric",
-            month: "long",
-            timeZone: "UTC",
-          }),
-        })
+    screen.nearest && nearestDate
+      ? t("nearestLine", { holiday: t("birthdayLabel"), date: nearestDate })
       : null;
 
   return (
@@ -96,8 +114,9 @@ export default async function OccasionPage() {
             <>
               <p className="overline mt-6 text-text-muted">{t("title")}</p>
               <h1 className="display mt-3 text-3xl lg:text-4xl">{screenTitle}</h1>
-              {/* «Праздник ещё впереди» без даты — половина ответа: комната
-                  свою дату показывает, экран обязан показывать ту же. */}
+              {/* «Итог появится после праздника» без даты — половина ответа:
+                  комната свою дату показывает, экран обязан показывать ту же
+                  («День рождения · 14 сентября»). */}
               {nearestLine && <p className="overline mt-3 text-text-muted">{nearestLine}</p>}
             </>
           )}
@@ -185,17 +204,112 @@ export default async function OccasionPage() {
           </>
         ) : (
           <div className="flex max-w-md flex-col items-start gap-5">
-            <p className="text-sm leading-relaxed text-text-muted">{screenHint}</p>
-            {/* Ручное закрытие — решение гриллинга №6: работает и без даты.
-                Тон берётся из состояния (тикет 217): горит, только когда дело
-                есть прямо сейчас, а не десять месяцев до праздника. */}
-            {screen.close && <CloseOccasionButton accent={accent} tone={screen.close} />}
-            {/* Комнате без дня рождения сказать «когда он пройдёт» нечем —
-                у неё одна дорога, и это назвать дату. */}
-            {screen.settings && (
-              <Link href="/settings" className="pressable text-xs font-semibold text-text-strong">
-                {t("toSettings")}
+            {screenLead && (
+              <p className="text-[13.5px] leading-[1.6] text-text-body">{screenLead}</p>
+            )}
+            {/* «Комната работает и без даты — гости дарят»: у комнаты без
+                праздника это вторая половина ответа, без неё первая звучит
+                как поломка. */}
+            {screen.aside && (
+              <p className="text-[13.5px] leading-[1.6] text-text-muted">{t(screen.aside)}</p>
+            )}
+
+            {/* СЧЁТЧИК ЗАБРАННОГО БЛОКОМ — то же число, что в комнате, и
+                единственное, что хозяйке видно до раскрытия (инвариант №1).
+                `takenOnly` говорит это вслух: «Больше не покажем — даже
+                себе». */}
+            {screen.taken === "box" && (
+              <div className="w-full border border-surface-hairline bg-[rgba(255,255,255,.03)] px-[17px] py-[15px]">
+                <p className="text-[20px] font-bold leading-none text-text-primary">
+                  {t("takenNumber", { count: view.takenTotal })}
+                </p>
+                <p className="mt-2 text-[12.5px] text-text-muted">{t("takenCaption")}</p>
+                <p className="mt-3 text-xs leading-[1.5] text-text-faint">{t("takenOnly")}</p>
+              </div>
+            )}
+
+            {/* «ЧТО СЛУЧИТСЯ ПО НАЖАТИЮ» — блок ДО нажатия, а не диалог
+                поверх него (`warning.notADialog`): человек пришёл именно за
+                этим. Раньше про необратимость говорила строка `hint`, то есть
+                уже после раскрытия. */}
+            {screen.whatHappens && (
+              <div className="w-full">
+                <p className="overline text-text-faint">{t("dueWhatOverline")}</p>
+                <ul className="mt-3 flex flex-col gap-[11px]">
+                  {screen.whatHappens.map((line) => (
+                    <li
+                      key={line}
+                      className="flex items-start gap-[11px] text-[12.5px] leading-[1.5] text-text-body"
+                    >
+                      <svg
+                        viewBox="0 0 17 17"
+                        width="17"
+                        height="17"
+                        className="mt-[2px] flex-none"
+                        aria-hidden
+                      >
+                        <circle cx="8.5" cy="8.5" r="2.4" fill={accent} />
+                      </svg>
+                      {t(line)}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+
+            {/* ПОЛОСА СВЕТА состояния. На пороге она открывает итог прямо
+                здесь (перехода нет, стрелки нет); у комнаты без даты — ведёт к
+                дате: итога у неё не будет никогда, и звать к нему нечем. */}
+            {screen.loud?.action === "open" && <CloseOccasionButton accent={accent} tone="loud" />}
+            {screen.loud?.action === "date" && (
+              <div className="flex flex-col items-start gap-2.5">
+                <Link
+                  href="/settings"
+                  className="pressable inline-flex items-center border-b-2 px-6 py-3 text-base font-bold text-text-primary"
+                  style={{ borderColor: accent, boxShadow: `0 4px 18px -3px ${accent}6B` }}
+                >
+                  {t(screen.loud.key)}
+                </Link>
+                <p className="text-xs leading-relaxed text-text-muted">{t(screen.loud.hint)}</p>
+              </div>
+            )}
+
+            {/* ТИХАЯ ДОРОГА К РУЧНОМУ ИТОГУ — решение гриллинга №6: работает и
+                без даты. Стоит на одном месте во всех состояниях, чтобы
+                нашедший её однажды нашёл и в другом; громкость берётся из
+                состояния (тикет 217) — гореть год до праздника ей нельзя. */}
+            {screen.manual && (
+              <div className="flex flex-col items-start gap-2">
+                {screen.manual === "quiet" && (
+                  <p className="overline text-text-faint">{t("manualOverline")}</p>
+                )}
+                <CloseOccasionButton accent={accent} tone={screen.manual} />
+                {screen.manual === "quiet" && (
+                  <p className="text-xs leading-relaxed text-text-muted">{t("manualHint")}</p>
+                )}
+              </div>
+            )}
+
+            {screen.dateLink && (
+              <Link href="/settings" className="pressable text-[13px] font-medium text-text-body">
+                {t("dateLink")}
               </Link>
+            )}
+
+            {/* Тихий выход с порога: раскрытие необратимо, и уйти, не открыв,
+                должно быть так же просто, как открыть. */}
+            {screen.notNow && (
+              <Link href="/room" className="pressable text-[13px] font-medium text-text-body">
+                {t("notNow")}
+              </Link>
+            )}
+
+            {/* Почему громкой кнопки здесь нет — словами, а не пустотой:
+                «до 14 сентября делать здесь нечего». */}
+            {screen.noLoudNote && nearestDate && (
+              <p className="text-xs leading-[1.5] text-text-faint">
+                {t(screen.noLoudNote, { date: nearestDate })}
+              </p>
             )}
           </div>
         )}

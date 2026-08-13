@@ -1,5 +1,6 @@
-// ЭКРАН «ЧТО ПОДАРИЛИ» ЗНАЕТ, ПРОШЁЛ ЛИ ПРАЗДНИК (тикеты 216 и 217, приёмка
-// владельца 13.08.2026).
+// ЭКРАН «ЧТО ПОДАРИЛИ»: ЧЕТЫРЕ СОСТОЯНИЯ И ИХ НАПОЛНЕНИЕ (тикеты 216 и 217 —
+// приёмка владельца 13.08.2026; тикет 219 — те же четыре состояния словами и
+// составом пакета 48, турны 54a и 54b).
 //
 // ЗАМЕЧАНИЕ ДОСЛОВНО: «Написано праздник еще впереди и кнопка праздник прошел…
 // на этой форме я оказался когда нажал кнопку на главном экране что праздник
@@ -7,14 +8,18 @@
 // вопрос по разным данным: комната считала наступивший день рождения, экран
 // смотрел только на существование итога.
 //
-// Поэтому здесь три проверки, и главная — третья:
+// Здесь четыре проверки, и главные — третья и четвёртая:
 //
-// 1. таблица состояний (`screen-state`) — чем говорит каждое из четырёх;
-// 2. кнопка (тикет 217) — слово-действие, стрелки нет, тон по состоянию;
-// 3. **СВОДКА ДВУХ ПОВЕРХНОСТЕЙ В НАСТОЯЩЕЙ БАЗЕ**: там, где
-//    `occasionBannerVisible` даёт true, экран НЕ имеет права говорить
-//    «Праздник ещё впереди». Это и есть замечание владельца, и оно обязано
-//    быть под тестом, а не под глазами.
+// 1. таблица состояний (`screen-state`) — чем говорит каждое из четырёх, и
+//    КАЖДЫЙ её ключ существует в словаре (снятый ключ роняет next-intl);
+// 2. кнопка (тикет 217, слово 54b) — действие, а не состояние, три тона;
+// 3. **НАСТОЯЩИЙ ЭКРАН В НАСТОЯЩЕЙ БАЗЕ**: на пороге при живых бронях нет ни
+//    одного имени и ни одного названия вещи — только счётчик забранного
+//    (инвариант №1). Проверка не вакуумная: та же комната, закрыв итог, имя
+//    печатает;
+// 4. **СВОДКА ДВУХ ПОВЕРХНОСТЕЙ**: там, где `occasionBannerVisible` даёт true,
+//    экран НЕ имеет права говорить «Итог появится после праздника». Это и есть
+//    замечание владельца, и оно обязано быть под тестом, а не под глазами.
 import "dotenv/config";
 import { randomUUID } from "node:crypto";
 import { readFileSync } from "node:fs";
@@ -32,20 +37,55 @@ vi.mock("@/server/queues", () => ({
   enqueueImageIngest: vi.fn(async () => true),
 }));
 
-// Клиентская кнопка рендерится НАСТОЯЩАЯ — с её же словами из ru.json. Мокаются
-// только две вещи, которых в node нет: маршрутизатор и серверные экшены.
-vi.mock("next-intl", () => ({
-  useTranslations: (namespace: keyof typeof ru) => (key: string) =>
-    (ru[namespace] as Record<string, string>)[key] ?? `нет ключа ${String(namespace)}.${key}`,
-}));
+// ТЕКСТЫ — НАСТОЯЩИЕ, И ФОРМАТТЕР НАСТОЯЩИЙ (паттерн tests/hall-owner-subtitle):
+// «2 вещи из комнаты забрали» — ICU-плюрал, на глаз его не собрать, а весь
+// смысл проверки в том, что на пороге стоит ИМЕННО ЭТО число. Вне запроса у
+// `next-intl/server` нет request-scope, поэтому подменяются три его входа.
+vi.mock("next-intl/server", async () => {
+  const actual = await vi.importActual<typeof import("next-intl")>("next-intl");
+  const messages = (await import("../messages/ru.json")).default as unknown as Record<
+    string,
+    Record<string, string>
+  >;
+  return {
+    getTranslations: async (namespace: string) =>
+      actual.createTranslator({ locale: "ru", messages, namespace }),
+    getLocale: async () => "ru",
+    getFormatter: async () => actual.createFormatter({ locale: "ru" }),
+  };
+});
+
+// Клиентская половина того же словаря — для кнопки итога.
+vi.mock("next-intl", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("next-intl")>();
+  const messages = (await import("../messages/ru.json")).default as unknown as Record<
+    string,
+    Record<string, string>
+  >;
+  return {
+    ...actual,
+    useTranslations: (namespace: string) =>
+      actual.createTranslator({ locale: "ru", messages, namespace }),
+    useLocale: () => "ru",
+  };
+});
+
+// Рантайм Next. `redirect` в рисуемых ветках не зовётся: сессия и комната
+// настоящие, а сработай он — тест упадёт с внятным «redirect:/signin».
 vi.mock("next/navigation", () => ({
-  useRouter: () => ({ refresh: () => {}, push: () => {} }),
+  redirect: (to: string) => {
+    throw new Error(`redirect:${to}`);
+  },
+  useRouter: () => ({ refresh: () => undefined, push: () => undefined }),
 }));
+vi.mock("@/server/auth", () => ({ auth: vi.fn() }));
 vi.mock("../src/app/room/occasion/actions", () => ({
   closeOccasionAction: vi.fn(async () => undefined),
   receiveGiftAction: vi.fn(async () => undefined),
 }));
 
+import { createFormatter, createTranslator } from "next-intl";
+import { auth } from "@/server/auth";
 import { prisma } from "../src/server/db";
 import { birthdayColumns, parseBirthday } from "../src/server/birthday";
 import {
@@ -53,16 +93,30 @@ import {
   getOccasionView,
   occasionBannerVisible,
 } from "../src/server/services/occasions";
+import { ownerTakenTotal } from "../src/server/services/goal";
 import { bookItem } from "../src/server/services/bookings";
 import {
   OCCASION_SCREEN,
   occasionScreenState,
+  type OccasionScreenShape,
   type OccasionScreenState,
 } from "../src/app/room/occasion/screen-state";
 import { CloseOccasionButton } from "../src/app/room/occasion/occasion-client";
+import OccasionPage from "../src/app/room/occasion/page";
 
 const TEST_EMAIL_DOMAIN = "@occasion-states.test";
 const words = ru.Occasion as Record<string, string>;
+const authMock = vi.mocked(auth) as unknown as ReturnType<typeof vi.fn>;
+
+/** Плюралы и даты собирает форматтер продукта, а не тест руками. */
+const t = createTranslator({
+  locale: "ru",
+  messages: ru as unknown as Record<string, Record<string, string>>,
+  namespace: "Occasion",
+});
+const format = createFormatter({ locale: "ru" });
+const onDate = (iso: string) =>
+  format.dateTime(new Date(iso), { day: "numeric", month: "long", timeZone: "UTC" });
 
 /** Исходник модуля — для проверки «разметка читает таблицу». */
 const readSource = (relative: string) =>
@@ -93,17 +147,23 @@ async function createOwnerWithRoom(occasionDate: Date | null) {
   return { user, room };
 }
 
-async function createItem(roomId: string) {
+async function createItem(roomId: string, title = `Вещь-${randomUUID().slice(0, 8)}`) {
   return prisma.item.create({
     data: {
       roomId,
       zone: "jewelry",
       inHall: false,
-      title: `Вещь-${randomUUID().slice(0, 8)}`,
+      title,
       price: "5000",
       currency: "RUB",
     },
   });
+}
+
+/** Экран глазами его хозяйки — ровно так, как его отдаёт /room/occasion. */
+async function drawOccasion(userId: string): Promise<string> {
+  authMock.mockResolvedValue({ user: { id: userId } });
+  return renderToStaticMarkup(await OccasionPage());
 }
 
 // OccasionSummary не связан с Room FK — чистим его явно, остальное каскадом.
@@ -135,7 +195,7 @@ function titleOf(state: OccasionScreenState): string | null {
 // 1. Таблица состояний
 // ---------------------------------------------------------------------------
 
-describe("состояний четыре, и каждое говорит своё (тикет 216)", () => {
+describe("состояний четыре, и каждое говорит своё (тикеты 216 и 219)", () => {
   it("выбор состояния: итог старше наступившего праздника, наступивший — будущего", () => {
     const summary = { id: "s", date: "2026-08-12T00:00:00.000Z", revealedAt: null };
     expect(occasionScreenState({ summary, due: null, next: null })).toBe("summary");
@@ -147,94 +207,185 @@ describe("состояний четыре, и каждое говорит сво
     expect(occasionScreenState({ summary: null, due: null, next: null })).toBe("noDate");
   });
 
-  it("праздник НАСТУПИЛ: «Праздник прошёл», своя подсказка и громкое действие", () => {
-    expect(titleOf("due")).toBe("Праздник прошёл");
-    expect(OCCASION_SCREEN.due.hint).toBe("dueHint");
-    expect(OCCASION_SCREEN.due.close).toBe("loud");
+  it("DUE — ПОРОГ: счётчик в лиде, блок «что случится» из трёх строк, полоса света", () => {
+    const due = OCCASION_SCREEN.due;
+    expect(titleOf("due")).toBe("Пора узнать, кто что подарил");
+    expect(due.lead).toBe("dueLead");
+    // Единственное число до раскрытия стоит ВНУТРИ лида (инвариант №1).
+    expect(due.taken).toBe("lead");
+    // Предупреждение — блоком ДО нажатия, тремя строками, а не диалогом.
+    expect(due.whatHappens).toEqual(["dueNames", "dueDone", "dueUnclaimed"]);
+    expect(due.loud).toEqual({ key: "openButton", hint: "openOnceHint", action: "open" });
+    // Тихий выход есть, тихой дороги к ручному итогу нет: она и есть полоса.
+    expect(due.notNow).toBe(true);
+    expect(due.manual).toBeNull();
     // Дату ближайшего здесь не показываем: ближайший — через год, а разговор
     // про тот, что уже прошёл.
-    expect(OCCASION_SCREEN.due.nearest).toBe(false);
-    expect(OCCASION_SCREEN.due.settings).toBe(false);
+    expect(due.nearest).toBe(false);
+    expect(due.dateLink).toBe(false);
+    expect(due.noLoudNote).toBeNull();
   });
 
-  it("праздник ВПЕРЕДИ: «Праздник ещё впереди» с датой и БЕЗ громкой кнопки", () => {
-    expect(titleOf("next")).toBe("Праздник ещё впереди");
-    expect(OCCASION_SCREEN.next.hint).toBe("notClosedHint");
-    // Дата строкой — тем же видом, что в комнате: «День рождения · 14 сентября».
-    expect(OCCASION_SCREEN.next.nearest).toBe(true);
+  it("AHEAD — ОЖИДАНИЕ: счётчик блоком, две тихие ссылки, БЕЗ громкой кнопки", () => {
+    const next = OCCASION_SCREEN.next;
+    expect(titleOf("next")).toBe("Итог появится после праздника");
+    expect(next.lead).toBe("aheadHint");
+    expect(next.taken).toBe("box");
+    // Громкой кнопки нет — и экран сам объясняет, почему (с датой).
+    expect(next.loud).toBeNull();
+    expect(next.noLoudNote).toBe("aheadNoLoud");
     // Дорогу не убираем (решение гриллинга №6), но гореть год она не должна.
-    expect(OCCASION_SCREEN.next.close).toBe("quiet");
+    expect(next.manual).toBe("quiet");
+    expect(next.dateLink).toBe(true);
+    // Дата строкой — тем же видом, что в комнате: «День рождения · 14 сентября».
+    expect(next.nearest).toBe(true);
+    expect(next.whatHappens).toBeNull();
   });
 
-  it("дня рождения НЕТ: про дату — своя строка и тихая ссылка в настройки", () => {
-    expect(titleOf("noDate")).toBe("Праздник ещё впереди");
-    expect(OCCASION_SCREEN.noDate.hint).toBe("notClosedNoDate");
-    expect(OCCASION_SCREEN.noDate.settings).toBe(true);
+  it("NO_DATE — комната без даты: громкое зовёт к ДАТЕ, тихая дорога тише", () => {
+    const noDate = OCCASION_SCREEN.noDate;
+    expect(titleOf("noDate")).toBe("Дата ещё не названа");
+    expect(noDate.lead).toBe("noDateHint");
+    expect(noDate.aside).toBe("noDateWorks");
+    // Единственный случай, где полоса света ведёт не к итогу.
+    expect(noDate.loud).toEqual({
+      key: "noDateButton",
+      hint: "noDateButtonHint",
+      action: "date",
+    });
+    // Громкое занято датой — значит тихая дорога здесь тише, чем в ожидании.
+    expect(noDate.manual).toBe("quieter");
+    expect(noDate.taken).toBe("box"); // комната работает и без даты
     // «Когда он пройдёт» такой комнате сказать нечем — даты нет.
-    expect(OCCASION_SCREEN.noDate.nearest).toBe(false);
-    // Ручное закрытие — её единственная дорога, но и она не срочная.
-    expect(OCCASION_SCREEN.noDate.close).toBe("quiet");
+    expect(noDate.nearest).toBe(false);
+    expect(noDate.noLoudNote).toBeNull();
   });
 
-  it("итог открыт: заголовок и подсказку собирает своя ветка, кнопки нет", () => {
+  it("OPEN не тронут ни строкой: таблица о нём молчит", () => {
+    // Контракт добавляет к открытому итогу полосу света `Occasion.thanksAll`,
+    // и такого ключа не существует нигде — ни в словаре, ни в дельте round48.
+    // Спрошено письмом 53; до ответа состояние остаётся как есть.
+    expect(words.thanksAll).toBeUndefined();
     expect(OCCASION_SCREEN.summary).toEqual({
       title: null,
-      hint: null,
+      lead: null,
+      aside: null,
+      whatHappens: null,
+      taken: null,
+      loud: null,
+      manual: null,
+      notNow: false,
+      dateLink: false,
       nearest: false,
-      close: null,
-      settings: false,
+      noLoudNote: null,
     });
   });
 
-  it("разметка берёт слова ИЗ таблицы, а не мимо неё", () => {
+  it("КАЖДЫЙ ключ таблицы есть в словаре: на пропавшем next-intl падает", () => {
+    // Пакет 48 снял `notClosedTitle`, `notClosedHint`, `closeButton`,
+    // `closeQuiet`, `notClosedNoDate`, `toSettings` и прежний `dueHint` — а
+    // ведущий убрал их из словаря. Ключ, оставшийся в таблице или в разметке,
+    // роняет экран целиком, а не портит одну строку.
+    const keys = Object.values(OCCASION_SCREEN).flatMap((shape: OccasionScreenShape) =>
+      (
+        [
+          shape.title,
+          shape.lead,
+          shape.aside,
+          shape.noLoudNote,
+          shape.loud?.key ?? null,
+          shape.loud?.hint ?? null,
+          ...(shape.whatHappens ?? []),
+        ] as Array<string | null>
+      ).filter((key): key is string => key !== null),
+    );
+    // Проверка не пустая: ключей в таблице действительно много.
+    expect(keys.length).toBeGreaterThanOrEqual(12);
+    for (const key of keys) {
+      expect(words[key], `ключа Occasion.${key} нет в словаре`).toBeDefined();
+      expect(words[key]?.trim()).not.toBe("");
+    }
+    // И слова, которые таблица не называет, но экран печатает рядом.
+    for (const key of ["dueWhatOverline", "notNow", "manualOverline", "manualHint", "dateLink"]) {
+      expect(words[key], `ключа Occasion.${key} нет в словаре`).toBeDefined();
+    }
+  });
+
+  it("разметка берёт слова ИЗ таблицы, а снятых ключей не знает", () => {
     // Иначе таблица стала бы вторым описанием экрана — и разъехалась бы с ним
     // ровно так же, как разъехались комната и экран (тикет 216).
     const page = readSource("../src/app/room/occasion/page.tsx");
     expect(page).toContain("OCCASION_SCREEN[occasionScreenState(view)]");
-    expect(page).toContain("screen.close");
-    expect(page).toContain("screen.settings");
-    expect(page).not.toMatch(/t\("notClosedTitle"\)|t\("dueTitle"\)|t\("notClosedHint"\)/u);
+    expect(page).toContain("screen.loud");
+    expect(page).toContain("screen.taken");
+    expect(page).toContain("screen.manual");
+    expect(page).toContain("screen.whatHappens");
+    expect(page).not.toMatch(/t\("(dueTitle|aheadTitle|noDateTitle|dueLead|aheadHint)"\)/u);
+    // Снятые ключи не должны остаться ни в разметке, ни в кнопке.
+    const gone =
+      /notClosedTitle|notClosedHint|notClosedNoDate|closeButton|closeQuiet|toSettings|dueHint/u;
+    expect(page).not.toMatch(gone);
+    expect(readSource("../src/app/room/occasion/occasion-client.tsx")).not.toMatch(gone);
+    expect(readSource("../src/app/room/occasion/screen-state.ts")).not.toMatch(gone);
   });
 });
 
 // ---------------------------------------------------------------------------
-// 2. Кнопка — действие, а не состояние (тикет 217)
+// 2. Кнопка — действие, а не состояние (тикет 217, слово 54b)
 // ---------------------------------------------------------------------------
 
 /** Настоящая разметка кнопки — тем же React, что в браузере. */
-function renderClose(tone: "loud" | "quiet"): string {
+function renderClose(tone: "loud" | "quiet" | "quieter"): string {
   return renderToStaticMarkup(createElement(CloseOccasionButton, { accent: "#E7C9A9", tone }));
 }
 
-describe("кнопка итога: слово-действие, без стрелки, тон по состоянию (тикет 217)", () => {
-  it("главная кнопка называет ДЕЙСТВИЕ и не повторяет заголовок", () => {
+describe("кнопка итога: слово-действие, без стрелки, три тона (тикеты 217 и 219)", () => {
+  it("главная кнопка называет ДЕЙСТВИЕ и говорит «открыть», а не «показать»", () => {
     const html = renderClose("loud");
-    expect(html).toContain("Показать, кто что подарил");
-    // Заголовок наступившего праздника — «Праздник прошёл»; кнопка рядом с ним
-    // повторяла его слово в слово и не называла, что произойдёт по нажатию.
-    expect(html).not.toContain("Праздник прошёл");
-    expect(titleOf("due")).toBe("Праздник прошёл");
+    expect(html).toContain("Открыть, кто что подарил");
+    // «Показать» обратимо — так говорят про фильтр, а действие необратимо
+    // (пакет 48, `wording.openButton`).
+    expect(html).not.toContain("Показать, кто что подарил");
+    // Заголовок порога кнопка не повторяет.
+    expect(html).not.toContain(titleOf("due"));
+  });
+
+  it("необратимость подписана ПОД полосой, до нажатия", () => {
+    // Раньше про «один раз» говорила строка `hint` — то есть уже после
+    // раскрытия. Теперь она стоит у самой кнопки.
+    expect(renderClose("loud")).toContain(words.openOnceHint);
+    expect(renderClose("quiet")).not.toContain(words.openOnceHint);
   });
 
   it("СТРЕЛКИ НЕТ: её приписывал код строкой, а не контракт", () => {
     expect(renderClose("loud")).not.toContain("→");
     expect(renderClose("quiet")).not.toContain("→");
+    expect(renderClose("quieter")).not.toContain("→");
   });
 
-  it("«полоса света» осталась полосой света: пол 2 px и свечение акцента", () => {
+  it("«полоса света» осталась полосой света: пол 2 px, свечение и знак 18", () => {
     const html = renderClose("loud");
     expect(html).toContain("border-b-2");
     expect(html).toMatch(/border-color:\s*#E7C9A9/iu);
     expect(html).toMatch(/box-shadow/iu);
+    // Знак раскрытия 18, stroke 1.7 — по контракту у полосы он есть.
+    expect(html).toMatch(/<svg[^>]*width="18"[^>]*stroke-width="1\.7"/u);
   });
 
-  it("тихий тон — тем же тоном, что «В комнату»: ни полосы, ни свечения", () => {
-    const html = renderClose("quiet");
-    expect(html).toContain("Праздник уже был — подвести итог");
-    expect(html).not.toContain("border-b-2");
-    expect(html).not.toMatch(/box-shadow/iu);
-    // Тон ссылки «В комнату» — тот же класс, что у неё в шапке экрана.
-    expect(html).toContain("text-xs font-semibold text-text-strong");
+  it("тихая дорога — теми же словами в обоих тонах, но громкость разная", () => {
+    const quiet = renderClose("quiet");
+    const quieter = renderClose("quieter");
+    expect(quiet).toContain("Праздник уже был — открыть итог");
+    expect(quieter).toContain("Праздник уже был — открыть итог");
+    for (const html of [quiet, quieter]) {
+      expect(html).not.toContain("border-b-2");
+      expect(html).not.toMatch(/box-shadow/iu);
+    }
+    // В ожидании ссылка идёт акцентом комнаты, у комнаты без даты — тише:
+    // громкое там уже занято датой.
+    expect(quiet).toMatch(/color:\s*#E7C9A9/iu);
+    expect(quieter).not.toMatch(/color:\s*#E7C9A9/iu);
+    expect(quieter).toContain("text-text-muted");
   });
 
   it("проверка не пустая: разметка кнопки вообще-то содержит слова", () => {
@@ -242,15 +393,132 @@ describe("кнопка итога: слово-действие, без стре�
     expect(renderClose("loud")).toMatch(/<button[^>]*>/u);
     expect(renderClose("quiet")).toMatch(/<button[^>]*>/u);
     expect(renderClose("loud")).not.toBe(renderClose("quiet"));
+    expect(renderClose("quiet")).not.toBe(renderClose("quieter"));
   });
 });
 
 // ---------------------------------------------------------------------------
-// 3. ГЛАВНОЕ: две поверхности сводятся вместе, в настоящей базе
+// 3. ГЛАВНОЕ: настоящий экран в настоящей базе (инвариант №1)
+// ---------------------------------------------------------------------------
+
+describe("порог: единственное число — счётчик забранного (инвариант №1, тикет 219)", () => {
+  it("живые брони: на экране есть число и НЕТ ни имён, ни названий вещей", async () => {
+    const owner = await createOwnerWithRoom(utcMidnightDaysAgo(1));
+    const ring = await createItem(owner.room.id, "Кольцо-секрет");
+    const bag = await createItem(owner.room.id, "Сумка-секрет");
+    await createItem(owner.room.id, "Духи-незанятые"); // без брони — в другое число
+    await bookItem({ itemId: ring.id, name: "Секретная Гостья", email: "top-secret@mail.test" });
+    await bookItem({ itemId: bag.id, name: "Тайный Даритель", mode: "SIGNED" });
+
+    const view = await getOccasionView(owner.user.id);
+    expect(occasionScreenState(view)).toBe("due");
+    // Счётчик — ТОТ ЖЕ, что в комнате: считает его одна функция на три
+    // поверхности (комната, роут, этот экран).
+    expect(view.takenTotal).toBe(2);
+    expect(view.takenTotal).toBe(await ownerTakenTotal(owner.user.id));
+
+    const markup = await drawOccasion(owner.user.id);
+
+    // Порог собран: заголовок, лид с числом, блок из трёх строк, полоса,
+    // подпись необратимости и тихий выход.
+    expect(markup).toContain(words.dueTitle);
+    expect(markup).toContain(t("dueLead", { count: 2 }));
+    expect(markup).toContain(words.dueWhatOverline);
+    for (const line of ["dueNames", "dueDone", "dueUnclaimed"] as const) {
+      expect(markup, `строка ${line} пропала с порога`).toContain(words[line]);
+    }
+    expect(markup).toContain(words.openButton);
+    expect(markup).toContain(words.openOnceHint);
+    expect(markup).toContain(words.notNow);
+    // Тихой дороги на пороге нет: она и есть эта полоса.
+    expect(markup).not.toContain(words.manualLink);
+
+    // ИНВАРИАНТ №1: ни имени, ни почты, ни названия занятой вещи — экран их
+    // и не может напечатать, потому что сервис их не отдаёт вовсе.
+    expect(markup).not.toMatch(/Секретная|Тайный|top-secret|mail\.test/u);
+    expect(markup).not.toContain("Кольцо-секрет");
+    expect(markup).not.toContain("Сумка-секрет");
+    expect(markup).not.toContain("Духи-незанятые");
+    expect(markup).not.toContain(ring.id);
+
+    // ПРОВЕРКА НЕ ПУСТАЯ, ЧАСТЬ ПЕРВАЯ: число на экране именно то, а не
+    // соседнее (незанятых вещей здесь как раз одна — перепутать легко).
+    expect(markup).not.toContain(t("dueLead", { count: 1 }));
+    expect(markup).not.toContain(t("dueLead", { count: 0 }));
+
+    // ПРОВЕРКА НЕ ПУСТАЯ, ЧАСТЬ ВТОРАЯ: та же комната и та же разметка после
+    // раскрытия имя ПЕЧАТАЕТ. Значит «имён нет» выше — про порог, а не про
+    // сломанный рендер.
+    await closeOccasion(owner.room.id, { manual: true });
+    const opened = await drawOccasion(owner.user.id);
+    expect(opened).toContain("Секретная Гостья");
+    expect(opened).toContain("Кольцо-секрет");
+    expect(opened).not.toContain(words.dueTitle);
+  });
+
+  it("ожидание: счётчик блоком, обе тихие ссылки и объяснение без громкой кнопки", async () => {
+    const owner = await createOwnerWithRoom(utcMidnightDaysAgo(-30));
+    const item = await createItem(owner.room.id, "Плед-секрет");
+    await bookItem({ itemId: item.id, name: "Ранняя Гостья", email: "early@mail.test" });
+
+    const view = await getOccasionView(owner.user.id);
+    expect(occasionScreenState(view)).toBe("next");
+    expect(view.takenTotal).toBe(1);
+
+    const markup = await drawOccasion(owner.user.id);
+    expect(markup).toContain(words.aheadTitle);
+    expect(markup).toContain(words.aheadHint);
+    // Блок счётчика: число, подпись и примечание «больше не покажем».
+    expect(markup).toContain(t("takenNumber", { count: 1 }));
+    expect(markup).toContain(words.takenCaption);
+    expect(markup).toContain(words.takenOnly);
+    // Тихая дорога и дата — обе на месте.
+    expect(markup).toContain(words.manualOverline);
+    expect(markup).toContain(words.manualLink);
+    expect(markup).toContain(words.manualHint);
+    expect(markup).toContain(words.dateLink);
+    expect(markup).toContain(t("aheadNoLoud", { date: onDate(view.next!) }));
+    // ГРОМКОЙ КНОПКИ НЕТ: полоса света — единственный `border-b-2` экрана.
+    expect(markup).not.toContain("border-b-2");
+    // И ни слова о том, кто именно занял.
+    expect(markup).not.toMatch(/Ранняя|early@|Плед-секрет/u);
+  });
+
+  it("комната без даты: громкая полоса ведёт к дате, тихая дорога — к итогу", async () => {
+    const owner = await createOwnerWithRoom(null);
+    const item = await createItem(owner.room.id, "Ваза-секрет");
+    await bookItem({ itemId: item.id, name: "Гостья Без Даты" });
+
+    const view = await getOccasionView(owner.user.id);
+    expect(occasionScreenState(view)).toBe("noDate");
+    expect(view.takenTotal).toBe(1);
+
+    const markup = await drawOccasion(owner.user.id);
+    expect(markup).toContain(words.noDateTitle);
+    expect(markup).toContain(words.noDateHint);
+    expect(markup).toContain(words.noDateWorks);
+    // Полоса света здесь одна и ведёт в настройки — к дате.
+    expect(markup).toContain(words.noDateButton);
+    expect(markup).toContain(words.noDateButtonHint);
+    // Полоса — ссылкой, а не кнопкой: настройки это МЕСТО, туда переходят.
+    expect(markup).toMatch(/<a[^>]*border-b-2[^>]*href="\/settings"/u);
+    // Дорога к ручному итогу осталась (решение гриллинга №6).
+    expect(markup).toContain(words.manualLink);
+    // Ожиданию принадлежащих строк здесь нет: даты нет — и обещать нечего.
+    expect(markup).not.toContain(words.dateLink);
+    expect(markup).not.toContain(words.manualOverline);
+    // Счётчик работает и без даты — комната-то работает.
+    expect(markup).toContain(t("takenNumber", { count: 1 }));
+    expect(markup).not.toMatch(/Без Даты|Ваза-секрет/u);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// 4. Две поверхности сводятся вместе, в настоящей базе
 // ---------------------------------------------------------------------------
 
 describe("комната и экран отвечают на «праздник прошёл?» одинаково (тикет 216)", () => {
-  it("день рождения вчера, итога нет: комната зовёт — экран говорит «Праздник прошёл»", async () => {
+  it("день рождения вчера, итога нет: комната зовёт — экран зовёт узнать", async () => {
     const owner = await createOwnerWithRoom(utcMidnightDaysAgo(1));
 
     // Ровно стенд владельца: день рождения 12-го, приёмка 13-го.
@@ -259,19 +527,19 @@ describe("комната и экран отвечают на «праздник 
     const state = occasionScreenState(view);
 
     expect(state).toBe("due");
-    expect(titleOf(state)).toBe("Праздник прошёл");
-    expect(titleOf(state)).not.toBe("Праздник ещё впереди");
+    expect(titleOf(state)).toBe(words.dueTitle);
+    expect(titleOf(state)).not.toBe(words.aheadTitle);
     // И дело, за которым он сюда пришёл, стоит на экране громким действием.
-    expect(OCCASION_SCREEN[state].close).toBe("loud");
+    expect(OCCASION_SCREEN[state].loud?.key).toBe("openButton");
 
     // ПРОВЕРКА НЕ ПУСТАЯ. Старое правило экрана («нет итога → впереди») на
     // этой же комнате дало бы ровно то, что увидел владелец.
     const oldRule = view.summary ? "summary" : "next";
-    expect(titleOf(oldRule)).toBe("Праздник ещё впереди");
+    expect(titleOf(oldRule)).toBe(words.aheadTitle);
   });
 
   it("обход состояний: где строка в комнате горит, «впереди» на экране не бывает", async () => {
-    // Пять комнат, покрывающих обе причины строки (наступивший праздник без
+    // Шесть комнат, покрывающих обе причины строки (наступивший праздник без
     // итога и неотмеченные подарки) и обе причины тишины.
     const dueNoSummary = await createOwnerWithRoom(utcMidnightDaysAgo(1));
 
@@ -302,7 +570,7 @@ describe("комната и экран отвечают на «праздник 
       seen.push({ banner, state });
       if (banner) {
         expect(titleOf(state), `комната зовёт, а экран отвечает «${titleOf(state)}»`).not.toBe(
-          "Праздник ещё впереди",
+          words.aheadTitle,
         );
       }
     }
@@ -328,12 +596,13 @@ describe("комната и экран отвечают на «праздник 
     const state = occasionScreenState(view);
 
     expect(state).toBe("next");
-    // Здесь «Праздник ещё впереди» — правда, и он стоит с датой.
-    expect(titleOf(state)).toBe("Праздник ещё впереди");
+    // Здесь «Итог появится после праздника» — правда, и он стоит с датой.
+    expect(titleOf(state)).toBe(words.aheadTitle);
     expect(view.next).not.toBeNull();
     expect(OCCASION_SCREEN[state].nearest).toBe(true);
-    // Гореть год до следующего праздника кнопка не будет.
-    expect(OCCASION_SCREEN[state].close).toBe("quiet");
+    // Гореть год до следующего праздника кнопке нечем.
+    expect(OCCASION_SCREEN[state].loud).toBeNull();
+    expect(OCCASION_SCREEN[state].manual).toBe("quiet");
   });
 
   it("комната без даты: дорога к итогу осталась, и она работает", async () => {
@@ -341,8 +610,8 @@ describe("комната и экран отвечают на «праздник 
 
     const state = occasionScreenState(await getOccasionView(owner.user.id));
     expect(state).toBe("noDate");
-    expect(OCCASION_SCREEN[state].close).toBe("quiet");
-    expect(OCCASION_SCREEN[state].settings).toBe(true);
+    expect(OCCASION_SCREEN[state].manual).toBe("quieter");
+    expect(OCCASION_SCREEN[state].loud?.action).toBe("date");
 
     // Решение гриллинга №6 в силе: ручное закрытие без даты закрывает «сегодня».
     const closed = await closeOccasion(owner.room.id, { manual: true });

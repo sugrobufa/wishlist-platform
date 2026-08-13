@@ -30,7 +30,7 @@ import {
   upsertGiftConnection,
   type PendingConsentRow,
 } from "@/server/services/connections";
-import { revealedPledges } from "@/server/services/goal";
+import { ownerTakenTotal, revealedPledges } from "@/server/services/goal";
 import { itemPhotoUrl } from "@/server/dto/items";
 import { enqueueOccasionOwnerMail } from "@/server/queues";
 
@@ -247,6 +247,19 @@ export type OccasionView = {
   received: OccasionReceivedGift[];
   /** «Осталось незабранным · N» — вещи комнаты без брони (голое число). */
   unclaimedCount: number;
+  /**
+   * «N вещей уже забрали» — ТОТ ЖЕ счётчик, что в комнате
+   * (`services/goal.ownerTakenTotal`: занятые вещи плюс копилка одной вещью
+   * при любом числе участников). Экран показывает его до раскрытия — на
+   * пороге числом в лиде, в ожидании блоком (пакет 48, тикет 219).
+   *
+   * ЭТО ЕДИНСТВЕННОЕ, ЧТО ХОЗЯЙКА УЗНАЁТ О ДВИЖЕНИИ ДО ПРАЗДНИКА (инвариант
+   * №1): голое число по комнате — ни имени, ни названия вещи, ни списка.
+   * Считается той же функцией, что в шапке комнаты и в роуте
+   * `/api/v1/room/taken-count`: три поверхности, одно место — иначе они
+   * разъедутся, как разъехались комната и экран в тикете 216.
+   */
+  takenTotal: number;
   /** Копилка с раскрытыми участниками; null — цели нет или в неё не скидывались. */
   goal: OccasionGoal | null;
   /**
@@ -295,6 +308,12 @@ export async function getOccasionView(userId: string): Promise<OccasionView> {
     where: { roomId: room.id, inHall: false, hidden: false, booking: null },
   });
 
+  // Счётчик забранного — НЕ СВОЙ, а тот же, что показывает комната: копилка
+  // входит в него одной вещью при любом числе участников (ADR-0008), и второе
+  // сложение здесь однажды разошлось бы с первым. О том, КТО и ЧТО забрал, он
+  // не говорит ничего — это по-прежнему голое число (инвариант №1).
+  const takenTotal = await ownerTakenTotal(userId);
+
   const summary = await prisma.occasionSummary.findFirst({
     where: { roomId: room.id },
     orderBy: [{ date: "desc" }, { createdAt: "desc" }],
@@ -308,6 +327,7 @@ export async function getOccasionView(userId: string): Promise<OccasionView> {
       pending: [],
       received: [],
       unclaimedCount,
+      takenTotal,
       goal: null,
       consent: [],
     };
@@ -375,6 +395,7 @@ export async function getOccasionView(userId: string): Promise<OccasionView> {
       receivedAt: (item.receivedAt ?? new Date(0)).toISOString(),
     })),
     unclaimedCount,
+    takenTotal,
   };
 }
 

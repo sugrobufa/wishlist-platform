@@ -1,8 +1,8 @@
 "use client";
 
 // Клиентские части экрана «что подарили» (тикет 10, турн 21a): строки
-// подарков с кнопкой «Дошло» и ручное закрытие итога («Показать, кто что
-// подарил» — действие, а не состояние; тикет 217).
+// подарков с кнопкой «Дошло» и открытие итога («Открыть, кто что подарил» —
+// действие, а не состояние; тикеты 217 и 219, турн 54b).
 // Данные приходят с сервера уже gated: имена существуют только при summary
 // (services/occasions), клиент ничего не раскрывает сам.
 import { useState, useTransition } from "react";
@@ -151,37 +151,37 @@ export function OccasionRows({
 }
 
 /**
- * РУЧНОЕ ЗАКРЫТИЕ ИТОГА — действие, а не состояние (тикет 217).
+ * ОТКРЫТЬ ИТОГ — действие, а не состояние (тикет 217, слова пакета 48).
  *
  * Кнопка называлась «Праздник прошёл»: это то, что человек СООБЩАЕТ экрану, а
  * не то, что произойдёт по нажатию. А произойдёт необратимое — имена дарителей
  * раскрываются ровно один раз (инвариант №2), — и действие обязано это
- * называть: «Показать, кто что подарил». Стрелки нет: она приписывалась кодом
- * строкой, а не приезжала из контракта («текст, да ещё и со стрелочкой — не
- * очень»).
+ * называть. Дизайн правку принял («тикет 217 принят без правок») и поправил
+ * глагол: не «показать», а «ОТКРЫТЬ» — «показать» обратимо, так говорят про
+ * фильтр, а состояние зовётся «итог открыт» и прогресс — «Открываем…».
+ * Стрелки нет: перехода не происходит, раскрытие случается на этом же экране.
  *
- * ДВА ТОНА ПО СОСТОЯНИЮ ЭКРАНА (`screen-state`), а не один на все случаи:
- * - `loud` — «полоса света», главная кнопка (турн 22). Праздник наступил,
- *   итога нет: дело есть прямо сейчас, здесь ей и место. Подчёркивание 2 px —
- *   пол пакета (инвариант 47), не ужимать;
- * - `quiet` — тихая строка тем же тоном, что «В комнату». Праздник впереди
- *   (или даты нет вовсе): дорогу мы не убираем — она работает и без даты
+ * ТРИ ТОНА ПО СОСТОЯНИЮ ЭКРАНА (`screen-state`), а не один на все случаи:
+ * - `loud` — «полоса света» на пороге (турн 22): `openButton` со знаком
+ *   раскрытия и подписью необратимости под ней. Подчёркивание 2 px — пол
+ *   пакета (инвариант 47), не ужимать;
+ * - `quiet` — тихая дорога `manualLink` там, где праздник впереди: акцентом
+ *   комнаты, но без полосы. Дорогу мы не убираем — она работает и без даты
  *   (решение гриллинга №6), — но гореть год до следующего праздника она не
- *   должна.
+ *   должна;
+ * - `quieter` — та же дорога у комнаты без даты, и она ТИШЕ: громкое там уже
+ *   занято датой, двух громких на экране не бывает.
  *
- * ВОПРОСА ПЕРЕД НАЖАТИЕМ ЗДЕСЬ ПОКА НЕТ. Тикет 217 просил его формой карточки
- * вещи («Показать, кто что подарил?» и два ответа), но словами ТОЛЬКО
- * существующими — а в разделе `Occasion` их нет, и делить ключ с чужим экраном
- * (`Settings.itemHallAddConfirm`, `Hall.deleteYes`) этот словарь запрещает.
- * Строки заводит ведущий вместе с записью у сторожа тона; до тех пор действие
- * прямое.
+ * ДИАЛОГА ПОДТВЕРЖДЕНИЯ НЕТ И НЕ БУДЕТ (`warning.notADialog`): «человек пришёл
+ * именно за этим, стена была бы лишней». Предупреждение стоит блоком ДО
+ * нажатия — «Что случится по нажатию» на пороге, — а не вопросом поверх него.
  */
 export function CloseOccasionButton({
   accent,
   tone,
 }: {
   accent: string;
-  tone: "loud" | "quiet";
+  tone: "loud" | "quiet" | "quieter";
 }) {
   const t = useTranslations("Occasion");
   const router = useRouter();
@@ -189,7 +189,7 @@ export function CloseOccasionButton({
   const [failed, setFailed] = useState(false);
   const [, startTransition] = useTransition();
 
-  function close() {
+  function open() {
     setBusy(true);
     setFailed(false);
     startTransition(async () => {
@@ -206,21 +206,54 @@ export function CloseOccasionButton({
   const loud = tone === "loud";
 
   return (
-    <div className="flex flex-col items-start gap-3">
+    <div className="flex flex-col items-start gap-2.5">
       <button
         type="button"
         disabled={busy}
-        onClick={close}
+        onClick={open}
         className={
           loud
-            ? "pressable border-b-2 px-6 py-3 font-semibold text-text-primary disabled:opacity-60"
-            : "pressable text-xs font-semibold text-text-strong disabled:opacity-60"
+            ? "pressable inline-flex items-center gap-2.5 border-b-2 px-6 py-3 text-base font-bold text-text-primary disabled:opacity-60"
+            : tone === "quiet"
+              ? "pressable text-[13px] font-medium disabled:opacity-60"
+              : "pressable text-[12.5px] font-medium text-text-muted disabled:opacity-60"
         }
-        style={loud ? { borderColor: accent, boxShadow: `0 4px 18px -3px ${accent}6B` } : undefined}
+        style={
+          loud
+            ? { borderColor: accent, boxShadow: `0 4px 18px -3px ${accent}6B` }
+            : tone === "quiet"
+              ? { color: accent }
+              : undefined
+        }
       >
-        {busy ? t("closing") : t(loud ? "closeButton" : "closeQuiet")}
+        {loud && <RevealSign />}
+        {busy ? t("closing") : t(loud ? "openButton" : "manualLink")}
       </button>
+      {/* Подпись необратимости — под самой полосой, а не в конце экрана:
+          раньше про «один раз» говорила строка `hint`, то есть уже ПОСЛЕ
+          раскрытия. */}
+      {loud && <p className="text-xs leading-relaxed text-text-muted">{t("openOnceHint")}</p>}
       {failed && <p className="text-sm text-text-muted">{t("errGeneric")}</p>}
     </div>
+  );
+}
+
+/** Знак раскрытия 18, stroke 1.7 — тот же, что у плашки открытого итога. */
+function RevealSign() {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      width="18"
+      height="18"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.7"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      className="flex-none"
+      aria-hidden
+    >
+      <path d="M13 2.8l2 5.6 5.6 2-5.6 2-2 5.6-2-5.6-5.6-2 5.6-2z" />
+    </svg>
   );
 }
