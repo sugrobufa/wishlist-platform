@@ -6,6 +6,7 @@ import { auth } from "@/server/auth";
 import { getRoomForUser, getSessionUserId } from "@/server/services/rooms";
 import { getOccasionView } from "@/server/services/occasions";
 import { rooms } from "@/config/design";
+import { roomImageUrl } from "@/app/rooms/room-image";
 import { formatHallMoney } from "@/app/room/hall/money";
 import { StayInTouch } from "@/components/consent/stay-in-touch";
 import { CloseOccasionButton, OccasionRows } from "./occasion-client";
@@ -17,6 +18,14 @@ export async function generateMetadata(): Promise<Metadata> {
   const t = await getTranslations("Occasion");
   return { title: t("title"), robots: { index: false, follow: false } };
 }
+
+/**
+ * Затемнение поверх кадра шапки — дословно из пакета 49
+ * (`headerPhoto.gradient`). Оно кроет шапку на 94%, и ровно поэтому контракт
+ * разрешает простое кадрирование вместо чисел кропа: разницы не видно.
+ */
+const HEADER_GRADIENT =
+  "linear-gradient(0deg, rgba(11,8,6,.95) 6%, rgba(11,8,6,.15) 66%, rgba(11,8,6,.45))";
 
 /**
  * «Что подарили» (тикет 10, турн 21a) — экран-итог праздника. Имена
@@ -38,6 +47,12 @@ export async function generateMetadata(): Promise<Metadata> {
  * ЕДИНСТВЕННОЕ ЧИСЛО ДО РАСКРЫТИЯ — счётчик забранного по комнате
  * (`view.takenTotal`, инвариант №1): ни имени, ни названия вещи, ни списка.
  * Их у экрана до раскрытия и нет — сервис их не отдаёт вовсе.
+ *
+ * ШАПКА — КАДР СОБСТВЕННОЙ КОМНАТЫ (пакет 49, тикет 224), приглушённый по
+ * состоянию. Он ничего не рассказывает о подарках: это своя же комната, тот же
+ * файл, что на главном экране, — на пороге он не приносит с собой ни одного
+ * имени. Адресная благодарность «Сказать спасибо» живёт в строке подарка
+ * (`occasion-client`) и только там, где у гостя есть почта.
  */
 export default async function OccasionPage() {
   const session = await auth();
@@ -56,6 +71,10 @@ export default async function OccasionPage() {
   const preset = rooms.find((candidate) => candidate.id === room.preset);
   const accent = preset?.accent ?? "#E7C9A9";
   const ink = preset?.ink ?? "#241A0E";
+  // Кадр шапки берётся ровно как на главном экране: файл пресета комнаты через
+  // раздачу `/rooms/*`. Пресета не нашлось (чужая строка в БД) — кадра нет, а
+  // градиент остаётся: шапка не разваливается.
+  const roomFrame = preset ? roomImageUrl(preset.base) : null;
 
   const view = await getOccasionView(userId);
   const giftsTotal = view.pending.length + view.received.length;
@@ -86,8 +105,34 @@ export default async function OccasionPage() {
 
   return (
     <main className="min-h-screen pb-16">
-      <div className="mx-auto w-full max-w-xl px-5 lg:px-0">
-        <header className="pb-6 pt-6 lg:pt-10">
+      {/* КАДР СОБСТВЕННОЙ КОМНАТЫ В ШАПКЕ (пакет 49, `headerPhoto`; тикет 224).
+          Не витрина `c-hall.jpg` — это другое место, и итог не про него; и не
+          фотография первой подаренной вещи — она назначала бы одному подарку
+          старшинство. Итог про комнату, ИЗ КОТОРОЙ вещи уехали.
+
+          ТОТ ЖЕ ФАЙЛ, ЧТО НА ГЛАВНОМ ЭКРАНЕ, И НИКАКОЙ ОБРАБОТКИ: кадры комнат
+          неприкосновенны (CLAUDE.md) — только показ. Кадрирование берётся
+          простым вариантом контракта (`cropSimple`: cover + 30% 38%), а не
+          числами кропа: те привязаны к ширине 430 и на 375 поехали бы.
+          Прозрачность и высота окна — поля таблицы состояний, а не ветки
+          здесь. */}
+      <header className="relative overflow-hidden" style={{ height: screen.photoHeight }}>
+        {roomFrame && (
+          <div
+            className="absolute inset-0 bg-cover"
+            style={{
+              backgroundImage: `url(${roomFrame})`,
+              backgroundPosition: "30% 38%",
+              opacity: screen.photo,
+            }}
+            aria-hidden
+          />
+        )}
+        {/* Градиент пакета: он кроет шапку на 94%, поэтому разницы между
+            простым кадрированием и числами кропа не видно. */}
+        <div className="absolute inset-0" style={{ background: HEADER_GRADIENT }} aria-hidden />
+
+        <div className="absolute inset-x-0 bottom-0 mx-auto w-full max-w-xl px-5 pb-5 lg:px-0">
           <Link href="/room" className="pressable text-xs font-semibold text-text-strong">
             ← {t("backToRoom")}
           </Link>
@@ -120,8 +165,12 @@ export default async function OccasionPage() {
               {nearestLine && <p className="overline mt-3 text-text-muted">{nearestLine}</p>}
             </>
           )}
-        </header>
+        </div>
+      </header>
 
+      {/* Список начинается сразу под шапкой: у кадра 430×932 шапка кончается на
+          236, список идёт с 254 (`measuredFrom` пакета 49). */}
+      <div className="mx-auto w-full max-w-xl px-5 pt-[18px] lg:px-0">
         {view.summary ? (
           <>
             {view.pending.length > 0 && (

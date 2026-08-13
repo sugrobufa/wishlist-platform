@@ -8,7 +8,7 @@
 // вопрос по разным данным: комната считала наступивший день рождения, экран
 // смотрел только на существование итога.
 //
-// Здесь четыре проверки, и главные — третья и четвёртая:
+// Здесь шесть проверок, и главные — третья и четвёртая:
 //
 // 1. таблица состояний (`screen-state`) — чем говорит каждое из четырёх, и
 //    КАЖДЫЙ её ключ существует в словаре (снятый ключ роняет next-intl);
@@ -19,7 +19,12 @@
 //    печатает;
 // 4. **СВОДКА ДВУХ ПОВЕРХНОСТЕЙ**: там, где `occasionBannerVisible` даёт true,
 //    экран НЕ имеет права говорить «Итог появится после праздника». Это и есть
-//    замечание владельца, и оно обязано быть под тестом, а не под глазами.
+//    замечание владельца, и оно обязано быть под тестом, а не под глазами;
+// 5. кадр собственной комнаты в шапке (пакет 49, тикет 224): прозрачность по
+//    каждому из четырёх состояний — числами САМОГО контракта, — и на пороге
+//    кадр не приносит с собой ни одного имени;
+// 6. «Сказать спасибо» — строка есть у дарителя с почтой и её нет ВОВСЕ у
+//    дарителя без почты; громкой «спасибо всем» у открытого итога нет.
 import "dotenv/config";
 import { randomUUID } from "node:crypto";
 import { readFileSync } from "node:fs";
@@ -85,13 +90,17 @@ vi.mock("../src/app/room/occasion/actions", () => ({
 }));
 
 import { createFormatter, createTranslator } from "next-intl";
+import contract from "@design/round49/occasion-open.json";
 import { auth } from "@/server/auth";
+import { rooms } from "@/config/design";
+import { roomImageUrl } from "@/app/rooms/room-image";
 import { prisma } from "../src/server/db";
 import { birthdayColumns, parseBirthday } from "../src/server/birthday";
 import {
   closeOccasion,
   getOccasionView,
   occasionBannerVisible,
+  receiveGift,
 } from "../src/server/services/occasions";
 import { ownerTakenTotal } from "../src/server/services/goal";
 import { bookItem } from "../src/server/services/bookings";
@@ -258,11 +267,14 @@ describe("состояний четыре, и каждое говорит сво
     expect(noDate.nearest).toBe(false);
   });
 
-  it("OPEN не тронут ни строкой: таблица о нём молчит", () => {
-    // Контракт добавляет к открытому итогу полосу света `Occasion.thanksAll`,
-    // и такого ключа не существует нигде — ни в словаре, ни в дельте round48.
-    // Спрошено письмом 53; до ответа состояние остаётся как есть.
+  it("OPEN: громкого действия нет — и теперь это решение, а не пауза (round49)", () => {
+    // Контракт 48 спорил сам с собой: `buttonLife` говорил «OPEN — ни кнопки,
+    // ни ссылки», а `states.OPEN.loud` называл полосу света `Occasion.thanksAll`.
+    // Спросили письмом 53 — пакет 49 ответил: прав `buttonLife`. «Спасибо
+    // всем» продукт отправить НЕ МОЖЕТ (почта гостя необязательна), и ключа
+    // по-прежнему нет нигде. Благодарность живёт адресно, строкой в подарке.
     expect(words.thanksAll).toBeUndefined();
+    expect(words.thanksGuest).toBe("Сказать спасибо");
     expect(OCCASION_SCREEN.summary).toEqual({
       title: null,
       lead: null,
@@ -274,6 +286,9 @@ describe("состояний четыре, и каждое говорит сво
       notNow: false,
       dateLink: false,
       nearest: false,
+      // Кадр шапки — единственное, чем таблица говорит об открытом итоге.
+      photo: 1,
+      photoHeight: 236,
     });
   });
 
@@ -581,6 +596,14 @@ describe("комната и экран отвечают на «праздник 
     }
 
     // Обход прошёл по обеим сторонам вопроса: и по горящей строке, и по тихой.
+    //
+    // ЕСЛИ ЭТА ПРОВЕРКА УПАЛА «2 вместо 3» — сначала посмотри, не гонял ли
+    // тесты второй процесс. Файл чистит за собой ВСЕХ пользователей своего
+    // домена (`@occasion-states.test`), а не только своих: два прогона этого
+    // файла разом — и `beforeAll` соседа сносит комнаты, которые этот тест уже
+    // засеял. Пропадает ровно бронь, и гореть перестаёт `closedWithPending`.
+    // Так это и случилось 13.08: одиночный прогон зелёный, полный тоже, красным
+    // был только тот, что шёл рядом с чужим. Логика тут ни при чём.
     expect(seen.filter((row) => row.banner).length).toBeGreaterThanOrEqual(3);
     expect(seen.filter((row) => !row.banner).length).toBeGreaterThanOrEqual(2);
     expect(seen.map((row) => row.state)).toEqual([
@@ -622,5 +645,176 @@ describe("комната и экран отвечают на «праздник 
     const closed = await closeOccasion(owner.room.id, { manual: true });
     expect(closed?.created).toBe(true);
     expect(occasionScreenState(await getOccasionView(owner.user.id))).toBe("summary");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// 5. Кадр комнаты в шапке и адресное «спасибо» (пакет 49, тикет 224)
+// ---------------------------------------------------------------------------
+
+/** Кадр комнаты пресета — ровно тот путь, который берёт главный экран. */
+const PRESET_FRAME = roomImageUrl(rooms.find((room) => room.id === "cream")!.base);
+
+/** Шапка отдельно от списка: всё до `</header>`. */
+function headerOf(markup: string): string {
+  const end = markup.indexOf("</header>");
+  expect(end, "шапки в разметке нет вовсе").toBeGreaterThan(0);
+  return markup.slice(0, end);
+}
+
+const countOf = (markup: string, needle: string) => markup.split(needle).length - 1;
+
+/** Слово благодарности — из словаря, а не из теста: ведущий закрыл его пакетом 49. */
+const THANKS = words.thanksGuest!;
+
+/** Комната в нужном состоянии — и проверка, что фикстура действительно та. */
+async function drawInState(state: OccasionScreenState): Promise<string> {
+  const birthday =
+    state === "noDate" ? null : utcMidnightDaysAgo(state === "next" ? -30 : 1);
+  const owner = await createOwnerWithRoom(birthday);
+  if (state === "summary") await closeOccasion(owner.room.id, { manual: true });
+  expect(occasionScreenState(await getOccasionView(owner.user.id))).toBe(state);
+  return drawOccasion(owner.user.id);
+}
+
+describe("шапка итога — кадр СОБСТВЕННОЙ комнаты (пакет 49, тикет 224)", () => {
+  it("прозрачность по состоянию — числа контракта, а не наши", () => {
+    // Таблица сверяется с самим пакетом: разойдись она с ним — тест покраснеет
+    // здесь, а не глазами владельца на стенде.
+    const byState = contract.headerPhoto.opacityByState;
+    expect(OCCASION_SCREEN.due.photo).toBe(byState.DUE);
+    expect(OCCASION_SCREEN.summary.photo).toBe(byState.OPEN);
+    expect(OCCASION_SCREEN.next.photo).toBe(byState.AHEAD);
+    expect(OCCASION_SCREEN.noDate.photo).toBe(byState.NO_DATE);
+    // Проверка не пустая: приглушение действительно разное, а не одно на всех.
+    expect(new Set(Object.values(byState)).size).toBe(3);
+    // Окно порога выше остальных на 14 px (`crop430.window`: 236, в DUE — 250).
+    expect(OCCASION_SCREEN.due.photoHeight).toBe(250);
+    for (const state of ["summary", "next", "noDate"] as const) {
+      expect(OCCASION_SCREEN[state].photoHeight).toBe(236);
+    }
+  });
+
+  it("во всех четырёх состояниях в шапке стоит кадр своей комнаты — и он приглушается", async () => {
+    const heads = new Map<OccasionScreenState, string>();
+    for (const state of ["summary", "due", "next", "noDate"] as const) {
+      const markup = await drawInState(state);
+      const head = headerOf(markup);
+      // ТОТ ЖЕ ФАЙЛ, ЧТО НА ГЛАВНОМ ЭКРАНЕ, и простое кадрирование контракта.
+      expect(head, `в состоянии ${state} шапка без кадра`).toContain(
+        `background-image:url(${PRESET_FRAME})`,
+      );
+      expect(head).toContain("background-position:30% 38%");
+      expect(head).toContain(`opacity:${OCCASION_SCREEN[state].photo}`);
+      expect(head).toContain(`height:${OCCASION_SCREEN[state].photoHeight}px`);
+      // Не витрина: `c-hall.jpg` — другое место, и итог не про него.
+      expect(markup).not.toContain("c-hall.jpg");
+      // Числа кропа сюда не переехали: они привязаны к ширине 430.
+      expect(head).not.toMatch(/730px|-14px|-26px/u);
+      heads.set(state, head);
+    }
+
+    // ПРОВЕРКА НЕ ПУСТАЯ: приглушение живое, а не одно число на четыре экрана.
+    expect(heads.get("next")).not.toContain("opacity:1");
+    expect(heads.get("noDate")).not.toContain("opacity:1");
+    expect(heads.get("due")).not.toContain("opacity:0.5");
+    expect(heads.get("noDate")).not.toContain("opacity:0.5");
+    expect(heads.get("due")).toContain("height:250px");
+    expect(heads.get("next")).not.toContain("height:250px");
+  });
+
+  it("НА ПОРОГЕ КАДР НЕ ПРИНОСИТ С СОБОЙ НИ ОДНОГО ИМЕНИ (инвариант №1)", async () => {
+    const owner = await createOwnerWithRoom(utcMidnightDaysAgo(1));
+    const item = await createItem(owner.room.id, "Кадр-секрет");
+    await bookItem({ itemId: item.id, name: "Гостья В Кадре", email: "in-frame@mail.test" });
+
+    const markup = await drawOccasion(owner.user.id);
+    // Кадр на месте — и это своя комната, а не первая подаренная вещь.
+    expect(headerOf(markup)).toContain(`background-image:url(${PRESET_FRAME})`);
+    expect(markup).not.toMatch(/Гостья В Кадре|in-frame@|Кадр-секрет/u);
+    // Фотографий вещей в шапке нет вовсе: кадр один, и он комнатный.
+    expect(headerOf(markup)).not.toContain("/i/");
+  });
+});
+
+describe("«Сказать спасибо» — адресно и только там, где есть куда (пакет 49)", () => {
+  /** Открытый итог с заданным составом дарителей. */
+  async function openedSummary(guests: Array<{ name: string; email?: string }>) {
+    const owner = await createOwnerWithRoom(utcMidnightDaysAgo(1));
+    for (const guest of guests) {
+      const item = await createItem(owner.room.id, `Вещь ${guest.name}`);
+      await bookItem({ itemId: item.id, name: guest.name, email: guest.email });
+    }
+    await closeOccasion(owner.room.id, { manual: true });
+    return { owner, markup: await drawOccasion(owner.user.id) };
+  }
+
+  it("у дарителя с почтой строка есть и ведёт письмом ЕМУ; у дарителя без почты её нет вовсе", async () => {
+    const { markup } = await openedSummary([
+      { name: "Гостья С Почтой", email: "thanks-here@mail.test" },
+      { name: "Гостья Без Почты" },
+    ]);
+
+    // Экран тот самый: имена раскрыты у обоих (инвариант №2 отработал).
+    expect(markup).toContain("Гостья С Почтой");
+    expect(markup).toContain("Гостья Без Почты");
+
+    // Строка ровно одна — у того, кому есть куда писать.
+    expect(countOf(markup, THANKS)).toBe(1);
+    expect(markup).toContain('href="mailto:thanks-here@mail.test"');
+    // «Нет почты — строки нет вовсе: не серой, не выключенной, никакой».
+    expect(countOf(markup, "mailto:")).toBe(1);
+    // Цель нажатия 44 (`thanksGuest.target`) — строка не тоньше пальца.
+    expect(markup).toMatch(/min-h-11[^"]*"[^>]*>\s*Сказать спасибо/u);
+  });
+
+  it("почты нет ни у кого: не показываем НИЧЕГО — своих слов не сочиняем", async () => {
+    const { markup } = await openedSummary([{ name: "Гостья Одна" }, { name: "Гостья Вторая" }]);
+
+    expect(markup).toContain("Гостья Одна");
+    expect(countOf(markup, THANKS)).toBe(0);
+    expect(markup).not.toContain("mailto:");
+    // Тихой пояснительной «почты ни у кого нет — писать некуда» тоже нет:
+    // в пакете она названа прозой (`rowGeometry.noEmail`), ключа не существует.
+    // Спрошено письмом 54 — до ответа экран об этом молчит.
+    expect(markup).not.toMatch(/писать некуда/iu);
+    expect((ru.Occasion as Record<string, string>).thanksNoEmail).toBeUndefined();
+  });
+
+  it("ПРОВЕРКА НЕ ПУСТАЯ: две почты — две строки, каждая своим адресом", async () => {
+    const { markup } = await openedSummary([
+      { name: "Первая Гостья", email: "one-thanks@mail.test" },
+      { name: "Вторая Гостья", email: "two-thanks@mail.test" },
+    ]);
+
+    expect(countOf(markup, THANKS)).toBe(2);
+    expect(markup).toContain("mailto:one-thanks@mail.test");
+    expect(markup).toContain("mailto:two-thanks@mail.test");
+  });
+
+  it("громкой «спасибо всем» у открытого итога нет — решение round49", async () => {
+    const { markup } = await openedSummary([
+      { name: "Гостья С Почтой", email: "loud-check@mail.test" },
+    ]);
+    // Полоса света — единственный `border-b-2` продукта; на этом экране её нет.
+    expect(markup).not.toContain("border-b-2");
+    expect(markup).not.toContain(words.openButton);
+  });
+
+  it("после «Дошло» звать писать нечем: бронь с почтой закрыта вместе с адресом", async () => {
+    const owner = await createOwnerWithRoom(utcMidnightDaysAgo(1));
+    const item = await createItem(owner.room.id, "Вещь-благодарность");
+    await bookItem({ itemId: item.id, name: "Гостья Отмеченная", email: "gone@mail.test" });
+    await closeOccasion(owner.room.id, { manual: true });
+
+    expect(countOf(await drawOccasion(owner.user.id), THANKS)).toBe(1);
+
+    await receiveGift(owner.user.id, item.id);
+    const after = await drawOccasion(owner.user.id);
+    // Имя осталось при вещи (инвариант №2), а адрес ушёл с бронью — и звать
+    // писать некуда. Это следствие контракта тикета 09, а не забытая строка.
+    expect(after).toContain("Гостья Отмеченная");
+    expect(countOf(after, THANKS)).toBe(0);
+    expect(after).not.toContain("gone@mail.test");
   });
 });

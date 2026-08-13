@@ -224,6 +224,39 @@ describe("getOccasionView — раскрытие живёт ТОЛЬКО под 
     expect(second.summary!.revealedAt).toBe(first.summary!.revealedAt);
     expect(second.pending).toHaveLength(2);
   });
+
+  it("«Сказать спасибо»: флаг и адрес — только у гостя с почтой (пакет 49, тикет 224)", async () => {
+    const owner = await createOwnerWithRoom(utcMidnightDaysAgo(1));
+    const ring = await createWantItem(owner.room.id, "jewelry", { title: "Кольцо-спасибо" });
+    const bag = await createWantItem(owner.room.id, "bags", { title: "Сумка-спасибо" });
+    await bookItem({ itemId: ring.id, name: "Гостья С Почтой", email: "thanks-to@mail.test" });
+    await bookItem({ itemId: bag.id, name: "Гостья Без Почты" });
+    await closeOccasion(owner.room.id);
+
+    const view = await getOccasionView(owner.user.id);
+    const byName = Object.fromEntries(view.pending.map((row) => [row.guestName, row]));
+    // Почта есть — есть куда сказать спасибо, и адрес приезжает ровно сюда.
+    expect(byName["Гостья С Почтой"]).toMatchObject({
+      canThank: true,
+      thanksEmail: "thanks-to@mail.test",
+    });
+    // Почты нет — нет и строки: не серой, не выключенной, никакой.
+    expect(byName["Гостья Без Почты"]).toMatchObject({ canThank: false, thanksEmail: null });
+
+    // ПОЧТА НЕ УЕЗЖАЕТ НА КЛИЕНТ ЛИШНИЙ РАЗ: во всём виде она ровно одна — та,
+    // без которой строку не нарисовать.
+    expect(JSON.stringify(view).match(/thanks-to@mail\.test/gu)).toHaveLength(1);
+
+    // «Дошло» закрывает бронь (контракт тикета 09) — вместе с ней уходит и
+    // адрес: у отмеченной вещи его нет ни в одном поле. Имя остаётся.
+    await receiveGift(owner.user.id, ring.id);
+    const after = await getOccasionView(owner.user.id);
+    expect(after.received.map((row) => row.giverName)).toContain("Гостья С Почтой");
+    expect(JSON.stringify(after)).not.toContain("thanks-to@mail.test");
+    // ПРОВЕРКА НЕ ПУСТАЯ: у оставшейся брони флаг по-прежнему считается — и он
+    // false потому, что почты нет, а не потому, что поле пропало.
+    expect(after.pending.map((row) => row.canThank)).toEqual([false]);
+  });
 });
 
 describe("receiveGift — одна транзакция: все эффекты вместе или никакие", () => {
