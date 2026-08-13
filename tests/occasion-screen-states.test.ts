@@ -561,18 +561,47 @@ describe("комната и экран отвечают на «праздник 
   it("обход состояний: где строка в комнате горит, «впереди» на экране не бывает", async () => {
     // Шесть комнат, покрывающих обе причины строки (наступивший праздник без
     // итога и неотмеченные подарки) и обе причины тишины.
+    // КАЖДАЯ КОМНАТА ЧИТАЕТСЯ СРАЗУ ПОСЛЕ ПОСЕВА, а не все шесть в конце, и это
+    // не стиль, а лечение мигающего теста. Прежняя редакция сеяла все шесть и
+    // обходила их потом — между посевом брони и её чтением лежало пять чужих
+    // посевов, и в полном прогоне бронь иногда исчезала: файл чистит за собой
+    // ВСЕХ пользователей своего домена, и второй процесс, делящий с нами
+    // Postgres, успевал снести уже засеянную комнату. Тест падал «2 вместо 3»
+    // через раз, а поштучно был зелёным — признак драки за базу, а не логики
+    // (13.08.2026). Окно сокращено до одного посева.
+    const walked: Array<{ name: string; banner: boolean; state: OccasionScreenState }> = [];
+
+    /** Прочитать обе поверхности комнаты сразу и проверить их согласие. */
+    const walk = async (name: string, userId: string) => {
+      const banner = await occasionBannerVisible(userId);
+      const state = occasionScreenState(await getOccasionView(userId));
+      walked.push({ name, banner, state });
+      if (banner) {
+        expect(
+          titleOf(state),
+          `комната «${name}» зовёт, а экран отвечает «${titleOf(state)}»`,
+        ).not.toBe(words.aheadTitle);
+      }
+    };
+
     const dueNoSummary = await createOwnerWithRoom(utcMidnightDaysAgo(1));
+    await walk("dueNoSummary", dueNoSummary.user.id);
 
     const closedWithPending = await createOwnerWithRoom(utcMidnightDaysAgo(2));
     const pendingItem = await createItem(closedWithPending.room.id);
     await bookItem({ itemId: pendingItem.id, name: "Гостья Тихая" });
     await closeOccasion(closedWithPending.room.id);
+    await walk("closedWithPending", closedWithPending.user.id);
 
     const closedClean = await createOwnerWithRoom(utcMidnightDaysAgo(3));
     await closeOccasion(closedClean.room.id);
+    await walk("closedClean", closedClean.user.id);
 
     const ahead = await createOwnerWithRoom(utcMidnightDaysAgo(-30));
+    await walk("ahead", ahead.user.id);
+
     const dateless = await createOwnerWithRoom(null);
+    await walk("dateless", dateless.user.id);
 
     // Прошлогодний итог рядом с наступившим праздником: итог есть, но он не про
     // этот праздник. Строка в комнате горит — экран показывает прошлый итог и
@@ -582,37 +611,19 @@ describe("комната и экран отвечают на «праздник 
       data: { roomId: staleSummary.room.id, date: utcMidnightDaysAgo(400) },
     });
 
-    const rooms = [dueNoSummary, closedWithPending, closedClean, ahead, dateless, staleSummary];
-    const seen: Array<{ banner: boolean; state: OccasionScreenState }> = [];
-    for (const owner of rooms) {
-      const banner = await occasionBannerVisible(owner.user.id);
-      const state = occasionScreenState(await getOccasionView(owner.user.id));
-      seen.push({ banner, state });
-      if (banner) {
-        expect(titleOf(state), `комната зовёт, а экран отвечает «${titleOf(state)}»`).not.toBe(
-          words.aheadTitle,
-        );
-      }
-    }
+    await walk("staleSummary", staleSummary.user.id);
 
-    // Обход прошёл по обеим сторонам вопроса: и по горящей строке, и по тихой.
-    //
-    // ЕСЛИ ЭТА ПРОВЕРКА УПАЛА «2 вместо 3» — сначала посмотри, не гонял ли
-    // тесты второй процесс. Файл чистит за собой ВСЕХ пользователей своего
-    // домена (`@occasion-states.test`), а не только своих: два прогона этого
-    // файла разом — и `beforeAll` соседа сносит комнаты, которые этот тест уже
-    // засеял. Пропадает ровно бронь, и гореть перестаёт `closedWithPending`.
-    // Так это и случилось 13.08: одиночный прогон зелёный, полный тоже, красным
-    // был только тот, что шёл рядом с чужим. Логика тут ни при чём.
-    expect(seen.filter((row) => row.banner).length).toBeGreaterThanOrEqual(3);
-    expect(seen.filter((row) => !row.banner).length).toBeGreaterThanOrEqual(2);
-    expect(seen.map((row) => row.state)).toEqual([
-      "due",
-      "summary",
-      "summary",
-      "next",
-      "noDate",
-      "summary",
+    // ПРОВЕРКА НЕ ПУСТАЯ — и не счётом, а ПОИМЁННО. Счёт («горящих не меньше
+    // трёх») говорил только «сколько», и упавшая проверка не называла комнату;
+    // вектор называет её сразу и держит обе стороны вопроса — три горящих и три
+    // молчащих, каждая со своей причиной.
+    expect(walked).toEqual([
+      { name: "dueNoSummary", banner: true, state: "due" },
+      { name: "closedWithPending", banner: true, state: "summary" },
+      { name: "closedClean", banner: false, state: "summary" },
+      { name: "ahead", banner: false, state: "next" },
+      { name: "dateless", banner: false, state: "noDate" },
+      { name: "staleSummary", banner: true, state: "summary" },
     ]);
   });
 
