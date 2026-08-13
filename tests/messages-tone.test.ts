@@ -309,10 +309,9 @@ describe("правило рода — ВСЕ поля письма, а не то
   for (const [field, shape] of MAIL_FIELDS) {
     it(`поле «${field}» — ни одной родовой формы`, () => {
       const lines = [...mail].filter(([key]) => shape.test(key.split(".")[1] ?? ""));
-      expect(
-        lines.length,
-        `поле «${field}» пусто — правило проверяло бы пустоту`,
-      ).toBeGreaterThan(0);
+      expect(lines.length, `поле «${field}» пусто — правило проверяло бы пустоту`).toBeGreaterThan(
+        0,
+      );
       expect(
         lines
           .filter(([, value]) => GENDER_RULE.test(value))
@@ -340,9 +339,9 @@ describe("правило рода — ВСЕ поля письма, а не то
     // сейчас нечего — и это не умолчание, а закреплённый факт.
     for (const [, html] of designHtml) expect(html).not.toContain("<img");
     for (const [, content] of assembled) expect(content.html).not.toContain("<img");
-    expect([...designRead.keys(), ...assembledRead.keys()].filter((k) => k.includes("alt"))).toEqual(
-      [],
-    );
+    expect(
+      [...designRead.keys(), ...assembledRead.keys()].filter((k) => k.includes("alt")),
+    ).toEqual([]);
   });
 
   it("правило самого контракта называет поля, а не только «тело»", () => {
@@ -395,16 +394,16 @@ describe("падежная ловушка токена", () => {
     // Строка дизайна: токен ПОСЛЕ оборота.
     expect(trap.test("Бронь снята: больше нет {item} — делать ничего не нужно")).toBe(true);
     // Наши две строки: токен ПЕРЕД оборотом — то же самое управление.
-    expect(
-      trap.test("«{item}» больше нет в комнате — бронь снята, и делать ничего не нужно"),
-    ).toBe(true);
+    expect(trap.test("«{item}» больше нет в комнате — бронь снята, и делать ничего не нужно")).toBe(
+      true,
+    );
     expect(
       trap.test("«{item}» больше нет в комнате — бронь снялась сама, и делать ничего не нужно"),
     ).toBe(true);
     // Лечение: назывной оборот падежа не требует и держит любое значение.
-    expect(
-      trap.test("«{item}» больше не в комнате — бронь снята, и делать ничего не нужно"),
-    ).toBe(false);
+    expect(trap.test("«{item}» больше не в комнате — бронь снята, и делать ничего не нужно")).toBe(
+      false,
+    );
     // Токена нет — оборот стоит целиком и согласован, «чинить» нечего.
     expect(trap.test("Вещи из твоей брони больше нет в комнате — бронь снята")).toBe(false);
   });
