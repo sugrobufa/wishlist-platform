@@ -1,0 +1,30 @@
+{
+ "_letter": "письмо 56",
+ "_counted": "числа состава посчитаны скриптом по файлу",
+ "addedSection": {
+  "ZoneList": {
+   "title": "Полки",
+   "backToRoom": "В комнату",
+   "count": "{count, plural, one {# полка} few {# полки} many {# полок} other {# полки}}",
+   "itemsTotal": "{count, plural, one {# вещь} few {# вещи} many {# вещей} other {# вещи}}",
+   "entry": "Полки · {count}",
+   "empty": "пусто",
+   "moneyOpen": "открыта"
+  }
+ },
+ "addedSectionLiveKeys": 7,
+ "zonesJson": {
+  "watches[0]": "Часы и аксессуары",
+  "new_bar": [
+   "Бар и табак",
+   "5 вещей · 2 в подарок",
+   "графин ловит свет",
+   "bar",
+   "+3"
+  ],
+  "cta_bar": "Поставить на тележку"
+ },
+ "toCheckOnYourSide": {
+  "Onboarding.setDescriptionALL": "«Все полки сразу — разберёшься по ходу» — теперь 15 полок, не 14"
+ }
+}
