@@ -295,6 +295,7 @@
     "errGeneric": "Something went wrong — try again"
   },
   "GuestRoom": {
+    "shareRoom": "Invite a giver",
     "overline": "A room by link",
     "ownerFallback": "Room owner",
     "metaTitle": "{name}’s room",

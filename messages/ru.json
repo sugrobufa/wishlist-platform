@@ -295,6 +295,7 @@
     "errGeneric": "Не получилось — попробуй ещё раз"
   },
   "GuestRoom": {
+    "shareRoom": "Позвать дарителя",
     "overline": "В гостях",
     "ownerFallback": "Хозяйка комнаты",
     "metaTitle": "Комната {name}",

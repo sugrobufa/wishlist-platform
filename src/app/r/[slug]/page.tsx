@@ -21,6 +21,7 @@ import { ZoneRail } from "@/components/scene/zone-rail";
 import { visibleZones } from "@/components/scene/zones";
 import type { RoomListGroup } from "@/components/room-list/room-list-view";
 import { IconLock, IconTreasury } from "@/components/icons";
+import { GuestShareMark } from "./guest-share-mark";
 import { GuestBookingProvider } from "./booking/booking-context";
 import { FreeGifts } from "./booking/free-gifts";
 import { GuestZoneGrid } from "./booking/guest-zone-grid";
@@ -374,6 +375,13 @@ export default async function GuestRoomPage({ params }: Params) {
                   </CornerMark>
                 )}
                 {hasHall && room.hallVisibility === "MUTUAL" && <HallLink href={hallHref} />}
+                {/* «ПОЗВАТЬ ДАРИТЕЛЯ» — второй знак угла (тикет 251, пакет 55).
+                    Стоит ПОСЛЕ шкатулки и показывается ВСЕГДА, в отличие от
+                    неё: витрина может быть закрыта (ADR-0011), а комната по
+                    ссылке открыта по определению — гость на неё смотрит.
+                    Знаков у гостя два, у хозяйки три: в чужой комнате нет ни
+                    настроек, ни друзей (правило турна 61d). */}
+                <GuestShareMark path={`/r/${room.shareSlug}`} />
               </SceneCorner>
             </div>
           </header>
