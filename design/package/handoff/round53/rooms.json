@@ -1,0 +1,3545 @@
+{
+  "mapSnapshot": {
+    "version": "dev-2026-08-10",
+    "date": "2026-08-10",
+    "source": "rooms-map-2026-08-10.json — дамп разработки, коммит 9e6d249, ветка main",
+    "syncedFromDump": 24,
+    "note": "Прямоугольники измеряет разработка (устав). Этот контракт больше не хранит собственных координат: он повторяет дамп. Прежние наши значения сохранены в rectPrevDesign у переписанных зон — только для истории, не для расчёта. Снимок обязателен в шапке всякой посчитанной таблицы."
+  },
+  "note": "Поле tod у комнат — родное время суток базы (как снято), проверено глазами 09.08.2026; identity для lightAndTime. Прямоугольники зон заданы ОДИН раз, в координатах КАДРА 630×351 (дамп разработки). Десктопные = x*1.7778, y*1.7778, w*1.7778, h*1.7778; телефонные = x−12. Правка 10.08.2026 по письму 41: прежняя формула «(x+12)*1.7778 в координатах сцены 430×352» была ошибкой этого поля, она противоречила scene.phone.note и ADR-0006 и жила здесь с раунда 4. Трансформ наезда считается из центра прямоугольника, вручную не задаётся. Правка 2026-08-05: у комнаты появилось roomLightness (вес света против тени в метке зоны), у зоны — bloomAR/bloomRot (форма светового пятна, выведена из w/h). Правка 2026-08-05 (вторая): достроены отсутствовавшие зоны — было 84, стало 125. Зоны с placedBy:\"composition\" размещены по формуле композиции кадра и требуют одной сверки с картинкой. Правка 2026-08-05 (раунд 3): все пересечения прямоугольников разведены с нулевым допуском — в раунде 2 проверка шла с допуском 8 px и пропускала кромки. Правка 2026-08-05 (раунд 3): у комнаты warm полный комплект — 13 кадров «открыто» на 13 зон, базовый кадр в 2400 px. Метод — правка существующего кадра, а не новая генерация: геометрия сохраняется, прямоугольники остаются действительными. Правка 2026-08-05 (раунд 3, финал): кадры «открыто» сняты методом правки существующего кадра для всех десяти комнат. Базовые кадры заменены на детализированные, геометрия сохранена — прямоугольники не пересчитывались. ФИНАЛ раунда 3: все 130 зон имеют кадр «открыто», все 10 комнат — базовый кадр в высоком разрешении. Прямоугольники не пересчитывались: метод правки сохраняет геометрию. Раунд 5: осмотрены глазами все 130 зон. 17 прямоугольников исправлены, 5 зон помечены objectAbsent (предмета в интерьере нет). eyeChecked=true на всех. Раунд 5 (финал): наборы зон одинаковы во всех комнатах — 13 везде. 8 зон размечены ПО МЕСТУ, не по предмету. accepted выводится из правила, см. acceptedRule.",
+  "scene": {
+    "phone": {
+      "w": 430,
+      "h": 352,
+      "image": {
+        "w": 630,
+        "h": 351,
+        "x": -12,
+        "y": 0
+      },
+      "note": "Прямоугольники заданы в координатах КАДРА 630×351. Десктопные = x*1.7778 (без слагаемого). Окно телефона 430 px — видовое окно, которое ездит по кадру, а не граница разметки. 38 зон переразмечены в раунде 4 по кадрам base-frames-630."
+    },
+    "desktop": {
+      "w": 1120,
+      "h": 625,
+      "factorFromPhone": 1.7778
+    }
+  },
+  "cameraScale": {
+    "note": "УСТАРЕЛО. Актуальные значения — в motion.json, где cameraScale стала формулой с потолком 2.05 на десктопе. Здесь оставлено, чтобы не ломать чтение старого кода.",
+    "phone": 1.72,
+    "desktopLegacy": 1.45,
+    "desktopCeiling": 2.05
+  },
+  "hitTargetMin": 44,
+  "rooms": [
+    {
+      "id": "cream",
+      "tod": "dusk",
+      "name": "Кремовая",
+      "sex": "F",
+      "accent": "#E7C9A9",
+      "ink": "#241A0E",
+      "base": "refs-2x/cream/v4-cream.jpg",
+      "demo": {
+        "owner": "Мила",
+        "counts": "142 желания · 19 в подарок",
+        "timeOfDay": "вечер · 22:10"
+      },
+      "zones": [
+        {
+          "key": "fashion",
+          "label": "Одежда",
+          "pool": "fashionF",
+          "rect": {
+            "x": 134,
+            "y": 91,
+            "w": 83,
+            "h": 191
+          },
+          "openVerb": "вещи расступаются",
+          "bloomAR": 30,
+          "bloomRot": 0,
+          "notClamped": true,
+          "eyeChecked": true,
+          "rectVersion": 3,
+          "frameRound": 8,
+          "frameRectVersion": 3,
+          "frameMethod": "role:image edit от байт-в-байт продуктовой базы, 16:9",
+          "maskHint": {
+            "polygon": [
+              [
+                134,
+                95
+              ],
+              [
+                214,
+                92
+              ],
+              [
+                214,
+                280
+              ],
+              [
+                136,
+                282
+              ]
+            ],
+            "note": "силуэт висящей одежды в нише, без стенок ниши",
+            "feather": 6
+          },
+          "objectAbsent": false,
+          "status": "shown"
+        },
+        {
+          "key": "beauty",
+          "label": "Красота и уход",
+          "pool": "beauty",
+          "rect": {
+            "x": 256,
+            "y": 158,
+            "w": 60,
+            "h": 45
+          },
+          "openVerb": "органайзер раскрывается",
+          "bloomAR": 77,
+          "bloomRot": 0,
+          "notClamped": true,
+          "eyeChecked": true,
+          "rectVersion": 8,
+          "frameRound": 8,
+          "frameRectVersion": 3,
+          "frameMethod": "role:image edit от байт-в-байт продуктовой базы, 16:9",
+          "rectPrevDesign": {
+            "x": 281,
+            "y": 125,
+            "w": 87,
+            "h": 52
+          },
+          "remappedRound": 8,
+          "objectAbsent": false,
+          "status": "shown"
+        },
+        {
+          "key": "jewelry",
+          "label": "Украшения",
+          "pool": "jewel",
+          "rect": {
+            "x": 0,
+            "y": 114,
+            "w": 121,
+            "h": 82
+          },
+          "openVerb": "ящики выдвигаются",
+          "bloomAR": 86,
+          "bloomRot": 0,
+          "notClamped": true,
+          "eyeChecked": true,
+          "rectVersion": 3,
+          "frameRound": 8,
+          "frameRectVersion": 3,
+          "frameMethod": "role:image edit от байт-в-байт продуктовой базы, 16:9",
+          "maskHint": {
+            "polygon": [
+              [
+                2,
+                114
+              ],
+              [
+                121,
+                114
+              ],
+              [
+                121,
+                196
+              ],
+              [
+                2,
+                196
+              ]
+            ],
+            "note": "два бархатных ящика с украшениями, без белых стенок стеллажа",
+            "feather": 6
+          },
+          "objectAbsent": false,
+          "status": "shown"
+        },
+        {
+          "key": "perfume",
+          "label": "Парфюм",
+          "pool": "perfume",
+          "rect": {
+            "x": 343,
+            "y": 179,
+            "w": 39,
+            "h": 20
+          },
+          "openVerb": "флаконы выдвигаются вперёд",
+          "bloomAR": 113,
+          "bloomRot": 0,
+          "notClamped": true,
+          "eyeChecked": true,
+          "rectVersion": 3,
+          "frameRound": 8,
+          "frameRectVersion": 3,
+          "frameMethod": "role:image edit от байт-в-байт продуктовой базы, 16:9",
+          "objectAbsent": false,
+          "status": "shown"
+        },
+        {
+          "key": "bags",
+          "label": "Сумки",
+          "pool": "bags",
+          "rect": {
+            "x": 0,
+            "y": 209,
+            "w": 121,
+            "h": 50
+          },
+          "openVerb": "витрина открывается",
+          "bloomAR": 120,
+          "bloomRot": 0,
+          "notClamped": true,
+          "eyeChecked": true,
+          "rectVersion": 3,
+          "frameRound": 8,
+          "frameRectVersion": 3,
+          "frameMethod": "role:image edit от байт-в-байт продуктовой базы, 16:9",
+          "objectAbsent": false,
+          "status": "shown"
+        },
+        {
+          "key": "travel",
+          "label": "Путешествия",
+          "pool": "travel",
+          "rect": {
+            "x": 2,
+            "y": 266,
+            "w": 108,
+            "h": 70
+          },
+          "openVerb": "чемодан раскрывается",
+          "bloomAR": 89,
+          "bloomRot": 0,
+          "notClamped": true,
+          "eyeChecked": true,
+          "rectVersion": 3,
+          "frameRound": 8,
+          "frameRectVersion": 3,
+          "frameMethod": "role:image edit от байт-в-байт продуктовой базы, 16:9",
+          "objectAbsent": false,
+          "status": "shown"
+        },
+        {
+          "key": "anything",
+          "label": "Что угодно",
+          "pool": "anything",
+          "rect": {
+            "x": 119,
+            "y": 297,
+            "w": 85,
+            "h": 48
+          },
+          "openVerb": "коробка раскрывается",
+          "bloomAR": 103,
+          "bloomRot": 0,
+          "notClamped": true,
+          "eyeChecked": true,
+          "rectVersion": 3,
+          "frameRound": 8,
+          "frameRectVersion": 3,
+          "frameMethod": "role:image edit от байт-в-байт продуктовой базы, 16:9",
+          "objectAbsent": false,
+          "status": "shown"
+        },
+        {
+          "key": "events",
+          "label": "Впечатления",
+          "pool": "events",
+          "rect": {
+            "x": 454,
+            "y": 143,
+            "w": 112,
+            "h": 30
+          },
+          "openVerb": "билеты выходят из рамки",
+          "bloomAR": 120,
+          "bloomRot": 0,
+          "notClamped": true,
+          "eyeChecked": true,
+          "rectOld": {
+            "x": 300,
+            "y": 84,
+            "w": 86,
+            "h": 26
+          },
+          "remappedRound": 8,
+          "wrongTarget": false,
+          "rectVersion": 8,
+          "frameRound": 8,
+          "frameRectVersion": 5,
+          "frameMethod": "role:image edit от байт-в-байт продуктовой базы, 16:9",
+          "rectPrevDesign": {
+            "x": 568,
+            "y": 148,
+            "w": 57,
+            "h": 30
+          },
+          "objectAbsent": false,
+          "status": "shown"
+        },
+        {
+          "key": "books",
+          "label": "Книги",
+          "pool": "books",
+          "rect": {
+            "x": 475,
+            "y": 175,
+            "w": 33,
+            "h": 25
+          },
+          "openVerb": "книга выдвигается",
+          "bloomAR": 77,
+          "bloomRot": 0,
+          "notClamped": true,
+          "eyeChecked": true,
+          "rectOld": {
+            "x": 296,
+            "y": 182,
+            "w": 44,
+            "h": 20
+          },
+          "remappedRound": 5,
+          "wrongTarget": false,
+          "rectVersion": 5,
+          "frameRound": 8,
+          "frameRectVersion": 5,
+          "frameMethod": "role:image edit от байт-в-байт продуктовой базы, 16:9",
+          "objectAbsent": false,
+          "status": "shown"
+        },
+        {
+          "key": "music",
+          "label": "Музыка",
+          "pool": "music",
+          "rect": {
+            "x": 507,
+            "y": 185,
+            "w": 40,
+            "h": 28
+          },
+          "openVerb": "ящики винила выезжают",
+          "bloomAR": 83,
+          "bloomRot": 0,
+          "notClamped": true,
+          "eyeChecked": true,
+          "rectOld": {
+            "x": 374,
+            "y": 150,
+            "w": 40,
+            "h": 26
+          },
+          "remappedRound": 4,
+          "rectVersion": 4,
+          "frameRound": 8,
+          "frameRectVersion": 4,
+          "frameMethod": "role:image edit от байт-в-байт продуктовой базы, 16:9",
+          "objectAbsent": false,
+          "status": "shown"
+        },
+        {
+          "key": "flowers",
+          "label": "Цветы",
+          "pool": "flowers",
+          "rect": {
+            "x": 568,
+            "y": 148,
+            "w": 42,
+            "h": 55
+          },
+          "openVerb": "букет разворачивается",
+          "bloomAR": 44,
+          "bloomRot": 0,
+          "notClamped": true,
+          "eyeChecked": true,
+          "rectOld": {
+            "x": 398,
+            "y": 108,
+            "w": 32,
+            "h": 40
+          },
+          "remappedRound": 4,
+          "rectVersion": 4,
+          "frameRound": 8,
+          "frameRectVersion": 4,
+          "frameMethod": "role:image edit от байт-в-байт продуктовой базы, 16:9",
+          "objectAbsent": false,
+          "status": "shown"
+        },
+        {
+          "key": "home",
+          "label": "Для дома",
+          "pool": "home",
+          "rect": {
+            "x": 413,
+            "y": 188,
+            "w": 62,
+            "h": 32
+          },
+          "openVerb": "поднос выезжает, свечи разгораются",
+          "bloomAR": 112,
+          "bloomRot": 0,
+          "notClamped": true,
+          "eyeChecked": true,
+          "rectOld": {
+            "x": 338,
+            "y": 214,
+            "w": 92,
+            "h": 80
+          },
+          "remappedRound": 4,
+          "rectVersion": 4,
+          "frameRound": 8,
+          "frameRectVersion": 4,
+          "frameMethod": "role:image edit от байт-в-байт продуктовой базы, 16:9",
+          "maskHint": {
+            "polygon": [
+              [
+                408,
+                186
+              ],
+              [
+                480,
+                187
+              ],
+              [
+                482,
+                221
+              ],
+              [
+                410,
+                222
+              ]
+            ],
+            "note": "круглый поднос со свечами и банка, без комода под ним",
+            "feather": 5
+          },
+          "objectAbsent": false,
+          "status": "shown"
+        },
+        {
+          "key": "money",
+          "label": "Просто деньги",
+          "pool": "money",
+          "rect": {
+            "x": 226,
+            "y": 282,
+            "w": 40,
+            "h": 58
+          },
+          "openVerb": "конверт раскрывается",
+          "bloomAR": 40,
+          "bloomRot": 0,
+          "notClamped": true,
+          "eyeChecked": true,
+          "sharedObjectWith": "anything",
+          "rectVersion": 8,
+          "frameRound": 8,
+          "frameRectVersion": 3,
+          "frameMethod": "role:image edit от байт-в-байт продуктовой базы, 16:9",
+          "rectPrevDesign": {
+            "x": 236,
+            "y": 200,
+            "w": 32,
+            "h": 28
+          },
+          "remappedRound": 8,
+          "objectAbsent": false,
+          "status": "shown"
+        }
+      ],
+      "roomLightness": 0.82,
+      "baseLegacy": "refs/v4-cream.jpg",
+      "kitComplete": true,
+      "acceptedCount": 7,
+      "needsRemap": 0,
+      "round8": {
+        "base": "refs-2x/cream/v4-cream.jpg",
+        "baseCopy": "round8/cream/base/v4-cream.jpg",
+        "note": "Раунд 8: все 13 зон сняты role:image от продуктовой базы. fashion принят на пробнике, home и jewelry переотсняты после брака/мягкого жеста. Глагол fashion = «вещи расступаются» (створок в этой мебели нет). Три maskHint — образцы формата в координатах кадра 630×351; точные силуэты меряет разработка по оригиналам 5504.",
+        "masters": "round8/cream/masters-cream.json"
+      }
+    },
+    {
+      "id": "warm",
+      "tod": "dusk",
+      "name": "Тихая роскошь",
+      "sex": "F",
+      "accent": "#E8B27A",
+      "ink": "#241505",
+      "base": "refs-2x/warm/v4-warm.jpg",
+      "demo": {
+        "owner": "Ирина",
+        "counts": "238 желаний · 21 в подарок",
+        "timeOfDay": "вечер · 21:40"
+      },
+      "zones": [
+        {
+          "key": "fashion",
+          "label": "Одежда",
+          "pool": "fashionF",
+          "rect": {
+            "x": 2,
+            "y": 23,
+            "w": 119,
+            "h": 168
+          },
+          "openVerb": "створки расходятся",
+          "bloomAR": 41,
+          "bloomRot": 0,
+          "reshoot": true,
+          "notClamped": true,
+          "eyeChecked": true,
+          "rectVersion": 3,
+          "objectAbsent": false,
+          "status": "shown"
+        },
+        {
+          "key": "jewelry",
+          "label": "Украшения",
+          "pool": "jewel",
+          "rect": {
+            "x": 233,
+            "y": 160,
+            "w": 28,
+            "h": 26
+          },
+          "openVerb": "шкатулка поднимает крышку",
+          "bloomAR": 62,
+          "bloomRot": 0,
+          "notClamped": true,
+          "eyeChecked": true,
+          "rectVersion": 3,
+          "objectAbsent": false,
+          "status": "shown"
+        },
+        {
+          "key": "anything",
+          "label": "Что угодно",
+          "pool": "anything",
+          "rect": {
+            "x": 123,
+            "y": 215,
+            "w": 80,
+            "h": 120
+          },
+          "openVerb": "коробка раскрывается",
+          "bloomAR": 39,
+          "bloomRot": 0,
+          "reshoot": true,
+          "notClamped": true,
+          "eyeChecked": true,
+          "rectVersion": 3,
+          "objectAbsent": false,
+          "status": "shown"
+        },
+        {
+          "key": "beauty",
+          "label": "Красота и уход",
+          "pool": "beauty",
+          "rect": {
+            "x": 176,
+            "y": 5,
+            "w": 96,
+            "h": 150
+          },
+          "openVerb": "органайзер раскрывается",
+          "bloomAR": 37,
+          "bloomRot": 0,
+          "reshoot": true,
+          "notClamped": true,
+          "eyeChecked": true,
+          "sharedObjectWith": "perfume",
+          "rectVersion": 3,
+          "objectAbsent": false,
+          "status": "shown"
+        },
+        {
+          "key": "perfume",
+          "label": "Парфюм",
+          "pool": "perfume",
+          "rect": {
+            "x": 171,
+            "y": 161,
+            "w": 59,
+            "h": 32
+          },
+          "openVerb": "флаконы выходят на свет",
+          "bloomAR": 107,
+          "bloomRot": 0,
+          "reshoot": true,
+          "notClamped": true,
+          "eyeChecked": true,
+          "rectVersion": 3,
+          "objectAbsent": false,
+          "status": "shown"
+        },
+        {
+          "key": "bags",
+          "label": "Сумки",
+          "pool": "bags",
+          "rect": {
+            "x": 4,
+            "y": 200,
+            "w": 117,
+            "h": 59
+          },
+          "openVerb": "витрина открывается",
+          "bloomAR": 115,
+          "bloomRot": 0,
+          "reshoot": true,
+          "notClamped": true,
+          "eyeChecked": true,
+          "rectVersion": 3,
+          "objectAbsent": false,
+          "status": "shown"
+        },
+        {
+          "key": "home",
+          "label": "Для дома",
+          "pool": "home",
+          "rect": {
+            "x": 538,
+            "y": 198,
+            "w": 92,
+            "h": 112
+          },
+          "openVerb": "свечи разгораются",
+          "bloomAR": 48,
+          "bloomRot": 0,
+          "reshoot": true,
+          "notClamped": true,
+          "eyeChecked": true,
+          "rectOld": {
+            "x": 386,
+            "y": 232,
+            "w": 44,
+            "h": 110
+          },
+          "remappedRound": 4,
+          "rectVersion": 4,
+          "objectAbsent": false,
+          "status": "shown"
+        },
+        {
+          "key": "events",
+          "label": "Впечатления",
+          "pool": "events",
+          "rect": {
+            "x": 318,
+            "y": 93,
+            "w": 98,
+            "h": 48
+          },
+          "openVerb": "билеты выходят из рамки",
+          "bloomAR": 118,
+          "bloomRot": 0,
+          "reshoot": true,
+          "notClamped": true,
+          "eyeChecked": true,
+          "rectOld": {
+            "x": 315,
+            "y": 82,
+            "w": 92,
+            "h": 48
+          },
+          "remappedRound": 4,
+          "rectVersion": 4,
+          "objectAbsent": false,
+          "status": "shown"
+        },
+        {
+          "key": "travel",
+          "label": "Путешествия",
+          "pool": "travel",
+          "rect": {
+            "x": 219,
+            "y": 222,
+            "w": 157,
+            "h": 109
+          },
+          "openVerb": "чемодан раскрывается",
+          "bloomAR": 84,
+          "bloomRot": 0,
+          "notClamped": true,
+          "eyeChecked": true,
+          "rectVersion": 3,
+          "objectAbsent": false,
+          "status": "shown"
+        },
+        {
+          "key": "books",
+          "label": "Книги",
+          "pool": "books",
+          "rect": {
+            "x": 524,
+            "y": 48,
+            "w": 68,
+            "h": 82
+          },
+          "openVerb": "книга выдвигается",
+          "bloomAR": 48,
+          "bloomRot": 0,
+          "reshoot": true,
+          "notClamped": true,
+          "eyeChecked": true,
+          "rectOld": {
+            "x": 350,
+            "y": 18,
+            "w": 56,
+            "h": 58
+          },
+          "remappedRound": 4,
+          "rectVersion": 4,
+          "objectAbsent": false,
+          "status": "shown"
+        },
+        {
+          "key": "music",
+          "label": "Музыка",
+          "pool": "music",
+          "rect": {
+            "x": 358,
+            "y": 192,
+            "w": 40,
+            "h": 22
+          },
+          "openVerb": "ящики винила выезжают",
+          "bloomAR": 105,
+          "bloomRot": 0,
+          "reshoot": false,
+          "notClamped": false,
+          "eyeChecked": true,
+          "wrongTarget": false,
+          "wrongNote": "Проверено глазами (Claude Code, раунд 4): прямоугольник стоит на пустой панели, настоящий предмет правее. Обрезка тут ни при чём — прямоугольник просто неверный.",
+          "rectOld": {
+            "x": 358,
+            "y": 192,
+            "w": 40,
+            "h": 22
+          },
+          "placeBased": true,
+          "placeNote": "поверхность комода под книжным шкафом",
+          "anchoredTo": "books",
+          "remappedRound": 5,
+          "rectVersion": 5,
+          "rectSource": "раунд 8, координаты от разработки",
+          "rectPrevDesign": {
+            "x": 524,
+            "y": 134,
+            "w": 68,
+            "h": 26
+          },
+          "objectAbsent": true,
+          "status": "objectAbsent"
+        },
+        {
+          "key": "flowers",
+          "label": "Цветы",
+          "pool": "flowers",
+          "rect": {
+            "x": 538,
+            "y": 98,
+            "w": 92,
+            "h": 128
+          },
+          "openVerb": "букет разворачивается",
+          "bloomAR": 42,
+          "bloomRot": 0,
+          "reshoot": true,
+          "notClamped": true,
+          "eyeChecked": true,
+          "rectOld": {
+            "x": 148,
+            "y": 108,
+            "w": 28,
+            "h": 48
+          },
+          "remappedRound": 4,
+          "rectVersion": 4,
+          "objectAbsent": false,
+          "status": "shown"
+        },
+        {
+          "key": "money",
+          "label": "Просто деньги",
+          "pool": "money",
+          "rect": {
+            "x": 264,
+            "y": 164,
+            "w": 43,
+            "h": 27
+          },
+          "openVerb": "конверт светится",
+          "bloomAR": 92,
+          "bloomRot": 0,
+          "notClamped": true,
+          "eyeChecked": true,
+          "rectVersion": 3,
+          "objectAbsent": false,
+          "status": "shown"
+        }
+      ],
+      "roomLightness": 0.46,
+      "baseLegacy": "refs-2x/warm/v4-warm.jpg",
+      "kitComplete": false,
+      "kitNote": "Комплект целиком. Базовый кадр — детализирующая правка прежнего refs/v4-warm.jpg, геометрия совпадает, прямоугольники этой комнаты действительны без пересъёмки. Все 13 кадров «открыто» — правки того же исходника: полный кадр, та же камера, тот же свет, изменён один предмет.",
+      "acceptedCount": 3,
+      "needsRemap": 1
+    },
+    {
+      "id": "lux",
+      "tod": "dusk",
+      "name": "Пентхаус",
+      "sex": "F",
+      "accent": "#E5C989",
+      "ink": "#20180A",
+      "base": "refs-2x/lux/v4-lux.jpg",
+      "demo": {
+        "owner": "Ирина",
+        "counts": "341 желание · 26 в подарок",
+        "timeOfDay": "сумерки · 20:15"
+      },
+      "zones": [
+        {
+          "key": "fashion",
+          "label": "Одежда",
+          "pool": "fashionF",
+          "rect": {
+            "x": 0,
+            "y": 68,
+            "w": 194,
+            "h": 97
+          },
+          "openVerb": "створки расходятся",
+          "bloomAR": 116,
+          "bloomRot": 0,
+          "reshoot": true,
+          "notClamped": true,
+          "eyeChecked": true,
+          "rectVersion": 3,
+          "objectAbsent": false,
+          "status": "shown"
+        },
+        {
+          "key": "bags",
+          "label": "Сумки",
+          "pool": "bags",
+          "rect": {
+            "x": 0,
+            "y": 191,
+            "w": 98,
+            "h": 64
+          },
+          "openVerb": "витрина открывается",
+          "bloomAR": 89,
+          "bloomRot": 0,
+          "reshoot": true,
+          "notClamped": true,
+          "eyeChecked": true,
+          "rectVersion": 3,
+          "objectAbsent": false,
+          "status": "shown"
+        },
+        {
+          "key": "anything",
+          "label": "Что угодно",
+          "pool": "anything",
+          "rect": {
+            "x": 98,
+            "y": 168,
+            "w": 101,
+            "h": 164
+          },
+          "openVerb": "коробка раскрывается",
+          "bloomAR": 36,
+          "bloomRot": 0,
+          "notClamped": true,
+          "eyeChecked": true,
+          "rectVersion": 3,
+          "objectAbsent": false,
+          "status": "shown"
+        },
+        {
+          "key": "beauty",
+          "label": "Красота и уход",
+          "pool": "beauty",
+          "rect": {
+            "x": 226,
+            "y": 129,
+            "w": 66,
+            "h": 75
+          },
+          "openVerb": "органайзер раскрывается",
+          "bloomAR": 51,
+          "bloomRot": 0,
+          "reshoot": true,
+          "notClamped": true,
+          "eyeChecked": true,
+          "sharedObjectWith": "perfume",
+          "rectVersion": 3,
+          "objectAbsent": false,
+          "status": "shown"
+        },
+        {
+          "key": "jewelry",
+          "label": "Украшения",
+          "pool": "jewel",
+          "rect": {
+            "x": 272,
+            "y": 214,
+            "w": 22,
+            "h": 28
+          },
+          "openVerb": "шкатулка поднимает крышку",
+          "bloomAR": 46,
+          "bloomRot": 0,
+          "reshoot": true,
+          "notClamped": true,
+          "eyeChecked": true,
+          "rectVersion": 15,
+          "rectPrevDesign": {
+            "x": 272,
+            "y": 218,
+            "w": 98,
+            "h": 23
+          },
+          "remappedRound": 15,
+          "objectAbsent": false,
+          "status": "shown"
+        },
+        {
+          "key": "perfume",
+          "label": "Парфюм",
+          "pool": "perfume",
+          "rect": {
+            "x": 228,
+            "y": 204,
+            "w": 44,
+            "h": 23
+          },
+          "openVerb": "флаконы выходят на свет",
+          "bloomAR": 111,
+          "bloomRot": 0,
+          "reshoot": true,
+          "notClamped": true,
+          "eyeChecked": true,
+          "rectVersion": 3,
+          "objectAbsent": false,
+          "status": "shown"
+        },
+        {
+          "key": "events",
+          "label": "Впечатления",
+          "pool": "events",
+          "rect": {
+            "x": 326,
+            "y": 74,
+            "w": 64,
+            "h": 92
+          },
+          "openVerb": "билеты выходят из рамки",
+          "bloomAR": 40,
+          "bloomRot": 0,
+          "notClamped": true,
+          "eyeChecked": true,
+          "rectOld": {
+            "x": 356,
+            "y": 107,
+            "w": 51,
+            "h": 84
+          },
+          "remappedRound": 4,
+          "reshoot": true,
+          "rectVersion": 4,
+          "objectAbsent": false,
+          "status": "shown"
+        },
+        {
+          "key": "travel",
+          "label": "Путешествия",
+          "pool": "travel",
+          "rect": {
+            "x": 294,
+            "y": 208,
+            "w": 90,
+            "h": 141
+          },
+          "openVerb": "чемодан раскрывается",
+          "bloomAR": 37,
+          "bloomRot": 0,
+          "reshoot": true,
+          "notClamped": true,
+          "eyeChecked": true,
+          "rectVersion": 15,
+          "rectPrevDesign": {
+            "x": 277,
+            "y": 242,
+            "w": 107,
+            "h": 107
+          },
+          "remappedRound": 15,
+          "objectAbsent": false,
+          "status": "shown"
+        },
+        {
+          "key": "books",
+          "label": "Книги",
+          "pool": "books",
+          "rect": {
+            "x": 538,
+            "y": 88,
+            "w": 52,
+            "h": 42
+          },
+          "openVerb": "книга выдвигается",
+          "bloomAR": 72,
+          "bloomRot": 0,
+          "reshoot": true,
+          "notClamped": true,
+          "eyeChecked": true,
+          "rectOld": {
+            "x": 352,
+            "y": 26,
+            "w": 56,
+            "h": 62
+          },
+          "remappedRound": 4,
+          "rectVersion": 4,
+          "objectAbsent": false,
+          "status": "shown"
+        },
+        {
+          "key": "music",
+          "label": "Музыка",
+          "pool": "music",
+          "rect": {
+            "x": 352,
+            "y": 192,
+            "w": 48,
+            "h": 16
+          },
+          "openVerb": "ящики винила выезжают",
+          "bloomAR": 120,
+          "bloomRot": 0,
+          "reshoot": false,
+          "clamped": true,
+          "notClamped": false,
+          "eyeChecked": true,
+          "wrongTarget": false,
+          "rectOld": {
+            "x": 352,
+            "y": 192,
+            "w": 48,
+            "h": 24
+          },
+          "placeBased": true,
+          "placeNote": "мраморная консоль под полками",
+          "anchoredTo": "books",
+          "remappedRound": 15,
+          "rectVersion": 15,
+          "rectPrevDesign": {
+            "x": 538,
+            "y": 134,
+            "w": 52,
+            "h": 26
+          },
+          "objectAbsent": true,
+          "status": "objectAbsent"
+        },
+        {
+          "key": "flowers",
+          "label": "Цветы",
+          "pool": "flowers",
+          "rect": {
+            "x": 568,
+            "y": 64,
+            "w": 62,
+            "h": 102
+          },
+          "openVerb": "букет разворачивается",
+          "bloomAR": 35,
+          "bloomRot": 0,
+          "reshoot": true,
+          "notClamped": true,
+          "eyeChecked": true,
+          "rectOld": {
+            "x": 408,
+            "y": 120,
+            "w": 22,
+            "h": 72
+          },
+          "remappedRound": 4,
+          "rectVersion": 4,
+          "objectAbsent": false,
+          "status": "shown"
+        },
+        {
+          "key": "home",
+          "label": "Для дома",
+          "pool": "home",
+          "rect": {
+            "x": 588,
+            "y": 222,
+            "w": 38,
+            "h": 38
+          },
+          "openVerb": "свечи разгораются",
+          "bloomAR": 58,
+          "bloomRot": 0,
+          "reshoot": true,
+          "notClamped": true,
+          "eyeChecked": true,
+          "rectOld": {
+            "x": 389,
+            "y": 236,
+            "w": 22,
+            "h": 96
+          },
+          "remappedRound": 4,
+          "rectVersion": 4,
+          "objectAbsent": false,
+          "status": "shown"
+        },
+        {
+          "key": "money",
+          "label": "Просто деньги",
+          "pool": "money",
+          "rect": {
+            "x": 305,
+            "y": 178,
+            "w": 36,
+            "h": 30
+          },
+          "openVerb": "конверт светится",
+          "bloomAR": 70,
+          "bloomRot": 0,
+          "notClamped": true,
+          "eyeChecked": true,
+          "rectVersion": 15,
+          "rectPrevDesign": {
+            "x": 295,
+            "y": 181,
+            "w": 33,
+            "h": 30
+          },
+          "remappedRound": 15,
+          "objectAbsent": false,
+          "status": "shown"
+        }
+      ],
+      "roomLightness": 0.52,
+      "baseLegacy": "refs/v4-lux.jpg",
+      "kitComplete": false,
+      "acceptedCount": 3,
+      "needsRemap": 1
+    },
+    {
+      "id": "emerald",
+      "tod": "night",
+      "name": "Изумруд",
+      "sex": "F",
+      "accent": "#D9B978",
+      "ink": "#1B2119",
+      "base": "refs-2x/emerald/v4-emerald.jpg",
+      "demo": {
+        "owner": "Ирина",
+        "counts": "238 желаний · 21 в подарок",
+        "timeOfDay": "ночь · 23:05"
+      },
+      "zones": [
+        {
+          "key": "fashion",
+          "label": "Одежда",
+          "pool": "fashionF",
+          "rect": {
+            "x": 31,
+            "y": 34,
+            "w": 64,
+            "h": 159
+          },
+          "openVerb": "створки расходятся",
+          "bloomAR": 30,
+          "bloomRot": 0,
+          "reshoot": true,
+          "notClamped": true,
+          "eyeChecked": true,
+          "rectVersion": 3,
+          "objectAbsent": false,
+          "status": "shown"
+        },
+        {
+          "key": "jewelry",
+          "label": "Украшения",
+          "pool": "jewel",
+          "rect": {
+            "x": 281,
+            "y": 177,
+            "w": 46,
+            "h": 36
+          },
+          "openVerb": "шкатулка поднимает крышку",
+          "bloomAR": 74,
+          "bloomRot": 0,
+          "notClamped": true,
+          "eyeChecked": true,
+          "rectVersion": 3,
+          "objectAbsent": false,
+          "status": "shown"
+        },
+        {
+          "key": "anything",
+          "label": "Что угодно",
+          "pool": "anything",
+          "rect": {
+            "x": 12,
+            "y": 196,
+            "w": 88,
+            "h": 118
+          },
+          "openVerb": "коробка раскрывается",
+          "bloomAR": 43,
+          "bloomRot": 0,
+          "reshoot": true,
+          "notClamped": true,
+          "eyeChecked": true,
+          "rectVersion": 16,
+          "rectPrevDesign": {
+            "x": 0,
+            "y": 195,
+            "w": 77,
+            "h": 123
+          },
+          "remappedRound": 16,
+          "objectAbsent": false,
+          "status": "shown"
+        },
+        {
+          "key": "beauty",
+          "label": "Красота и уход",
+          "pool": "beauty",
+          "rect": {
+            "x": 221,
+            "y": 57,
+            "w": 92,
+            "h": 118
+          },
+          "openVerb": "органайзер раскрывается",
+          "bloomAR": 45,
+          "bloomRot": 0,
+          "reshoot": true,
+          "notClamped": true,
+          "eyeChecked": true,
+          "rectOld": {
+            "x": 221,
+            "y": 57,
+            "w": 92,
+            "h": 118
+          },
+          "placeBased": true,
+          "placeNote": "свободная часть туалетного столика слева от парфюма",
+          "anchoredTo": "perfume",
+          "wrongTarget": false,
+          "remappedRound": 5,
+          "rectVersion": 5,
+          "rectPrevDesign": {
+            "x": 162,
+            "y": 193,
+            "w": 46,
+            "h": 20
+          },
+          "objectAbsent": true,
+          "status": "objectAbsent"
+        },
+        {
+          "key": "perfume",
+          "label": "Парфюм",
+          "pool": "perfume",
+          "rect": {
+            "x": 212,
+            "y": 193,
+            "w": 46,
+            "h": 20
+          },
+          "openVerb": "флаконы выходят на свет",
+          "bloomAR": 120,
+          "bloomRot": 0,
+          "reshoot": true,
+          "notClamped": true,
+          "eyeChecked": true,
+          "rectVersion": 3,
+          "objectAbsent": false,
+          "status": "shown"
+        },
+        {
+          "key": "bags",
+          "label": "Сумки",
+          "pool": "bags",
+          "rect": {
+            "x": 105,
+            "y": 215,
+            "w": 69,
+            "h": 66
+          },
+          "openVerb": "витрина открывается",
+          "bloomAR": 61,
+          "bloomRot": 0,
+          "notClamped": true,
+          "eyeChecked": true,
+          "rectVersion": 3,
+          "objectAbsent": false,
+          "status": "shown"
+        },
+        {
+          "key": "home",
+          "label": "Для дома",
+          "pool": "home",
+          "rect": {
+            "x": 418,
+            "y": 198,
+            "w": 52,
+            "h": 28
+          },
+          "openVerb": "свечи разгораются",
+          "bloomAR": 108,
+          "bloomRot": 0,
+          "notClamped": true,
+          "eyeChecked": true,
+          "rectOld": {
+            "x": 363,
+            "y": 215,
+            "w": 67,
+            "h": 136
+          },
+          "remappedRound": 4,
+          "reshoot": true,
+          "rectVersion": 4,
+          "objectAbsent": false,
+          "status": "shown"
+        },
+        {
+          "key": "events",
+          "label": "Впечатления",
+          "pool": "events",
+          "rect": {
+            "x": 368,
+            "y": 64,
+            "w": 108,
+            "h": 102
+          },
+          "openVerb": "билеты выходят из рамки",
+          "bloomAR": 61,
+          "bloomRot": 0,
+          "reshoot": true,
+          "notClamped": true,
+          "eyeChecked": true,
+          "rectOld": {
+            "x": 356,
+            "y": 73,
+            "w": 74,
+            "h": 102
+          },
+          "remappedRound": 4,
+          "rectVersion": 4,
+          "objectAbsent": false,
+          "status": "shown"
+        },
+        {
+          "key": "travel",
+          "label": "Путешествия",
+          "pool": "travel",
+          "rect": {
+            "x": 208,
+            "y": 248,
+            "w": 146,
+            "h": 102
+          },
+          "openVerb": "чемодан раскрывается",
+          "bloomAR": 83,
+          "bloomRot": 0,
+          "reshoot": true,
+          "notClamped": true,
+          "eyeChecked": true,
+          "rectVersion": 3,
+          "objectAbsent": false,
+          "status": "shown"
+        },
+        {
+          "key": "books",
+          "label": "Книги",
+          "pool": "books",
+          "rect": {
+            "x": 518,
+            "y": 18,
+            "w": 112,
+            "h": 232
+          },
+          "openVerb": "книга выдвигается",
+          "bloomAR": 30,
+          "bloomRot": 0,
+          "placedBy": "composition",
+          "reshoot": true,
+          "notClamped": true,
+          "eyeChecked": true,
+          "rectOld": {
+            "x": 352,
+            "y": 10,
+            "w": 52,
+            "h": 62
+          },
+          "remappedRound": 4,
+          "rectVersion": 4,
+          "objectAbsent": false,
+          "status": "shown"
+        },
+        {
+          "key": "music",
+          "label": "Музыка",
+          "pool": "music",
+          "rect": {
+            "x": 524,
+            "y": 148,
+            "w": 78,
+            "h": 32
+          },
+          "openVerb": "ящики винила выезжают",
+          "bloomAR": 120,
+          "bloomRot": 0,
+          "placedBy": "composition",
+          "notClamped": true,
+          "eyeChecked": true,
+          "rectOld": {
+            "x": 350,
+            "y": 180,
+            "w": 52,
+            "h": 20
+          },
+          "remappedRound": 4,
+          "reshoot": true,
+          "rectVersion": 4,
+          "objectAbsent": false,
+          "status": "shown"
+        },
+        {
+          "key": "flowers",
+          "label": "Цветы",
+          "pool": "flowers",
+          "rect": {
+            "x": 568,
+            "y": 48,
+            "w": 62,
+            "h": 92
+          },
+          "openVerb": "букет разворачивается",
+          "bloomAR": 39,
+          "bloomRot": 0,
+          "placedBy": "composition",
+          "reshoot": true,
+          "notClamped": true,
+          "eyeChecked": true,
+          "rectOld": {
+            "x": 405,
+            "y": 10,
+            "w": 25,
+            "h": 56
+          },
+          "remappedRound": 4,
+          "rectVersion": 4,
+          "objectAbsent": false,
+          "status": "shown"
+        },
+        {
+          "key": "money",
+          "label": "Просто деньги",
+          "pool": "money",
+          "rect": {
+            "x": 328,
+            "y": 201,
+            "w": 29,
+            "h": 21
+          },
+          "openVerb": "конверт светится",
+          "bloomAR": 80,
+          "bloomRot": 0,
+          "reshoot": true,
+          "notClamped": true,
+          "eyeChecked": true,
+          "rectVersion": 3,
+          "objectAbsent": false,
+          "status": "shown"
+        }
+      ],
+      "roomLightness": 0.24,
+      "baseLegacy": "refs/v4-emerald.jpg",
+      "kitComplete": false,
+      "acceptedCount": 4,
+      "needsRemap": 0
+    },
+    {
+      "id": "bold",
+      "tod": "night",
+      "name": "Дерзкая",
+      "sex": "F",
+      "accent": "#FF57C8",
+      "ink": "#2A0420",
+      "base": "refs-2x/bold/v5-bold-a.jpg",
+      "demo": {
+        "owner": "Ирина",
+        "counts": "187 желаний · 25 в подарок",
+        "timeOfDay": "ночь · 23:40"
+      },
+      "zones": [
+        {
+          "key": "fashion",
+          "label": "Одежда",
+          "pool": "fashionF",
+          "rect": {
+            "x": 41,
+            "y": 39,
+            "w": 156,
+            "h": 163
+          },
+          "openVerb": "створки расходятся",
+          "bloomAR": 56,
+          "bloomRot": 0,
+          "reshoot": true,
+          "notClamped": true,
+          "eyeChecked": true,
+          "rectVersion": 3,
+          "objectAbsent": false,
+          "status": "shown"
+        },
+        {
+          "key": "beauty",
+          "label": "Красота и уход",
+          "pool": "beauty",
+          "rect": {
+            "x": 199,
+            "y": 172,
+            "w": 127,
+            "h": 93
+          },
+          "openVerb": "органайзер раскрывается",
+          "bloomAR": 79,
+          "bloomRot": 0,
+          "reshoot": true,
+          "notClamped": true,
+          "eyeChecked": true,
+          "rectVersion": 3,
+          "objectAbsent": false,
+          "status": "shown"
+        },
+        {
+          "key": "anything",
+          "label": "Что угодно",
+          "pool": "anything",
+          "rect": {
+            "x": 75,
+            "y": 265,
+            "w": 180,
+            "h": 68
+          },
+          "openVerb": "коробка раскрывается",
+          "bloomAR": 120,
+          "bloomRot": 0,
+          "reshoot": true,
+          "notClamped": true,
+          "eyeChecked": true,
+          "rectVersion": 14,
+          "rectPrevDesign": {
+            "x": 0,
+            "y": 267,
+            "w": 269,
+            "h": 85
+          },
+          "remappedRound": 14,
+          "objectAbsent": false,
+          "status": "shown"
+        },
+        {
+          "key": "jewelry",
+          "label": "Украшения",
+          "pool": "jewel",
+          "rect": {
+            "x": 342,
+            "y": 169,
+            "w": 35,
+            "h": 29
+          },
+          "openVerb": "шкатулка поднимает крышку",
+          "bloomAR": 70,
+          "bloomRot": 0,
+          "notClamped": true,
+          "eyeChecked": true,
+          "rectVersion": 3,
+          "objectAbsent": false,
+          "status": "shown"
+        },
+        {
+          "key": "perfume",
+          "label": "Парфюм",
+          "pool": "perfume",
+          "rect": {
+            "x": 328,
+            "y": 200,
+            "w": 25,
+            "h": 32
+          },
+          "openVerb": "флаконы выходят на свет",
+          "bloomAR": 45,
+          "bloomRot": 0,
+          "notClamped": true,
+          "eyeChecked": true,
+          "rectVersion": 3,
+          "objectAbsent": false,
+          "status": "shown"
+        },
+        {
+          "key": "bags",
+          "label": "Сумки",
+          "pool": "bags",
+          "rect": {
+            "x": 47,
+            "y": 211,
+            "w": 149,
+            "h": 53
+          },
+          "openVerb": "витрина открывается",
+          "bloomAR": 120,
+          "bloomRot": 0,
+          "notClamped": true,
+          "eyeChecked": true,
+          "rectVersion": 3,
+          "objectAbsent": false,
+          "status": "shown"
+        },
+        {
+          "key": "events",
+          "label": "Впечатления",
+          "pool": "events",
+          "rect": {
+            "x": 374,
+            "y": 58,
+            "w": 122,
+            "h": 92
+          },
+          "openVerb": "билеты выходят из рамки",
+          "bloomAR": 77,
+          "bloomRot": 0,
+          "notClamped": true,
+          "eyeChecked": true,
+          "rectOld": {
+            "x": 364,
+            "y": 70,
+            "w": 66,
+            "h": 56
+          },
+          "remappedRound": 4,
+          "reshoot": true,
+          "rectVersion": 4,
+          "objectAbsent": false,
+          "status": "shown"
+        },
+        {
+          "key": "music",
+          "label": "Музыка",
+          "pool": "music",
+          "rect": {
+            "x": 426,
+            "y": 164,
+            "w": 76,
+            "h": 46
+          },
+          "openVerb": "ящики винила выезжают",
+          "bloomAR": 96,
+          "bloomRot": 0,
+          "reshoot": true,
+          "notClamped": true,
+          "eyeChecked": true,
+          "rectOld": {
+            "x": 404,
+            "y": 163,
+            "w": 26,
+            "h": 45
+          },
+          "remappedRound": 4,
+          "rectVersion": 4,
+          "objectAbsent": false,
+          "status": "shown"
+        },
+        {
+          "key": "travel",
+          "label": "Путешествия",
+          "pool": "travel",
+          "rect": {
+            "x": 283,
+            "y": 270,
+            "w": 107,
+            "h": 82
+          },
+          "openVerb": "чемодан раскрывается",
+          "bloomAR": 76,
+          "bloomRot": 0,
+          "reshoot": true,
+          "notClamped": true,
+          "eyeChecked": true,
+          "rectVersion": 3,
+          "objectAbsent": false,
+          "status": "shown"
+        },
+        {
+          "key": "books",
+          "label": "Книги",
+          "pool": "books",
+          "rect": {
+            "x": 504,
+            "y": 28,
+            "w": 122,
+            "h": 168
+          },
+          "openVerb": "книга выдвигается",
+          "bloomAR": 42,
+          "bloomRot": 0,
+          "placedBy": "composition",
+          "reshoot": true,
+          "notClamped": true,
+          "eyeChecked": true,
+          "rectOld": {
+            "x": 356,
+            "y": 22,
+            "w": 50,
+            "h": 43
+          },
+          "remappedRound": 4,
+          "rectVersion": 4,
+          "objectAbsent": false,
+          "status": "shown"
+        },
+        {
+          "key": "flowers",
+          "label": "Цветы",
+          "pool": "flowers",
+          "rect": {
+            "x": 546,
+            "y": 158,
+            "w": 84,
+            "h": 122
+          },
+          "openVerb": "букет разворачивается",
+          "bloomAR": 40,
+          "bloomRot": 0,
+          "placedBy": "composition",
+          "reshoot": true,
+          "notClamped": true,
+          "eyeChecked": true,
+          "rectOld": {
+            "x": 382,
+            "y": 148,
+            "w": 22,
+            "h": 58
+          },
+          "remappedRound": 4,
+          "rectVersion": 4,
+          "objectAbsent": false,
+          "status": "shown"
+        },
+        {
+          "key": "home",
+          "label": "Для дома",
+          "pool": "home",
+          "rect": {
+            "x": 424,
+            "y": 234,
+            "w": 152,
+            "h": 116
+          },
+          "openVerb": "свечи разгораются",
+          "bloomAR": 76,
+          "bloomRot": 0,
+          "placedBy": "composition",
+          "notClamped": true,
+          "eyeChecked": true,
+          "rectOld": {
+            "x": 395,
+            "y": 230,
+            "w": 22,
+            "h": 100
+          },
+          "remappedRound": 4,
+          "reshoot": true,
+          "rectVersion": 4,
+          "objectAbsent": false,
+          "status": "shown"
+        },
+        {
+          "key": "money",
+          "label": "Просто деньги",
+          "pool": "money",
+          "rect": {
+            "x": 355,
+            "y": 198,
+            "w": 26,
+            "h": 35
+          },
+          "openVerb": "конверт светится",
+          "bloomAR": 43,
+          "bloomRot": 0,
+          "notClamped": true,
+          "eyeChecked": true,
+          "rectVersion": 3,
+          "objectAbsent": false,
+          "status": "shown"
+        }
+      ],
+      "roomLightness": 0.15,
+      "baseLegacy": "refs/v5-bold-a.jpg",
+      "kitComplete": false,
+      "acceptedCount": 6,
+      "needsRemap": 0
+    },
+    {
+      "id": "cottage",
+      "tod": "day",
+      "name": "Загородная",
+      "sex": "F",
+      "accent": "#D98E6A",
+      "ink": "#25120A",
+      "base": "refs-2x/cottage/v4-cottage.jpg",
+      "demo": {
+        "owner": "Ирина",
+        "counts": "108 желаний · 13 в подарок",
+        "timeOfDay": "день · 16:20"
+      },
+      "zones": [
+        {
+          "key": "fashion",
+          "label": "Одежда",
+          "pool": "fashionF",
+          "rect": {
+            "x": 0,
+            "y": 46,
+            "w": 125,
+            "h": 181
+          },
+          "openVerb": "створки расходятся",
+          "bloomAR": 40,
+          "bloomRot": 0,
+          "reshoot": true,
+          "notClamped": true,
+          "eyeChecked": true,
+          "rectVersion": 3,
+          "objectAbsent": false,
+          "status": "shown"
+        },
+        {
+          "key": "jewelry",
+          "label": "Украшения",
+          "pool": "jewel",
+          "rect": {
+            "x": 238,
+            "y": 147,
+            "w": 34,
+            "h": 20
+          },
+          "openVerb": "шкатулка поднимает крышку",
+          "bloomAR": 99,
+          "bloomRot": 0,
+          "notClamped": true,
+          "eyeChecked": true,
+          "rectVersion": 3,
+          "objectAbsent": false,
+          "status": "shown"
+        },
+        {
+          "key": "anything",
+          "label": "Что угодно",
+          "pool": "anything",
+          "rect": {
+            "x": 123,
+            "y": 250,
+            "w": 103,
+            "h": 95
+          },
+          "openVerb": "коробка раскрывается",
+          "bloomAR": 63,
+          "bloomRot": 0,
+          "reshoot": true,
+          "notClamped": true,
+          "eyeChecked": true,
+          "rectVersion": 3,
+          "objectAbsent": false,
+          "status": "shown"
+        },
+        {
+          "key": "beauty",
+          "label": "Красота и уход",
+          "pool": "beauty",
+          "rect": {
+            "x": 180,
+            "y": 105,
+            "w": 50,
+            "h": 73
+          },
+          "openVerb": "органайзер раскрывается",
+          "bloomAR": 40,
+          "bloomRot": 0,
+          "reshoot": true,
+          "notClamped": true,
+          "eyeChecked": true,
+          "rectVersion": 3,
+          "objectAbsent": false,
+          "status": "shown"
+        },
+        {
+          "key": "perfume",
+          "label": "Парфюм",
+          "pool": "perfume",
+          "rect": {
+            "x": 185,
+            "y": 179,
+            "w": 53,
+            "h": 22
+          },
+          "openVerb": "флаконы выходят на свет",
+          "bloomAR": 120,
+          "bloomRot": 0,
+          "notClamped": true,
+          "eyeChecked": true,
+          "rectVersion": 3,
+          "objectAbsent": false,
+          "status": "shown"
+        },
+        {
+          "key": "bags",
+          "label": "Сумки",
+          "pool": "bags",
+          "rect": {
+            "x": 2,
+            "y": 227,
+            "w": 119,
+            "h": 55
+          },
+          "openVerb": "витрина открывается",
+          "bloomAR": 120,
+          "bloomRot": 0,
+          "reshoot": true,
+          "notClamped": true,
+          "eyeChecked": true,
+          "rectVersion": 3,
+          "objectAbsent": false,
+          "status": "shown"
+        },
+        {
+          "key": "events",
+          "label": "Впечатления",
+          "pool": "events",
+          "rect": {
+            "x": 294,
+            "y": 84,
+            "w": 156,
+            "h": 46
+          },
+          "openVerb": "билеты выходят из рамки",
+          "bloomAR": 120,
+          "bloomRot": 0,
+          "reshoot": true,
+          "notClamped": true,
+          "eyeChecked": true,
+          "rectOld": {
+            "x": 315,
+            "y": 84,
+            "w": 115,
+            "h": 52
+          },
+          "remappedRound": 4,
+          "rectVersion": 4,
+          "objectAbsent": false,
+          "status": "shown"
+        },
+        {
+          "key": "music",
+          "label": "Музыка",
+          "pool": "music",
+          "rect": {
+            "x": 411,
+            "y": 217,
+            "w": 64,
+            "h": 27
+          },
+          "openVerb": "ящики винила выезжают",
+          "bloomAR": 120,
+          "bloomRot": 0,
+          "reshoot": true,
+          "notClamped": true,
+          "eyeChecked": true,
+          "rectOld": {
+            "x": 399,
+            "y": 217,
+            "w": 31,
+            "h": 18
+          },
+          "remappedRound": 11,
+          "rectVersion": 11,
+          "rectPrevDesign": {
+            "x": 404,
+            "y": 238,
+            "w": 68,
+            "h": 28
+          },
+          "objectAbsent": false,
+          "status": "shown"
+        },
+        {
+          "key": "travel",
+          "label": "Путешествия",
+          "pool": "travel",
+          "rect": {
+            "x": 238,
+            "y": 233,
+            "w": 160,
+            "h": 111
+          },
+          "openVerb": "чемодан раскрывается",
+          "bloomAR": 84,
+          "bloomRot": 0,
+          "notClamped": true,
+          "eyeChecked": true,
+          "rectVersion": 3,
+          "objectAbsent": false,
+          "status": "shown"
+        },
+        {
+          "key": "books",
+          "label": "Книги",
+          "pool": "books",
+          "rect": {
+            "x": 504,
+            "y": 118,
+            "w": 72,
+            "h": 52
+          },
+          "openVerb": "книга выдвигается",
+          "bloomAR": 80,
+          "bloomRot": 0,
+          "placedBy": "composition",
+          "reshoot": true,
+          "notClamped": true,
+          "eyeChecked": true,
+          "rectOld": {
+            "x": 350,
+            "y": 28,
+            "w": 54,
+            "h": 55
+          },
+          "remappedRound": 4,
+          "rectVersion": 4,
+          "objectAbsent": false,
+          "status": "shown"
+        },
+        {
+          "key": "flowers",
+          "label": "Цветы",
+          "pool": "flowers",
+          "rect": {
+            "x": 558,
+            "y": 214,
+            "w": 72,
+            "h": 68
+          },
+          "openVerb": "букет разворачивается",
+          "bloomAR": 61,
+          "bloomRot": 0,
+          "placedBy": "composition",
+          "reshoot": true,
+          "notClamped": true,
+          "eyeChecked": true,
+          "rectOld": {
+            "x": 400,
+            "y": 150,
+            "w": 30,
+            "h": 66
+          },
+          "remappedRound": 4,
+          "rectVersion": 4,
+          "objectAbsent": false,
+          "status": "shown"
+        },
+        {
+          "key": "home",
+          "label": "Для дома",
+          "pool": "home",
+          "rect": {
+            "x": 308,
+            "y": 248,
+            "w": 102,
+            "h": 78
+          },
+          "openVerb": "свечи разгораются",
+          "bloomAR": 76,
+          "bloomRot": 0,
+          "placedBy": "composition",
+          "reshoot": true,
+          "notClamped": true,
+          "eyeChecked": true,
+          "rectOld": {
+            "x": 401,
+            "y": 236,
+            "w": 22,
+            "h": 96
+          },
+          "remappedRound": 4,
+          "rectVersion": 4,
+          "objectAbsent": false,
+          "status": "shown"
+        },
+        {
+          "key": "money",
+          "label": "Просто деньги",
+          "pool": "money",
+          "rect": {
+            "x": 238,
+            "y": 170,
+            "w": 34,
+            "h": 28
+          },
+          "openVerb": "конверт светится",
+          "bloomAR": 70,
+          "bloomRot": 0,
+          "notClamped": true,
+          "eyeChecked": true,
+          "rectVersion": 3,
+          "objectAbsent": false,
+          "status": "shown"
+        }
+      ],
+      "roomLightness": 0.58,
+      "baseLegacy": "refs/v4-cottage.jpg",
+      "kitComplete": false,
+      "acceptedCount": 4,
+      "needsRemap": 0
+    },
+    {
+      "id": "gamer",
+      "tod": "night",
+      "name": "Геймер",
+      "sex": "M",
+      "accent": "#7FB2FF",
+      "ink": "#06121F",
+      "base": "refs-2x/gamer/m-gamer.jpg",
+      "demo": {
+        "owner": "Артём",
+        "counts": "96 желаний · 14 в подарок",
+        "timeOfDay": "ночь · 00:20"
+      },
+      "zones": [
+        {
+          "key": "sneakers",
+          "label": "Обувь и рюкзаки",
+          "pool": "sneakers",
+          "rect": {
+            "x": 56,
+            "y": 203,
+            "w": 88,
+            "h": 27
+          },
+          "openVerb": "витрина открывается",
+          "bloomAR": 120,
+          "bloomRot": 0,
+          "notClamped": true,
+          "eyeChecked": true,
+          "rectVersion": 15,
+          "rectPrevDesign": {
+            "x": 42,
+            "y": 182,
+            "w": 119,
+            "h": 57
+          },
+          "remappedRound": 15,
+          "objectAbsent": false,
+          "status": "shown"
+        },
+        {
+          "key": "tech",
+          "label": "Гаджеты",
+          "pool": "tech",
+          "rect": {
+            "x": 238,
+            "y": 147,
+            "w": 84,
+            "h": 34
+          },
+          "openVerb": "ящик выезжает",
+          "bloomAR": 120,
+          "bloomRot": 0,
+          "reshoot": true,
+          "notClamped": true,
+          "eyeChecked": true,
+          "rectVersion": 3,
+          "objectAbsent": false,
+          "status": "shown"
+        },
+        {
+          "key": "anything",
+          "label": "Что угодно",
+          "pool": "anything",
+          "rect": {
+            "x": 12,
+            "y": 230,
+            "w": 102,
+            "h": 104
+          },
+          "openVerb": "коробка раскрывается",
+          "bloomAR": 57,
+          "bloomRot": 0,
+          "reshoot": true,
+          "notClamped": true,
+          "eyeChecked": true,
+          "rectVersion": 15,
+          "rectPrevDesign": {
+            "x": 0,
+            "y": 241,
+            "w": 114,
+            "h": 95
+          },
+          "remappedRound": 15,
+          "objectAbsent": false,
+          "status": "shown"
+        },
+        {
+          "key": "gaming",
+          "label": "Игры",
+          "pool": "gaming",
+          "rect": {
+            "x": 189,
+            "y": 125,
+            "w": 47,
+            "h": 20
+          },
+          "openVerb": "консоль выходит вперёд",
+          "bloomAR": 120,
+          "bloomRot": 0,
+          "notClamped": true,
+          "eyeChecked": true,
+          "rectVersion": 3,
+          "objectAbsent": false,
+          "status": "shown"
+        },
+        {
+          "key": "sport",
+          "label": "Спорт",
+          "pool": "sport",
+          "rect": {
+            "x": 370,
+            "y": 164,
+            "w": 80,
+            "h": 56
+          },
+          "openVerb": "стойка раскрывается",
+          "bloomAR": 83,
+          "bloomRot": 0,
+          "notClamped": true,
+          "eyeChecked": true,
+          "rectOld": {
+            "x": 375,
+            "y": 214,
+            "w": 55,
+            "h": 72
+          },
+          "remappedRound": 4,
+          "reshoot": true,
+          "rectVersion": 4,
+          "objectAbsent": false,
+          "status": "shown"
+        },
+        {
+          "key": "grooming",
+          "label": "Уход",
+          "pool": "perfume",
+          "rect": {
+            "x": 227,
+            "y": 183,
+            "w": 30,
+            "h": 23
+          },
+          "openVerb": "несессер раскрывается",
+          "bloomAR": 76,
+          "bloomRot": 0,
+          "reshoot": true,
+          "notClamped": true,
+          "eyeChecked": true,
+          "rectVersion": 3,
+          "objectAbsent": false,
+          "status": "shown"
+        },
+        {
+          "key": "fashion",
+          "label": "Одежда",
+          "pool": "fashionM",
+          "rect": {
+            "x": 42,
+            "y": 84,
+            "w": 119,
+            "h": 93
+          },
+          "openVerb": "створки расходятся",
+          "bloomAR": 74,
+          "bloomRot": 0,
+          "notClamped": true,
+          "eyeChecked": true,
+          "rectVersion": 3,
+          "objectAbsent": false,
+          "status": "shown"
+        },
+        {
+          "key": "events",
+          "label": "Впечатления",
+          "pool": "events",
+          "rect": {
+            "x": 396,
+            "y": 64,
+            "w": 54,
+            "h": 62
+          },
+          "openVerb": "билеты выходят из рамки",
+          "bloomAR": 51,
+          "bloomRot": 0,
+          "reshoot": true,
+          "notClamped": true,
+          "eyeChecked": true,
+          "rectOld": {
+            "x": 391,
+            "y": 79,
+            "w": 39,
+            "h": 89
+          },
+          "remappedRound": 4,
+          "rectVersion": 4,
+          "objectAbsent": false,
+          "status": "shown"
+        },
+        {
+          "key": "travel",
+          "label": "Путешествия",
+          "pool": "travel",
+          "rect": {
+            "x": 174,
+            "y": 227,
+            "w": 91,
+            "h": 91
+          },
+          "openVerb": "чемодан раскрывается",
+          "bloomAR": 58,
+          "bloomRot": 0,
+          "notClamped": true,
+          "eyeChecked": true,
+          "rectVersion": 3,
+          "objectAbsent": false,
+          "status": "shown"
+        },
+        {
+          "key": "watches",
+          "label": "Часы",
+          "pool": "watches",
+          "rect": {
+            "x": 517,
+            "y": 272,
+            "w": 43,
+            "h": 18
+          },
+          "openVerb": "крышка поднимается",
+          "bloomAR": 120,
+          "bloomRot": 0,
+          "placedBy": "composition",
+          "reshoot": true,
+          "notClamped": true,
+          "eyeChecked": true,
+          "rectOld": {
+            "x": 356,
+            "y": 148,
+            "w": 30,
+            "h": 26
+          },
+          "remappedRound": 5,
+          "wrongTarget": false,
+          "rectVersion": 5,
+          "objectAbsent": false,
+          "status": "shown"
+        },
+        {
+          "key": "music",
+          "label": "Музыка",
+          "pool": "music",
+          "rect": {
+            "x": 498,
+            "y": 28,
+            "w": 98,
+            "h": 82
+          },
+          "openVerb": "ящики винила выезжают",
+          "bloomAR": 69,
+          "bloomRot": 0,
+          "placedBy": "composition",
+          "reshoot": true,
+          "notClamped": true,
+          "eyeChecked": true,
+          "rectOld": {
+            "x": 350,
+            "y": 24,
+            "w": 52,
+            "h": 54
+          },
+          "remappedRound": 4,
+          "rectVersion": 4,
+          "objectAbsent": false,
+          "status": "shown"
+        },
+        {
+          "key": "books",
+          "label": "Книги",
+          "pool": "books",
+          "rect": {
+            "x": 505,
+            "y": 215,
+            "w": 65,
+            "h": 65
+          },
+          "openVerb": "книга выдвигается",
+          "bloomAR": 58,
+          "bloomRot": 0,
+          "placedBy": "composition",
+          "notClamped": true,
+          "eyeChecked": true,
+          "rectOld": {
+            "x": 352,
+            "y": 92,
+            "w": 34,
+            "h": 48
+          },
+          "remappedRound": 5,
+          "wrongTarget": false,
+          "rectVersion": 5,
+          "objectAbsent": false,
+          "status": "shown"
+        },
+        {
+          "key": "money",
+          "label": "Просто деньги",
+          "pool": "money",
+          "rect": {
+            "x": 590,
+            "y": 270,
+            "w": 18,
+            "h": 20
+          },
+          "openVerb": "конверт светится",
+          "bloomAR": 52,
+          "bloomRot": 0,
+          "placedBy": "composition",
+          "notClamped": true,
+          "eyeChecked": true,
+          "rectOld": {
+            "x": 269,
+            "y": 268,
+            "w": 22,
+            "h": 40
+          },
+          "remappedRound": 5,
+          "wrongTarget": false,
+          "rectVersion": 5,
+          "objectAbsent": false,
+          "status": "shown"
+        }
+      ],
+      "roomLightness": 0.17,
+      "baseLegacy": "refs/m-gamer.jpg",
+      "kitComplete": false,
+      "acceptedCount": 7,
+      "needsRemap": 0
+    },
+    {
+      "id": "sport",
+      "tod": "dusk",
+      "name": "Спорт и дуб",
+      "sex": "M",
+      "accent": "#D9A76C",
+      "ink": "#241705",
+      "base": "refs-2x/sport/m-sport.jpg",
+      "demo": {
+        "owner": "Артём",
+        "counts": "124 желания · 17 в подарок",
+        "timeOfDay": "вечер · 20:40"
+      },
+      "zones": [
+        {
+          "key": "fashion",
+          "label": "Одежда",
+          "pool": "fashionM",
+          "rect": {
+            "x": 22,
+            "y": 56,
+            "w": 112,
+            "h": 158
+          },
+          "openVerb": "створки расходятся",
+          "bloomAR": 41,
+          "bloomRot": 0,
+          "notClamped": true,
+          "eyeChecked": true,
+          "rectVersion": 3,
+          "objectAbsent": false,
+          "status": "shown"
+        },
+        {
+          "key": "watches",
+          "label": "Часы",
+          "pool": "watches",
+          "rect": {
+            "x": 330,
+            "y": 150,
+            "w": 70,
+            "h": 40
+          },
+          "openVerb": "крышка поднимается",
+          "bloomAR": 102,
+          "bloomRot": 0,
+          "reshoot": false,
+          "clamped": true,
+          "notClamped": false,
+          "eyeChecked": true,
+          "wrongTarget": false,
+          "rectOld": {
+            "x": 330,
+            "y": 150,
+            "w": 70,
+            "h": 40
+          },
+          "placeBased": true,
+          "placeNote": "полка под книгами",
+          "anchoredTo": "books",
+          "remappedRound": 5,
+          "rectVersion": 5,
+          "rectSource": "раунд 8, координаты от разработки",
+          "rectPrevDesign": {
+            "x": 504,
+            "y": 134,
+            "w": 66,
+            "h": 26
+          },
+          "objectAbsent": true,
+          "status": "objectAbsent"
+        },
+        {
+          "key": "anything",
+          "label": "Что угодно",
+          "pool": "anything",
+          "rect": {
+            "x": 157,
+            "y": 264,
+            "w": 92,
+            "h": 74
+          },
+          "openVerb": "коробка раскрывается",
+          "bloomAR": 72,
+          "bloomRot": 0,
+          "notClamped": true,
+          "eyeChecked": true,
+          "rectVersion": 3,
+          "objectAbsent": false,
+          "status": "shown"
+        },
+        {
+          "key": "sneakers",
+          "label": "Обувь и рюкзаки",
+          "pool": "sneakers",
+          "rect": {
+            "x": 24,
+            "y": 220,
+            "w": 110,
+            "h": 50
+          },
+          "openVerb": "витрина открывается",
+          "bloomAR": 120,
+          "bloomRot": 0,
+          "notClamped": true,
+          "eyeChecked": true,
+          "rectVersion": 3,
+          "objectAbsent": false,
+          "status": "shown"
+        },
+        {
+          "key": "grooming",
+          "label": "Уход",
+          "pool": "perfume",
+          "rect": {
+            "x": 200,
+            "y": 170,
+            "w": 60,
+            "h": 34
+          },
+          "openVerb": "несессер раскрывается",
+          "bloomAR": 102,
+          "bloomRot": 0,
+          "reshoot": true,
+          "notClamped": true,
+          "eyeChecked": true,
+          "rectVersion": 3,
+          "objectAbsent": false,
+          "status": "shown"
+        },
+        {
+          "key": "books",
+          "label": "Книги",
+          "pool": "books",
+          "rect": {
+            "x": 504,
+            "y": 84,
+            "w": 66,
+            "h": 46
+          },
+          "openVerb": "книга выдвигается",
+          "bloomAR": 83,
+          "bloomRot": 0,
+          "notClamped": true,
+          "eyeChecked": true,
+          "rectOld": {
+            "x": 360,
+            "y": 90,
+            "w": 70,
+            "h": 60
+          },
+          "remappedRound": 4,
+          "reshoot": true,
+          "rectVersion": 4,
+          "objectAbsent": false,
+          "status": "shown"
+        },
+        {
+          "key": "music",
+          "label": "Музыка",
+          "pool": "music",
+          "rect": {
+            "x": 538,
+            "y": 144,
+            "w": 62,
+            "h": 26
+          },
+          "openVerb": "ящики винила выезжают",
+          "bloomAR": 120,
+          "bloomRot": 0,
+          "reshoot": true,
+          "notClamped": true,
+          "eyeChecked": true,
+          "rectOld": {
+            "x": 355,
+            "y": 200,
+            "w": 60,
+            "h": 34
+          },
+          "remappedRound": 4,
+          "rectVersion": 4,
+          "objectAbsent": false,
+          "status": "shown"
+        },
+        {
+          "key": "sport",
+          "label": "Спорт",
+          "pool": "sport",
+          "rect": {
+            "x": 520,
+            "y": 240,
+            "w": 105,
+            "h": 75
+          },
+          "openVerb": "стойка раскрывается",
+          "bloomAR": 81,
+          "bloomRot": 0,
+          "reshoot": true,
+          "notClamped": true,
+          "eyeChecked": true,
+          "rectOld": {
+            "x": 250,
+            "y": 250,
+            "w": 110,
+            "h": 90
+          },
+          "remappedRound": 5,
+          "wrongTarget": false,
+          "rectVersion": 5,
+          "objectAbsent": false,
+          "status": "shown"
+        },
+        {
+          "key": "tech",
+          "label": "Гаджеты",
+          "pool": "tech",
+          "rect": {
+            "x": 192,
+            "y": 137,
+            "w": 62,
+            "h": 28
+          },
+          "openVerb": "ящик выезжает",
+          "bloomAR": 120,
+          "bloomRot": 0,
+          "placedBy": "composition",
+          "reshoot": true,
+          "notClamped": true,
+          "eyeChecked": true,
+          "rectVersion": 3,
+          "objectAbsent": false,
+          "status": "shown"
+        },
+        {
+          "key": "gaming",
+          "label": "Игры",
+          "pool": "gaming",
+          "rect": {
+            "x": 261,
+            "y": 150,
+            "w": 44,
+            "h": 26
+          },
+          "openVerb": "полка подсвечивается",
+          "objectAbsent": true,
+          "status": "objectAbsent",
+          "eyeChecked": true,
+          "restoredNote": "Возвращена в контракт 10.08.2026 по письму 41: зона существует в словаре, скрыта адресно как objectAbsent. Прежде её в файле не было вовсе — отсюда наши «128»."
+        },
+        {
+          "key": "events",
+          "label": "Впечатления",
+          "pool": "events",
+          "rect": {
+            "x": 415,
+            "y": 142,
+            "w": 38,
+            "h": 53
+          },
+          "openVerb": "билеты выходят из рамки",
+          "bloomAR": 42,
+          "bloomRot": 0,
+          "placedBy": "composition",
+          "reshoot": true,
+          "notClamped": true,
+          "eyeChecked": true,
+          "rectOld": {
+            "x": 300,
+            "y": 80,
+            "w": 55,
+            "h": 30
+          },
+          "remappedRound": 5,
+          "wrongTarget": false,
+          "rectVersion": 5,
+          "objectAbsent": false,
+          "status": "shown"
+        },
+        {
+          "key": "travel",
+          "label": "Путешествия",
+          "pool": "travel",
+          "rect": {
+            "x": 10,
+            "y": 278,
+            "w": 84,
+            "h": 60
+          },
+          "openVerb": "чемодан раскрывается",
+          "bloomAR": 81,
+          "bloomRot": 0,
+          "placedBy": "composition",
+          "notClamped": true,
+          "eyeChecked": true,
+          "rectVersion": 3,
+          "objectAbsent": false,
+          "status": "shown"
+        },
+        {
+          "key": "money",
+          "label": "Просто деньги",
+          "pool": "money",
+          "rect": {
+            "x": 590,
+            "y": 272,
+            "w": 18,
+            "h": 25
+          },
+          "openVerb": "конверт светится",
+          "bloomAR": 42,
+          "bloomRot": 0,
+          "placedBy": "composition",
+          "notClamped": true,
+          "eyeChecked": true,
+          "rectOld": {
+            "x": 365,
+            "y": 268,
+            "w": 22,
+            "h": 42
+          },
+          "remappedRound": 5,
+          "wrongTarget": false,
+          "rectVersion": 5,
+          "objectAbsent": false,
+          "status": "shown"
+        }
+      ],
+      "roomLightness": 0.55,
+      "baseLegacy": "refs/m-sport.jpg",
+      "kitComplete": false,
+      "acceptedCount": 6,
+      "needsRemap": 1
+    },
+    {
+      "id": "study",
+      "tod": "night",
+      "name": "Кабинет",
+      "sex": "M",
+      "accent": "#D3B064",
+      "ink": "#1E1608",
+      "base": "refs-2x/study/m-study.jpg",
+      "demo": {
+        "owner": "Артём",
+        "counts": "208 желаний · 22 в подарок",
+        "timeOfDay": "вечер · 22:35"
+      },
+      "zones": [
+        {
+          "key": "fashion",
+          "label": "Одежда",
+          "pool": "fashionM",
+          "rect": {
+            "x": 0,
+            "y": 60,
+            "w": 129,
+            "h": 150
+          },
+          "openVerb": "створки расходятся",
+          "bloomAR": 50,
+          "bloomRot": 0,
+          "notClamped": true,
+          "eyeChecked": true,
+          "rectVersion": 3,
+          "objectAbsent": false,
+          "status": "shown"
+        },
+        {
+          "key": "watches",
+          "label": "Часы",
+          "pool": "watches",
+          "rect": {
+            "x": 577,
+            "y": 200,
+            "w": 48,
+            "h": 20
+          },
+          "openVerb": "крышка поднимается",
+          "bloomAR": 120,
+          "bloomRot": 0,
+          "notClamped": true,
+          "eyeChecked": true,
+          "rectOld": {
+            "x": 230,
+            "y": 169,
+            "w": 95,
+            "h": 45
+          },
+          "remappedRound": 5,
+          "wrongTarget": false,
+          "rectVersion": 5,
+          "objectAbsent": false,
+          "status": "shown"
+        },
+        {
+          "key": "anything",
+          "label": "Что угодно",
+          "pool": "anything",
+          "rect": {
+            "x": 166,
+            "y": 230,
+            "w": 84,
+            "h": 90
+          },
+          "openVerb": "коробка раскрывается",
+          "bloomAR": 54,
+          "bloomRot": 0,
+          "notClamped": true,
+          "eyeChecked": true,
+          "rectVersion": 13,
+          "rectPrevDesign": {
+            "x": 89,
+            "y": 253,
+            "w": 135,
+            "h": 85
+          },
+          "remappedRound": 13,
+          "objectAbsent": false,
+          "status": "shown"
+        },
+        {
+          "key": "sneakers",
+          "label": "Обувь и рюкзаки",
+          "pool": "sneakers",
+          "rect": {
+            "x": 87,
+            "y": 232,
+            "w": 57,
+            "h": 34
+          },
+          "openVerb": "витрина открывается",
+          "bloomAR": 97,
+          "bloomRot": 0,
+          "notClamped": true,
+          "eyeChecked": true,
+          "rectVersion": 13,
+          "rectPrevDesign": {
+            "x": 4,
+            "y": 215,
+            "w": 120,
+            "h": 33
+          },
+          "remappedRound": 13,
+          "objectAbsent": false,
+          "status": "shown"
+        },
+        {
+          "key": "grooming",
+          "label": "Уход",
+          "pool": "perfume",
+          "rect": {
+            "x": 175,
+            "y": 175,
+            "w": 55,
+            "h": 32
+          },
+          "openVerb": "несессер раскрывается",
+          "bloomAR": 100,
+          "bloomRot": 0,
+          "notClamped": true,
+          "eyeChecked": true,
+          "rectVersion": 3,
+          "objectAbsent": false,
+          "status": "shown"
+        },
+        {
+          "key": "books",
+          "label": "Книги",
+          "pool": "books",
+          "rect": {
+            "x": 558,
+            "y": 28,
+            "w": 72,
+            "h": 122
+          },
+          "openVerb": "книга выдвигается",
+          "bloomAR": 34,
+          "bloomRot": 0,
+          "notClamped": true,
+          "eyeChecked": true,
+          "rectOld": {
+            "x": 345,
+            "y": 60,
+            "w": 85,
+            "h": 110
+          },
+          "remappedRound": 4,
+          "reshoot": true,
+          "rectVersion": 4,
+          "objectAbsent": false,
+          "status": "shown"
+        },
+        {
+          "key": "music",
+          "label": "Музыка",
+          "pool": "music",
+          "rect": {
+            "x": 538,
+            "y": 144,
+            "w": 62,
+            "h": 32
+          },
+          "openVerb": "ящики винила выезжают",
+          "bloomAR": 112,
+          "bloomRot": 0,
+          "reshoot": true,
+          "notClamped": true,
+          "eyeChecked": true,
+          "rectOld": {
+            "x": 350,
+            "y": 190,
+            "w": 80,
+            "h": 40
+          },
+          "remappedRound": 4,
+          "rectVersion": 4,
+          "objectAbsent": false,
+          "status": "shown"
+        },
+        {
+          "key": "events",
+          "label": "Впечатления",
+          "pool": "events",
+          "rect": {
+            "x": 417,
+            "y": 72,
+            "w": 45,
+            "h": 35
+          },
+          "openVerb": "билеты выходят из рамки",
+          "bloomAR": 75,
+          "bloomRot": 0,
+          "reshoot": true,
+          "notClamped": true,
+          "eyeChecked": true,
+          "rectOld": {
+            "x": 300,
+            "y": 80,
+            "w": 45,
+            "h": 60
+          },
+          "remappedRound": 5,
+          "wrongTarget": false,
+          "rectVersion": 5,
+          "objectAbsent": false,
+          "status": "shown"
+        },
+        {
+          "key": "tech",
+          "label": "Гаджеты",
+          "pool": "tech",
+          "rect": {
+            "x": 186,
+            "y": 144,
+            "w": 39,
+            "h": 26
+          },
+          "openVerb": "ящик выезжает",
+          "bloomAR": 87,
+          "bloomRot": 0,
+          "placedBy": "composition",
+          "reshoot": true,
+          "notClamped": true,
+          "eyeChecked": true,
+          "rectOld": {
+            "x": 186,
+            "y": 144,
+            "w": 39,
+            "h": 26
+          },
+          "placeBased": true,
+          "placeNote": "поверхность стола слева от подноса с уходом",
+          "anchoredTo": "grooming",
+          "wrongTarget": false,
+          "remappedRound": 5,
+          "rectVersion": 5,
+          "rectPrevDesign": {
+            "x": 116,
+            "y": 175,
+            "w": 55,
+            "h": 32
+          },
+          "objectAbsent": true,
+          "status": "objectAbsent"
+        },
+        {
+          "key": "gaming",
+          "label": "Игры",
+          "pool": "gaming",
+          "rect": {
+            "x": 250,
+            "y": 138,
+            "w": 42,
+            "h": 26
+          },
+          "openVerb": "консоль выходит вперёд",
+          "bloomAR": 94,
+          "bloomRot": 0,
+          "placedBy": "composition",
+          "reshoot": true,
+          "notClamped": true,
+          "eyeChecked": true,
+          "rectOld": {
+            "x": 250,
+            "y": 138,
+            "w": 42,
+            "h": 26
+          },
+          "placeBased": true,
+          "placeNote": "ящик письменного стола",
+          "anchoredTo": "grooming",
+          "wrongTarget": false,
+          "remappedRound": 5,
+          "rectVersion": 5,
+          "rectPrevDesign": {
+            "x": 175,
+            "y": 211,
+            "w": 55,
+            "h": 26
+          },
+          "objectAbsent": true,
+          "status": "objectAbsent"
+        },
+        {
+          "key": "sport",
+          "label": "Спорт",
+          "pool": "sport",
+          "rect": {
+            "x": 300,
+            "y": 244,
+            "w": 68,
+            "h": 86
+          },
+          "openVerb": "стойка раскрывается",
+          "bloomAR": 46,
+          "bloomRot": 0,
+          "placedBy": "composition",
+          "notClamped": true,
+          "eyeChecked": true,
+          "rectVersion": 3,
+          "objectAbsent": false,
+          "status": "shown"
+        },
+        {
+          "key": "travel",
+          "label": "Путешествия",
+          "pool": "travel",
+          "rect": {
+            "x": 12,
+            "y": 232,
+            "w": 74,
+            "h": 80
+          },
+          "openVerb": "чемодан раскрывается",
+          "bloomAR": 54,
+          "bloomRot": 0,
+          "placedBy": "composition",
+          "reshoot": true,
+          "notClamped": true,
+          "eyeChecked": true,
+          "rectVersion": 13,
+          "rectPrevDesign": {
+            "x": 6,
+            "y": 276,
+            "w": 80,
+            "h": 62
+          },
+          "remappedRound": 13,
+          "objectAbsent": false,
+          "status": "shown"
+        },
+        {
+          "key": "money",
+          "label": "Просто деньги",
+          "pool": "money",
+          "rect": {
+            "x": 545,
+            "y": 310,
+            "w": 30,
+            "h": 20
+          },
+          "openVerb": "конверт светится",
+          "bloomAR": 87,
+          "bloomRot": 0,
+          "placedBy": "composition",
+          "reshoot": true,
+          "notClamped": true,
+          "eyeChecked": true,
+          "rectOld": {
+            "x": 262,
+            "y": 268,
+            "w": 34,
+            "h": 42
+          },
+          "remappedRound": 5,
+          "wrongTarget": false,
+          "rectVersion": 5,
+          "objectAbsent": false,
+          "status": "shown"
+        }
+      ],
+      "roomLightness": 0.28,
+      "baseLegacy": "refs/m-study.jpg",
+      "kitComplete": false,
+      "acceptedCount": 7,
+      "needsRemap": 0
+    },
+    {
+      "id": "loft",
+      "tod": "night",
+      "name": "Лофт",
+      "sex": "M",
+      "accent": "#D2703A",
+      "ink": "#1E0E05",
+      "base": "refs-2x/loft/m-loft.jpg",
+      "demo": {
+        "owner": "Артём",
+        "counts": "167 желаний · 20 в подарок",
+        "timeOfDay": "ночь · 23:15"
+      },
+      "zones": [
+        {
+          "key": "fashion",
+          "label": "Одежда",
+          "pool": "fashionM",
+          "rect": {
+            "x": 22,
+            "y": 51,
+            "w": 135,
+            "h": 140
+          },
+          "openVerb": "створки расходятся",
+          "bloomAR": 56,
+          "bloomRot": 0,
+          "reshoot": true,
+          "notClamped": true,
+          "eyeChecked": true,
+          "rectVersion": 13,
+          "rectPrevDesign": {
+            "x": 22,
+            "y": 51,
+            "w": 135,
+            "h": 163
+          },
+          "remappedRound": 13,
+          "objectAbsent": false,
+          "status": "shown"
+        },
+        {
+          "key": "music",
+          "label": "Музыка",
+          "pool": "music",
+          "rect": {
+            "x": 241,
+            "y": 158,
+            "w": 118,
+            "h": 56
+          },
+          "openVerb": "ящики винила выезжают",
+          "bloomAR": 120,
+          "bloomRot": 0,
+          "reshoot": true,
+          "notClamped": true,
+          "eyeChecked": true,
+          "rectVersion": 3,
+          "objectAbsent": false,
+          "status": "shown"
+        },
+        {
+          "key": "anything",
+          "label": "Что угодно",
+          "pool": "anything",
+          "rect": {
+            "x": 72,
+            "y": 260,
+            "w": 53,
+            "h": 75
+          },
+          "openVerb": "коробка раскрывается",
+          "bloomAR": 41,
+          "bloomRot": 0,
+          "reshoot": true,
+          "notClamped": true,
+          "eyeChecked": true,
+          "rectVersion": 14,
+          "rectPrevDesign": {
+            "x": 72,
+            "y": 259,
+            "w": 141,
+            "h": 79
+          },
+          "remappedRound": 14,
+          "objectAbsent": false,
+          "status": "shown"
+        },
+        {
+          "key": "sneakers",
+          "label": "Обувь и рюкзаки",
+          "pool": "sneakers",
+          "rect": {
+            "x": 28,
+            "y": 196,
+            "w": 115,
+            "h": 44
+          },
+          "openVerb": "витрина открывается",
+          "bloomAR": 120,
+          "bloomRot": 0,
+          "reshoot": true,
+          "notClamped": true,
+          "eyeChecked": true,
+          "rectVersion": 13,
+          "rectPrevDesign": {
+            "x": 24,
+            "y": 222,
+            "w": 130,
+            "h": 32
+          },
+          "remappedRound": 13,
+          "objectAbsent": false,
+          "status": "shown"
+        },
+        {
+          "key": "tech",
+          "label": "Гаджеты",
+          "pool": "tech",
+          "rect": {
+            "x": 190,
+            "y": 165,
+            "w": 46,
+            "h": 40
+          },
+          "openVerb": "ящик выезжает",
+          "bloomAR": 67,
+          "bloomRot": 0,
+          "reshoot": true,
+          "notClamped": true,
+          "eyeChecked": true,
+          "rectVersion": 3,
+          "objectAbsent": false,
+          "status": "shown"
+        },
+        {
+          "key": "books",
+          "label": "Книги",
+          "pool": "books",
+          "rect": {
+            "x": 444,
+            "y": 88,
+            "w": 62,
+            "h": 62
+          },
+          "openVerb": "книга выдвигается",
+          "bloomAR": 58,
+          "bloomRot": 0,
+          "reshoot": true,
+          "notClamped": true,
+          "eyeChecked": true,
+          "rectOld": {
+            "x": 364,
+            "y": 70,
+            "w": 66,
+            "h": 100
+          },
+          "remappedRound": 4,
+          "rectVersion": 4,
+          "objectAbsent": false,
+          "status": "shown"
+        },
+        {
+          "key": "sport",
+          "label": "Спорт",
+          "pool": "sport",
+          "rect": {
+            "x": 544,
+            "y": 164,
+            "w": 86,
+            "h": 96
+          },
+          "openVerb": "стойка раскрывается",
+          "bloomAR": 52,
+          "bloomRot": 0,
+          "notClamped": true,
+          "eyeChecked": true,
+          "rectOld": {
+            "x": 340,
+            "y": 215,
+            "w": 90,
+            "h": 70
+          },
+          "remappedRound": 4,
+          "reshoot": true,
+          "rectVersion": 4,
+          "objectAbsent": false,
+          "status": "shown"
+        },
+        {
+          "key": "events",
+          "label": "Впечатления",
+          "pool": "events",
+          "rect": {
+            "x": 400,
+            "y": 165,
+            "w": 35,
+            "h": 60
+          },
+          "openVerb": "билеты выходят из рамки",
+          "bloomAR": 34,
+          "bloomRot": 0,
+          "reshoot": true,
+          "notClamped": true,
+          "eyeChecked": true,
+          "rectOld": {
+            "x": 300,
+            "y": 75,
+            "w": 45,
+            "h": 55
+          },
+          "remappedRound": 5,
+          "wrongTarget": false,
+          "rectVersion": 5,
+          "objectAbsent": false,
+          "status": "shown"
+        },
+        {
+          "key": "gaming",
+          "label": "Игры",
+          "pool": "gaming",
+          "rect": {
+            "x": 252,
+            "y": 125,
+            "w": 44,
+            "h": 28
+          },
+          "openVerb": "полка подсвечивается",
+          "objectAbsent": true,
+          "status": "objectAbsent",
+          "eyeChecked": true,
+          "restoredNote": "Возвращена в контракт 10.08.2026 по письму 41: зона существует в словаре, скрыта адресно как objectAbsent. Прежде её в файле не было вовсе — отсюда наши «128»."
+        },
+        {
+          "key": "watches",
+          "label": "Часы",
+          "pool": "watches",
+          "rect": {
+            "x": 515,
+            "y": 207,
+            "w": 40,
+            "h": 15
+          },
+          "openVerb": "крышка поднимается",
+          "bloomAR": 120,
+          "bloomRot": 0,
+          "placedBy": "composition",
+          "reshoot": true,
+          "notClamped": true,
+          "eyeChecked": true,
+          "rectOld": {
+            "x": 300,
+            "y": 131,
+            "w": 48,
+            "h": 26
+          },
+          "remappedRound": 5,
+          "wrongTarget": false,
+          "rectVersion": 5,
+          "objectAbsent": false,
+          "status": "shown"
+        },
+        {
+          "key": "grooming",
+          "label": "Уход",
+          "pool": "perfume",
+          "rect": {
+            "x": 196,
+            "y": 206,
+            "w": 44,
+            "h": 20
+          },
+          "openVerb": "несессер раскрывается",
+          "bloomAR": 120,
+          "bloomRot": 0,
+          "placedBy": "composition",
+          "reshoot": true,
+          "notClamped": true,
+          "eyeChecked": true,
+          "rectVersion": 3,
+          "objectAbsent": false,
+          "status": "shown"
+        },
+        {
+          "key": "travel",
+          "label": "Путешествия",
+          "pool": "travel",
+          "rect": {
+            "x": 12,
+            "y": 242,
+            "w": 60,
+            "h": 50
+          },
+          "openVerb": "чемодан раскрывается",
+          "bloomAR": 70,
+          "bloomRot": 0,
+          "placedBy": "composition",
+          "reshoot": true,
+          "notClamped": true,
+          "eyeChecked": true,
+          "rectVersion": 13,
+          "rectPrevDesign": {
+            "x": 8,
+            "y": 272,
+            "w": 59,
+            "h": 64
+          },
+          "remappedRound": 13,
+          "objectAbsent": false,
+          "status": "shown"
+        },
+        {
+          "key": "money",
+          "label": "Просто деньги",
+          "pool": "money",
+          "rect": {
+            "x": 577,
+            "y": 272,
+            "w": 20,
+            "h": 23
+          },
+          "openVerb": "конверт светится",
+          "bloomAR": 50,
+          "bloomRot": 0,
+          "placedBy": "composition",
+          "notClamped": true,
+          "eyeChecked": true,
+          "rectOld": {
+            "x": 288,
+            "y": 268,
+            "w": 34,
+            "h": 42
+          },
+          "remappedRound": 5,
+          "wrongTarget": false,
+          "rectVersion": 5,
+          "objectAbsent": false,
+          "status": "shown"
+        }
+      ],
+      "roomLightness": 0.22,
+      "baseLegacy": "refs/m-loft.jpg",
+      "kitComplete": false,
+      "acceptedCount": 2,
+      "needsRemap": 0
+    }
+  ],
+  "flags": "Флагов годности в пакете нет. openFrame появляется только у зон, чей кадр принят разработкой, и вписывает его разработка. Порог считает разработка.",
+  "zonesNote": "Состав полок: 13 в женских комнатах, 14 в мужских (полка bar добавлена решением владельца 14.08.2026), 134 адреса всего: это СЛОВАРЬ. Зона без прямоугольника — ЖИВАЯ полка без места на кадре: ссылка работает, вещи на месте, нет только наезда (инвариант 9 в новой редакции, письмо 56). Таких 8 (письмо 58: к семи добавился lux/music — проигрыватель в кадре виден только отражением в зеркале, а на отражение прямоугольник не ставится). Карта после разметки 14.08: 134 адреса, 126 меток в кадре, 8 списком, 0 скрытых — числа замерены разработкой, дамп dev-2026-08-14. Скрытых адресов и ответов 404 больше нет: 404 только за полкой, выключенной хозяйкой. Выбор на первом шаге выбирает КОМНАТЫ (6/4/10), а не полки — письмо 57. Объединение всех ключей — 20 (без бара было 19); общих у наборов 7: fashion, events, travel, books, music, anything, money. Проверка: 13 + 14 − 7 = 20. Положение «Все десять» разницы наборов не замечает вовсе: бар появляется в мужских комнатах независимо от него.",
+  "round8": {
+    "probe": [
+      "cream/fashion",
+      "cream/jewelry",
+      "cream/home"
+    ],
+    "remaining": 121,
+    "note": "Кадры пробника лежат в round8/cream/. В КОНТРАКТ ИХ ВПИСЫВАЕТ РАЗРАБОТКА — по своему порогу приёмки. Правка 10.08.2026 (письмо 44): тринадцать наших openFrame у cream сняты, их там быть не должно было; принято четыре, и знает об этом только сборка."
+  },
+  "horizon": {
+    "note": "Пересчёт по дампу dev-2026-08-10; остаток отменённой разбивки 2+6 снят (письмо 44).",
+    "totalZones": 130,
+    "objectAbsent": 8,
+    "shownInProduct": 122
+  },
+  "counts": {
+    "rooms": 10,
+    "zones": 130,
+    "objectAbsent": 8,
+    "shownInProduct": 122
+  }
+}

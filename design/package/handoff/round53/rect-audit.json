@@ -1,0 +1,241 @@
+{
+ "task": "Почему разметка «по композиции» промахивалась не случайно",
+ "answers": "письмо 58, раздел «ещё два прямоугольника на пустом месте»",
+ "turn": "59b",
+ "source": "handoff/rooms-map-2026-08-10.json (снимок dev-2026-08-10), посчитано скриптом",
+ "mechanism": "не «промахивалась систематически», а НЕ ИЗМЕРЯЛАСЬ: у одной и той же полки в разных комнатах совпадает левый край до пиксела. Копировали край, ширину и высоту подгоняли на глаз — полностью одинаковых прямоугольников в дампе нет ни одного",
+ "counts": {
+  "rectsInDump": 130,
+  "shareLeftEdgeWithAnotherRoom": 46,
+  "familiesSameKeySameX": 10,
+  "suspectFamilies": 6,
+  "suspectAddresses": 14,
+  "alreadyProvenWrong": [
+   "lux/books (538,88,52,42) — на орхидеях и окне",
+   "sport/music (538,144,62,26) — на пустой стене над вертушкой"
+  ]
+ },
+ "machineCheck": {
+  "rule": "У двух прямоугольников ОДНОЙ полки в РАЗНЫХ комнатах не может совпасть ни одна координата, кроме нуля и кромки видового окна (0, 2, 12). Совпала — одна из них скопирована, а не измерена.",
+  "why": "идёт по дампу, оригиналы не нужны; дешевле, чем смотреть глазами 130 прямоугольников",
+  "when": "на каждом новом дампе после переразметки, вместе со сторожем чисел прозы"
+ },
+ "suspectFamilies": [
+  {
+   "key": "books",
+   "x": 504,
+   "rooms": [
+    "bold",
+    "cottage",
+    "sport"
+   ],
+   "rects": [
+    {
+     "room": "bold",
+     "rect": "504,28,122,168"
+    },
+    {
+     "room": "cottage",
+     "rect": "504,118,72,52"
+    },
+    {
+     "room": "sport",
+     "rect": "504,84,66,46"
+    }
+   ],
+   "atFrameEdge": false
+  },
+  {
+   "key": "flowers",
+   "x": 568,
+   "rooms": [
+    "cream",
+    "lux",
+    "emerald"
+   ],
+   "rects": [
+    {
+     "room": "cream",
+     "rect": "568,148,42,55"
+    },
+    {
+     "room": "lux",
+     "rect": "568,64,62,102"
+    },
+    {
+     "room": "emerald",
+     "rect": "568,48,62,92"
+    }
+   ],
+   "atFrameEdge": false
+  },
+  {
+   "key": "fashion",
+   "x": 22,
+   "rooms": [
+    "sport",
+    "loft"
+   ],
+   "rects": [
+    {
+     "room": "sport",
+     "rect": "22,56,112,158"
+    },
+    {
+     "room": "loft",
+     "rect": "22,51,135,140"
+    }
+   ],
+   "atFrameEdge": false
+  },
+  {
+   "key": "anything",
+   "x": 123,
+   "rooms": [
+    "warm",
+    "cottage"
+   ],
+   "rects": [
+    {
+     "room": "warm",
+     "rect": "123,215,80,120"
+    },
+    {
+     "room": "cottage",
+     "rect": "123,250,103,95"
+    }
+   ],
+   "atFrameEdge": false
+  },
+  {
+   "key": "music",
+   "x": 538,
+   "rooms": [
+    "sport",
+    "study"
+   ],
+   "rects": [
+    {
+     "room": "sport",
+     "rect": "538,144,62,26"
+    },
+    {
+     "room": "study",
+     "rect": "538,144,62,32"
+    }
+   ],
+   "atFrameEdge": false
+  },
+  {
+   "key": "money",
+   "x": 590,
+   "rooms": [
+    "gamer",
+    "sport"
+   ],
+   "rects": [
+    {
+     "room": "gamer",
+     "rect": "590,270,18,20"
+    },
+    {
+     "room": "sport",
+     "rect": "590,272,18,25"
+    }
+   ],
+   "atFrameEdge": false
+  }
+ ],
+ "atFrameEdgeLegit": {
+  "note": "совпадения на краю кадра законны и в список не входят: шкаф, обрезанный левой границей, действительно начинается с нуля; 12 — кромка видового окна телефона",
+  "families": [
+   {
+    "key": "fashion",
+    "x": 0,
+    "rooms": [
+     "lux",
+     "cottage",
+     "study"
+    ],
+    "rects": [
+     {
+      "room": "lux",
+      "rect": "0,68,194,97"
+     },
+     {
+      "room": "cottage",
+      "rect": "0,46,125,181"
+     },
+     {
+      "room": "study",
+      "rect": "0,60,129,150"
+     }
+    ],
+    "atFrameEdge": true
+   },
+   {
+    "key": "bags",
+    "x": 0,
+    "rooms": [
+     "cream",
+     "lux"
+    ],
+    "rects": [
+     {
+      "room": "cream",
+      "rect": "0,209,121,50"
+     },
+     {
+      "room": "lux",
+      "rect": "0,191,98,64"
+     }
+    ],
+    "atFrameEdge": true
+   },
+   {
+    "key": "travel",
+    "x": 12,
+    "rooms": [
+     "study",
+     "loft"
+    ],
+    "rects": [
+     {
+      "room": "study",
+      "rect": "12,232,74,80"
+     },
+     {
+      "room": "loft",
+      "rect": "12,242,60,50"
+     }
+    ],
+    "atFrameEdge": true
+   },
+   {
+    "key": "anything",
+    "x": 12,
+    "rooms": [
+     "emerald",
+     "gamer"
+    ],
+    "rects": [
+     {
+      "room": "emerald",
+      "rect": "12,196,88,118"
+     },
+     {
+      "room": "gamer",
+      "rect": "12,230,102,104"
+     }
+    ],
+    "atFrameEdge": true
+   }
+  ],
+  "caveat": "x=12 у travel в study и loft всё же под подозрением — study/travel накрыл камеру целиком, и это похоже на число, набранное от края, а не замеренное"
+ },
+ "orderOfWork": [
+  "шесть семей из suspectFamilies, начиная со study/music — та же полка и тот же край, что у доказанного неверным sport/music",
+  "остальные адреса той же породы — видны тем же признаком",
+  "пересчёт мест обязателен: тройки поедут за прямоугольниками"
+ ]
+}
