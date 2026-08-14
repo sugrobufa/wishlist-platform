@@ -542,6 +542,7 @@
     "captionYear": "Gifted in {year}",
     "captionGiver": "A gift · {giver}",
     "captionMine": "already mine",
+    "captionMineGuest": "already home",
     "add": "Add an item",
     "toHall": "Treasure room",
     "guestTitle": "Treasure room · {name}",

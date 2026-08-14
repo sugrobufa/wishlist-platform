@@ -542,6 +542,7 @@
     "captionYear": "Подарок {year} года",
     "captionGiver": "Подарок от {giver}",
     "captionMine": "уже моё",
+    "captionMineGuest": "уже дома",
     "add": "Добавить вещь",
     "toHall": "Сокровищница",
     "guestTitle": "Сокровищница · {name}",

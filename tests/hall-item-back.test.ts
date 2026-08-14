@@ -48,6 +48,33 @@ describe("243 — знак возврата ведёт туда, где вещь
  * «Зачем писать, что в комнате. Просто напиши, что тут хранятся вещи такие-то и
  * такие» — слово владельца, та же приёмка.
  */
+/**
+ * 249 — В ЧУЖОЙ СОКРОВИЩНИЦЕ ПОДПИСЬ НЕ ГОВОРИТ «МОЁ».
+ *
+ * «При входе на сокровищницу хозяина подпись „уже моё" смущает. Оно не моё, а
+ * его» — та же приёмка. Экран гостевой, а ключ брался хозяйкин: своего у
+ * гостевой подписи не было вовсе.
+ */
+describe("249 — гостевая подпись витрины", () => {
+  const GUEST_HALL = readFileSync(
+    resolve(process.cwd(), "src/app/r/[slug]/hall/page.tsx"),
+    "utf8",
+  );
+
+  it("гость видит свой ключ, а не хозяйкин", () => {
+    expect(GUEST_HALL).toContain('t("captionMineGuest")');
+    expect(GUEST_HALL).not.toContain('t("captionMine")');
+  });
+
+  it("слово не от первого лица и без рода", () => {
+    const caption: string = ru.Hall.captionMineGuest;
+    expect(caption).not.toMatch(/мо[её]|мои/iu);
+    expect(caption).not.toMatch(/(ла|лась)/u);
+    // Хозяйкина подпись при этом остаётся своей — её этот тикет не трогал.
+    expect(ru.Hall.captionMine).toBe("уже моё");
+  });
+});
+
 describe("242 — подсказка сокровищницы", () => {
   const hint: string = ru.Hall.ownerHint;
 
