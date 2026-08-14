@@ -21,6 +21,7 @@
 // многоточия на первой).
 import type { CSSProperties, ReactNode } from "react";
 import Link from "next/link";
+import { DesireScale } from "@/components/item/desire-scale";
 import { useLocale, useTranslations } from "next-intl";
 import { PoolIcon } from "@/components/pool-icons";
 import { tileAppearance } from "./tile-appearance";
@@ -41,6 +42,12 @@ type ItemTileProps = {
    * ссылкой в слоте действия, и второго ей не нужно.
    */
   href?: string;
+  /**
+   * Акцент комнаты для шкалы желания (тикет 252). Без него шкалы нет: цвет
+   * комнаты — данные, а шкала ими и горит. Плитка сокровищницы его не
+   * получает и получать не должна — желание там исполнено.
+   */
+  accent?: string;
 };
 
 /** Цена «хочу» для подписи: "14 900 ₽". Деньги в DTO — строка Decimal. */
@@ -61,7 +68,7 @@ function formatPrice(item: ZoneGridItem, locale: string): string | null {
   }
 }
 
-export function ItemTile({ item, staggerIndex, action, pool, href }: ItemTileProps) {
+export function ItemTile({ item, staggerIndex, action, pool, href, accent }: ItemTileProps) {
   const t = useTranslations("ZoneGrid");
   const locale = useLocale();
   const look = tileAppearance(item, pool);
@@ -127,6 +134,18 @@ export function ItemTile({ item, staggerIndex, action, pool, href }: ItemTilePro
         {look.ghost && <span className={s.badge}>{t("demoBadge")}</span>}
       </div>
       <p className={s.title}>{item.title}</p>
+      {/* СТЕПЕНЬ ЖЕЛАНИЯ — ГЛАВНАЯ ПОДСКАЗКА ГОСТЯ, И В СЕТКЕ ЕЁ НЕ БЫЛО
+          (тикет 252, пакет 55). Дизайн признал дыру своими словами: «мы
+          описали шкалу в форме, в карточке хозяйки и в строке зоны — и ни разу
+          не сказали, что она показывается ГОСТЮ. Для гостя это главная
+          подсказка при выборе: он затем и пришёл, чтобы угадать».
+
+          Вид плитки: точка 5 с шагом 4, без слова. Пустая шкала здесь
+          РИСУЕТСЯ — «хозяйка не сказала» тоже ответ, и дырка на месте шкалы
+          читалась бы иначе. У вещи сокровищницы шкалы нет: желание исполнено. */}
+      {accent !== undefined && item.inHall !== true && (
+        <DesireScale desire={item.desire} accent={accent} variant="tile" />
+      )}
       {meta && <p className={item.inHall === true ? `${s.meta} ${s.metaLove}` : s.meta}>{meta}</p>}
     </>
   );

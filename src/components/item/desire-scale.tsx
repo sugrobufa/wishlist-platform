@@ -40,10 +40,21 @@ export const DESIRE_STEPS = [1, 2, 3, 4] as const;
 export const DESIRE_DREAM = 4;
 
 type DesireScaleProps = {
-  /** 1–4; `null`/`undefined` («не скажу») — не рисуется ничего. */
+  /** 1–4; `null`/`undefined` — «не сказано». */
   desire: number | null | undefined;
   /** Акцент комнаты «#RRGGBB» — им горят заполненные огоньки. */
   accent: string;
+  /**
+   * ДВА ВИДА ВЕРНУЛИСЬ, И ВЕРНУЛ ИХ ДИЗАЙН (тикет 252, пакет 55 → desire-guest,
+   * турн 61c). Тикет 161 снял второй вид правильно: у него не осталось ни
+   * одного потребителя. Теперь потребитель есть, и это ПЛИТКА В СЕТКЕ — место,
+   * где гость выбирает подарок и где подсказки не было вовсе.
+   *
+   *   card — 14 с шагом 10, со словом. Числа контракта: «у гостя это НЕ цель
+   *          нажатия, поэтому шага 10 между целями 44 нет — огоньки рядом»;
+   *   tile — точка 5 с шагом 4, без слова: «не влезает».
+   */
+  variant?: "card" | "tile";
 };
 
 /** "#RRGGBB" + альфа → 8-значный hex (ореол «мечтаю» — акцент с .9). */
@@ -54,19 +65,29 @@ function withAlpha(hex: string, alpha: number): string {
   return `${hex}${a}`;
 }
 
-export function DesireScale({ desire, accent }: DesireScaleProps) {
+export function DesireScale({ desire, accent, variant = "card" }: DesireScaleProps) {
   const t = useTranslations("AddItem");
+  const known = desire != null && DESIRE_STEPS.includes(desire as (typeof DESIRE_STEPS)[number]);
 
-  // «Не скажу» — не ноль: шкалы нет вовсе. Сюда же попадает мусор из БД:
-  // рисовать «полшкалы» по неожиданному числу мы не станем.
-  if (desire == null || !DESIRE_STEPS.includes(desire as (typeof DESIRE_STEPS)[number])) {
-    return null;
-  }
+  /**
+   * НА ПЛИТКЕ ПУСТОЕ СОСТОЯНИЕ РИСУЕТСЯ, В КАРТОЧКЕ — НЕТ, и это не
+   * непоследовательность. Слово дизайна: «четыре контура — „хозяйка не
+   * сказала" тоже ответ». В сетке гость сравнивает вещи взглядом, и дырка на
+   * месте шкалы у одной из них читалась бы как «шкалы у этой нет», а не как
+   * ответ. В карточке вещь одна, сравнивать не с чем, и пустая шкала была бы
+   * шумом — там место занимает слово `ItemCard.desireEmpty`.
+   *
+   * Мусор из БД сюда же: рисовать «полшкалы» по неожиданному числу мы не
+   * станем ни в одном из видов.
+   */
+  if (!known && variant === "card") return null;
 
-  const word = t(`desire${desire}`);
+  const word = known ? t(`desire${desire}`) : "";
+
+  const filled = known ? (desire as number) : 0;
 
   return (
-    <span className={s.scale}>
+    <span className={variant === "tile" ? `${s.scale} ${s.tile}` : s.scale}>
       {/* Слово стоит рядом всегда — читалке его и хватает, поэтому огоньки от
           неё скрыты. Прежде здесь была развилка: безсловный вид отдавал шкале
           `role="img"` с подписью. Вида того больше нет (тикет 161). */}
@@ -74,9 +95,9 @@ export function DesireScale({ desire, accent }: DesireScaleProps) {
         {DESIRE_STEPS.map((step) => (
           <span
             key={step}
-            className={step <= desire ? `${s.flame} ${s.flameOn}` : s.flame}
+            className={step <= filled ? `${s.flame} ${s.flameOn}` : s.flame}
             style={
-              step <= desire
+              step <= filled
                 ? {
                     background: accent,
                     boxShadow:
@@ -89,7 +110,7 @@ export function DesireScale({ desire, accent }: DesireScaleProps) {
           />
         ))}
       </span>
-      <span className={s.word}>{word}</span>
+      {variant === "card" && <span className={s.word}>{word}</span>}
     </span>
   );
 }

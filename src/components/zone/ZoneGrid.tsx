@@ -187,6 +187,7 @@ export function ZoneGrid({
                 action={renderItemAction?.(item)}
                 pool={pool}
                 href={itemHrefBase ? `${itemHrefBase}${item.id}` : undefined}
+                accent={accent}
               />
             ))}
           </ul>
