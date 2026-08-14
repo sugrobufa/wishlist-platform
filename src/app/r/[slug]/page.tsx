@@ -1,6 +1,5 @@
 import type { Metadata } from "next";
 import type { CSSProperties, ReactNode } from "react";
-import Link from "next/link";
 import { getTranslations } from "next-intl/server";
 import { notFound, permanentRedirect } from "next/navigation";
 import { cache } from "react";
@@ -21,6 +20,7 @@ import { ZoneRail } from "@/components/scene/zone-rail";
 import { visibleZones } from "@/components/scene/zones";
 import type { RoomListGroup } from "@/components/room-list/room-list-view";
 import { IconLock, IconTreasury } from "@/components/icons";
+import { GuestBar } from "./guest-bar";
 import { GuestShareMark } from "./guest-share-mark";
 import { GuestBookingProvider } from "./booking/booking-context";
 import { FreeGifts } from "./booking/free-gifts";
@@ -268,9 +268,16 @@ export default async function GuestRoomPage({ params }: Params) {
           // А место под бар раскладка резервировала всем, у кого класс `.imm`,
           // и нижние 86 px гостевого экрана оставались пустыми — на последнем
           // экране воронки, где человек решает, собрать ли свою комнату.
-          // Низ поверхности здесь — сам низ экрана, минус вырез под домашнюю
-          // полосу телефона (дизайн подтвердил раундом 35, п. 5).
-          "--imm-bar-h": "env(safe-area-inset-bottom, 0px)",
+          //
+          // ЭТО ОТМЕНЕНО ТИКЕТОМ 247, И ОТМЕНЕНО ТЕМ ЖЕ ДОВОДОМ, КОТОРЫМ
+          // ВВОДИЛОСЬ. Пустые 86 px внизу были правы, пока баром гость не
+          // пользовался; теперь там стоят три его места, и главное из них —
+          // «Собрать свою», ровно тот призыв последнего экрана воронки, ради
+          // которого полоса и освобождалась. Владелец не смог до него дойти,
+          // когда он лежал строкой ниже списка зон, — а список растёт с числом
+          // полок (турн 56b, пакет 55). Переопределения здесь больше нет:
+          // раскладка берёт `--imm-tab-bar`, и он уже включает нижний инсет
+          // (globals.css, тикет 182), — второй раз прибавлять его нельзя.
           "--room-image": `url(${roomImageUrl(preset.base)})`,
         } as CSSProperties
       }
@@ -418,16 +425,13 @@ export default async function GuestRoomPage({ params }: Params) {
                         если cookie непуст. */}
                     <MyBookingsLink />
                   </div>
-                  <div className="flex min-w-0 items-center gap-3">
-                    <p className="min-w-0 text-xs text-text-muted">{t("ctaHint")}</p>
-                    <Link
-                      href="/"
-                      className="pressable btn-quiet"
-                      style={{ "--pill-accent": preset.accent } as React.CSSProperties}
-                    >
-                      {t("cta")}
-                    </Link>
-                  </div>
+                  {/* ПРИЗЫВ ОТСЮДА УШЁЛ В НИЖНИЙ БАР (тикет 247). Он стоял
+                      здесь, под списком зон, и был недостижим: список растёт с
+                      числом полок, а нижний бар браузера накрывает строку ровно
+                      там, где она начинается. Владелец не смог до него дойти;
+                      дизайн подтвердил, что место выбрано неверно, и отдал
+                      призыву третье место бара (турн 56b). `ctaHint` уехал на
+                      первый экран регистрации — в баре место названию. */}
                 </>
               }
             >
@@ -439,6 +443,14 @@ export default async function GuestRoomPage({ params }: Params) {
           </footer>
         </ZoneIndexProvider>
       </GuestBookingProvider>
+      {/* НИЖНИЙ БАР ГОСТЯ (тикет 247). Стоит вне провайдеров: он не про зоны и
+          не про бронь, он про то, где человек находится и куда может уйти. */}
+      <GuestBar
+        roomHref={`/r/${room.shareSlug}`}
+        hallHref={hasHall && room.hallVisibility !== "NONE" ? hallHref : null}
+        accent={preset.accent}
+        ink={preset.ink}
+      />
     </main>
   );
 }
