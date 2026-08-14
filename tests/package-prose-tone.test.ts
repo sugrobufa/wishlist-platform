@@ -52,7 +52,32 @@ const CONTRACTS = [
   "zones.json",
 ] as const;
 
-const prose: readonly Prose[] = proseOf(...READABLE, ...CONTRACTS, newestRound());
+/**
+ * КОРПУС — живые файлы, читаемые контракты и ДВА раунда: тот, по которому
+ * заведены записи ниже, и новейший приехавший.
+ *
+ * Почему не один «новейший» (как было до 14.08.2026). Записи списка называют
+ * файл и место — `round52/README.md:12`. Пока новейшим был round52, это
+ * работало; приехали round53 и round54 — и все тринадцать записей стали
+ * указывать в пустоту, потому что `README-handoff.md` и `messages-ru.json`
+ * приезжают не каждым пакетом. Сторож при этом покраснел дважды: «записи
+ * устарели» (их файлов нет) и «нарушений больше, чем записано» (проза новых
+ * раундов своя). CI встал, и с ним встал выкат на стенд — четыре коммита
+ * работы не доехали до владельца, пока причина не нашлась.
+ *
+ * ANCHORED_ROUND двигается ВРУЧНУЮ и только вместе с разбором: приедет пакет,
+ * чью прозу мы разобрали поимённо, — номер меняется, и записи переезжают на
+ * него. Автоматически он двигаться не должен, иначе список снова начнёт
+ * указывать в пустоту молча.
+ */
+const ANCHORED_ROUND = "round52";
+
+const prose: readonly Prose[] = proseOf(
+  ...READABLE,
+  ...CONTRACTS,
+  ANCHORED_ROUND,
+  ...(newestRound() === ANCHORED_ROUND ? [] : [newestRound()]),
+);
 
 /**
  * ПРАВИЛА, СНЯТЫЕ С ПРОЗЫ, — с причиной у каждого. Снято ровно то, что запрещено
@@ -173,79 +198,79 @@ const KNOWN: readonly Known[] = [
   },
   // --- 1. ОТРИЦАНИЕ: раунд, который и разбирает это слово ---
   {
-    file: `${newestRound()}/README.md`,
+    file: `${ANCHORED_ROUND}/README.md`,
     place: "12",
     rule: "«набор зон»",
     why: "ОТРИЦАНИЕ: «Я называл первый шаг „набором зон“ — и дальше честно считал зоны. Неверное имя дало неверное число»",
   },
   {
-    file: `${newestRound()}/README.md`,
+    file: `${ANCHORED_ROUND}/README.md`,
     place: "32",
     rule: "«набор зон»",
     why: "ОТРИЦАНИЕ: «настройка называлась „набор зон“ — слово запрещено моей же tone.md»",
   },
   {
-    file: `${newestRound()}/README.md`,
+    file: `${ANCHORED_ROUND}/README.md`,
     place: "42",
     rule: "«набор зон»",
     why: "ОТРИЦАНИЕ: «tone.md держит „набор зон“ в списке запрещённых — права, не менялась»",
   },
   {
-    file: `${newestRound()}/CHANGES.md`,
+    file: `${ANCHORED_ROUND}/CHANGES.md`,
     place: "22",
     rule: "«набор зон»",
     why: "ОТРИЦАНИЕ: «запрет слова „набор зон“ был прав»",
   },
   {
-    file: `${newestRound()}/CHANGES.md`,
+    file: `${ANCHORED_ROUND}/CHANGES.md`,
     place: "27",
     rule: "«набор зон»",
     why: "ОТРИЦАНИЕ: «строка индекса раунда 10 больше не говорит „свой набор зон“» — запись о правке живого README",
   },
   {
-    file: `${newestRound()}/messages-ru.json`,
+    file: `${ANCHORED_ROUND}/messages-ru.json`,
     place: "Settings._setOverline",
     rule: "«набор зон»",
     why: "ОТРИЦАНИЕ рядом со строкой: правило, объясняющее, почему настройка переименована",
   },
   {
-    file: `${newestRound()}/onboarding-set.json`,
+    file: `${ANCHORED_ROUND}/onboarding-set.json`,
     place: "strings.Settings.setOverline.why",
     rule: "«набор зон»",
     why: "то же отрицание в контракте экрана — причина переименования стоит у самой строки",
   },
   {
-    file: `${newestRound()}/README-handoff.md`,
+    file: `${ANCHORED_ROUND}/README-handoff.md`,
     place: "110",
     rule: "«набор зон»",
     why: "ОТРИЦАНИЕ в исправленной копии README: «слово „набор зон“ запрещено tone.md как техническое и вдобавок неверно»",
   },
   {
-    file: `${newestRound()}/messages-ru.json`,
+    file: `${ANCHORED_ROUND}/messages-ru.json`,
     place: "Occasion._offerRule",
     rule: "«набор зон»",
     why: "та же записка, что в живом словаре: имя устарело, мысль верна",
   },
   {
-    file: `${newestRound()}/rooms.json`,
+    file: `${ANCHORED_ROUND}/rooms.json`,
     place: "note",
     rule: "«набор зон»",
     why: "журнал правок файла, запись раунда 5: «наборы зон одинаковы во всех комнатах — 13 везде». История правок, а не инструкция; в живом `rooms.json` этой записи нет вовсе — файлы разошлись",
   },
   {
-    file: `${newestRound()}/README-handoff.md`,
+    file: `${ANCHORED_ROUND}/README-handoff.md`,
     place: "25",
     rule: "слово не из словаря продукта",
     why: "«Вишлист умеет только первое» — та же строка исправленной копии README",
   },
   {
-    file: `${newestRound()}/README-handoff.md`,
+    file: `${ANCHORED_ROUND}/README-handoff.md`,
     place: "68",
     rule: "слово не из словаря продукта",
     why: "инвентарь турнов ≤12 — та же строка исправленной копии README",
   },
   {
-    file: `${newestRound()}/README-handoff.md`,
+    file: `${ANCHORED_ROUND}/README-handoff.md`,
     place: "188",
     rule: "слово не из словаря продукта",
     why: "формула композиции кадра — та же строка исправленной копии README",

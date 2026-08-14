@@ -38,7 +38,20 @@ const LIVE = [
   "zones.json",
 ];
 
-const live: readonly Claim[] = [...claimsOfLive(LIVE), ...claimsOfRound(newestRound())];
+/**
+ * ЗАКРЕПЛЁННЫЙ РАУНД — тот, по которому заведены записи ниже; новейший читается
+ * вдобавок. Разбор — шапка `ANCHORED_ROUND` в `package-prose-tone.test.ts`:
+ * записи называют файл и место, а `rooms.json` и `onboarding-set.json`
+ * приезжают не каждым пакетом, и на round53/54 все три записи стали указывать
+ * в пустоту разом.
+ */
+const ANCHORED_ROUND = "round52";
+
+const live: readonly Claim[] = [
+  ...claimsOfLive(LIVE),
+  ...claimsOfRound(ANCHORED_ROUND),
+  ...(newestRound() === ANCHORED_ROUND ? [] : claimsOfRound(newestRound())),
+];
 
 /**
  * ОТКРЫТЫЕ РАСХОЖДЕНИЯ — поимённо, с причиной, как у списков словаря. Пустым
@@ -65,15 +78,15 @@ type Known = { readonly at: string; readonly why: string };
 
 const KNOWN: readonly Known[] = [
   {
-    at: `${newestRound()}/rooms.json:zonesNote — «134 адреса всего»: обещано 134, посчитано 130`,
+    at: `${ANCHORED_ROUND}/rooms.json:zonesNote — «134 адреса всего»: обещано 134, посчитано 130`,
     why: "тот же `zonesNote` в приложенной копии файла — расхождение приехало вместе с пакетом 52",
   },
   {
-    at: `${newestRound()}/rooms.json:zonesNote — «14 в мужских»: обещано 14, посчитано 13`,
+    at: `${ANCHORED_ROUND}/rooms.json:zonesNote — «14 в мужских»: обещано 14, посчитано 13`,
     why: "то же самое в приложенной копии файла: состав мужской комнаты обещан вперёд полки `bar`",
   },
   {
-    at: `${newestRound()}/onboarding-set.json:whatItPicks.shelvesPerRoom — «14 в мужских»: обещано 14, посчитано 13`,
+    at: `${ANCHORED_ROUND}/onboarding-set.json:whatItPicks.shelvesPerRoom — «14 в мужских»: обещано 14, посчитано 13`,
     why: "третье место того же обещания — контракт экрана выбора комнат повторяет состав из `zonesNote`",
   },
   {
