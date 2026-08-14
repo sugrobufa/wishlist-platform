@@ -18,9 +18,55 @@ import { LIGHT_COLORS, TIMES_OF_DAY } from "@/components/scene/grading";
 
 const presetIds = roomPresets.map((room) => room.id);
 
-/** «Набор зон» — предустановка видимых зон, не свойство человека (CONTEXT.md). */
-export const zoneSetSchema = z.enum(["F", "M", "ALL"]);
+/**
+ * ПОЛ ВЫБИРАЕТ КОМНАТЫ, И ЗНАЧЕНИЙ У НЕГО ДВА (тикет 241, решение владельца
+ * 14.08.2026). Третье — «Все десять» — отменено: «пусть женские комнаты едут в
+ * женские, а мужские в мужские, никакого смешения комнат не должно быть».
+ *
+ * ПРИЧИНА ЧИСЛОМ, А НЕ ВКУСОМ. Объединение наборов 20 ключей, общих у женского
+ * и мужского СЕМЬ. Переезд из женской комнаты в мужскую уносит шесть полок
+ * (`jewelry`, `perfume`, `bags`, `beauty`, `flowers`, `home`) в «Что угодно»,
+ * обратно — семь. Внутри пола переезд без потерь работает и закрыт сторожем
+ * `design-contract` на 42 парах; «Все десять» открывало оставшиеся 48, в
+ * которых переезд без потерь невозможен в принципе.
+ *
+ * Смена пола при этом НЕ запрещена — она остаётся последствием: меняешь пол,
+ * меняется набор комнат, и вещи несовпавших полок уедут в «Что угодно», когда
+ * будет выбран интерьер. Сколько именно — считает `itemsLeavingSet` ниже, ДО
+ * согласия человека.
+ *
+ * Имя поля осталось `zoneSet` — оно в базе и в контракте дизайна; переименовать
+ * его значит миграцию ради слова. Что оно выбирает КОМНАТЫ, а не полки,
+ * подтвердил сам дизайн пакетом 52+.
+ */
+export const zoneSetSchema = z.enum(["F", "M"]);
 export type ZoneSet = z.infer<typeof zoneSetSchema>;
+
+/**
+ * Набор комнаты, когда в базе лежит что-то другое (тикет 241, пункт 5).
+ *
+ * До 14.08.2026 значением могло быть `ALL`, и такие комнаты у людей есть.
+ * Выбрать за человека пол молча нельзя, поэтому набор берётся по полу его
+ * ТЕКУЩЕГО интерьера: комната уже стоит женская или мужская, и это ответ,
+ * данный им самим. Записи в базу тут не происходит — она случится при первом
+ * же сознательном выборе.
+ */
+export function zoneSetOf(room: { zoneSet: string; preset: string }): ZoneSet {
+  const parsed = zoneSetSchema.safeParse(room.zoneSet);
+  if (parsed.success) return parsed.data;
+  return roomPresets.find((preset) => preset.id === room.preset)?.sex ?? "F";
+}
+
+/**
+ * Ключи полок набора. Все комнаты одного пола несут одинаковый состав — это
+ * ровно то, чего владелец добивался замечанием 7 приёмки 14.08, — поэтому
+ * берётся первая комната пола, а совпадение остальных держит сторож
+ * `design-contract` («переезд без потерь»).
+ */
+export function zoneKeysForSet(set: ZoneSet): string[] {
+  const room = roomPresets.find((preset) => preset.sex === set);
+  return (room?.zones ?? []).map((zone) => zone.key);
+}
 
 /** Пресет — только один из 10 интерьеров rooms.json. */
 export const presetSchema = z.enum(presetIds as [string, ...string[]]);
@@ -376,13 +422,33 @@ export async function changeRoomPreset(
 
 // ---------- Набор зон и вкл/выкл отдельных зон ----------
 
-/** Сменить «набор зон» (F/M/ALL) — фильтр ленты пресетов, не сами зоны. */
+/** Сменить пол (F/M) — он выбирает комнаты, а не полки (тикет 241). */
 export async function setZoneSet(userId: string, zoneSet: string): Promise<Room> {
   const parsed = zoneSetSchema.parse(zoneSet);
   const room = await requireRoom(userId);
   const updated = await prisma.room.update({ where: { id: room.id }, data: { zoneSet: parsed } });
   revalidateRoom(room.id);
   return updated;
+}
+
+/**
+ * СКОЛЬКО ВЕЩЕЙ СМЕНЯТ ПОЛКУ, ЕСЛИ СМЕНИТЬ ПОЛ (тикет 241, пункт 4).
+ *
+ * Считается ДО согласия человека и БЕЗ записи. Сама смена пола вещи не двигает
+ * — двигает их выбор интерьера, который случится следом (`changeRoomPreset`
+ * переводит в «Что угодно» всё, чей ключ не встретился в новом пресете).
+ * Поэтому и считать надо не по комнате, а по НАБОРУ: все комнаты одного пола
+ * несут одинаковый состав, значит ответ один для любого интерьера этого пола.
+ *
+ * Число обязано совпасть с `movedToAnything` после переезда — это под тестом.
+ * Расхождение значило бы, что наборы комнат одного пола разошлись, а такого
+ * быть не должно (сторож `design-contract`, «переезд без потерь»).
+ */
+export async function itemsLeavingSet(userId: string, zoneSet: string): Promise<number> {
+  const parsed = zoneSetSchema.parse(zoneSet);
+  const room = await requireRoom(userId);
+  const keys = zoneKeysForSet(parsed);
+  return prisma.item.count({ where: { roomId: room.id, zone: { notIn: keys } } });
 }
 
 /**

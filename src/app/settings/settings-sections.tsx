@@ -31,8 +31,9 @@ import {
 } from "./actions";
 import { deleteAccountAction, type DeleteAccountError } from "./account-actions";
 
-type ZoneSet = "F" | "M" | "ALL";
-const ZONE_SETS: ZoneSet[] = ["F", "M", "ALL"];
+/** Пол выбирает комнаты; значений два (тикет 241). Зеркало `zoneSetSchema`. */
+type ZoneSet = "F" | "M";
+const ZONE_SETS: ZoneSet[] = ["F", "M"];
 
 const AVATAR_MAX_BYTES = 5 * 1024 * 1024; // зеркало серверного лимита
 
@@ -370,7 +371,7 @@ export function PresetSection({
   const [zoneSetBusy, setZoneSetBusy] = useState(false);
   const [, startTransition] = useTransition();
 
-  const feed = zoneSet === "ALL" ? cards : cards.filter((preset) => preset.sex === zoneSet);
+  const feed = cards.filter((preset) => preset.sex === zoneSet);
   // «ПЕРЕЕХАТЬ» ПРЕДЛАГАЕТСЯ ПО КАДРУ, А НЕ ПО ЛЕНТЕ. Раньше кнопка искала
   // выбранное в ОТФИЛЬТРОВАННОЙ ленте и пропадала, стоило переключить
   // заготовку полок: выбранный интерьер уходил из ленты, кадр продолжал его

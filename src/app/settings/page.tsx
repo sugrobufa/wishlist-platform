@@ -11,6 +11,7 @@ import {
   getOwnerProfile,
   getRoomForUser,
   getSessionUserId,
+  zoneSetOf,
 } from "@/server/services/rooms";
 import { rooms, zoneInfo } from "@/config/design";
 import { roomImageUrl } from "@/app/rooms/room-image";
@@ -89,7 +90,9 @@ export default async function SettingsPage() {
     count: countByZone.get(zone.key) ?? 0,
   }));
 
-  const zoneSet = room.zoneSet === "F" || room.zoneSet === "M" ? room.zoneSet : "ALL";
+  // «Все десять» отменено (тикет 241), но у людей такие комнаты в базе есть:
+  // им набор берётся по полу текущего интерьера, а не выбирается за них.
+  const zoneSet = zoneSetOf(room);
   // День рождения так, как он лежит в комнате: день и месяц (тикет 187).
   // Год экран не показывает — продукт им не пользуется.
   const birthday = birthdayOf(room);

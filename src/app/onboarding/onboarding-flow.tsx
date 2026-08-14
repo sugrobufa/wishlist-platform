@@ -17,9 +17,16 @@ export type PresetCard = {
   imageUrl: string;
 };
 
-type ZoneSet = "F" | "M" | "ALL";
+/**
+ * ПОЛ, А НЕ «НАБОР ЗОН», И ЗНАЧЕНИЙ У НЕГО ДВА (тикет 241, решение владельца
+ * 14.08.2026). «Все десять» отменено: смешения комнат не должно быть, потому
+ * что переезд из женской комнаты в мужскую уносит шесть полок в «Что угодно» —
+ * общих у наборов семь ключей из двадцати. Зеркало серверной схемы
+ * `zoneSetSchema`; разбор — там же.
+ */
+type ZoneSet = "F" | "M";
 
-const ZONE_SETS: ZoneSet[] = ["F", "M", "ALL"];
+const ZONE_SETS: ZoneSet[] = ["F", "M"];
 
 /**
  * ТРИ ШАГА: набор → интерьер → дата (письмо 33, турн 40b).
@@ -60,7 +67,7 @@ function withAlpha(hex: string, alpha: number): string {
 }
 
 function filterBySet(presets: PresetCard[], set: ZoneSet): PresetCard[] {
-  return set === "ALL" ? presets : presets.filter((preset) => preset.sex === set);
+  return presets.filter((preset) => preset.sex === set);
 }
 
 /**
@@ -113,7 +120,6 @@ export function OnboardingFlow({
       accent: presets.find((p) => p.sex === "M")?.accent ?? "#7FB2FF",
       ink: presets.find((p) => p.sex === "M")?.ink ?? "#06121F",
     },
-    ALL: { accent: "#FFF9F2", ink: "#0B0806" },
   };
 
   function pickZoneSet(set: ZoneSet) {

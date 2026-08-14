@@ -17,6 +17,7 @@ import {
   setBirthday,
   setOwnerAvatar,
   setRoomNick,
+  itemsLeavingSet,
   setZoneOff,
   setZoneSet,
   updateDisplayName,
@@ -268,11 +269,36 @@ describe("changeRoomPreset — вещи не теряются (решение г
 // ---------- Набор зон и вкл/выкл зоны ----------
 
 describe("setZoneSet / setZoneOff", () => {
-  it("набор зон меняется на F/M/ALL; мусор → ZodError", async () => {
+  it("пол меняется на F/M; «Все десять» и мусор → ZodError (тикет 241)", async () => {
     const { user } = await createOwnerWithRoom("cream", "F");
     expect((await setZoneSet(user.id, "M")).zoneSet).toBe("M");
-    expect((await setZoneSet(user.id, "ALL")).zoneSet).toBe("ALL");
+    expect((await setZoneSet(user.id, "F")).zoneSet).toBe("F");
+    // ALL отменён решением владельца 14.08.2026 и отвергается как мусор.
+    await expect(setZoneSet(user.id, "ALL")).rejects.toThrow();
     await expect(setZoneSet(user.id, "X")).rejects.toThrow();
+  });
+
+  it("предварительный счёт смены пола совпадает с переездом (тикет 241)", async () => {
+    // Число показывается человеку ДО согласия, поэтому оно обязано сойтись с
+    // тем, что случится после. Расхождение значило бы, что составы комнат
+    // одного пола разошлись, — а это ловит сторож `zone-set-by-sex`.
+    const { user, room } = await createOwnerWithRoom("cream", "F");
+    const mk = (zone: string) =>
+      prisma.item.create({
+        data: { roomId: room.id, zone, inHall: false, title: `Вещь ${zone}`, currency: "RUB" },
+      });
+    await mk("fashion"); // общий ключ — переезд его не тронет
+    await mk("jewelry"); // женский — уедет в «Что угодно»
+    await mk("perfume"); // женский — уедет
+    await mk("anything"); // общий
+
+    const promised = await itemsLeavingSet(user.id, "M");
+    expect(promised).toBe(2);
+    // Свой пол ничего не двигает: комната уже женская, все ключи на месте.
+    expect(await itemsLeavingSet(user.id, "F")).toBe(0);
+
+    const { movedToAnything } = await changeRoomPreset(user.id, "loft");
+    expect(movedToAnything).toBe(promised);
   });
 
   it("выключение/включение зоны текущего пресета; повтор без дублей", async () => {
