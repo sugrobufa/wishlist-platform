@@ -36,12 +36,29 @@ type DemoSeed =
       /** Год «Подарен в {год}»; сериализуется серединой года (без сдвига в чужих таймзонах). */
       receivedYear?: number;
     }
-  | { mine: false; title: string; photo?: string; priceRub: number };
+  | {
+      mine: false;
+      title: string;
+      photo?: string;
+      priceRub: number;
+      /**
+       * ТОЧКА ПРОДАЖИ — «Где купить» (тикет 245, приёмка владельца 14.08.2026:
+       * «накидай в тестовые данные товаров с точками продаж, сейчас совершенно
+       * не вижу, как выглядит этот блок»).
+       *
+       * Блок собран с тикета 37 и работает, но на стенде его не показывал НИ
+       * ОДИН предмет: посев звал `createItem` без ссылки, а руками её было не
+       * добавить (тикет 244). Домены — те шесть, что знает парсер; адреса
+       * ведут в разделы магазинов, а не в выдуманные карточки товаров: ссылка
+       * демо-вещи обязана открываться, иначе стенд врёт нагляднее, чем учит.
+       */
+      url?: string;
+    };
 
 const MINE = (title: string, photo?: string, giverName?: string, receivedYear?: number) =>
   ({ mine: true, title, photo, giverName, receivedYear }) satisfies DemoSeed;
-const WISH = (title: string, priceRub: number, photo?: string) =>
-  ({ mine: false, title, priceRub, photo }) satisfies DemoSeed;
+const WISH = (title: string, priceRub: number, photo?: string, url?: string) =>
+  ({ mine: false, title, priceRub, photo, url }) satisfies DemoSeed;
 
 /**
  * Все 19 ключей пулов из items.json → demoPools.poolKeys (и zones.json).
@@ -53,26 +70,26 @@ export const demoPools: Record<string, readonly DemoSeed[]> = {
   fashionF: [
     MINE("Кашемировый джемпер", "refs/p-cashmere.jpg"),
     MINE("Шёлковый платок"),
-    WISH("Пальто-халат", 39_000, "refs/p-cottage.jpg"),
+    WISH("Пальто-халат", 39_000, "refs/p-cottage.jpg", "https://www.lamoda.ru/c/477/clothes-zhenskaya-verhnyaya-odezhda/"),
     WISH("Слип-платье", 8_700),
   ],
   fashionM: [
     MINE("Кашемировый свитер", "refs/p-cashmere.jpg"),
     MINE("Ботинки челси", "refs/p-runners.jpg"),
-    WISH("Шерстяное пальто", 46_000),
+    WISH("Шерстяное пальто", 46_000, undefined, "https://www.lamoda.ru/c/515/clothes-muzhskaya-verhnyaya-odezhda/"),
     WISH("Льняная рубашка", 7_900),
   ],
   jewel: [
     MINE("Теннисный браслет", "refs/p-lux.jpg", "мама", 2024),
     MINE("Цепочка", "refs/p-cream.jpg"),
-    WISH("Колье с жемчугом", 48_000, "refs/p-emerald.jpg"),
+    WISH("Колье с жемчугом", 48_000, "refs/p-emerald.jpg", "https://www.wildberries.ru/catalog/aksessuary/yuvelirnye-ukrasheniya/kole"),
     WISH("Серьги-кольца", 7_900, "refs/p-earrings.jpg"),
     WISH("Кольцо с топазом", 14_200),
   ],
   beauty: [
     MINE("Ночной крем", "refs/p-cream.jpg"),
     MINE("Набор кистей", "refs/p-emerald.jpg"),
-    WISH("Сыворотка", 4_300, "refs/p-serum.jpg"),
+    WISH("Сыворотка", 4_300, "refs/p-serum.jpg", "https://goldapple.ru/uhod/uhod-za-licom/syvorotki"),
     WISH("Крем для рук", 1_200),
     WISH("Палетка теней", 6_100, "refs/p-cottage.jpg"),
   ],
@@ -88,7 +105,7 @@ export const demoPools: Record<string, readonly DemoSeed[]> = {
   // пакете нет — все пять честно без фото (серая заливка, а не чужая картинка).
   grooming: [
     WISH("Станок и лезвия", 6_400, "refs/p-razor.jpg"),
-    WISH("Триммер для бороды", 11_900, "refs/p-trimmer.jpg"),
+    WISH("Триммер для бороды", 11_900, "refs/p-trimmer.jpg", "https://www.dns-shop.ru/catalog/17a89aab16404e77/trimmery/"),
     MINE("Масло для бороды", "refs/p-beard-oil.jpg"),
     WISH("Кожаный несессер", 9_200, "refs/p-dopp.jpg"),
     MINE("Одеколон, 100 мл", "refs/p-cologne.jpg"),
@@ -96,7 +113,7 @@ export const demoPools: Record<string, readonly DemoSeed[]> = {
   bags: [
     MINE("Тоут из кожи", "refs/p-tote.jpg"),
     MINE("Плетёная корзинка"),
-    WISH("Стёганая сумка", 62_000, "refs/p-bag.jpg"),
+    WISH("Стёганая сумка", 62_000, "refs/p-bag.jpg", "https://www.ozon.ru/category/zhenskie-sumki-7693/"),
     WISH("Клатч к вечернему", 19_000),
   ],
   tech: [

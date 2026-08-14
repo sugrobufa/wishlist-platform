@@ -239,6 +239,13 @@ export function ItemCard({
   );
   const [size, setSize] = useState(want?.size ?? "");
   const [color, setColor] = useState(want?.color ?? "");
+  /**
+   * ССЫЛКА ПРАВИТСЯ ЗДЕСЬ (тикет 244). До него она была свойством рождения
+   * вещи: заведённую руками нельзя было дополнить магазином никогда, а
+   * ошибочную из парсера — поправить. Пустое поле стирает ссылку вместе с
+   * доменом; `source` при этом не меняется.
+   */
+  const [url, setUrl] = useState(want?.shop?.url ?? "");
   const [desire, setDesire] = useState<number | null>(want?.desire ?? null);
   // Впечатление (тикет 97): «Когда · Где · Годен до». Поля держим ВСЕГДА, а
   // не только в зоне впечатлений, — см. buildInput: сервер пишет их
@@ -337,6 +344,10 @@ export function ItemCard({
     return !item.inHall
       ? {
           ...common,
+          // Пустая строка идёт как есть и означает «стереть»: `urlSchema`
+          // превращает её в undefined, а сервис пишет null вместе с доменом.
+          // Не отправить поле вовсе значило бы, что стереть ссылку нечем.
+          url: url.trim(),
           price: price.trim(),
           currency,
           priceVisibility,
@@ -848,6 +859,21 @@ export function ItemCard({
                       </select>
                     </label>
                   </div>
+
+                  {/* ССЫЛКА СТОИТ РЯДОМ С ЦЕНОЙ (тикет 244): оба поля про одно
+                      и то же — где взять и почём. Слова взяты из формы
+                      ДОБАВЛЕНИЯ, чтобы два экрана говорили одинаково. */}
+                  <label className="flex flex-col gap-1.5">
+                    <span className={LABEL_CLASS}>{tField("urlLabel")}</span>
+                    <input
+                      className={INPUT_CLASS}
+                      type="url"
+                      inputMode="url"
+                      value={url}
+                      onChange={(event) => setUrl(event.target.value)}
+                      placeholder={tField("urlPlaceholder")}
+                    />
+                  </label>
 
                   <div className="flex flex-col gap-1.5">
                     <span className={LABEL_CLASS}>{tField("priceVisibilityLabel")}</span>

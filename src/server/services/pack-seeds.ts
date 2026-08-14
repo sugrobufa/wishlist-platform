@@ -309,7 +309,16 @@ export function createInputFor(
   if (!seed.mine) {
     // Деньги строкой под Decimal — float запрещён (CLAUDE.md). Валюта пулов
     // рублёвая; своего поля валюты у комнаты нет.
-    return { ...common, inHall: false as const, price: String(seed.priceRub), currency: "RUB" };
+    return {
+      ...common,
+      inHall: false as const,
+      price: String(seed.priceRub),
+      currency: "RUB",
+      // ТОЧКА ПРОДАЖИ (тикет 245). `source` при этом остаётся ручным: вещь
+      // стенда не «родилась из ссылки», её никто не парсил, — а домен и
+      // канонический адрес всё равно посчитает сервер (правило тикета 195).
+      ...(seed.url ? { url: seed.url } : {}),
+    };
   }
   if (!options.withGiftHistory) return { ...common, inHall: true as const };
   return {
