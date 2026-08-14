@@ -55,8 +55,12 @@ describe("244 — ссылка правится", () => {
  * нечего ни на одной вещи.
  */
 describe("245 — точки продаж в тестовых данных", () => {
+  // Сужение типа делается ЗДЕСЬ, а не приведением на месте использования:
+  // `DemoSeed` — объединение, и `url` есть только у ветки вещи комнаты.
   const withUrl = Object.entries(demoPools).flatMap(([pool, seeds]) =>
-    seeds.filter((seed) => !seed.mine && seed.url).map((seed) => ({ pool, seed })),
+    seeds.flatMap((seed) =>
+      !seed.mine && seed.url ? [{ pool, seed, url: seed.url }] : [],
+    ),
   );
 
   it("ссылки есть, и не у одной вещи — блок должен встретиться в разных зонах", () => {
@@ -70,17 +74,17 @@ describe("245 — точки продаж в тестовых данных", () 
     // Домены — те шесть, что перечислены в AddItem.urlShops. Выдуманный
     // магазин на стенде учил бы неправде.
     const known = /(goldapple|wildberries|ozon|lamoda|dns-shop|market\.yandex)\.ru$/u;
-    for (const { pool, seed } of withUrl) {
-      const url = new URL(seed.url as string);
+    for (const { pool, url: href } of withUrl) {
+      const url = new URL(href);
       expect(["http:", "https:"], `${pool}: схема ссылки`).toContain(url.protocol);
       expect(url.hostname.replace(/^www\./u, ""), `${pool}: незнакомый магазин`).toMatch(known);
     }
   });
 
   it("посев доносит ссылку до вещи, а «уже своё» её не получает", () => {
-    const wish = withUrl[0]!.seed;
-    const input = createInputFor("fashion", wish, null) as { url?: string };
-    expect(input.url).toBe(wish.url);
+    const first = withUrl[0]!;
+    const input = createInputFor("fashion", first.seed, null) as { url?: string };
+    expect(input.url).toBe(first.url);
 
     // У вещи витрины ссылки нет и быть не должно — она уже дома.
     const mine = Object.values(demoPools)
