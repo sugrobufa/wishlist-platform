@@ -241,7 +241,6 @@ export function BookingDialog({ item, ownerName, accent, onClose }: BookingDialo
                 size="sheet"
                 type="submit"
                 disabled={phase === "busy"}
-                forName={t("tagFor", { name: ownerName })}
                 label={phase === "busy" ? t("confirmBusy") : t("confirm")}
               />
               <button type="button" className={`pressable ${s.quiet}`} onClick={onClose}>

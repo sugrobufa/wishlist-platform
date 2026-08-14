@@ -6,11 +6,21 @@
 import s from "./gift-tag.module.css";
 
 type GiftTagProps = {
-  /** Строка над надписью — «для {имя}» (имя получателя на бирке). */
-  forName: string;
+  /**
+   * ИМЕНИ ПОЛУЧАТЕЛЯ НА БИРКЕ БОЛЬШЕ НЕТ (тикет 248, пакет 55 → tag-geometry).
+   * Оно уже стоит в шапке гостевой комнаты — на бирке это третий повтор, и
+   * именно он держал её высоту. Ключ `Booking.tagFor` жив и остаётся в диалоге
+   * брони, где имя произносится один раз и к месту.
+   */
   /** Надпись бирки: «Подарить» на плитке, «Подарить это» в листе. */
   label: string;
-  /** tile — компактная на плитке; sheet — канонические 218×66 в листе брони. */
+  /**
+   * РАЗМЕР У БИРКИ ОДИН — 124×44 на любой карточке (пакет 55, турн 61b), и
+   * различие осталось только в месте. Прежде `tile` тянулся по контейнеру и
+   * на широкой карточке разъезжался во всю ширину экрана: «218×66» читалось
+   * как размер по умолчанию, который можно переопределить. Теперь ширину
+   * задаёт содержимое.
+   */
   size?: "tile" | "sheet";
   type?: "button" | "submit";
   disabled?: boolean;
@@ -18,7 +28,6 @@ type GiftTagProps = {
 };
 
 export function GiftTag({
-  forName,
   label,
   size = "tile",
   type = "button",
@@ -39,7 +48,6 @@ export function GiftTag({
         <span className={s.fold} aria-hidden />
         <span className={s.hole} aria-hidden />
         <span className={s.text}>
-          <span className={s.for}>{forName}</span>
           <span className={s.label}>{label}</span>
         </span>
       </span>

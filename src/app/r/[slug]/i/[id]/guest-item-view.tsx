@@ -271,7 +271,6 @@ export function GuestItemView({
             <div className={s.tagRow}>
               <GiftTag
                 size="sheet"
-                forName={tb("tagFor", { name: ownerName })}
                 label={tb("tagAction")}
                 onClick={() => setBooking(true)}
               />

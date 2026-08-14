@@ -46,7 +46,7 @@
   display: block;
   transform: rotate(-3deg);
   transition: transform 300ms cubic-bezier(0.23, 1, 0.32, 1);
-  filter: drop-shadow(0 7px 11px rgba(0, 0, 0, 0.6));
+  filter: drop-shadow(0 4px 7px rgba(0, 0, 0, 0.6));
 }
 
 .paper {
@@ -98,7 +98,7 @@
 }
 
 .label {
-  font: 700 15px/1 var(--font-ui);
+  font: 700 13px/1 var(--font-ui);
   color: #2a1806;
   white-space: nowrap;
 }
@@ -115,116 +115,68 @@
   transform: rotate(2deg) translateY(3px);
 }
 
-/* --- Канонический размер 218×66 (лист брони) ------------------------------ */
+/* --- ОДИН РАЗМЕР НА ВСЕ КАРТОЧКИ: 124 × 44 (тикет 248, пакет 55 → tag-geometry)
+   -------------------------------------------------------------------------
+   БЫЛО ДВА, И ОДИН ИЗ НИХ ТЯНУЛСЯ. `.tile` стоял с `width: 100%` и на узкой
+   плитке выглядел как задумано, а на широкой карточке разъезжался во всю
+   ширину экрана — это и увидел владелец: «становится большой и на весь экран,
+   выглядит уродливо».
 
+   ПОЧЕМУ ЭТО БЫЛА НЕ ОПЕЧАТКА, А ЧТЕНИЕ КОНТРАКТА. «218×66» читалось как
+   размер ПО УМОЛЧАНИЮ, который можно переопределить контейнером. Дизайн
+   переписал правило: ширину задаёт СОДЕРЖИМОЕ, не контейнер, и она одна на
+   любой карточке, включая главную вещь. Довод его же: «кнопка занимает строку,
+   потому что принадлежит экрану; бирка висит на вещи и принадлежит ей.
+   Бумажный ярлык во всю ширину предмета не бывает — растяжка ломает не вид, а
+   метафору».
+
+   ВДВОЕ МЕНЬШЕ — ЭТО 0.57 ПО СТОРОНЕ И 0.38 ПО ПЛОЩАДИ. Высоту ниже 44 опускать
+   нельзя (пол цели нажатия), поэтому уменьшено шириной, а высвободила её
+   снятая строка «для {имя}»: имя хозяйки уже в шапке комнаты. Кегль 15 → 13 —
+   одна ступень, не две: это единственное действие гостя в продукте. */
+
+.tile,
 .sheet {
-  width: 218px;
-  height: 92px; /* 26px нити сверху + бирка 66px */
+  width: 124px;
+  height: 66px; /* 22 нити сверху + бирка 44 */
 }
 
+.tile .thread,
 .sheet .thread {
-  left: 27px;
-  top: 0;
-  height: 34px;
-}
-
-.sheet .knot {
-  left: 24px;
-  top: 30px;
-  width: 7px;
-  height: 7px;
-}
-
-.sheet .body {
-  margin-top: 26px;
-  width: 218px;
-  height: 66px;
-  transform-origin: 28px 33px; /* отверстие */
-}
-
-.sheet .fold {
-  left: 36px;
-}
-
-.sheet .hole {
-  left: 20px;
-  top: 26px;
-  width: 14px;
-  height: 14px;
-}
-
-.sheet .text {
-  left: 52px;
-  right: 16px;
-  gap: 6px;
-}
-
-/* --- Компактная бирка на плитке гостя ------------------------------------- */
-
-.tile {
-  width: 100%;
-  height: 58px; /* 12px нити + бирка 46px (≥ hitTargetMin 44) */
-}
-
-.tile .thread {
   left: 16px;
   top: 0;
-  height: 15px;
+  height: 22px;
 }
 
-.tile .knot {
+.tile .knot,
+.sheet .knot {
   left: 14px;
-  top: 11px;
+  top: 18px;
   width: 5px;
   height: 5px;
 }
 
-.tile .body {
-  margin-top: 12px;
-  width: 100%;
-  height: 46px;
-  transform-origin: 17px 23px;
-  filter: drop-shadow(0 5px 8px rgba(0, 0, 0, 0.55));
+.tile .body,
+.sheet .body {
+  margin-top: 22px;
+  width: 124px;
+  height: 44px;
+  /* Ось поворота — в отверстии: бумага висит на нити, а не крутится вокруг
+     своего центра. Числа отверстия ниже. */
+  transform-origin: 16.5px 22px;
 }
 
-.tile .fold {
+.tile .fold,
+.sheet .fold {
   left: 23px;
   top: 5px;
   bottom: 5px;
 }
 
-.tile .hole {
-  left: 12px;
-  top: 18px;
-  width: 10px;
-  height: 10px;
-  box-shadow:
-    inset 0 0 0 1.2px rgba(150, 110, 60, 0.55),
-    0 1px 0 rgba(255, 255, 255, 0.35);
-}
-
-.tile .text {
-  left: 31px;
-  right: 7px;
-  gap: 4px;
-}
-
-.tile .for {
-  font-size: 7px;
-  letter-spacing: 0.18em;
-}
-
-.tile .label {
-  font-size: 12px;
-  max-width: 100%;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-/* --- prefers-reduced-motion: мгновенно, без качания ------------------------ */
-
-@media (prefers-reduced-motion: reduce) {
-  .body {
-    transition-duration: 120ms;
-  }
+.tile .hole,
+.sheet .hole {
+  left: 11px;
+  top: 16.5px;
+  width: 11px;
+  height: 11px;
 }

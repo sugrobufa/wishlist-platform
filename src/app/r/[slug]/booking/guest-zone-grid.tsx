@@ -93,7 +93,6 @@ export function GuestZoneGrid({
       <div className="flex flex-wrap items-center gap-3">
         <GiftTag
           size="tile"
-          forName={t("tagFor", { name: ownerName })}
           label={t("tagAction")}
           onClick={() => setBookingItem(item)}
         />
