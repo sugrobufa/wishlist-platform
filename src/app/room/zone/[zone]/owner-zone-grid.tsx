@@ -113,9 +113,22 @@ export function OwnerZoneGrid({ items, accent, zoneKey, zoneLabel, pool }: Owner
   const [failed, setFailed] = useState(false);
   const [, startTransition] = useTransition();
   // Турн 29b: порядок чипами и массовое скрытие галочками (тикет 74).
-  // Чип «по дате» несёт НАПРАВЛЕНИЕ: второй нажим переворачивает.
+  /**
+   * НАПРАВЛЕНИЕ ПРИНАДЛЕЖИТ ВЫБРАННОМУ ПОРЯДКУ, А НЕ ОДНОМУ ЧИПУ (тикет 246,
+   * приёмка владельца 14.08.2026: «почему стрелочка только на одной пилюле? Я
+   * думал, лучше будет, если стрелочка будет переходить в зависимости от
+   * выбранной пилюли»).
+   *
+   * До этого стрелка была прибита к «по дате», и переворачивалась только дата;
+   * цена сортировалась всегда по возрастанию, и сказать «сначала дорогие» было
+   * нечем. Теперь `asc` — свойство ТЕКУЩЕГО порядка: чип показывает стрелку,
+   * пока он выбран, и второй нажим по нему переворачивает.
+   *
+   * У «скрытых» стрелки нет и не будет: это ФИЛЬТР, а не порядок, —
+   * переворачивать там нечего.
+   */
   const [sort, setSort] = useState<Sort>("date");
-  const [dateAsc, setDateAsc] = useState(false);
+  const [asc, setAsc] = useState(false);
   const [picking, setPicking] = useState(false);
   const [picked, setPicked] = useState<ReadonlySet<string>>(new Set());
 
@@ -135,18 +148,20 @@ export function OwnerZoneGrid({ items, accent, zoneKey, zoneLabel, pool }: Owner
       return list.sort((first, second) => {
         const a = first.price == null ? null : Number(first.price);
         const b = second.price == null ? null : Number(second.price);
+        // Вещь без цены всегда в хвосте — при любом направлении: это не «самая
+        // дешёвая» и не «самая дорогая», это «цены нет».
         if (a == null && b == null) return 0;
         if (a == null) return 1;
         if (b == null) return -1;
-        return a - b;
+        return asc ? a - b : b - a;
       });
     }
     return list.sort((first, second) => {
       const a = Date.parse(String(first.createdAt ?? "")) || 0;
       const b = Date.parse(String(second.createdAt ?? "")) || 0;
-      return dateAsc ? a - b : b - a;
+      return asc ? a - b : b - a;
     });
-  }, [items, sort, dateAsc]);
+  }, [items, sort, asc]);
 
   const pickable = shown.filter((item) => !item.isDemo);
   const pickedHere = pickable.filter((item) => picked.has(item.id)).length;
@@ -307,6 +322,24 @@ export function OwnerZoneGrid({ items, accent, zoneKey, zoneLabel, pool }: Owner
     );
   };
 
+  /**
+   * Выбор порядка: чужой чип — просто выбрать, свой — перевернуть. Направление
+   * при переходе на другой порядок сбрасывается в умолчание (сначала новые,
+   * сначала дорогие): человек выбирает ПОРЯДОК, а не несёт стрелку с собой.
+   */
+  const pickSort = (key: Sort) => {
+    if (sort === key) {
+      setAsc((value) => !value);
+      return;
+    }
+    setSort(key);
+    setAsc(false);
+  };
+
+  /** Стрелка живёт у выбранного чипа — и только у тех, где есть направление. */
+  const withArrow = (key: Sort, label: string) =>
+    sort === key ? `${label} ${asc ? "↑" : "↓"}` : label;
+
   const chip = (key: Sort, label: string, onClick: () => void) => (
     <button
       type="button"
@@ -330,10 +363,8 @@ export function OwnerZoneGrid({ items, accent, zoneKey, zoneLabel, pool }: Owner
         role="group"
         aria-label={tl("sortAria")}
       >
-        {chip("date", `${tl("sortDate")} ${dateAsc ? "↑" : "↓"}`, () =>
-          sort === "date" ? setDateAsc((value) => !value) : setSort("date"),
-        )}
-        {chip("price", tl("sortPrice"), () => setSort("price"))}
+        {chip("date", withArrow("date", tl("sortDate")), () => pickSort("date"))}
+        {chip("price", withArrow("price", tl("sortPrice")), () => pickSort("price"))}
         {chip("hidden", tl("sortHidden"), () => setSort("hidden"))}
         <span className="text-xs text-text-muted">
           {tl("counts", { total: pickable.length })}
