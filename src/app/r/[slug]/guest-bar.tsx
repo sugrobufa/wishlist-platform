@@ -31,19 +31,19 @@ import s from "@/components/tab-bar/tab-bar.module.css";
  */
 export async function GuestBar({
   roomHref,
-  hallHref,
+  ownerName,
   accent,
   ink,
 }: {
   roomHref: string;
-  /** `null` — витрина закрыта (ADR-0011): места у неё в баре нет. */
-  hallHref: string | null;
+  /** Имя хозяйки для первого пункта — «Комната Кати». */
+  ownerName: string;
   accent: string;
   ink: string;
 }) {
   const t = await getTranslations("TabBar");
   const tGuest = await getTranslations("GuestRoom");
-  const tHall = await getTranslations("Hall");
+  const tBookings = await getTranslations("MyBookings");
 
   return (
     <nav
@@ -51,17 +51,32 @@ export async function GuestBar({
       className={`${s.numbers} ${s.bar}`}
       style={{ "--tb-accent": accent, "--tb-ink": ink } as CSSProperties}
     >
+      {/* ПЕРВЫЙ ПУНКТ НАЗЫВАЕТ ИМЕНЕМ, И ЭТИМ РЕШЁН РОД (пакет 56, турн 62b).
+          Турн 56b требовал притяжательного — «Комната Кати», не «Комната», —
+          а «Её сокровищница» требовала бы РОД человека, которого продукт не
+          знает и знать не должен: пол у нас предустановка комнат, а не свойство
+          человека. Дизайн согласился с отказом своими словами: «хранить его
+          ради подписи значит завести первое место, где продукт что-то
+          утверждает о человеке». Имя снимает вопрос без нового поля.
+
+          Склонений продукт не знает — «Комната Катя» цена, которую мы уже
+          платим в заголовке страницы и в «Мои подарки». Режется ТОЛЬКО имя:
+          слово «Комната» уцелевает всегда. */}
       <Link href={roomHref} className={`pressable ${s.slot} ${s.slotActive}`}>
         <IconRoom size={22} />
-        {t("room")}
+        <span className={s.tabName}>{tGuest("tabRoom", { name: ownerName })}</span>
       </Link>
 
-      {hallHref !== null && (
-        <Link href={hallHref} className={`pressable ${s.slot}`}>
-          <IconTreasury size={22} />
-          {tHall("toHall")}
-        </Link>
-      )}
+      {/* ВИТРИНЫ В БАРЕ НЕТ НИ В ОДНОМ РЕЖИМЕ, и это правка НАШЕЙ сборки.
+          Мы поставили её сюда, собирая бар по рисунку турна 61d, — а рисунок
+          спорил с инвариантом самого дизайна: знак витрины живёт в углу кадра,
+          и две дороги в одно место сняты турном 36d. Его слово: «нарисовал я,
+          вопреки собственному инварианту; если рисунок спорит с уставом —
+          виноват рисунок». Второй пункт принадлежит ГОСТЮ — его брони. */}
+      <Link href="/my-bookings" className={`pressable ${s.slot}`}>
+        <IconTreasury size={22} />
+        {tBookings("title")}
+      </Link>
 
       {/* ТРЕТЬЕ МЕСТО — ДОРОГА ДОМОЙ. Знак плюс, и он выбран не за красоту:
           «дом занят „Комнатой", человек читается как „профиль", плюс говорит

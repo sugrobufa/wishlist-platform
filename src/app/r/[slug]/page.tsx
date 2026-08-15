@@ -447,7 +447,7 @@ export default async function GuestRoomPage({ params }: Params) {
           не про бронь, он про то, где человек находится и куда может уйти. */}
       <GuestBar
         roomHref={`/r/${room.shareSlug}`}
-        hallHref={hasHall && room.hallVisibility !== "NONE" ? hallHref : null}
+        ownerName={ownerName}
         accent={preset.accent}
         ink={preset.ink}
       />

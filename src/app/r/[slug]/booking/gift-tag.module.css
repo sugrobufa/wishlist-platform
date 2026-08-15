@@ -27,18 +27,21 @@
   opacity: 0.6;
 }
 
+/* НИТЬ — РИСУНОК, А НЕ ПОЛОСКА (тикет 248, пакет 56 → tag-thread.svg).
+   Была `div` шириной 1.5 с градиентом и поворотом 7°, узелок — отдельный
+   кружок. Отсюда и жалоба владельца: полоска начиналась над отверстием и
+   ни с чем не соединялась — «нить выходила из воздуха». Три дуги рисует
+   сам SVG; здесь только место.
+
+   `overflow: visible` обязателен: дуги выходят за свой viewBox вверх, к
+   узелку, и без него обрезались бы по коробке. */
 .thread {
   position: absolute;
-  width: 1.5px;
-  background: linear-gradient(180deg, rgba(255, 214, 150, 0.12), rgba(255, 214, 150, 0.55));
-  transform: rotate(7deg);
-  transform-origin: 50% 100%;
-}
-
-.knot {
-  position: absolute;
-  border-radius: 50%;
-  background: rgba(214, 168, 104, 0.7);
+  left: 0;
+  top: -34px;
+  display: block;
+  overflow: visible;
+  pointer-events: none;
 }
 
 .body {
@@ -141,20 +144,10 @@
   height: 66px; /* 22 нити сверху + бирка 44 */
 }
 
-.tile .thread,
-.sheet .thread {
-  left: 16px;
-  top: 0;
-  height: 22px;
-}
-
-.tile .knot,
-.sheet .knot {
-  left: 14px;
-  top: 18px;
-  width: 5px;
-  height: 5px;
-}
+/* Место нити и узелок задаёт сам рисунок (tag-thread.svg): у него свои
+   координаты внутри viewBox, и повторять их здесь значило бы завести вторые
+   числа той же вещи. Прежние правила `.thread` и `.knot` снялись вместе с
+   полоской и кружком, которые они двигали. */
 
 .tile .body,
 .sheet .body {

@@ -296,6 +296,7 @@
   },
   "GuestRoom": {
     "shareRoom": "Позвать дарителя",
+    "tabRoom": "Комната {name}",
     "overline": "В гостях",
     "ownerFallback": "Хозяйка комнаты",
     "metaTitle": "Комната {name}",

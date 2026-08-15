@@ -296,6 +296,7 @@
   },
   "GuestRoom": {
     "shareRoom": "Invite a giver",
+    "tabRoom": "{name}'s room",
     "overline": "A room by link",
     "ownerFallback": "Room owner",
     "metaTitle": "{name}’s room",
