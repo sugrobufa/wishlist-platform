@@ -223,6 +223,8 @@ describe("ИНВАРИАНТ-СЕРИАЛИЗАЦИЯ: страница хозя
       mine: [],
       myBookingsCount: 0,
       signedIn: true,
+      // Тоже не про брони: «ты хозяин ЭТОЙ комнаты» (тикет 250).
+      isOwner: true,
       // Не про брони: её собственная витрина ей открыта (тикет 116).
       hallOpen: true,
     });
@@ -337,7 +339,16 @@ describe("GET /api/v1/rooms/{slug}/taken — хозяйке своей комн�
     // `hallOpen` про брони не говорит ничего — это её собственная витрина
     // (тикет 116), и запирать хозяйку от своих же вещей не за чем.
     expect(await response.json()).toEqual({
-      data: { itemIds: [], mine: [], myBookingsCount: 0, signedIn: true, hallOpen: true },
+      // `isOwner` — тикет 250: канал говорит «ты хозяин ЭТОЙ комнаты», и на
+      // этом всё. Списки как были пустыми, так и остались.
+      data: {
+        itemIds: [],
+        mine: [],
+        myBookingsCount: 0,
+        signedIn: true,
+        isOwner: true,
+        hallOpen: true,
+      },
     });
   });
 
@@ -357,7 +368,16 @@ describe("GET /api/v1/rooms/{slug}/taken — хозяйке своей комн�
       slugCtx(owner.room.shareSlug),
     );
     expect(await response.json()).toEqual({
-      data: { itemIds: [], mine: [], myBookingsCount: 0, signedIn: true, hallOpen: true },
+      // `isOwner` — тикет 250: канал говорит «ты хозяин ЭТОЙ комнаты», и на
+      // этом всё. Списки как были пустыми, так и остались.
+      data: {
+        itemIds: [],
+        mine: [],
+        myBookingsCount: 0,
+        signedIn: true,
+        isOwner: true,
+        hallOpen: true,
+      },
     });
   });
 

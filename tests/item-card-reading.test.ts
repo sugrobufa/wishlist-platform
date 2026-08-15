@@ -229,11 +229,18 @@ describe("гость: вопрос «дарить ли это» — цена и 
     expect(ownerCss).toMatch(/\.mainAction \{[\s\S]*?border-bottom: 2px solid var\(--card-accent\);/u);
   });
 
-  it("бирка на нити 218×66 и тихая строка справа от неё", () => {
+  it("бирка на нити 124×44 и тихая строка справа от неё", () => {
+    // КОНТРАКТ РАУНДА 41 ЗДЕСЬ ОСТАЁТСЯ КАК БЫЛ — 218×66, — и это не расхождение,
+    // а история: пакет 56 заменил редакцию (`round56` → tag-geometry, турн 61b),
+    // но старый файл переписывать мы не станем. Проверяем ЕГО числа против ЕГО
+    // же файла, а живой CSS — против новой редакции.
     expect([contract.guest.tag.w, contract.guest.tag.h]).toEqual([218, 66]);
-    // Бирка — АБСОЛЮТНАЯ (contract → scaling): переносу на 375 не подлежит.
-    expect(tagCss).toMatch(/\.sheet \.body \{[\s\S]*?width: 218px;/u);
-    expect(tagCss).toMatch(/\.sheet \.body \{[\s\S]*?height: 66px;/u);
+    // 124×44 — приёмка владельца 14.08: «становится большой и на весь экран…
+    // должна выглядеть меньше раза в два». Бирка по-прежнему АБСОЛЮТНАЯ
+    // (contract → scaling): переносу на 375 не подлежит, и растяжки по
+    // контейнеру у неё больше нет ни в одном виде (тикет 248).
+    expect(tagCss).toMatch(/\.sheet \.body \{[\s\S]*?width: 124px;/u);
+    expect(tagCss).toMatch(/\.sheet \.body \{[\s\S]*?height: 44px;/u);
     expect(tagCss).toContain("transform: rotate(-3deg)");
     expect(tagCss).toContain("transform: rotate(2deg) translateY(3px)");
 
