@@ -20,6 +20,12 @@ export type GuestBookingState = {
   mine: ReadonlySet<string>;
   /** Всего живых броней гостя — строка «Мои брони · N» внизу комнаты. */
   myBookingsCount: number;
+  /**
+   * Зритель — хозяин ЭТОЙ комнаты (тикет 250). Приходит тем же некэшируемым
+   * каналом, что и «занято»: страница сессии не читает (ISR), а канал может.
+   * Про брони не говорит ничего — ответ хозяйке и так пустой.
+   */
+  isOwner: boolean;
   /** Зритель вошёл в аккаунт — вопрос «остаться в связях?» (тикет 98b). */
   signedIn: boolean;
   /**
@@ -58,6 +64,7 @@ export function GuestBookingProvider({ slug, children }: { slug: string; childre
   const [mine, setMine] = useState<ReadonlySet<string>>(new Set());
   const [myBookingsCount, setMyBookingsCount] = useState(0);
   const [signedIn, setSignedIn] = useState(false);
+  const [isOwner, setIsOwner] = useState(false);
   const [hallOpen, setHallOpen] = useState(false);
   const [bookedNow, setBookedNow] = useState(0);
 
@@ -88,6 +95,7 @@ export function GuestBookingProvider({ slug, children }: { slug: string; childre
                   itemIds?: unknown;
                   mine?: unknown;
                   myBookingsCount?: unknown;
+                  isOwner?: unknown;
                   signedIn?: unknown;
                   hallOpen?: unknown;
                 };
@@ -98,6 +106,7 @@ export function GuestBookingProvider({ slug, children }: { slug: string; childre
         setTaken(new Set(stringArray(data.itemIds)));
         setMine(new Set(stringArray(data.mine)));
         setMyBookingsCount(typeof data.myBookingsCount === "number" ? data.myBookingsCount : 0);
+        setIsOwner(data.isOwner === true);
         setSignedIn(data.signedIn === true);
         setHallOpen(data.hallOpen === true);
       } catch {
@@ -120,8 +129,18 @@ export function GuestBookingProvider({ slug, children }: { slug: string; childre
   }, []);
 
   const value = useMemo<GuestBookingState>(
-    () => ({ taken, mine, myBookingsCount, signedIn, hallOpen, bookedNow, markBooked, markTaken }),
-    [taken, mine, myBookingsCount, signedIn, hallOpen, bookedNow, markBooked, markTaken],
+    () => ({
+      taken,
+      mine,
+      myBookingsCount,
+      signedIn,
+      isOwner,
+      hallOpen,
+      bookedNow,
+      markBooked,
+      markTaken,
+    }),
+    [taken, mine, myBookingsCount, signedIn, isOwner, hallOpen, bookedNow, markBooked, markTaken],
   );
 
   return <GuestBookingContext.Provider value={value}>{children}</GuestBookingContext.Provider>;

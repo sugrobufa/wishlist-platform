@@ -48,7 +48,7 @@ export function BookingDialog({ item, ownerName, accent, onClose }: BookingDialo
   // Строка приватности живёт в словаре комнаты гостя (турн 12b) и там же
   // и остаётся: тикет 77 сменил ей МЕСТО НА ЭКРАНЕ, а не владельца.
   const tGuest = useTranslations("GuestRoom");
-  const { markBooked, markTaken, signedIn } = useGuestBooking();
+  const { markBooked, markTaken, signedIn, isOwner } = useGuestBooking();
   const [phase, setPhase] = useState<Phase>("form");
   const [error, setError] = useState<BookingErrorKey | null>(null);
   const [name, setName] = useState("");
@@ -128,7 +128,35 @@ export function BookingDialog({ item, ownerName, accent, onClose }: BookingDialo
         className={s.sheet}
         style={{ "--bk-accent": accent } as CSSProperties}
       >
-        {phase === "done" ? (
+        {isOwner ? (
+          /**
+           * ХОЗЯИН СВОЕЙ КОМНАТЫ УЗНАЁТ ОБ ЭТОМ ДО ФОРМЫ, А НЕ ПОСЛЕ НЕЁ
+           * (тикет 250, приёмка 14.08.2026: «при попытке подарить не
+           * срабатывает кнопка, пишет, что ты в своей комнате»).
+           *
+           * ЗАПРЕТ ПРАВИЛЬНЫЙ И ОСТАЁТСЯ: иначе счётчик «N вещей уже забраны»
+           * хозяйка накрутит себе сама, и инвариант №1 теряет смысл. Неверным
+           * было место: он срабатывал на сервере ПОСЛЕ того, как человек
+           * заполнил имя, почту и выбрал «тихо / подписаться», — и красная
+           * строка у кнопки читалась ошибкой, а не «так задумано».
+           *
+           * Серверная проверка НЕ снимается: этот экран — вежливость, а не
+           * защита. Флаг приходит некэшируемым каналом уже после рендера, и
+           * до его приезда бирка ведёт себя как обычно — отказ поймает сервер.
+           */
+          <div className={s.done}>
+            <p className={s.overline}>{t("dialogOverline")}</p>
+            <p className={s.doneTitle} id={titleId}>
+              {item.title}
+            </p>
+            <p className={s.doneHint}>{t("errOwn")}</p>
+            <div className={s.footer}>
+              <button type="button" className={`pressable ${s.quiet}`} onClick={onClose}>
+                {t("close")}
+              </button>
+            </div>
+          </div>
+        ) : phase === "done" ? (
           <div className={s.done}>
             <p className={s.overline}>{t("dialogOverline")}</p>
             <p className={s.doneTitle} id={titleId}>
