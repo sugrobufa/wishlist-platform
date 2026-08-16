@@ -22,6 +22,7 @@ import { devices, expect, test, type Page } from "@playwright/test";
 import { Worker } from "bullmq";
 import IORedis from "ioredis";
 import ru from "../messages/ru.json";
+import { rooms as roomPresets } from "../src/config/design";
 import { prisma } from "../src/server/db";
 import { MAIL_QUEUE_NAME } from "../src/server/queues";
 import { processMailJob } from "../src/worker/mail";
@@ -50,6 +51,13 @@ process.env.APP_BASE_URL = E2E_BASE_URL;
 const HOSTESS_EMAIL = "hostess-e2e@wishlist.local";
 const GUEST_EMAIL = "guest-e2e@wishlist.local";
 const GUEST_NAME = "Тайный Гость";
+/**
+ * Комната сценария. Имя стоит константой, потому что оно звучит в прогоне
+ * трижды: плитка интерьера, заголовок комнаты и — через карту комнат — выбор
+ * НАБОРА, в котором эта комната живёт (тикет 241: наборов два, «все десять»
+ * упразднён решением владельца 14.08.2026).
+ */
+const BOLD_ROOM = "Дерзкая";
 const LOVE_TITLE = "Пластинка для тихих вечеров";
 // Название из фикстуры парсера ozon.html (tests/parser/fixtures.test.ts).
 const WANT_TITLE = "Смартфон Samsung Galaxy S24 8/256 ГБ графитовый";
@@ -301,27 +309,35 @@ test("полный цикл дарения: хозяйка → гость → с
     await hostessPage.waitForURL(/\/onboarding/);
   });
 
-  await test.step("онбординг: набор «Все 10» → «Дерзкая» → дата «пока не знаю»", async () => {
+  await test.step("онбординг: набор «Женская» → «Дерзкая» → дата «пока не знаю»", async () => {
     // ОНБОРДИНГ СТАЛ ТРЁХШАГОВЫМ (тикет 134, письмо 33 · турн 40b): набор →
     // интерьер → дата. Шага «что чаще всего хочется» здесь БОЛЬШЕ НЕТ — вопрос
     // уехал в первое открытие «начни с готового», где ответ сразу виден в
     // подборке (`src/app/room/starter-pack.tsx`). Поэтому исчезли и заголовок
     // «Что чаще всего хочется?», и кнопка «Пропустить», которую этот прогон
     // жал третьим действием: пропуск теперь — просто листать дальше.
-    // ПЛИТКА НАБОРА ЗОВЁТСЯ ИЗ СЛОВАРЯ, А НЕ ИЗ ПАМЯТИ (16.08.2026). Здесь
-    // стояла строка «Всё вместе», а плитка давно называется «Все десять»
-    // (`Onboarding.setLabelALL`, пакет 52) — прогон падал по таймауту 7 минут
-    // ТРИ НОЧИ ПОДРЯД, и первым же шагом сценария, то есть весь полный цикл эти
-    // ночи не проверялся вовсе. Переименование строки не должно ронять сценарий
-    // молча: берём имя оттуда же, откуда его берёт экран.
-    // Имя — РЕГУЛЯРКОЙ, а не строкой: доступное имя плитки склеено из трёх её
-    // текстов («Все десять» + описание + «10 комнат»), и точное совпадение по
-    // строке не сработает никогда. Первый прогон 16.08 это и показал — падение
-    // осталось на том же месте.
-    await hostessPage
-      .getByRole("button", { name: new RegExp(ru.Onboarding.setLabelALL) })
-      .click();
-    await hostessPage.getByRole("button", { name: /Дерзкая/ }).click();
+    //
+    // НАБОРОВ ДВА, А НЕ ТРИ (тикет 241, решение владельца 14.08.2026: «пол
+    // определяет дальнейший набор комнат навсегда, никакого смешения»). Здесь
+    // жал «Всё вместе» — набор, которого в продукте больше НЕТ ВОВСЕ: снимок
+    // страницы из упавшего прогона показывает ровно две плитки, «Женская» и
+    // «Мужская». Отсюда и краснота с 14.08 — сценарий выбирал упразднённое, а
+    // не «строка переименовалась».
+    //
+    // НАБОР ВЫБИРАЕТСЯ ПО ДАННЫМ, А НЕ ПО ИМЕНИ — тот же приём, которым
+    // мобильный спек выбирает зону («прибитый гвоздями ключ сделал бы спек
+    // ложно красным»). Сценарию нужна комната «Дерзкая»; в каком она наборе,
+    // знает карта комнат, а не этот файл. Переедет пресет в другой набор —
+    // прогон поедет за ним, а не встанет на семь минут.
+    //
+    // Имя плитки — из словаря и РЕГУЛЯРКОЙ: доступное имя склеено из трёх её
+    // текстов («Женская» + описание + «6 комнат»), точное совпадение по строке
+    // не сработает никогда.
+    const boldPreset = roomPresets.find((preset) => preset.name === BOLD_ROOM);
+    expect(boldPreset, `комната «${BOLD_ROOM}» пропала из карты комнат`).toBeDefined();
+    const setLabel = ru.Onboarding[`setLabel${boldPreset!.sex}` as const];
+    await hostessPage.getByRole("button", { name: new RegExp(setLabel) }).click();
+    await hostessPage.getByRole("button", { name: new RegExp(BOLD_ROOM) }).click();
     await hostessPage.getByRole("button", { name: /Дальше/ }).click();
     // Третий, последний шаг — дата праздника (тикет 43). Дальше по сценарию
     // праздник закрывается ВРУЧНУЮ, поэтому здесь осознанный пропуск: комната
@@ -337,7 +353,7 @@ test("полный цикл дарения: хозяйка → гость → с
       .getByRole("button", { name: new RegExp(ru.Onboarding.occasionSkip) })
       .click();
     await hostessPage.waitForURL(/\/room$/);
-    await expect(hostessPage.getByRole("heading", { name: "Дерзкая" })).toBeVisible();
+    await expect(hostessPage.getByRole("heading", { name: BOLD_ROOM })).toBeVisible();
   });
 
   await test.step("вещь «уже моё» вручную — уезжает в сокровищницу, а не в зону", async () => {
