@@ -1,0 +1,30 @@
+{
+ "asset": "refs/m-hall.jpg — кадр витрины мужских комнат",
+ "answers": "BRIEF-63, п.3",
+ "turn": "64b",
+ "subject": {
+  "chosen": "шкатулка для часов, тёмное дерево, крышка приоткрыта, четыре-пять часов на подушках",
+  "rejectedHumidor": "без сигар — просто ящик; с сигарами — предмет одной привычки, а витрина встречает всех гостей мужской комнаты, включая некурящих",
+  "languageTie": "полка «Часы и аксессуары», глагол «крышка поднимается» — кадр рифмуется с жестом полки"
+ },
+ "mustMatchEtalon": {
+  "file": "refs/c-hall.jpg",
+  "points": [
+   "тёмный витринный куб, стеклянные грани",
+   "ОДИН верхний светильник, круглое пятно света",
+   "мраморный подиум-диск",
+   "предмет по центру нижней трети",
+   "тёмно-синий фон",
+   "квадрат 1:1"
+  ],
+  "why": "по этим точкам сядут виньетка и градиент шапки — иначе экран пересобирать"
+ },
+ "prompt": "Photorealistic product photograph inside a dark museum display cube, glass walls catching faint reflections. A single warm ceiling spotlight from directly above. On a round white marble pedestal stands a dark wood watch collector box with its lid half-open, four or five luxury watches on cream cushions inside, gold hardware catching the light. Deep dark navy background, soft vignette. Composition centered, object in the lower third, generous dark space above. Square 1:1. No people, no readable text, no lettering, no logos, no watermark. 35mm, natural film grain.",
+ "callFields": {
+  "role": "image",
+  "aspect_ratio": "1:1",
+  "note": "1:1 как у эталона — витрина квадратная; 16:9 обязателен только для КОМНАТ"
+ },
+ "acceptance": "глазами владельца на телефоне; сравнение с c-hall.jpg по шести точкам выше",
+ "selection": "кадр выбирается по полу КОМНАТЫ (sex в контракте), нового поля нет: мужским — m-hall.jpg, женским — c-hall.jpg"
+}
