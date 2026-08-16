@@ -30,6 +30,17 @@
 // телефоне с малой яркостью не видно ничего. Всё, что ниже, ловит грубые
 // ошибки и расхождение с пакетом; принимать по этим числам работу нельзя.
 //
+// ТОТ ЖЕ УРОК ВТОРЫМ ЗАХОДОМ — ТИКЕТ 256 (приёмка владельца 16.08.2026):
+// «Свечной свет и Тёплый непонятно чем отличается, я не заметил на комнате.
+// Если разницы нет, то оставь только один из них — Тёплый». Положение снято
+// целиком тем же приёмом, что и ночь: `LIGHT_COLORS` из двух, ветка `candle`
+// удалена из рецептов и из `bloomTint`, строка из БД читается тёплым одним
+// местом (`RETIRED_LIGHT_COLOR`), существующие комнаты переведены миграцией
+// `20260816090000_candle_is_warm`. Числа снятого рецепта — `saturate(1.06)`
+// плюс `rgba(232,168,106,.18)` на `soft-light`: разница есть числом и её нет
+// глазами, потому что фотография и без того снята тёплой. Проверки, которые
+// шли через свечу как через «второй неродной цвет», переписаны на белый.
+//
 // Что здесь по-прежнему защищается:
 // - РОДНОЕ время суток базы даёт ЧИСТУЮ identity: ни фильтра, ни слоя. Кадры
 //   неприкосновенны, а родное — своё у каждой базы: дневная только cottage,
@@ -54,6 +65,7 @@ import {
   NATIVE_LIGHT_COLOR,
   NATIVE_TIME_OF_DAY,
   NATIVE_TIMES_OF_DAY,
+  RETIRED_LIGHT_COLOR,
   RETIRED_TIME_OF_DAY,
   TIMES_OF_DAY,
   TOD_FACTOR,
@@ -93,6 +105,52 @@ describe("положений ручки три — ночь упразднена
     // честнее: ровно к нему её и приравняли.
     expect(asTimeOfDay(RETIRED_TIME_OF_DAY)).toBe("dusk");
     expect(asTimeOfDay("night")).not.toBe(NATIVE_TIME_OF_DAY);
+  });
+});
+
+describe("положений света два — «свечной» упразднён (тикет 256)", () => {
+  it("выбрать можно тёплый и белый, и больше ничего", () => {
+    // Приёмка владельца 16.08.2026: «Свечной свет и Тёплый непонятно чем
+    // отличается, я не заметил на комнате. Если разницы нет, то оставь только
+    // один из них — Тёплый». Два одинаковых положения — ложь интерфейсу, и
+    // приём тот же, каким уходила ночь: положение снято целиком.
+    expect([...LIGHT_COLORS]).toEqual(["warm", "white"]);
+    expect([...LIGHT_COLORS]).not.toContain(RETIRED_LIGHT_COLOR);
+  });
+
+  it("уцелевший в БД `candle` читается ТЁПЛЫМ, а не как придётся", () => {
+    // Миграция `candle_is_warm` прошла по базе, но старый кэш, чужой дамп или
+    // ручная правка строки остались бы. Наследника назвал сам владелец —
+    // «оставь только Тёплый», — и правило названо в коде, а не оставлено
+    // совпадением с родным положением: `asLightColor` читает свечу отдельной
+    // строкой, и она обязана пережить любую правку `NATIVE_LIGHT_COLOR`.
+    expect(RETIRED_LIGHT_COLOR).toBe("candle");
+    expect(asLightColor(RETIRED_LIGHT_COLOR)).toBe("warm");
+  });
+
+  it("рецепта свечи не осталось: ни фильтра, ни янтарной плёнки, ни тона", () => {
+    // Тот же приём, каким выше ловится невозврат синего слоя ночи: перебором
+    // ВСЕХ сочетаний, а не чтением файла. Мёртвому ключу в `LIGHT_RECIPES`
+    // завестись не дадут (`Record<LightColor, …>`), а вот `bloomTint` типом не
+    // стережётся — четвёртая ветка ушла бы оттуда молча.
+    const cream = rooms.find((room) => room.id === "cream");
+    if (!cream) throw new Error("нет пресета cream");
+    for (const color of LIGHT_COLORS) {
+      expect(bloomTint(color, cream.accent), color).not.toBe("#E8A96B");
+      for (const native of NATIVE_TIMES_OF_DAY) {
+        for (const tod of TIMES_OF_DAY) {
+          expect(gradingFilter(tod, color, native), `${native} → ${tod} · ${color}`).not.toContain(
+            "saturate(1.06)",
+          );
+          for (const layer of gradingLayers(tod, color, native)) {
+            expect(layer.overlay, `${native} → ${tod} · ${color}`).not.toContain("232,168,106");
+          }
+        }
+      }
+    }
+    // Свечная комната светит акцентом своей комнаты — ровно тем, что владелец
+    // и видел, выбирая «свечной».
+    expect(bloomTint(asLightColor(RETIRED_LIGHT_COLOR), cream.accent)).toBe(cream.accent);
   });
 });
 
@@ -184,10 +242,14 @@ describe("вечер смягчён — но только там, где он Р
 
 describe("рецепты — дословно из спецификации", () => {
   it("две ручки складываются: фильтры в одну строку, слои по одному на ручку", () => {
-    expect(gradingFilter("dusk", "candle", "day")).toBe(
-      "brightness(.84) saturate(1.05) saturate(1.06)",
+    // СЛОЖЕНИЕ ПРОВЕРЯЕТСЯ БЕЛЫМ, А НЕ СВЕЧНЫМ (тикет 256): свечного больше
+    // нет, а неродных цветов у нас ровно один — белый. Проверка та же и в той
+    // же силе: у света свой фильтр и свой слой, и оба обязаны лечь ПОВЕРХ
+    // времени суток, а не вместо него.
+    expect(gradingFilter("dusk", "white", "day")).toBe(
+      "brightness(.84) saturate(1.05) saturate(.8)",
     );
-    const layers = gradingLayers("dusk", "candle", "day");
+    const layers = gradingLayers("dusk", "white", "day");
     expect(layers).toHaveLength(2);
     expect(layers[0]?.blend).toBe("soft-light");
     expect(layers[1]?.blend).toBe("soft-light");
@@ -240,7 +302,6 @@ describe("светлота и метки зон", () => {
     if (!cream) throw new Error("нет пресета cream");
     expect(bloomTint("warm", cream.accent)).toBe(cream.accent);
     expect(bloomTint("white", cream.accent)).toBe("#EDEAE4");
-    expect(bloomTint("candle", cream.accent)).toBe("#E8A96B");
   });
 });
 
@@ -304,11 +365,12 @@ describe("пустая комната — темнота (тикет 104)", () =
   });
 
   it("вуаль пустоты кладётся ПОСЛЕДНИМ слоем — поверх грейдинга", () => {
-    // Вечер несёт один слой, свеча — второй, вуаль пустоты — третья.
-    const layers = sceneLayers("dusk", "candle", true, "day");
+    // Вечер несёт один слой, белый свет — второй, вуаль пустоты — третья.
+    // Свеча была третьим слоем до тикета 256; порядок это не изменило.
+    const layers = sceneLayers("dusk", "white", true, "day");
     expect(layers).toHaveLength(3);
     expect(layers[2]).toEqual(EMPTY_ROOM_VEIL);
-    expect(sceneLayers("dusk", "candle", false, "day")).toHaveLength(2);
+    expect(sceneLayers("dusk", "white", false, "day")).toHaveLength(2);
   });
 });
 

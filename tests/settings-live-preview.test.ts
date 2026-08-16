@@ -167,22 +167,27 @@ describe("кадр в разметке", () => {
   // хороший, но один. Теперь выбранное сказано словами, и сравнивать плитку
   // с соседями не нужно.
   it("под кадром сказано словами, что именно выбрано — комната, время и свет", () => {
-    const markup = renderFrame(GUEST, "dusk", "candle");
+    const markup = renderFrame(GUEST, "dusk", "white");
     expect(markup).toContain(GUEST.name);
     expect(markup).toContain(ru.Settings.state_dusk);
-    expect(markup).toContain(ru.Settings.state_candle);
+    expect(markup).toContain(ru.Settings.state_white);
     // Не только видно, но и слышно: кадр читалке не говорит ничего.
     expect(markup).toContain('aria-live="polite"');
     expect(markup).toContain(`--preview-accent:${GUEST.accent}`);
   });
 
   it("строка состояния меняется вместе с ручками, а не показывает одно и то же", () => {
-    const dusk = renderFrame(HOME, "dusk", "candle");
-    const morning = renderFrame(HOME, "morning", "white");
+    // ЦВЕТА ЗДЕСЬ ДВА, А НЕ ТРИ (тикет 256): «свечной» упразднён — владелец не
+    // отличил его от тёплого на комнате. Проверка та же: обе ручки обязаны
+    // менять строку, и ни одно положение не должно называть чужое слово.
+    const dusk = renderFrame(HOME, "dusk", "white");
+    const morning = renderFrame(HOME, "morning", "warm");
     expect(dusk).toContain(ru.Settings.state_dusk);
-    expect(dusk).not.toContain(ru.Settings.state_white);
+    expect(dusk).toContain(ru.Settings.state_white);
+    expect(dusk).not.toContain(ru.Settings.state_warm);
     expect(morning).toContain(ru.Settings.state_morning);
-    expect(morning).not.toContain(ru.Settings.state_candle);
+    expect(morning).toContain(ru.Settings.state_warm);
+    expect(morning).not.toContain(ru.Settings.state_white);
   });
 
   // НАСТОЯЩИЙ КРОССФЕЙД, А НЕ ПОДМЕНА ГРАДИЕНТА (пакет 43). Пока слои
@@ -195,8 +200,8 @@ describe("кадр в разметке", () => {
     const layers = (markup: string) => [...markup.matchAll(/mix-blend-mode:/gu)].length;
     const lit = (markup: string) => [...markup.matchAll(/opacity:1/gu)].length;
 
-    const dusk = renderFrame(HOME, "dusk", "candle");
-    const morning = renderFrame(HOME, "morning", "white");
+    const dusk = renderFrame(HOME, "dusk", "white");
+    const morning = renderFrame(HOME, "morning", "warm");
 
     expect(layers(dusk)).toBeGreaterThan(0);
     expect(layers(morning)).toBe(layers(dusk));
@@ -333,10 +338,24 @@ describe("примерка — состояние с именем и второ�
 // ---------- Числа положений света ----------
 
 describe("положения света", () => {
-  it("три положения времени суток и три цвета — столько же, сколько в контракте", () => {
+  it("три положения времени суток и два цвета — столько же, сколько в контракте", () => {
     expect(TIMES_OF_DAY).toHaveLength(3); // «ночь» упразднена, тикет 133
-    expect(LIGHT_COLORS).toHaveLength(3);
-    expect(css).toMatch(/\.knobRow\s*\{[^}]*grid-template-columns:\s*repeat\(3,/u);
+    expect(LIGHT_COLORS).toHaveLength(2); // «свечной» упразднён, тикет 256
+  });
+
+  // РЯДЫ РАЗНОЙ ДЛИНЫ — И ЧИСЛА КОЛОНОК В CSS НЕТ НИ ОДНОГО (тикет 256).
+  // Пока в правиле стояло `repeat(3, …)`, ряд света остался бы с пустой
+  // клеткой на месте снятого положения: класс `.knobRow` один на оба ряда.
+  // Теперь колонки считает сам grid по числу детей — снимут положение или
+  // вернут, здесь править нечего, и соврать этому файлу больше нечем.
+  it("колонок в ряду столько, сколько положений, — число не написано руками", () => {
+    expect(css).toMatch(/\.knobRow\s*\{[^}]*grid-auto-flow:\s*column/u);
+    expect(css).toMatch(/\.knobRow\s*\{[^}]*grid-auto-columns:\s*minmax\(0, 1fr\)/u);
+    expect(css).not.toMatch(/grid-template-columns:\s*repeat\(\d/u);
+    // Оба ряда набраны перебором словаря, а не списком руками — иначе снятое
+    // положение однажды вернулось бы отдельной строкой.
+    expect(sections).toContain("{TIMES_OF_DAY.map((option) => (");
+    expect(sections).toContain("{LIGHT_COLORS.map((option) => (");
   });
 
   it("цель нажатия — не меньше 44 (контракт rooms.json → hitTargetMin)", () => {
@@ -377,7 +396,6 @@ describe("строки кадра", () => {
     "state_dusk",
     "state_warm",
     "state_white",
-    "state_candle",
     "tryOn",
     "tryOnLine",
     "tryOnCancel",
@@ -389,6 +407,28 @@ describe("строки кадра", () => {
       expect(typeof en.Settings[key]).toBe("string");
     });
   }
+
+  // СНЯТОЕ ПОЛОЖЕНИЕ УНОСИТ СВОИ СТРОКИ (тикет 256, тот же приём и тот же
+  // довод, что у «ночи» в тикете 133): сирота без употребления рано или поздно
+  // возвращается в интерфейс как «готовая строка», а `Settings.state_candle`
+  // при этом ещё и сериализуется в разметку КАЖДОЙ страницы (правило тикета
+  // 29). Проверка двусторонняя: снятого нет, живое на месте — иначе ряд
+  // положений показал бы человеку имя ключа.
+  it("строк «Свечной» и «свечной свет» в словаре не осталось", () => {
+    for (const dict of [ru.Settings, en.Settings] as Record<string, string>[]) {
+      expect(dict).not.toHaveProperty("light_candle");
+      expect(dict).not.toHaveProperty("state_candle");
+    }
+  });
+
+  it("у каждого живого положения света подпись и слово состояния на месте", () => {
+    for (const color of LIGHT_COLORS) {
+      expect(ru.Settings[`light_${color}`], color).toBeTruthy();
+      expect(en.Settings[`light_${color}`], color).toBeTruthy();
+      expect(ru.Settings[`state_${color}`], color).toBeTruthy();
+      expect(en.Settings[`state_${color}`], color).toBeTruthy();
+    }
+  });
 
   it("строка состояния собирается из трёх мест, а не из одного", () => {
     // Иначе она называла бы комнату и молчала про свет — то есть повторяла бы

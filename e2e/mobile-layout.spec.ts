@@ -1244,9 +1244,13 @@ test("настройки: кадр во всю ширину и держится,
   // ПРАВИЛО: кадр остаётся на виду, пока человек внутри блока «Интерьер +
   // Свет». Прокручиваем к НИЖНЕЙ ручке — цвету света — и требуем кадр на
   // экране: ради этого случая липкость и заведена.
-  const colorRow = page.getByRole("button", { name: "Свечной" });
+  // Нижняя ручка — ПОСЛЕДНЕЕ положение цвета света, и с тикета 256 это «Белый»:
+  // «свечной» упразднён (владелец не отличил его от тёплого на комнате), в ряду
+  // осталось два положения. Проверка та же: доехать до последней ручки блока и
+  // потребовать кадр на экране.
+  const colorRow = page.getByRole("button", { name: "Белый" });
   await colorRow.scrollIntoViewIfNeeded();
-  const knob = await rectOf(colorRow, "положение «Свечной»");
+  const knob = await rectOf(colorRow, "положение «Белый»");
   const stuck = await rectOf(page.locator("main img, main [class*='frame']").first(), "кадр после прокрутки");
   const viewport = await page.evaluate(() => document.documentElement.clientHeight);
 

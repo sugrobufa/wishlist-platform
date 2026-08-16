@@ -37,7 +37,28 @@ export const TIMES_OF_DAY = ["morning", "day", "dusk"] as const;
  * контракт его подтвердил. Считает теперь тест, а не память.
  */
 export const NATIVE_TIMES_OF_DAY = ["morning", "day", "dusk", "night"] as const;
-export const LIGHT_COLORS = ["warm", "white", "candle"] as const;
+
+/**
+ * ПОЛОЖЕНИЯ ЦВЕТА СВЕТА — вторая ручка. Их ДВА.
+ *
+ * «СВЕЧНОГО» СРЕДИ НИХ БОЛЬШЕ НЕТ (тикет 256, приёмка владельца 16.08.2026:
+ * «Свечной свет и Тёплый непонятно чем отличается, я не заметил на комнате.
+ * Если разницы нет, то оставь только один из них — Тёплый»).
+ *
+ * ЧТО У НЕГО БЫЛО ЧИСЛАМИ: `saturate(1.06)` и слой `rgba(232,168,106,.18)` на
+ * `soft-light` — янтарная плёнка в 18% поверх фотографии, которая и без того
+ * снята тёплой. Разница есть числом, и её нет глазами: тот же урок, что у ночи
+ * (тикет 112), — **свет принимается на телефоне, а не числом**.
+ *
+ * ПОЧЕМУ СНЯЛИ ПОЛОЖЕНИЕ, А НЕ ПРИРАВНЯЛИ ЕГО К ТЁПЛОМУ: два одинаковых
+ * положения — ложь интерфейсу. Человек выбирает «свечной», видит тёплый и
+ * решает, что сломалось. Тем же доводом и тем же приёмом уходила «ночь»
+ * (тикет 133) — здесь он повторён буква в букву.
+ *
+ * Вернуть положение можно, но только рецептом, который видно на телефоне
+ * (письмо дизайну 63): приёмка глазами, а не замером.
+ */
+export const LIGHT_COLORS = ["warm", "white"] as const;
 
 export type TimeOfDay = (typeof TIMES_OF_DAY)[number];
 export type NativeTimeOfDay = (typeof NATIVE_TIMES_OF_DAY)[number];
@@ -48,11 +69,18 @@ export const NATIVE_TIME_OF_DAY: TimeOfDay = "day";
 export const NATIVE_LIGHT_COLOR: LightColor = "warm";
 
 /**
- * Упразднённое положение — строка, которая ещё лежит в БД у комнат, заведённых
- * до тикета 133. Миграция `20260810090000_night_is_dusk` переписала их в
- * `dusk`; константа остаётся ради чтения, а не записи.
+ * Упразднённое положение ВРЕМЕНИ СУТОК — строка, которая ещё лежит в БД у
+ * комнат, заведённых до тикета 133. Миграция `20260810090000_night_is_dusk`
+ * переписала их в `dusk`; константа остаётся ради чтения, а не записи.
  */
 export const RETIRED_TIME_OF_DAY = "night";
+
+/**
+ * Упразднённое положение СВЕТА — строка, которая ещё лежит в БД у комнат,
+ * выбравших «свечной» до тикета 256. Миграция `20260816090000_candle_is_warm`
+ * переписала их в `warm`; константа остаётся ради чтения, а не записи.
+ */
+export const RETIRED_LIGHT_COLOR = "candle";
 
 /**
  * Строка из БД → положение; мусор читается как родное, а не падает.
@@ -70,8 +98,25 @@ export function asTimeOfDay(value: unknown): TimeOfDay {
   return NATIVE_TIME_OF_DAY;
 }
 
+/**
+ * Строка из БД → цвет света; мусор читается как родное, а не падает.
+ *
+ * ЗДЕСЬ ЖЕ — ЕДИНСТВЕННОЕ МЕСТО ПРАВИЛА «candle → warm» (тикет 256, тем же
+ * приёмом, что и «night → dusk» выше). Миграция уже прошла по базе, но правило
+ * нужно и после неё: старый кэш, чужой дамп, ручная правка строки.
+ *
+ * ВЕТКА СОВПАДАЕТ С ПАДЕНИЕМ В РОДНОЕ, И ЭТО НЕ СЛУЧАЙНОСТЬ, А РЕШЕНИЕ. У ночи
+ * наследником было СОСЕДНЕЕ положение (`dusk`), а не родное, — без ветки
+ * комната прыгнула бы в чужое время суток. Здесь наследника назвал владелец
+ * прямо («оставь только Тёплый»), и он же оказался родным. Строка стоит, чтобы
+ * правило было НАЗВАНО и заперто тестом: без неё оно превратится в невидимое
+ * совпадение, и первая же правка `NATIVE_LIGHT_COLOR` молча уведёт свечные
+ * комнаты в белый.
+ */
 export function asLightColor(value: unknown): LightColor {
-  return LIGHT_COLORS.includes(value as LightColor) ? (value as LightColor) : NATIVE_LIGHT_COLOR;
+  if (LIGHT_COLORS.includes(value as LightColor)) return value as LightColor;
+  if (value === RETIRED_LIGHT_COLOR) return "warm";
+  return NATIVE_LIGHT_COLOR;
 }
 
 /**
@@ -242,16 +287,21 @@ function todRecipe(native: NativeTimeOfDay, target: TimeOfDay): Recipe {
   return TRANSITION[native][target] ?? IDENTITY;
 }
 
-/** Рецепты цвета света. `warm` = как снято = identity. */
+/**
+ * Рецепты цвета света. `warm` = как снято = identity.
+ *
+ * РЕЦЕПТОВ ДВА, И ТРЕТЬЕГО НЕТ (тикет 256). У «свечного» было
+ * `saturate(1.06)` со слоем `rgba(232,168,106,.18)` на `soft-light` — тёплая
+ * плёнка поверх и без того тёплой фотографии; владелец не отличил её от
+ * тёплого на самой комнате, а два одинаковых положения — ложь интерфейсу.
+ * Мёртвому ключу тут завестись не дадут: `Record<LightColor, …>` знает ровно
+ * те положения, что человек может выбрать.
+ */
 const LIGHT_RECIPES: Record<LightColor, { filter: string | null; layer: GradeLayer | null }> = {
   warm: { filter: null, layer: null },
   white: {
     filter: "saturate(.8)",
     layer: { overlay: "rgba(233,237,242,.12)", blend: "soft-light" },
-  },
-  candle: {
-    filter: "saturate(1.06)",
-    layer: { overlay: "rgba(232,168,106,.18)", blend: "soft-light" },
   },
 };
 
@@ -422,9 +472,13 @@ export function sceneLayers(
   return empty ? [...layers, EMPTY_ROOM_VEIL] : layers;
 }
 
-/** Тон свечения метки зоны: тёплый берёт акцент комнаты, остальные — свой. */
+/**
+ * Тон свечения метки зоны: тёплый берёт акцент комнаты, белый — свой.
+ *
+ * ТОНА `#E8A96B` ЗДЕСЬ БОЛЬШЕ НЕТ (тикет 256): он был у «свечного» и ушёл
+ * вместе с положением. Комнаты, которым миграция поставила тёплый, светят
+ * акцентом своей комнаты — ровно тем, что владелец и видел, выбирая «свечной».
+ */
 export function bloomTint(color: LightColor, accent: string): string {
-  if (color === "white") return "#EDEAE4";
-  if (color === "candle") return "#E8A96B";
-  return accent;
+  return color === "white" ? "#EDEAE4" : accent;
 }
