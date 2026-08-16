@@ -90,13 +90,23 @@ export default async function GuestHallPage({ params }: Params) {
           aria-hidden
         />
         <div className={s.heroVignette} aria-hidden />
-        <div className="absolute inset-x-0 bottom-0 mx-auto w-full max-w-3xl px-5 pb-5 lg:px-0">
-          <Link href={back} className="pressable text-xs font-semibold text-text-strong">
+        {/* ЗНАК «НАЗАД» — В ВЕРХНЕМ ЛЕВОМ УГЛУ КАДРА, СВОЕЙ КОРОБКОЙ (тикет
+            257, приёмка владельца 16.08.2026). Замечание было про витрину
+            хозяйки, но место знака не может зависеть ни от того, есть ли вещи,
+            ни от того, чья это витрина: коробка и её числа общие, живут в
+            `hall.module.css` (`heroBack`, `heroBackLink`). */}
+        <div className={`${s.heroBack} mx-auto w-full max-w-3xl px-5 lg:px-0`}>
+          <Link
+            href={back}
+            className={`pressable ${s.heroBackLink} text-xs font-semibold text-text-strong`}
+          >
             ← {t("guestBack")}
           </Link>
+        </div>
+        <div className="absolute inset-x-0 bottom-0 mx-auto w-full max-w-3xl px-5 pb-5 lg:px-0">
           {/* Заголовок говорит именем хозяйки: это её витрина, и гость пришёл
               смотреть на неё, а не на «сокровищницу вообще». */}
-          <h1 className="display mt-3 text-3xl lg:text-4xl">
+          <h1 className="display text-3xl lg:text-4xl">
             {hall.ownerName === null ? t("title") : t("guestTitle", { name: hall.ownerName })}
           </h1>
           {/* «Всё здесь уже дома» (раунд 19): гость сразу понимает, что тут

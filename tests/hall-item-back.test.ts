@@ -103,3 +103,99 @@ describe("242 — подсказка сокровищницы", () => {
     expect(hint).not.toMatch(/(ла|лась)\b/u);
   });
 });
+
+/**
+ * 257 — ЗНАК «НАЗАД» В ВЕРХНЕМ УГЛУ КАДРА, А ПУСТАЯ ВИТРИНА ГОВОРИТ ДВУМЯ
+ * СТРОКАМИ. Приёмка владельца 16.08.2026: «в пустой сокровищнице кнопка
+ * „Вернуться" не на том месте, надо выше в угол. Также перепиши текст проще…
+ * плюс пояснение что здесь хранится».
+ *
+ * ПОЧЕМУ ЗНАК СТОЯЛ НИЗКО. Он был первой строкой в той же коробке, что заголовок
+ * и счётчик, — а она прижата к НИЗУ кадра. На полной витрине это читалось
+ * шапкой, на пустой знак повисал у середины экрана. Отсюда и мера сторожа:
+ * у знака СВОЯ коробка, и стоит она выше нижней в обоих состояниях и на обеих
+ * витринах — место знака не может зависеть от того, есть ли вещи.
+ *
+ * Проверяется РАЗМЕТКОЙ и ПРАВИЛОМ CSS, а не рендером: обе страницы за одним
+ * запросом ходят в БД, а вся починка — в том, какая коробка держит знак и от
+ * чего считается её отступ. Рендерная половина витрины живёт отдельно
+ * (tests/hall-owner-subtitle.test.ts) и своё правило показа стережёт сама.
+ */
+describe("257 — знак витрины уехал в верхний угол кадра", () => {
+  const OWNER_HALL = readFileSync(resolve(process.cwd(), "src/app/room/hall/page.tsx"), "utf8");
+  const GUEST_HALL = readFileSync(resolve(process.cwd(), "src/app/r/[slug]/hall/page.tsx"), "utf8");
+  const HALL_CSS = readFileSync(
+    resolve(process.cwd(), "src/components/hall/hall.module.css"),
+    "utf8",
+  );
+
+  /** Тело правила `.name { … }` из текста CSS; null — правила нет. */
+  const ruleOf = (css: string, name: string): string | null =>
+    new RegExp(String.raw`^\.${name}\s*\{([^}]*)\}`, "mu").exec(css)?.[1] ?? null;
+
+  const pages: ReadonlyArray<readonly [string, string]> = [
+    ["хозяйки", OWNER_HALL],
+    ["гостя", GUEST_HALL],
+  ];
+
+  for (const [whose, page] of pages) {
+    it(`витрина ${whose}: знак в своей коробке, и она выше коробки заголовка`, () => {
+      expect(page).toContain("${s.heroBack} mx-auto w-full max-w-3xl px-5 lg:px-0");
+      expect(page).toContain("pressable ${s.heroBackLink}");
+      // Поля у обеих коробок одни и те же: знак обязан стоять по одной левой
+      // кромке с заголовком и на телефоне, и на десктопе.
+      const signAt = page.indexOf("s.heroBack");
+      const bottomBoxAt = page.indexOf("absolute inset-x-0 bottom-0");
+      expect(bottomBoxAt, "нижняя коробка шапки пропала").toBeGreaterThan(-1);
+      expect(signAt, "знак вернулся в нижнюю коробку").toBeGreaterThan(-1);
+      expect(signAt).toBeLessThan(bottomBoxAt);
+    });
+  }
+
+  it("отступ сверху считает вырез камеры, цель нажатия — 44", () => {
+    const box = ruleOf(HALL_CSS, "heroBack");
+    expect(box, "в hall.module.css нет правила .heroBack").not.toBeNull();
+    expect(box).toMatch(/position:\s*absolute/u);
+    expect(box).toMatch(/left:\s*0/u);
+    // 12 — тот же отступ, что у знака в углу комнаты (`--imm-corner-top`);
+    // инсет чёлки прибавлен по той же причине: под вырезом знака не нажать.
+    expect(box).toMatch(/top:\s*calc\(12px \+ env\(safe-area-inset-top, 0px\)\)/u);
+
+    const link = ruleOf(HALL_CSS, "heroBackLink");
+    expect(link, "в hall.module.css нет правила .heroBackLink").not.toBeNull();
+    expect(link).toMatch(/min-height:\s*var\(--hit-target-min, 44px\)/u);
+  });
+});
+
+describe("257 — пустая витрина: обещание с действием и пояснение места", () => {
+  const OWNER_HALL = readFileSync(resolve(process.cwd(), "src/app/room/hall/page.tsx"), "utf8");
+  const GUEST_HALL = readFileSync(resolve(process.cwd(), "src/app/r/[slug]/hall/page.tsx"), "utf8");
+
+  it("страница хозяйки рисует ОБЕ строки, а не одну", () => {
+    expect(OWNER_HALL).toContain('{t("empty")}');
+    expect(OWNER_HALL).toContain('{t("emptyHint")}');
+  });
+
+  it("обещание зовёт действием, а не зачитывает три дороги сюда", () => {
+    const empty: string = ru.Hall.empty;
+    expect(empty).toContain("добавь");
+    // Перечисление нарушало устав самого дизайна (пакет 50): пустое состояние —
+    // одно обещание и одно действие.
+    expect(empty).not.toContain("Дошло");
+    expect(empty).not.toMatch(/из зоны/u);
+  });
+
+  it("пояснение вмещает оба источника — купленное самой и подаренное", () => {
+    const emptyHint: string = ru.Hall.emptyHint;
+    // Подарки приезжают сюда сами, после «Дошло»: строка, называющая только
+    // покупки, врала бы про половину витрины.
+    expect(emptyHint).toMatch(/куплен/u);
+    expect(emptyHint).toMatch(/подарен/u);
+  });
+
+  it("гостевая пустая витрина не тронута — у гостя нет действия", () => {
+    expect(ru.Hall.guestEmpty).toBe("Здесь пока пусто — загляни попозже");
+    expect(GUEST_HALL).toContain('t("guestEmpty")');
+    expect(GUEST_HALL).not.toContain('t("emptyHint")');
+  });
+});

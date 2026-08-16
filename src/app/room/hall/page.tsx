@@ -85,11 +85,22 @@ export default async function HallPage() {
           aria-hidden
         />
         <div className={s.heroVignette} aria-hidden />
-        <div className="absolute inset-x-0 bottom-0 mx-auto w-full max-w-3xl px-5 pb-5 lg:px-0">
-          <Link href="/room" className="pressable text-xs font-semibold text-text-strong">
+        {/* ЗНАК «НАЗАД» — В ВЕРХНЕМ ЛЕВОМ УГЛУ КАДРА, СВОЕЙ КОРОБКОЙ (тикет
+            257, приёмка владельца 16.08.2026). В нижней коробке он повисал у
+            середины экрана, когда витрина пуста и заголовку не с чем стоять;
+            место знака не может зависеть от того, есть ли вещи. Отступ сверху
+            и цель нажатия 44 — в `hall.module.css` (`heroBack`,
+            `heroBackLink`), там же и разбор чисел. */}
+        <div className={`${s.heroBack} mx-auto w-full max-w-3xl px-5 lg:px-0`}>
+          <Link
+            href="/room"
+            className={`pressable ${s.heroBackLink} text-xs font-semibold text-text-strong`}
+          >
             ← {t("backToRoom")}
           </Link>
-          <h1 className="display mt-3 text-3xl lg:text-4xl">{t("title")}</h1>
+        </div>
+        <div className="absolute inset-x-0 bottom-0 mx-auto w-full max-w-3xl px-5 pb-5 lg:px-0">
+          <h1 className="display text-3xl lg:text-4xl">{t("title")}</h1>
           {/* СТРОКА СЧЁТЧИКА ГОВОРИТ И О МЕСТЕ: «26 вещей · уже твои» (тикет
               220, пакет 48 → `round48/hall-owner.json`). `ownerSubtitle` —
               пара к гостевой `guestSubtitle` («всё здесь уже дома»): то же
@@ -118,9 +129,10 @@ export default async function HallPage() {
             условие, а сюда приезжает всё, что уже его, включая подаренный крем.
 
             ТОЛЬКО ПРИ НЕПУСТОЙ ВИТРИНЕ — правило тикета 214 не менялось. У
-            пустой это место занято `Hall.empty`, где сказано то же самое и
-            названы три дороги сюда: две объяснительные строки подряд читаются
-            уже инструкцией.
+            пустой это место занято своей парой строк (`Hall.empty` и
+            `Hall.emptyHint` ниже, тикет 257): она говорит то же самое своими
+            словами, и третья объяснительная строка подряд читается уже
+            инструкцией.
 
             И НЕ ПРЯЧЕТСЯ ПОСЛЕ ПЕРВОГО ПОКАЗА (`persistent` в контракте):
             витрина не объясняет себя никогда, ни на первом заходе, ни на
@@ -141,7 +153,26 @@ export default async function HallPage() {
         {items.length > 0 ? (
           <HallShowcase items={items} accent={accent} />
         ) : (
-          <p className="max-w-md text-sm leading-relaxed text-text-muted">{t("empty")}</p>
+          /* ПУСТАЯ ВИТРИНА ГОВОРИТ ДВУМЯ СТРОКАМИ (тикет 257, приёмка
+             владельца 16.08.2026: «перепиши текст проще… плюс пояснение, что
+             здесь хранится»). Первая — обещание с действием, вторая тише —
+             что это за место.
+
+             ПРЕЖНЯЯ ОДНА СТРОКА ПЕРЕЧИСЛЯЛА ТРИ ДОРОГИ СЮДА («Добавить вещь» ·
+             «В сокровищницу» из меню вещи · «Дошло»), и это была инструкция
+             вместо приглашения. Спорила она не с нашим вкусом, а с уставом
+             самого дизайна (пакет 50): пустое состояние — ОДНО обещание и
+             ОДНО действие. Дороги никуда не делись, просто их больше не
+             зачитывают: та, что нужна прямо здесь, стоит кнопкой выше.
+
+             Пояснение НЕ ВРЁТ ПРО ПОДАРКИ: сюда приезжает и купленное самой, и
+             подаренное (после «Дошло» — само), поэтому строка вмещает оба
+             случая. Тише первой на ступень тона и на пиксель кегля: две равные
+             строки подряд снова читались бы инструкцией. */
+          <div className="max-w-md">
+            <p className="text-sm leading-relaxed text-text-body">{t("empty")}</p>
+            <p className="mt-2 text-[13px] leading-relaxed text-text-muted">{t("emptyHint")}</p>
+          </div>
         )}
       </div>
 
