@@ -21,6 +21,7 @@ import path from "node:path";
 import { devices, expect, test, type Page } from "@playwright/test";
 import { Worker } from "bullmq";
 import IORedis from "ioredis";
+import ru from "../messages/ru.json";
 import { prisma } from "../src/server/db";
 import { MAIL_QUEUE_NAME } from "../src/server/queues";
 import { processMailJob } from "../src/worker/mail";
@@ -307,7 +308,13 @@ test("полный цикл дарения: хозяйка → гость → с
     // подборке (`src/app/room/starter-pack.tsx`). Поэтому исчезли и заголовок
     // «Что чаще всего хочется?», и кнопка «Пропустить», которую этот прогон
     // жал третьим действием: пропуск теперь — просто листать дальше.
-    await hostessPage.getByRole("button", { name: /Всё вместе/ }).click();
+    // ПЛИТКА НАБОРА ЗОВЁТСЯ ИЗ СЛОВАРЯ, А НЕ ИЗ ПАМЯТИ (16.08.2026). Здесь
+    // стояла строка «Всё вместе», а плитка давно называется «Все десять»
+    // (`Onboarding.setLabelALL`, пакет 52) — прогон падал по таймауту 7 минут
+    // ТРИ НОЧИ ПОДРЯД, и первым же шагом сценария, то есть весь полный цикл эти
+    // ночи не проверялся вовсе. Переименование строки не должно ронять сценарий
+    // молча: берём имя оттуда же, откуда его берёт экран.
+    await hostessPage.getByRole("button", { name: ru.Onboarding.setLabelALL }).click();
     await hostessPage.getByRole("button", { name: /Дерзкая/ }).click();
     await hostessPage.getByRole("button", { name: /Дальше/ }).click();
     // Третий, последний шаг — дата праздника (тикет 43). Дальше по сценарию
