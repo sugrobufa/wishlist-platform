@@ -903,8 +903,35 @@ body {
   padding: 0 2px 12px;
   border-bottom: 2px solid;
   color: var(--color-text-primary, #fff9f2);
-  font-size: 15px;
+  /* Кегль 17, было 15 (`round58/empty-cta.json` → `label.type`, турн 64a):
+     ответ дизайна на «кнопку не хочется нажимать». Заливка и рамка отклонены
+     им же — «язык главного действия один на продукт». */
+  font-size: 17px;
   font-weight: 700;
+  /* ДЫХАНИЕ ОРЕОЛА — ТОЛЬКО ЗДЕСЬ (`halo.breathing.where`: «в обычной комнате
+     у полосы есть соседи и дело, пульс стал бы шумом»). Класс живёт ровно на
+     одном экране, поэтому правило и не нуждается в оговорках.
+     Альфы и период приезжают инлайн: цвет — акцент комнаты (данные), период —
+     из `motion.json`, «тот же, что дыхание кадра». */
+  animation: imm-empty-cta-breath var(--imm-cta-breath-ms, 15000ms) ease-in-out infinite alternate;
+}
+
+@keyframes imm-empty-cta-breath {
+  from {
+    box-shadow: var(--imm-cta-halo-lo);
+  }
+
+  to {
+    box-shadow: var(--imm-cta-halo-hi);
+  }
+}
+
+/* Покой — верхняя точка размаха (.62): при выключенном движении полоса светит
+   ровно так, как контракт описывает «rest», а не как середина дыхания. */
+@media (prefers-reduced-motion: reduce) {
+  .imm-rail .imm-empty-cta {
+    animation: none;
+  }
 }
 
 .imm-empty-cta-label {

@@ -226,14 +226,26 @@ describe("что на пустой комнате ВИДНО (41a, сверху 
     expect(ownerPage).toMatch(/\{!emptyRoom && \(\s*<Link\s+href="\/room\/add"/u);
   });
 
-  it("первое действие новичка — «Добавить первую вещь», а не поход в магазин", () => {
+  it("первое действие новичка — поставить вещь, а не поход в магазин", () => {
     // РЕШЕНИЕ ВЛАДЕЛЬЦА 11.08.2026 (тикет 190): «на самом первом экране
     // вставить ссылку из магазина — лишняя активность, там нужна просто кнопка
     // добавить свою первую вещь… простое и понятное действие, которое онбордит
     // клиента». Прежняя редакция требовала от человека с пустой комнатой и
     // пустым буфером трёх шагов чужими руками: уйти в магазин, найти вещь,
     // скопировать адрес.
-    expect(ru.Room?.emptyAdd).toBe("Добавить первую вещь");
+    // ГЛАГОЛ СМЕНИЛСЯ, РЕШЕНИЕ — НЕТ (тикет 255, пакет 58 → `empty-cta.json`,
+    // турн 64a). Владелец 16.08: «кнопку не хочется нажимать». Дизайн оставил
+    // полосу света, но сменил глагол на комнатный: «Поставить первую вещь» —
+    // как «Поставить в ряд» у зон; «Добавить» он назвал глаголом списка,
+    // «он и звал как список». Требование тикета 190 при этом целое: действие
+    // по-прежнему ОДНО и не ведёт в магазин.
+    //
+    // Слово читается из контракта, а не набито здесь: разойдётся пакет с
+    // продуктом — падаем на этой строке, а не подстраиваемся молча.
+    const ctaContract = JSON.parse(
+      read("../design/package/handoff/round58/empty-cta.json"),
+    ) as { label: { now: string; was: string } };
+    expect(ru.Room?.emptyAdd).toBe(ctaContract.label.now);
     // Ловим не только новое слово, но и НЕВОЗВРАТ старого — включая любую
     // редакцию, которая снова пошлёт человека за ссылкой первым действием.
     expect(ru.Room?.emptyAdd).not.toMatch(/ссылк|магазин/iu);
@@ -554,5 +566,73 @@ describe("три затемнения продукта не перемножаю
     const layers = sceneLayers("dusk", "warm", true, "day");
     expect(layers.filter((layer) => layer === EMPTY_ROOM_VEIL)).toHaveLength(1);
     expect(layers.at(-1)).toEqual(EMPTY_ROOM_VEIL);
+  });
+});
+
+/**
+ * ПОЛОСА СВЕТА ЗОВЁТ СВЕТОМ (тикет 255, пакет 58 → `round58/empty-cta.json`,
+ * турн 64a) — ответ дизайна на «кнопку не хочется нажимать».
+ *
+ * Он отклонил и заливку, и рамку («язык главного действия один на продукт, и
+ * первый экран и есть место, где язык ставится») и усилил тем, чем продукт уже
+ * говорит: кегль, ореол крупнее и его ДЫХАНИЕ — тем же периодом, что дыхание
+ * кадра. Здесь сторожатся ровно эти числа, и каждое читается из контракта:
+ * набьём их сюда — и разойтись с пакетом станет некому.
+ */
+describe("зов светом: кегль, ореол и дыхание полосы (тикет 255, пакет 58)", () => {
+  const contract = JSON.parse(read("../design/package/handoff/round58/empty-cta.json")) as {
+    label: { type: string; now: string };
+    halo: { rest: string; was: string; breathing: { range: string; period: string } };
+  };
+  const css = read("../src/app/globals.css");
+  const ownerPage = read("../src/app/room/page.tsx");
+
+  /** «700 17 Onest (было 15)» → 17. */
+  const typeSize = Number(/\b(\d+)\b(?!.*\b\d+\b)/u.exec(contract.label.type.split("(")[0]!)?.[1]);
+  /** «0 5px 26px -3px rgba(…)» → геометрия без цвета. */
+  const haloGeometry = contract.halo.rest.slice(0, contract.halo.rest.indexOf("rgba")).trim();
+  /** «.38 → .62 (alpha ореола)» → [0.38, 0.62]. */
+  const alphas = (contract.halo.breathing.range.match(/\.\d+/gu) ?? []).map(Number);
+
+  it("кегль полосы — число контракта, а не прежние 15", () => {
+    expect(typeSize).toBe(17);
+    const rule = css.slice(css.indexOf(".imm-rail .imm-empty-cta {"));
+    expect(rule.slice(0, rule.indexOf("}"))).toContain(`font-size: ${typeSize}px`);
+  });
+
+  it("ореол — геометрия контракта и обе альфы размаха", () => {
+    expect(haloGeometry).toBe("0 5px 26px -3px");
+    expect(alphas).toEqual([0.38, 0.62]);
+    // Цвет — АКЦЕНТ КОМНАТЫ, а не rgba контракта: контракт писан на кремовой,
+    // и его rgba это её же акцент (правило проекта: цвет комнаты — данные).
+    // Альфы уезжают шестнадцатеричным хвостом: .38 → 61, .62 → 9E.
+    const hex = (alpha: number) =>
+      Math.round(alpha * 255)
+        .toString(16)
+        .toUpperCase();
+    expect(hex(alphas[0]!)).toBe("61");
+    expect(hex(alphas[1]!)).toBe("9E");
+    expect(ownerPage).toContain(`"--imm-cta-halo-lo": \`${haloGeometry} \${accent}61\``);
+    expect(ownerPage).toContain(`"--imm-cta-halo-hi": \`${haloGeometry} \${accent}9E\``);
+    // Покой равен верхней точке размаха — так написано в `halo.rest`.
+    expect(ownerPage).toContain(`boxShadow: \`${haloGeometry} \${accent}9E\``);
+  });
+
+  it("период дыхания берётся у кадра, а не пишется числом", () => {
+    expect(contract.halo.breathing.period).toMatch(/тот же/iu);
+    expect(ownerPage).toContain("sceneMotion.drift.durationMs.phone");
+    expect(ownerPage).not.toMatch(/--imm-cta-breath-ms": `15000/u);
+  });
+
+  it("дыхание живёт только на пустой сцене и молчит при reduced-motion", () => {
+    expect(css).toContain("animation: imm-empty-cta-breath");
+    expect(css).toContain("@keyframes imm-empty-cta-breath");
+    // Класс полосы стоит ровно на одном экране — иначе «только пустая сцена»
+    // держалось бы честным словом, а не разметкой.
+    const uses = (read("../src/app/room/page.tsx").match(/imm-empty-cta"/gu) ?? []).length;
+    expect(uses).toBe(1);
+    const reduced = css.slice(css.lastIndexOf("@media (prefers-reduced-motion: reduce)"));
+    expect(reduced).toContain(".imm-rail .imm-empty-cta");
+    expect(reduced).toContain("animation: none");
   });
 });

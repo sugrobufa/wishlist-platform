@@ -17,7 +17,14 @@ import {
   zoneSummaryForOwner,
   type ZoneSummaryDto,
 } from "@/server/dto/zone-summary";
-import { MONEY_ZONE_KEY, rooms, zoneInfo, type Room, type RoomZone } from "@/config/design";
+import {
+  MONEY_ZONE_KEY,
+  rooms,
+  sceneMotion,
+  zoneInfo,
+  type Room,
+  type RoomZone,
+} from "@/config/design";
 import { roomImageUrl } from "@/app/rooms/room-image";
 import { SceneStage } from "@/components/scene/SceneStage";
 import { asLightColor, asTimeOfDay, NATIVE_TIME_OF_DAY } from "@/components/scene/grading";
@@ -518,10 +525,36 @@ export default async function RoomPage() {
                     </p>
                     <h2 className="imm-empty-title">{t("emptyTitle")}</h2>
                     <p className="imm-empty-body">{t("emptyBody")}</p>
+                    {/* ПОЛОСА СВЕТА ОСТАЁТСЯ И ЗОВЁТ СВЕТОМ (тикет 255, пакет
+                        58 → `round58/empty-cta.json`, турн 64a). Владелец: «её
+                        не хочется нажимать». Дизайн отклонил и заливку, и
+                        рамку — «язык главного действия один на продукт, и
+                        первый экран и есть место, где язык ставится», — а
+                        усилил тем, чем продукт уже говорит: ореол крупнее и
+                        ДЫШИТ, тем же периодом, что дыхание кадра.
+
+                        ЦВЕТ ОРЕОЛА — АКЦЕНТ КОМНАТЫ, а не rgba контракта:
+                        контракт писан на кремовой комнате, и его
+                        `rgba(231,201,169,…)` — это её же акцент. Числа взяты
+                        все: геометрия 0 5px 26px −3px и альфы .38 → .62 (в
+                        шестнадцатеричном хвосте 61 и 9E). Прежние 0 4px 18px
+                        −3px при .42 — ровно то, что контракт называет «было».
+
+                        ПЕРИОД ДЫХАНИЯ НЕ ЧИСЛОМ: «тот же, что дыхание кадра» —
+                        значит берём его оттуда же, из `motion.json`. Второй
+                        правды о 15 секундах не заводим. */}
                     <Link
                       href="/room/add"
                       className="pressable imm-empty-cta"
-                      style={{ borderColor: accent, boxShadow: `0 4px 18px -3px ${accent}6B` }}
+                      style={
+                        {
+                          borderColor: accent,
+                          boxShadow: `0 5px 26px -3px ${accent}9E`,
+                          "--imm-cta-halo-lo": `0 5px 26px -3px ${accent}61`,
+                          "--imm-cta-halo-hi": `0 5px 26px -3px ${accent}9E`,
+                          "--imm-cta-breath-ms": `${sceneMotion.drift.durationMs.phone}ms`,
+                        } as CSSProperties
+                      }
                     >
                       <span className="imm-empty-cta-label">{t("emptyAdd")}</span>
                       {/* Стрелка типографская, а не знак набора: ровно так же
