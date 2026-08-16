@@ -36,7 +36,11 @@ describe("250 — хозяин узнаёт о запрете до формы", 
     expect(CONTEXT).toContain("isOwner: boolean;");
     expect(CONTEXT).toContain("setIsOwner(data.isOwner === true);");
     // В зависимостях useMemo — иначе экран не перерисуется, когда флаг приедет.
-    expect(CONTEXT).toMatch(/\[taken, mine, myBookingsCount, signedIn, isOwner,/u);
+    // Список деп смотрим как список, а не как строку: с тикетом 253 в нём
+    // прибавился `hasOwnRoom`, строка перевалила за 100 и prettier разложил её
+    // по одной депе на строку. Сторожим ПРИСУТСТВИЕ флага в списке — набор в
+    // одну строку тут ничего не значит.
+    expect(CONTEXT).toMatch(/\}\),\s*\[[\s\S]*?\bisOwner,[\s\S]*?\],\s*\);/u);
   });
 
   it("диалог показывает объяснение ВМЕСТО формы, а не после неё", () => {

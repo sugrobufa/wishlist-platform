@@ -38,6 +38,17 @@ export type GuestBookingState = {
    */
   hallOpen: boolean;
   /**
+   * У вошедшего зрителя есть СВОЯ комната (тикет 253). Приезжает тем же
+   * некэшируемым каналом: страница /r/{slug} сессии не читает (ISR), а канал
+   * может. По нему третье место гостевого бара переключается с «Собрать свою»
+   * на дорогу домой — на `/room`, без имени и чужого слага.
+   *
+   * До ответа канала — `false`, то есть «Собрать свою», как было до тикета:
+   * гостей без комнаты большинство, а призыв последнего экрана воронки не
+   * имеет права мигнуть и пропасть (тикет 247).
+   */
+  hasOwnRoom: boolean;
+  /**
    * Сколько вещей ЭТОЙ комнаты гость занял прямо сейчас, за этот заход.
    * Приветствие вычитает это число из «сколько подарков ещё свободно»: сам
    * счётчик посчитан при рендере, а страница кэшируется (ISR 300 с) — без
@@ -66,6 +77,7 @@ export function GuestBookingProvider({ slug, children }: { slug: string; childre
   const [signedIn, setSignedIn] = useState(false);
   const [isOwner, setIsOwner] = useState(false);
   const [hallOpen, setHallOpen] = useState(false);
+  const [hasOwnRoom, setHasOwnRoom] = useState(false);
   const [bookedNow, setBookedNow] = useState(0);
 
   useEffect(() => {
@@ -98,6 +110,7 @@ export function GuestBookingProvider({ slug, children }: { slug: string; childre
                   isOwner?: unknown;
                   signedIn?: unknown;
                   hallOpen?: unknown;
+                  hasOwnRoom?: unknown;
                 };
               })
                 .data
@@ -109,6 +122,7 @@ export function GuestBookingProvider({ slug, children }: { slug: string; childre
         setIsOwner(data.isOwner === true);
         setSignedIn(data.signedIn === true);
         setHallOpen(data.hallOpen === true);
+        setHasOwnRoom(data.hasOwnRoom === true);
       } catch {
         // Тихо: без канала «занято» комната остаётся смотрибельной,
         // а сервер всё равно не даст занять уже занятое (P2002 → 409).
@@ -136,11 +150,23 @@ export function GuestBookingProvider({ slug, children }: { slug: string; childre
       signedIn,
       isOwner,
       hallOpen,
+      hasOwnRoom,
       bookedNow,
       markBooked,
       markTaken,
     }),
-    [taken, mine, myBookingsCount, signedIn, isOwner, hallOpen, bookedNow, markBooked, markTaken],
+    [
+      taken,
+      mine,
+      myBookingsCount,
+      signedIn,
+      isOwner,
+      hallOpen,
+      hasOwnRoom,
+      bookedNow,
+      markBooked,
+      markTaken,
+    ],
   );
 
   return <GuestBookingContext.Provider value={value}>{children}</GuestBookingContext.Provider>;

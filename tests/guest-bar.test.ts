@@ -3,7 +3,18 @@ import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 
 const BAR = readFileSync(resolve(process.cwd(), "src/app/r/[slug]/guest-bar.tsx"), "utf8");
+// Третье место бара уехало отсюда в свой клиентский кусок (тикет 253): развилка
+// «есть ли у зрителя своя комната» зависит от того, кто смотрит, а страница
+// кэшируется целиком. Читаем оба файла — иначе тест сторожит половину места.
+const THIRD = readFileSync(
+  resolve(process.cwd(), "src/app/r/[slug]/guest-bar-own-room.tsx"),
+  "utf8",
+);
 const PAGE = readFileSync(resolve(process.cwd(), "src/app/r/[slug]/page.tsx"), "utf8");
+const CONTEXT = readFileSync(
+  resolve(process.cwd(), "src/app/r/[slug]/booking/booking-context.tsx"),
+  "utf8",
+);
 
 /**
  * 247 — ПРИЗЫВ «СОБРАТЬ СВОЮ» ДОСТИЖИМ.
@@ -21,12 +32,16 @@ describe("247 — гостевой бар", () => {
   });
 
   it("призыв стоит третьим местом бара со знаком плюс", () => {
-    expect(BAR).toContain('tGuest("cta")');
-    expect(BAR).toContain("<IconPlus size={22}");
+    // Само место с тикета 253 живёт в `guest-bar-own-room.tsx`, но остаётся
+    // третьим местом ЭТОГО бара — бар его и рисует.
+    expect(BAR).toContain("<GuestBarOwnRoom />");
+    expect(THIRD).toContain('t("cta")');
+    expect(THIRD).toContain("<IconPlus size={22}");
     // `ctaHint` в бар не едет — там место названию (турн 61d). Проверяем
     // ВЫЗОВ, а не слово: в шапке файла оно стоит в разборе, и запрет на слово
     // запрещал бы объяснять решение.
     expect(BAR).not.toMatch(/t\w*\("ctaHint"\)/u);
+    expect(THIRD).not.toMatch(/t\w*\("ctaHint"\)/u);
   });
 
   it("«Добавить» у гостя нет — в чужую комнату вещь не положишь", () => {
@@ -65,5 +80,57 @@ describe("247 — гостевой бар", () => {
 
   it("бар берёт стили общей полосы, а не заводит свои числа", () => {
     expect(BAR).toContain('from "@/components/tab-bar/tab-bar.module.css"');
+  });
+});
+
+/**
+ * 253 — У ГОСТЯ СО СВОЕЙ КОМНАТОЙ ЕСТЬ ДОРОГА ДОМОЙ.
+ *
+ * Приёмка 16.08.2026: «если я просматриваю страницу в качестве гостя и допустим
+ * имею свою страницу, то как мне это увидеть на странице гостя и быстро перейти
+ * к себе?». Третье место звало «Собрать свою» ВСЕГДА — человеку с готовой
+ * комнатой продукт предлагал собрать её заново.
+ */
+describe("253 — третье место бара переключается", () => {
+  it("развилка идёт по каналу «занято», а не по пропу страницы", () => {
+    // Иначе развилку пришлось бы считать на сервере — и страница начала бы
+    // читать сессию, потеряв кэшируемость целиком (инвариант №7).
+    expect(THIRD).toContain("useGuestBooking");
+    expect(THIRD).toContain("hasOwnRoom");
+    expect(CONTEXT).toContain("hasOwnRoom");
+    // Проп бару не заводился: у сервера этого ответа нет и быть не может.
+    expect(BAR).not.toContain("hasOwnRoom");
+  });
+
+  it("нет своей комнаты — «Собрать свою» на /, есть — дорога домой на /room", () => {
+    expect(THIRD).toMatch(/href="\/"[\s\S]{0,120}t\("cta"\)/u);
+    expect(THIRD).toMatch(/href="\/room"[\s\S]{0,160}t\("ctaMine"\)/u);
+    // Ни имени, ни чужого слага: домой ведёт постоянный адрес, а свой адрес
+    // зритель знает сам (тикет 253, инвариант №4 не задет).
+    expect(THIRD).not.toMatch(/\/r\/\$\{/u);
+  });
+
+  it("ЗНАК ПЛЮС ОСТАЁТСЯ ТОЛЬКО У ПРИЗЫВА — плюс обещает новое", () => {
+    // У дороги домой он был бы ложью: комната уже собрана. Знак комнаты берётся
+    // из набора — своих глифов в интерфейсе не бывает (icons.tsx).
+    expect(THIRD).toContain('from "@/components/icons"');
+    expect(THIRD).not.toContain("<svg");
+    expect(THIRD).toMatch(/href="\/room"[\s\S]{0,160}<IconRoom/u);
+    expect(THIRD).not.toMatch(/href="\/room"[\s\S]{0,160}<IconPlus/u);
+  });
+
+  it("канал у бара ОДИН и тот же — второго запроса «занято» на экране нет", () => {
+    // Бар переехал внутрь уже существующего провайдера страницы. Свой второй
+    // завёл бы второй запрос того же канала на тот же экран (тикет 129).
+    expect(PAGE).toMatch(/<GuestBookingProvider[\s\S]*<GuestBar[\s\S]*<\/GuestBookingProvider>/u);
+    expect(PAGE.match(/<GuestBookingProvider/gu)?.length).toBe(1);
+  });
+
+  it("страница по-прежнему не читает сессию — кэшируемость цела", () => {
+    // Ради развилки её тронуть нельзя ни одним полем: HTML одинаков для всех,
+    // личное приезжает каналом (инвариант №7, шапка page.tsx).
+    expect(PAGE).toContain("export const revalidate = 300;");
+    expect(PAGE).not.toMatch(/from "@\/server\/auth"/u);
+    expect(PAGE).not.toMatch(/\bcookies\(\)/u);
   });
 });

@@ -14,10 +14,17 @@
 //                 mine: string[]      — какие из них заняты ЭТИМ гостем (по его cookie);
 //                 myBookingsCount: number — всего живых броней гостя, для «Мои подарки · N»;
 //                 signedIn: boolean   — зритель вошёл (вопрос «остаться в связях?», тикет 98b);
+//                 isOwner: boolean    — зритель — хозяин ЭТОЙ комнаты (тикет 250);
 //                 hallOpen: boolean   — витрина открыта ЭТОМУ зрителю (тикет 116, ADR-0011):
 //                                       по нему рисуется вход «Сокровищница» при положении
-//                                       «только взаимным друзьям» } }
-//   200 { data: { itemIds: [], mine: [], myBookingsCount: 0, hallOpen: true } } — хозяйке этой комнаты
+//                                       «только взаимным друзьям»;
+//                 hasOwnRoom: boolean — у вошедшего зрителя есть СВОЯ комната (тикет 253):
+//                                       по нему третье место гостевого бара переключается
+//                                       с «Собрать свою» на дорогу домой. Ровно булево —
+//                                       ни имени, ни чужого слага: дорога ведёт на /room } }
+//   200 { data: { itemIds: [], mine: [], myBookingsCount: 0,
+//                 signedIn: true, isOwner: true, hallOpen: true, hasOwnRoom: true } }
+//                 — хозяйке этой комнаты
 //   404 { error } — неизвестный слаг. Всегда Cache-Control: no-store.
 import { NextResponse, type NextRequest } from "next/server";
 import { getSessionUserId } from "@/server/services/rooms";

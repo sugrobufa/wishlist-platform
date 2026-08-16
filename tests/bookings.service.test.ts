@@ -337,6 +337,10 @@ describe("takenForRoomSlug — хозяйке своей комнаты кана
       // поле с бронями — тест упадёт, и это его работа.
       isOwner: true,
       hallOpen: true,
+      // Тикет 253: у хозяина ЭТОЙ комнаты своя комната есть по определению —
+      // третье место бара ведёт его домой, а не в регистрацию. Про брони это
+      // не говорит ничего, пустота ответа цела.
+      hasOwnRoom: true,
     });
   });
 
@@ -372,6 +376,10 @@ describe("takenForRoomSlug — хозяйке своей комнаты кана
       // поле с бронями — тест упадёт, и это его работа.
       isOwner: true,
       hallOpen: true,
+      // Тикет 253: у хозяина ЭТОЙ комнаты своя комната есть по определению —
+      // третье место бара ведёт его домой, а не в регистрацию. Про брони это
+      // не говорит ничего, пустота ответа цела.
+      hasOwnRoom: true,
     });
   });
 
@@ -409,6 +417,67 @@ describe("takenForRoomSlug — хозяйке своей комнаты кана
 
     const loggedOut = await takenForRoomSlug(room.shareSlug, []);
     expect(loggedOut?.itemIds).toEqual([item.id]);
+  });
+});
+
+// Тикет 253 (приёмка 16.08.2026): «если я просматриваю страницу в качестве
+// гостя и допустим имею свою страницу, то как мне это увидеть на странице гостя
+// и быстро перейти к себе?». Третье место гостевого бара звало «Собрать свою» и
+// вело на первый экран воронки ВСЕГДА — даже у того, у кого комната уже есть.
+// Развилка живёт в ЭТОМ канале, потому что страница /r/{slug} кэшируется целиком
+// и сессии не читает (инвариант №7): в HTML её быть не может.
+describe("takenForRoomSlug — hasOwnRoom: есть ли своя комната у ЗРИТЕЛЯ", () => {
+  it("аноним · вошедший без комнаты · вошедший со своей — false, false, true", async () => {
+    const room = await createTestRoom();
+    // Человек без комнаты: вошёл, но до сборки своей ещё не дошёл — призыв
+    // «Собрать свою» для него остаётся правдой.
+    const roomless = await prisma.user.create({
+      data: { email: `roomless-${randomUUID()}${TEST_EMAIL_DOMAIN}` },
+    });
+    const neighbor = await createTestRoom();
+
+    const hasOwnRoom = async (viewerUserId: string | null) =>
+      (await takenForRoomSlug(room.shareSlug, [], { viewerUserId }))?.hasOwnRoom;
+
+    // Аноним — базу не тревожит и домой не зовётся: комнаты у него быть не
+    // может. «Сессии нет вовсе» отвечает так же, как явный null.
+    expect(await hasOwnRoom(null)).toBe(false);
+    expect((await takenForRoomSlug(room.shareSlug, []))?.hasOwnRoom).toBe(false);
+
+    expect(await hasOwnRoom(roomless.id)).toBe(false);
+
+    // Вошёл, и комната есть — третьему месту бара пора вести домой, на /room.
+    expect(await hasOwnRoom(neighbor.userId)).toBe(true);
+
+    // Мусорный userId ничего не открывает и не ломает — как и у соседних веток.
+    expect(await hasOwnRoom("no-such-user")).toBe(false);
+  });
+
+  it("хозяину ЭТОЙ комнаты — тоже true: ему домой тем более (тикеты 250 и 253)", async () => {
+    // Ему уже сказано «это твоя комната, себе подарить нельзя» (250), и звать
+    // его после этого в регистрацию — вторая ложь на том же экране.
+    const room = await createTestRoom();
+    const forOwner = await takenForRoomSlug(room.shareSlug, [], { viewerUserId: room.userId });
+
+    expect(forOwner?.isOwner).toBe(true);
+    expect(forOwner?.hasOwnRoom).toBe(true);
+  });
+
+  it("наружу уходит РОВНО булево: ни имени зрителя, ни слага его комнаты", async () => {
+    // Дорога домой ведёт на /room, и свой адрес зритель знает сам. Инвариант №4
+    // («друзья не добавляются») держится ровно этим: о комнате зрителя канал не
+    // рассказывает ничего, кроме факта её существования.
+    const room = await createTestRoom();
+    const viewer = await createTestRoom({ displayName: "Соседка" });
+
+    const result = await takenForRoomSlug(room.shareSlug, [], { viewerUserId: viewer.userId });
+
+    expect(result?.hasOwnRoom).toBe(true);
+    expect(typeof result?.hasOwnRoom).toBe("boolean");
+    const serialized = JSON.stringify(result);
+    expect(serialized).not.toContain(viewer.shareSlug);
+    expect(serialized).not.toContain(viewer.userId);
+    expect(serialized).not.toMatch(/Соседка/);
   });
 });
 
