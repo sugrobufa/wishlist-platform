@@ -314,15 +314,28 @@ test("полный цикл дарения: хозяйка → гость → с
     // ТРИ НОЧИ ПОДРЯД, и первым же шагом сценария, то есть весь полный цикл эти
     // ночи не проверялся вовсе. Переименование строки не должно ронять сценарий
     // молча: берём имя оттуда же, откуда его берёт экран.
-    await hostessPage.getByRole("button", { name: ru.Onboarding.setLabelALL }).click();
+    // Имя — РЕГУЛЯРКОЙ, а не строкой: доступное имя плитки склеено из трёх её
+    // текстов («Все десять» + описание + «10 комнат»), и точное совпадение по
+    // строке не сработает никогда. Первый прогон 16.08 это и показал — падение
+    // осталось на том же месте.
+    await hostessPage
+      .getByRole("button", { name: new RegExp(ru.Onboarding.setLabelALL) })
+      .click();
     await hostessPage.getByRole("button", { name: /Дерзкая/ }).click();
     await hostessPage.getByRole("button", { name: /Дальше/ }).click();
     // Третий, последний шаг — дата праздника (тикет 43). Дальше по сценарию
     // праздник закрывается ВРУЧНУЮ, поэтому здесь осознанный пропуск: комната
     // заводится без даты, как и до появления шага.
-    await expect(hostessPage.getByRole("heading", { name: "Когда праздник?" })).toBeVisible();
+    // Заголовок и кнопка пропуска — тоже из словаря. Здесь стояло «Когда
+    // праздник?», а шаг давно спрашивает «Когда твой день рождения?»: вторая
+    // мина той же породы, что и плитка набора, и она ждала сразу за ней.
+    await expect(
+      hostessPage.getByRole("heading", { name: ru.Onboarding.occasionTitle }),
+    ).toBeVisible();
     await expect(hostessPage.getByText("Шаг 3 из 3")).toBeVisible();
-    await hostessPage.getByRole("button", { name: /Пока не знаю/ }).click();
+    await hostessPage
+      .getByRole("button", { name: new RegExp(ru.Onboarding.occasionSkip) })
+      .click();
     await hostessPage.waitForURL(/\/room$/);
     await expect(hostessPage.getByRole("heading", { name: "Дерзкая" })).toBeVisible();
   });
