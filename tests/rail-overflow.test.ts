@@ -145,6 +145,12 @@ describe("чего починка НЕ сделала", () => {
     const [body] = bodies(globalsCss, ".imm-empty-body");
     expect(title).toMatch(/font-size:\s*22px/u);
     expect(body).toMatch(/font-size:\s*12\.5px/u);
-    expect(bodies(globalsCss, ".imm-empty-start")[0]).toMatch(/gap:\s*10px/u);
+    // Просветов у блока три, и они РАЗНЫЕ (тикет 255, `round44/empty-room.json`
+    // → `fit.breakdown`): общего `gap` тут больше нет, а сами числа стережёт
+    // tests/empty-room-first-screen.test.ts — читая их из контракта, а не из
+    // второй копии здесь. Запрет тикета 188 от этого не ослаб: блок ВЫРОС на
+    // 14 px (кнопка недобирала 12), а уменьшить его снова проще всего именно
+    // возвратом одного общего числа на все три просвета.
+    expect(bodies(globalsCss, ".imm-empty-start")[0]).not.toMatch(/gap:/u);
   });
 });
